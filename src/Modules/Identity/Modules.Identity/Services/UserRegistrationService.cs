@@ -345,8 +345,8 @@ internal sealed class UserRegistrationService(
         string code = await userManager.GenerateEmailConfirmationTokenAsync(user);
         code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
 
-        // The SPA confirm-email page (which then calls the API) on the front-end the user registered from;
-        // `origin` is the resolved front-end origin.
+        // Point at the SPA confirm-email page on the front-end the user registered from, which in turn
+        // calls the API. The origin argument is the already-resolved front-end origin.
         const string route = "confirm-email";
         var endpointUri = new Uri(string.Concat($"{origin.TrimEnd('/')}/", route));
 
