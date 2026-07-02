@@ -133,6 +133,8 @@ public sealed class FshWebApplicationFactory : WebApplicationFactory<Program>, I
                 ["JwtOptions:RefreshTokenDays"] = "7",
                 ["OriginOptions:OriginUrl"] = "http://localhost",
                 ["CorsOptions:AllowedOrigins:0"] = "http://localhost",
+                ["CorsOptions:AllowedOrigins:1"] = "http://localhost:5173",
+                ["CorsOptions:AllowedOrigins:2"] = "http://localhost:5174",
                 ["OpenTelemetryOptions:Enabled"] = "false",
                 ["EventingOptions:UseHostedServiceDispatcher"] = "false",
                 ["Serilog:MinimumLevel:Default"] = "Warning",
