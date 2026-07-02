@@ -1,3 +1,4 @@
+using System.Net;
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Core.Exceptions;
 using FSH.Framework.Eventing.Abstractions;
@@ -255,9 +256,16 @@ public sealed class BillingService : IBillingService
                     wallet = Wallet.Create(invoice.TenantId, invoice.Currency);
                     _db.Wallets.Add(wallet);
                 }
+                else if (!string.Equals(wallet.Currency, invoice.Currency, StringComparison.Ordinal))
+                {
+                    throw new CustomException(
+                        $"Cannot credit a {invoice.Currency} top-up to a {wallet.Currency} wallet.",
+                        (IEnumerable<string>?)null,
+                        HttpStatusCode.Conflict);
+                }
 
                 wallet.Credit(
-                    invoice.SubtotalAmount.Amount,
+                    invoice.SubtotalAmount,
                     WalletTransactionKind.Topup,
                     "WhatsApp wallet top-up",
                     topupRequest.Id.ToString());

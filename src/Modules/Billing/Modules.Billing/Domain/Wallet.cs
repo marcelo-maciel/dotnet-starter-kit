@@ -31,26 +31,27 @@ public sealed class Wallet : AggregateRoot<Guid>
         };
     }
 
-    public WalletTransaction Credit(decimal amount, WalletTransactionKind kind, string description, string? referenceId)
+    public WalletTransaction Credit(Money amount, WalletTransactionKind kind, string description, string? referenceId)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(amount, 0m);
-        var credit = new Money(amount, Balance.Currency);
-        var tx = WalletTransaction.Create(Id, TenantId, credit, kind, description, referenceId);
+        ArgumentNullException.ThrowIfNull(amount);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(amount.Amount, 0m);
+        var tx = WalletTransaction.Create(Id, TenantId, amount, kind, description, referenceId);
         _transactions.Add(tx);
-        Balance = Balance.Add(credit);
+        Balance = Balance.Add(amount);
         UpdatedAtUtc = DateTime.UtcNow;
         return tx;
     }
 
-    public WalletTransaction Debit(decimal amount, WalletTransactionKind kind, string description, string? referenceId)
+    public WalletTransaction Debit(Money amount, WalletTransactionKind kind, string description, string? referenceId)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(amount, 0m);
-        if (amount > Balance.Amount)
+        ArgumentNullException.ThrowIfNull(amount);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(amount.Amount, 0m);
+        var remaining = Balance.Subtract(amount);
+        if (remaining.Amount < 0m)
             throw new InvalidOperationException("Insufficient wallet balance.");
-        var debit = new Money(amount, Balance.Currency);
-        var tx = WalletTransaction.Create(Id, TenantId, new Money(-amount, Balance.Currency), kind, description, referenceId);
+        var tx = WalletTransaction.Create(Id, TenantId, amount with { Amount = -amount.Amount }, kind, description, referenceId);
         _transactions.Add(tx);
-        Balance = Balance.Subtract(debit);
+        Balance = remaining;
         UpdatedAtUtc = DateTime.UtcNow;
         return tx;
     }
