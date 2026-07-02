@@ -20,7 +20,7 @@ public sealed class ForgotPasswordCommandHandler : ICommandHandler<ForgotPasswor
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        // The reset link must land on the SPA that made the request, not the API host.
+        // The reset link must land on the SPA that made the request.
         var origin = _originResolver.FrontendOrigin();
 
         await _userService.ForgotPasswordAsync(command.Email, origin, cancellationToken).ConfigureAwait(false);
