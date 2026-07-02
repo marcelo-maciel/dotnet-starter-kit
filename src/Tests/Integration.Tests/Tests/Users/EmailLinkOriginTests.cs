@@ -37,7 +37,9 @@ public sealed class EmailLinkOriginTests
             await Task.Delay(150);
         }
 
-        throw new Xunit.Sdk.XunitException("Expected e-mail was not captured within the timeout.");
+        var captured = string.Join(" | ", mail.Sent.Select(m => $"[{m.Subject} -> {string.Join(",", m.To)}]"));
+        throw new Xunit.Sdk.XunitException(
+            $"Expected e-mail was not captured within the timeout. Captured: {(captured.Length == 0 ? "(none)" : captured)}");
     }
 
     [Fact]
@@ -59,7 +61,7 @@ public sealed class EmailLinkOriginTests
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         // Assert - the rendered e-mail links to the :5174 SPA reset page with the required params.
-        var mail = await WaitForMailAsync(Mail, m => m.To.Contains(user.Email));
+        var mail = await WaitForMailAsync(Mail, m => m.To.Contains(user.Email) && m.Subject == "Reset Password");
         var body = mail.Body.ShouldNotBeNull();
         body.ShouldContain("http://localhost:5174/reset-password");
         body.ShouldContain($"tenant={TestConstants.RootTenantId}");
@@ -85,7 +87,7 @@ public sealed class EmailLinkOriginTests
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         // Assert
-        var mail = await WaitForMailAsync(Mail, m => m.To.Contains(user.Email));
+        var mail = await WaitForMailAsync(Mail, m => m.To.Contains(user.Email) && m.Subject == "Reset Password");
         mail.Body.ShouldNotBeNull().ShouldContain("http://localhost:5173/reset-password");
     }
 
@@ -112,8 +114,8 @@ public sealed class EmailLinkOriginTests
         });
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
 
-        // Assert - confirmation e-mail links to the SPA confirm-email page, not the API route.
-        var mail = await WaitForMailAsync(Mail, m => m.To.Contains(email));
+        // Assert - the confirmation e-mail (not the welcome e-mail) links to the SPA confirm-email page.
+        var mail = await WaitForMailAsync(Mail, m => m.To.Contains(email) && m.Subject == "Confirm Your Email Address");
         var body = mail.Body.ShouldNotBeNull();
         body.ShouldContain("http://localhost:5174/confirm-email");
         body.ShouldContain("userId=");
