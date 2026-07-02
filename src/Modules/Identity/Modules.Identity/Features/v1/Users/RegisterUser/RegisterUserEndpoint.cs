@@ -2,6 +2,7 @@ using FSH.Modules.Identity.Contracts.Authorization;
 using FSH.Framework.Shared.Identity.Authorization;
 using FSH.Framework.Web.Idempotency;
 using FSH.Modules.Identity.Contracts.v1.Users.RegisterUser;
+using FSH.Modules.Identity.Services;
 using Mediator;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -14,12 +15,12 @@ public static class RegisterUserEndpoint
     internal static RouteHandlerBuilder MapRegisterUserEndpoint(this IEndpointRouteBuilder endpoints)
     {
         return endpoints.MapPost("/register", async (RegisterUserCommand command,
-            HttpContext context,
+            IOriginResolver originResolver,
             IMediator mediator,
             CancellationToken cancellationToken) =>
         {
-            var origin = $"{context.Request.Scheme}://{context.Request.Host.Value}{context.Request.PathBase.Value}";
-            command.Origin = origin;
+            // The confirmation link lands on the SPA that made the request; resolved from the Origin header.
+            command.Origin = originResolver.FrontendOrigin();
             var result = await mediator.Send(command, cancellationToken);
             return TypedResults.Created($"/api/v1/identity/users/{result.UserId}", result);
         })

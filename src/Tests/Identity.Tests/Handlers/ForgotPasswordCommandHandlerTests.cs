@@ -1,9 +1,8 @@
 using AutoFixture;
-using FSH.Framework.Web.Origin;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Contracts.v1.Users.ForgotPassword;
 using FSH.Modules.Identity.Features.v1.Users.ForgotPassword;
-using Microsoft.Extensions.Options;
+using FSH.Modules.Identity.Services;
 using NSubstitute;
 using Shouldly;
 using Xunit;
@@ -13,44 +12,45 @@ namespace Identity.Tests.Handlers;
 public sealed class ForgotPasswordCommandHandlerTests
 {
     private readonly IUserService _userService;
-    private readonly IOptions<OriginOptions> _originOptions;
+    private readonly IOriginResolver _originResolver;
     private readonly ForgotPasswordCommandHandler _sut;
     private readonly IFixture _fixture;
 
     public ForgotPasswordCommandHandlerTests()
     {
         _userService = Substitute.For<IUserService>();
-        _originOptions = Substitute.For<IOptions<OriginOptions>>();
-        _sut = new ForgotPasswordCommandHandler(_userService, _originOptions);
+        _originResolver = Substitute.For<IOriginResolver>();
+        _sut = new ForgotPasswordCommandHandler(_userService, _originResolver);
         _fixture = new Fixture();
     }
 
     [Fact]
-    public async Task Handle_Should_CallForgotPasswordAsync_When_ValidRequest()
+    public async Task Handle_Should_CallForgotPasswordAsync_With_ResolvedFrontendOrigin()
     {
         // Arrange
         var command = _fixture.Create<ForgotPasswordCommand>();
-        var originUrl = "https://test.com";
-        _originOptions.Value.Returns(new OriginOptions { OriginUrl = new Uri(originUrl) });
+        const string origin = "https://app.example.com";
+        _originResolver.FrontendOrigin().Returns(origin);
 
         // Act
         var result = await _sut.Handle(command, CancellationToken.None);
 
         // Assert
         result.ShouldBe("Password reset email sent.");
-        await _userService.Received(1).ForgotPasswordAsync(command.Email, Arg.Is<string>(s => s.StartsWith(originUrl)), Arg.Any<CancellationToken>());
+        await _userService.Received(1).ForgotPasswordAsync(command.Email, origin, Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Handle_Should_ThrowInvalidOperationException_When_OriginNotConfigured()
+    public async Task Handle_Should_Propagate_When_OriginResolverThrows()
     {
-        // Arrange
+        // Arrange - a request without an allow-listed Origin header cannot build a reset link.
         var command = _fixture.Create<ForgotPasswordCommand>();
-        _originOptions.Value.Returns(new OriginOptions { OriginUrl = null });
+        _originResolver.FrontendOrigin().Returns(_ => throw new InvalidOperationException("no origin"));
 
         // Act & Assert
         await Should.ThrowAsync<InvalidOperationException>(async () =>
             await _sut.Handle(command, CancellationToken.None));
+        await _userService.DidNotReceive().ForgotPasswordAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -66,14 +66,13 @@ public sealed class ForgotPasswordCommandHandlerTests
     {
         // Arrange
         var command = _fixture.Create<ForgotPasswordCommand>();
-        var originUrl = "https://test.com";
-        _originOptions.Value.Returns(new OriginOptions { OriginUrl = new Uri(originUrl) });
+        _originResolver.FrontendOrigin().Returns("https://app.example.com");
         using var cts = new CancellationTokenSource();
 
         // Act
         await _sut.Handle(command, cts.Token);
 
         // Assert
-        await _userService.Received(1).ForgotPasswordAsync(command.Email, Arg.Is<string>(s => s.StartsWith(originUrl)), cts.Token);
+        await _userService.Received(1).ForgotPasswordAsync(command.Email, Arg.Any<string>(), cts.Token);
     }
 }

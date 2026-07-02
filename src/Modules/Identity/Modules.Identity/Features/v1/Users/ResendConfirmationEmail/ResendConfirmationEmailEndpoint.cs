@@ -1,6 +1,7 @@
 using FSH.Framework.Shared.Identity.Authorization;
 using FSH.Modules.Identity.Contracts.Authorization;
 using FSH.Modules.Identity.Contracts.v1.Users.ResendConfirmationEmail;
+using FSH.Modules.Identity.Services;
 using Mediator;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -26,12 +27,12 @@ public static class ResendConfirmationEmailEndpoint
 
     private static async Task<NoContent> Handler(
         Guid id,
-        HttpContext context,
+        IOriginResolver originResolver,
         IMediator mediator,
         CancellationToken cancellationToken)
     {
-        // Build the confirmation-link base URL from the request, same as the registration endpoint.
-        var origin = $"{context.Request.Scheme}://{context.Request.Host.Value}{context.Request.PathBase.Value}";
+        // The confirmation link lands on the SPA that made the request; resolved from the Origin header.
+        var origin = originResolver.FrontendOrigin();
         await mediator.Send(new ResendConfirmationEmailCommand(id.ToString(), origin), cancellationToken);
         return TypedResults.NoContent();
     }

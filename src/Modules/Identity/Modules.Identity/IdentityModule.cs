@@ -95,6 +95,7 @@ public class IdentityModule : IModule
         services.AddScoped<ICurrentUserInitializer>(sp => sp.GetRequiredService<ICurrentUserService>());
         services.AddScoped<IRequestContextService, RequestContextService>();
         services.AddScoped<IRequestContext>(sp => sp.GetRequiredService<IRequestContextService>());
+        services.AddScoped<IOriginResolver, OriginResolver>();
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<IImpersonationGrantService, ImpersonationGrantService>();
 
