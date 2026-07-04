@@ -260,7 +260,7 @@ public sealed class BillingService : IBillingService
                 {
                     throw new CustomException(
                         $"Cannot credit a {invoice.Currency} top-up to a {wallet.Currency} wallet.",
-                        (IEnumerable<string>?)null,
+                        errors: null,
                         HttpStatusCode.Conflict);
                 }
 

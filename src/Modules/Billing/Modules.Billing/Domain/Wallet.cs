@@ -35,9 +35,13 @@ public sealed class Wallet : AggregateRoot<Guid>
     {
         ArgumentNullException.ThrowIfNull(amount);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(amount.Amount, 0m);
+        // Validate currency before touching the aggregate: Money.Add throws on a
+        // mismatch, so computing the new balance first keeps a rejected credit from
+        // leaving a phantom ledger row behind.
+        var newBalance = Balance.Add(amount);
         var tx = WalletTransaction.Create(Id, TenantId, amount, kind, description, referenceId);
         _transactions.Add(tx);
-        Balance = Balance.Add(amount);
+        Balance = newBalance;
         UpdatedAtUtc = DateTime.UtcNow;
         return tx;
     }
@@ -49,7 +53,7 @@ public sealed class Wallet : AggregateRoot<Guid>
         var remaining = Balance.Subtract(amount);
         if (remaining.Amount < 0m)
             throw new InvalidOperationException("Insufficient wallet balance.");
-        var tx = WalletTransaction.Create(Id, TenantId, amount with { Amount = -amount.Amount }, kind, description, referenceId);
+        var tx = WalletTransaction.Create(Id, TenantId, amount.Multiply(-1m), kind, description, referenceId);
         _transactions.Add(tx);
         Balance = remaining;
         UpdatedAtUtc = DateTime.UtcNow;

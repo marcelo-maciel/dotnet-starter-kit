@@ -42,6 +42,22 @@ public sealed class WalletTests
         var w = Wallet.Create("tenant-a", "USD");
         Should.Throw<InvalidOperationException>(
             () => w.Credit(new Money(50m, "EUR"), WalletTransactionKind.Topup, "Top-up", null));
+        // The rejected credit must leave the aggregate untouched — no phantom
+        // ledger row, balance still zero.
+        w.Transactions.ShouldBeEmpty();
+        w.Balance.Amount.ShouldBe(0m);
+    }
+
+    [Fact]
+    public void Debit_rejects_currency_mismatch()
+    {
+        var w = Wallet.Create("tenant-a", "USD");
+        w.Credit(new Money(50m, "USD"), WalletTransactionKind.Topup, "Top-up", null);
+        Should.Throw<InvalidOperationException>(
+            () => w.Debit(new Money(10m, "EUR"), WalletTransactionKind.MessageCharge, "msg", null));
+        // Only the opening credit survives; the mismatched debit adds nothing.
+        w.Transactions.Count.ShouldBe(1);
+        w.Balance.Amount.ShouldBe(50m);
     }
 
     [Fact]
