@@ -8,6 +8,7 @@ using FSH.Framework.Web.Auth;
 using FSH.Framework.Web.Cors;
 using FSH.Framework.Web.Exceptions;
 using FSH.Framework.Web.FeatureFlags;
+using FSH.Framework.Web.Frontend;
 using FSH.Framework.Web.Idempotency;
 using FSH.Framework.Web.Sse;
 using FSH.Framework.Web.Health;
@@ -134,6 +135,18 @@ public static class Extensions
         builder.Services.AddProblemDetails();
         builder.Services.AddOptions<OriginOptions>().BindConfiguration(nameof(OriginOptions));
         builder.Services.AddOptions<SecurityHeadersOptions>().BindConfiguration(nameof(SecurityHeadersOptions));
+
+        // Front-end origin resolution for user-facing links in e-mails/notifications. Validated at
+        // startup so a deployment missing both the allow-list and the default fails loud on boot
+        // rather than 500-ing (or shipping empty links) on the first password-reset request.
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddOptions<FrontendOptions>()
+            .BindConfiguration(nameof(FrontendOptions))
+            .Validate(
+                o => o.AllowedOrigins.Length > 0 || !string.IsNullOrWhiteSpace(o.DefaultOrigin),
+                "FrontendOptions requires AllowedOrigins or DefaultOrigin to be configured.")
+            .ValidateOnStart();
+        builder.Services.AddScoped<IFrontendOriginResolver, FrontendOriginResolver>();
 
         return builder;
     }

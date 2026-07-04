@@ -133,6 +133,11 @@ public sealed class FshWebApplicationFactory : WebApplicationFactory<Program>, I
                 ["JwtOptions:RefreshTokenDays"] = "7",
                 ["OriginOptions:OriginUrl"] = "http://localhost",
                 ["CorsOptions:AllowedOrigins:0"] = "http://localhost",
+                // Front-end origin resolution: allow the simulated browser Origin for self-service
+                // flows, and set the same as the default so operator-driven flows (register/resend)
+                // and the startup validation both resolve.
+                ["FrontendOptions:AllowedOrigins:0"] = "http://localhost",
+                ["FrontendOptions:DefaultOrigin"] = "http://localhost",
                 ["OpenTelemetryOptions:Enabled"] = "false",
                 ["EventingOptions:UseHostedServiceDispatcher"] = "false",
                 ["Serilog:MinimumLevel:Default"] = "Warning",
