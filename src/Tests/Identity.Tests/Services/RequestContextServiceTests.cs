@@ -1,9 +1,7 @@
 using System.Net;
-using FSH.Framework.Web.Cors;
 using FSH.Framework.Web.Origin;
 using FSH.Modules.Identity.Services;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 
@@ -24,9 +22,7 @@ public sealed class RequestContextServiceTests
     private RequestContextService CreateService(Uri? originUrl = null)
     {
         var originOptions = Options.Create(new OriginOptions { OriginUrl = originUrl });
-        var corsOptions = Options.Create(new CorsOptions());
-        var resolver = new OriginResolver(_httpContextAccessor, corsOptions, originOptions, NullLogger<OriginResolver>.Instance);
-        return new RequestContextService(_httpContextAccessor, resolver);
+        return new RequestContextService(_httpContextAccessor, originOptions);
     }
 
     private void SetHttpContext(HttpContext? context)

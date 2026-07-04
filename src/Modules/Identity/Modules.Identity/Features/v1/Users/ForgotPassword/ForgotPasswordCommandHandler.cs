@@ -1,6 +1,6 @@
+using FSH.Framework.Web.Frontend;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Contracts.v1.Users.ForgotPassword;
-using FSH.Modules.Identity.Services;
 using Mediator;
 
 namespace FSH.Modules.Identity.Features.v1.Users.ForgotPassword;
@@ -8,9 +8,9 @@ namespace FSH.Modules.Identity.Features.v1.Users.ForgotPassword;
 public sealed class ForgotPasswordCommandHandler : ICommandHandler<ForgotPasswordCommand, string>
 {
     private readonly IUserService _userService;
-    private readonly IOriginResolver _originResolver;
+    private readonly IFrontendOriginResolver _originResolver;
 
-    public ForgotPasswordCommandHandler(IUserService userService, IOriginResolver originResolver)
+    public ForgotPasswordCommandHandler(IUserService userService, IFrontendOriginResolver originResolver)
     {
         _userService = userService;
         _originResolver = originResolver;
@@ -20,8 +20,8 @@ public sealed class ForgotPasswordCommandHandler : ICommandHandler<ForgotPasswor
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        // The reset link must land on the SPA that made the request.
-        var origin = _originResolver.FrontendOrigin();
+        // Self-service flow: the reset link must land on the SPA the user is currently using.
+        var origin = _originResolver.ResolveForCurrentRequest();
 
         await _userService.ForgotPasswordAsync(command.Email, origin, cancellationToken).ConfigureAwait(false);
 

@@ -17,7 +17,7 @@ internal sealed class UserProfileService(
     SignInManager<FshUser> signInManager,
     IStorageService storageService,
     IMultiTenantContextAccessor<AppTenantInfo> multiTenantContextAccessor,
-    IOriginResolver originResolver) : IUserProfileService
+    IRequestContextService requestContext) : IUserProfileService
 {
     public async Task<UserDto> GetAsync(string userId, CancellationToken cancellationToken)
     {
@@ -169,7 +169,7 @@ internal sealed class UserProfileService(
         }
 
         // For relative paths from local storage, prefix with the API origin (configured, else the request host).
-        var baseUri = originResolver.ApiOrigin();
+        var baseUri = requestContext.Origin;
         if (string.IsNullOrEmpty(baseUri))
         {
             return imageUrl.ToString();
