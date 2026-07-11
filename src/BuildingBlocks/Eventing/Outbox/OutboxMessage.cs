@@ -33,6 +33,13 @@ public class OutboxMessage : IGlobalEntity
     public string? LastError { get; set; }
 
     public bool IsDead { get; set; }
+
+    /// <summary>
+    /// Earliest UTC time the message is eligible for another dispatch attempt. Set to a
+    /// backed-off future time after a failure so retries space out instead of re-firing every
+    /// dispatch cycle; <c>null</c> means immediately eligible (fresh message or after a redrive).
+    /// </summary>
+    public DateTime? NextRetryAt { get; set; }
 }
 
 public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<OutboxMessage>

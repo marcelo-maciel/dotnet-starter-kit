@@ -1,4 +1,5 @@
 using FSH.Framework.Eventing.Abstractions;
+using FSH.Framework.Eventing.Telemetry;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -80,6 +81,7 @@ public sealed partial class OutboxDispatcher
                 if (isDead)
                 {
                     deadLetterCount++;
+                    EventingTelemetry.OutboxDeadLettered.Add(1);
                 }
 
                 if (isDead)
