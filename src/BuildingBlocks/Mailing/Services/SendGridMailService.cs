@@ -40,8 +40,23 @@ public sealed class SendGridMailService : IMailService
         ConfigureRecipients(msg, request);
         AddAttachments(msg, request);
 
-        await _client.SendEmailAsync(msg, ct).ConfigureAwait(false);
+        var response = await _client.SendEmailAsync(msg, ct).ConfigureAwait(false);
+
+        // The client is built with HttpErrorAsException=false, so a non-2xx reply (bad key, rejected
+        // recipient, rate limit) comes back as a Response instead of throwing. Surface it — a silently
+        // discarded failure makes the caller believe the mail was delivered.
+        if (!IsSuccess(response.StatusCode))
+        {
+            var body = response.Body is not null
+                ? await response.Body.ReadAsStringAsync(ct).ConfigureAwait(false)
+                : string.Empty;
+            throw new InvalidOperationException(
+                $"SendGrid rejected the message with status {(int)response.StatusCode}. {body}".TrimEnd());
+        }
     }
+
+    private static bool IsSuccess(System.Net.HttpStatusCode statusCode) =>
+        (int)statusCode is >= 200 and < 300;
 
     private void ValidateConfiguration()
     {
