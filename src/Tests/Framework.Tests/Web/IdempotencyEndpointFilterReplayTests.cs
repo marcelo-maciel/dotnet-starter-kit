@@ -2,28 +2,20 @@ using System.Text.Json;
 using FSH.Framework.Web.Idempotency;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace Framework.Tests.Web;
 
 /// <summary>
-/// Runtime repro for audit findings API-01 (idempotency replay stores the wrong wire shape and
-/// status) and CONC-01 (no in-flight reservation, so concurrent duplicate keys execute twice).
-///
-/// These exercise the REAL <see cref="IdempotencyEndpointFilter"/>. The one part we substitute is a
-/// faithful single-store idempotency backend (write via HybridCache round-trips to the SAME
-/// IDistributedCache the probe reads, using the filter's own serialization). This isolates the
-/// filter's shape/status logic from the app's test-env cache split — the caveat that permanently
-/// skips ChatSendMessageTests.SendMessage_Should_Replay_Same_Response_When_Idempotency_Key_Reused.
+/// Regression for audit findings API-01 (idempotency replay stored the wrong wire shape and status)
+/// and CONC-01 (no in-flight reservation, so concurrent duplicate keys executed twice). These
+/// exercise the REAL <see cref="IdempotencyEndpointFilter"/> against a real in-memory
+/// <see cref="IDistributedCache"/> — the same store the filter now uses for both probe and write.
 /// </summary>
 public sealed class IdempotencyEndpointFilterReplayTests
 {
     private const string Key = "fixed-idempotency-key";
-
-    private static readonly JsonSerializerOptions CamelCase =
-        new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     // ─── API-01: replayed status ─────────────────────────────────────
 
@@ -139,8 +131,6 @@ public sealed class IdempotencyEndpointFilterReplayTests
         services.AddLogging();
         services.AddDistributedMemoryCache();
         services.AddSingleton<IOptions<IdempotencyOptions>>(Options.Create(new IdempotencyOptions()));
-        services.AddSingleton<HybridCache>(sp =>
-            new WriteThroughHybridCache(sp.GetRequiredService<IDistributedCache>(), CamelCase));
         return services.BuildServiceProvider();
     }
 
@@ -168,48 +158,5 @@ public sealed class IdempotencyEndpointFilterReplayTests
         public override IList<object?> Arguments { get; } = new List<object?>();
 
         public override T GetArgument<T>(int index) => (T)Arguments[index]!;
-    }
-
-    /// <summary>
-    /// A faithful single-store idempotency backend: HybridCache.SetAsync serializes the cached
-    /// response with the exact options the filter's probe uses and writes it into the same
-    /// IDistributedCache, so a correctly-wired backend's replay is what surfaces the filter's bug.
-    /// </summary>
-    private sealed class WriteThroughHybridCache : HybridCache
-    {
-        private readonly IDistributedCache _store;
-        private readonly JsonSerializerOptions _options;
-
-        public WriteThroughHybridCache(IDistributedCache store, JsonSerializerOptions options)
-        {
-            _store = store;
-            _options = options;
-        }
-
-        public override ValueTask<T> GetOrCreateAsync<TState, T>(
-            string key,
-            TState state,
-            Func<TState, CancellationToken, ValueTask<T>> factory,
-            HybridCacheEntryOptions? options = null,
-            IEnumerable<string>? tags = null,
-            CancellationToken cancellationToken = default) => factory(state, cancellationToken);
-
-        public override async ValueTask SetAsync<T>(
-            string key,
-            T value,
-            HybridCacheEntryOptions? options = null,
-            IEnumerable<string>? tags = null,
-            CancellationToken cancellationToken = default)
-        {
-            var bytes = JsonSerializer.SerializeToUtf8Bytes(value, _options);
-            await _store.SetAsync(key, bytes, new DistributedCacheEntryOptions(), cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        public override ValueTask RemoveAsync(string key, CancellationToken cancellationToken = default) =>
-            ValueTask.CompletedTask;
-
-        public override ValueTask RemoveByTagAsync(string tag, CancellationToken cancellationToken = default) =>
-            ValueTask.CompletedTask;
     }
 }
