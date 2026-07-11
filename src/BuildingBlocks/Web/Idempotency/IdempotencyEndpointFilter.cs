@@ -6,7 +6,6 @@ using FSH.Framework.Caching;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -20,9 +19,9 @@ namespace FSH.Framework.Web.Idempotency;
 /// for subsequent requests with the same key.
 /// </summary>
 /// <remarks>
-/// Uses <see cref="IDistributedCache"/> directly for the probe read (bypassing
-/// <see cref="HybridCache"/>'s factory-mandatory API) and <see cref="HybridCache.SetAsync"/>
-/// for the write path so replays benefit from L1 and the regular tag invalidation story.
+/// Uses <see cref="IDistributedCache"/> for both the probe read and the write, on the same raw key
+/// and serializer, so the two are symmetric (a HybridCache write keys its L2 entries under its own
+/// scheme, which a raw-key probe never finds — replay then silently never engages).
 /// The handler result is executed into a buffer so the cached payload is the real wire body and
 /// status code (an <c>Ok&lt;T&gt;</c>/<c>Created&lt;T&gt;</c> wrapper would otherwise be serialized
 /// verbatim, and <c>Response.StatusCode</c> is still the default at filter time — the IResult sets
@@ -59,13 +58,11 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
         }
 
         var distributedCache = httpContext.RequestServices.GetRequiredService<IDistributedCache>();
-        var hybridCache = httpContext.RequestServices.GetRequiredService<HybridCache>();
         var logger = httpContext.RequestServices.GetRequiredService<ILogger<IdempotencyEndpointFilter>>();
 
         // Include tenant context in cache key for isolation
         var tenantId = httpContext.User.FindFirst("tenant")?.Value ?? "global";
         var cacheKey = CacheKeys.IdempotencyEntry(tenantId, idempotencyKey);
-        var tags = new[] { CacheKeys.Tags.Idempotency, CacheKeys.Tags.Tenant(tenantId) };
 
         // Probe-only read via IDistributedCache (real GetAsync, null on miss — unlike HybridCache's
         // factory). Bypasses L1: replays are rare vs first-calls, so L1 warmth has little value.
@@ -108,7 +105,10 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
                 await httpContext.Response.Body.WriteAsync(body, httpContext.RequestAborted).ConfigureAwait(false);
             }
 
-            // Cache the response through HybridCache so the tag invalidation path works for purges.
+            // Write to the SAME store + key the probe reads. HybridCache.SetAsync keys its L2 entries
+            // under its own scheme, so a raw-key IDistributedCache probe never found them and replay
+            // silently never engaged. Idempotency entries are short-lived (TTL) and their tag-purge
+            // path was unused, so IDistributedCache alone — symmetric with the probe — is correct.
             try
             {
                 var responseToCache = new CachedIdempotentResponse
@@ -118,12 +118,12 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
                     Body = body,
                 };
 
-                var setOptions = new HybridCacheEntryOptions
-                {
-                    Expiration = options.DefaultTtl,
-                    LocalCacheExpiration = options.DefaultTtl < TimeSpan.FromMinutes(2) ? options.DefaultTtl : TimeSpan.FromMinutes(2),
-                };
-                await hybridCache.SetAsync(cacheKey, responseToCache, setOptions, tags, httpContext.RequestAborted).ConfigureAwait(false);
+                var payload = JsonSerializer.SerializeToUtf8Bytes(responseToCache, JsonOpts);
+                await distributedCache.SetAsync(
+                    cacheKey,
+                    payload,
+                    new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = options.DefaultTtl },
+                    httpContext.RequestAborted).ConfigureAwait(false);
             }
             // Best-effort caching: idempotency replay is a convenience, not a correctness requirement
             catch (Exception ex) when (ex is not OperationCanceledException)
