@@ -1,0 +1,69 @@
+using Finbuckle.MultiTenant;
+using Finbuckle.MultiTenant.Abstractions;
+using FSH.Framework.Shared.Multitenancy;
+using FSH.Modules.Identity.Data;
+using Integration.Tests.Infrastructure;
+
+namespace Integration.Tests.Tests.Security;
+
+/// <summary>
+/// Runtime repro for audit finding API-02 (no UseForwardedHeaders → proxy IP collapses the real
+/// client IP). Token issuance persists a UserSession whose IpAddress comes from
+/// RequestContextService.IpAddress => Connection.RemoteIpAddress. With a trusted-proxy
+/// forwarded-headers config, a request carrying X-Forwarded-For should surface the real client IP;
+/// because UseHeroPlatform never calls UseForwardedHeaders, the header is ignored.
+/// </summary>
+[Collection(FshCollectionDefinition.Name)]
+public sealed class ForwardedHeadersIpTests
+{
+    private const string ForwardedIp = "203.0.113.7";
+
+    private readonly FshWebApplicationFactory _factory;
+
+    public ForwardedHeadersIpTests(FshWebApplicationFactory factory)
+    {
+        _factory = factory;
+    }
+
+    [Fact]
+    public async Task TokenIssue_Should_RecordForwardedClientIp_When_RequestCarriesXForwardedFor()
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{TestConstants.IdentityBasePath}/token/issue");
+        request.Headers.Add("tenant", TestConstants.RootTenantId);
+        request.Headers.Add("X-Forwarded-For", ForwardedIp);
+        request.Content = JsonContent.Create(new
+        {
+            email = TestConstants.RootAdminEmail,
+            password = TestConstants.DefaultPassword,
+        });
+
+        using var response = await client.SendAsync(request);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var recordedIp = await GetNewestSessionIpAsync();
+
+        recordedIp.ShouldBe(
+            ForwardedIp,
+            "behind a trusted proxy the persisted session IP should be the real client IP from " +
+            "X-Forwarded-For; without UseForwardedHeaders the app records the connection/loopback IP instead.");
+    }
+
+    private async Task<string?> GetNewestSessionIpAsync()
+    {
+        using var scope = _factory.Services.CreateScope();
+
+        var tenantStore = scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
+        var tenant = await tenantStore.GetAsync(TestConstants.RootTenantId);
+        scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>().MultiTenantContext =
+            new MultiTenantContext<AppTenantInfo>(tenant);
+
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var session = await db.UserSessions
+            .AsNoTracking()
+            .OrderByDescending(s => s.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        return session?.IpAddress;
+    }
+}

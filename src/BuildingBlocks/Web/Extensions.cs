@@ -22,6 +22,7 @@ using FSH.Framework.Web.Realtime;
 using FSH.Framework.Web.Security;
 using FSH.Framework.Web.Versioning;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
@@ -63,6 +64,19 @@ public static class Extensions
         }
 
         builder.Services.AddHttpContextAccessor();
+
+        // The app runs behind a reverse proxy (Caddy / cloudflared), so the real client IP and scheme
+        // arrive via X-Forwarded-*. Without this, RemoteIpAddress is the proxy's container IP, which
+        // collapses the rate-limit partition into one bucket and records useless audit IPs. Known
+        // networks/proxies are cleared to trust the immediate upstream; lock them down via config
+        // when the ingress topology is fixed.
+        builder.Services.Configure<ForwardedHeadersOptions>(forwarded =>
+        {
+            forwarded.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            forwarded.KnownIPNetworks.Clear();
+            forwarded.KnownProxies.Clear();
+        });
+
         builder.Services.AddHeroDatabaseOptions(builder.Configuration);
         builder.Services.AddHeroRateLimiting(builder.Configuration);
 
@@ -150,6 +164,11 @@ public static class Extensions
         var openApiEnabled = options.UseOpenApi && IsOpenApiEnabled(app.Configuration);
 
         app.UseExceptionHandler();
+
+        // Apply forwarded headers before anything reads the client IP or scheme (HTTPS redirect,
+        // rate limiting, auth, audit) so they all see the real client, not the reverse proxy.
+        app.UseForwardedHeaders();
+
         app.UseResponseCompression();
 
         // CORS MUST run before UseHttpsRedirection: preflight OPTIONS can't follow an HTTP→HTTPS redirect, so
