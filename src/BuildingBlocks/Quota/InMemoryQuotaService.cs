@@ -18,7 +18,7 @@ public sealed class InMemoryQuotaService : IQuotaService
     private readonly Dictionary<QuotaResource, IQuotaGaugeProvider> _gauges;
     private readonly TimeProvider _timeProvider;
 
-    internal InMemoryQuotaService(
+    public InMemoryQuotaService(
         InMemoryQuotaStore store,
         QuotaOptions options,
         QuotaPlanResolver planResolver,
