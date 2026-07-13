@@ -28,7 +28,8 @@ public static class Extensions
             {
                 return new SendGridMailService(
                     sp.GetRequiredService<IOptions<MailOptions>>(),
-                    sp.GetRequiredService<ISendGridClient>());
+                    sp.GetRequiredService<ISendGridClient>(),
+                    sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SendGridMailService>>());
             }
             return new SmtpMailService(sp.GetRequiredService<IOptions<MailOptions>>(), sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SmtpMailService>>());
         });

@@ -105,6 +105,10 @@ public static class Extensions
                 // Auditing pipeline metrics (published, dropped, flush, dead-letter).
                 metrics.AddMeter("FSH.Modules.Auditing");
 
+                // Eventing outbox metrics (dead-letter, redrive) — string literal matches
+                // EventingTelemetry.MeterName; Web does not reference the Eventing project.
+                metrics.AddMeter("FSH.Eventing");
+
                 foreach (var meterName in options.Metrics.MeterNames ?? Array.Empty<string>())
                 {
                     metrics.AddMeter(meterName);
