@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using NSubstitute;
+using StackExchange.Redis;
 
 namespace Framework.Tests.Web;
 
@@ -123,15 +125,81 @@ public sealed class IdempotencyEndpointFilterReplayTests
             "a concurrent duplicate that arrives while the original is still running gets 409 Conflict.");
     }
 
+    // ─── HIGH: reservation TTL is the short ReservationTtl, not the 24h response TTL ─────
+
+    [Fact]
+    public async Task Reservation_Should_UseReservationTtl_Not_ResponseTtl()
+    {
+        var options = new IdempotencyOptions
+        {
+            ReservationTtl = TimeSpan.FromSeconds(37), // distinct from DefaultTtl to prove which one is used
+        };
+        var db = Substitute.For<IDatabase>();
+        TimeSpan? capturedTtl = null;
+        db.StringSetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<TimeSpan?>(), Arg.Any<When>())
+            .Returns(ci => { capturedTtl = ci.ArgAt<TimeSpan?>(2); return Task.FromResult(true); });
+        var provider = BuildProvider(options, RedisMultiplexer(db));
+        var filter = new IdempotencyEndpointFilter();
+
+        await filter.InvokeAsync(
+            new TestFilterContext(NewContext(provider)),
+            _ => ValueTask.FromResult<object?>(TypedResults.Ok(new SampleDto(Guid.NewGuid(), "widget"))));
+
+        capturedTtl.ShouldBe(
+            options.ReservationTtl,
+            "the in-flight reservation must use the short ReservationTtl; keying it to the 24h response TTL " +
+            "would strand the lock for a day if the process is killed before the finally-release runs.");
+        capturedTtl.ShouldNotBe(options.DefaultTtl);
+    }
+
+    // ─── MEDIUM + nit: a Redis fault on reserve/release fails open, never 500s ───────────
+
+    [Fact]
+    public async Task Filter_Should_ProceedWithoutThrowing_When_RedisReservationFaults()
+    {
+        var db = Substitute.For<IDatabase>();
+        db.StringSetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<TimeSpan?>(), Arg.Any<When>())
+            .Returns(Task.FromException<bool>(new RedisException("reserve blip")));
+        db.KeyDeleteAsync(Arg.Any<RedisKey>(), Arg.Any<CommandFlags>())
+            .Returns(Task.FromException<bool>(new RedisException("release blip")));
+        var provider = BuildProvider(new IdempotencyOptions(), RedisMultiplexer(db));
+        var filter = new IdempotencyEndpointFilter();
+
+        int executions = 0;
+        var result = await filter.InvokeAsync(
+            new TestFilterContext(NewContext(provider)),
+            _ => { executions++; return ValueTask.FromResult<object?>(TypedResults.Ok(new SampleDto(Guid.NewGuid(), "widget"))); });
+
+        executions.ShouldBe(
+            1,
+            "a transient Redis error on the reservation must fail open — the handler still runs. On main " +
+            "idempotency degraded gracefully; treating the reservation as authoritative would 500 the request.");
+        result.ShouldNotBeNull("the request must complete normally, not throw out of the filter");
+    }
+
     // ─── harness ─────────────────────────────────────────────────────
 
-    private static ServiceProvider BuildProvider()
+    private static ServiceProvider BuildProvider() => BuildProvider(new IdempotencyOptions(), multiplexer: null);
+
+    private static ServiceProvider BuildProvider(IdempotencyOptions options, IConnectionMultiplexer? multiplexer)
     {
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddDistributedMemoryCache();
-        services.AddSingleton<IOptions<IdempotencyOptions>>(Options.Create(new IdempotencyOptions()));
+        services.AddSingleton<IOptions<IdempotencyOptions>>(Options.Create(options));
+        if (multiplexer is not null)
+        {
+            services.AddSingleton(multiplexer);
+        }
+
         return services.BuildServiceProvider();
+    }
+
+    private static IConnectionMultiplexer RedisMultiplexer(IDatabase db)
+    {
+        var mux = Substitute.For<IConnectionMultiplexer>();
+        mux.GetDatabase(Arg.Any<int>(), Arg.Any<object>()).Returns(db);
+        return mux;
     }
 
     private static DefaultHttpContext NewContext(IServiceProvider provider, Stream? responseBody = null)
