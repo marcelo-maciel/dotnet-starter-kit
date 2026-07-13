@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   Bell,
+  Brush,
   ChevronRight,
   KeyRound,
   Palette,
@@ -10,6 +11,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { EntityPageHeader } from "@/components/list";
+import { useAuth } from "@/auth/use-auth";
 import { cn } from "@/lib/cn";
 
 type Tab = {
@@ -17,12 +19,23 @@ type Tab = {
   label: string;
   hint: string;
   icon: LucideIcon;
+  /**
+   * Permission required to see this tab. Tabs without a `perm` are visible to
+   * every authenticated tenant user; gated tabs hide when the current user
+   * lacks the permission, mirroring the sidebar gate in nav-data.ts so they
+   * never land on a page the API would reject with 403.
+   */
+  perm?: string;
 };
 
 const TABS: Tab[] = [
   { to: "/settings/profile", label: "Profile", hint: "Your identity across the tenant", icon: UserRound },
   { to: "/settings/security", label: "Security", hint: "Password and active sessions", icon: Shield },
   { to: "/settings/appearance", label: "Appearance", hint: "Theme and visual preferences", icon: Palette },
+  // Tenant-wide branding (palette + logos served on sign-in), distinct from the
+  // per-user Appearance prefs above. Gated on the same permission the /theme
+  // endpoints enforce server-side.
+  { to: "/settings/branding", label: "Branding", hint: "Tenant colours and logos", icon: Brush, perm: "Permissions.Tenants.UpdateTheme" },
   { to: "/settings/notifications", label: "Notifications", hint: "How we reach you", icon: Bell },
   { to: "/settings/api-keys", label: "API keys", hint: "Personal access tokens", icon: KeyRound },
 ];
@@ -37,11 +50,16 @@ const pad2 = (n: number) => n.toString().padStart(2, "0");
  */
 export function SettingsLayout() {
   const location = useLocation();
+  const { user } = useAuth();
+  const perms = user?.permissions ?? [];
+  // Drop tabs the user can't reach, same gate the sidebar uses. `branding`
+  // hides for users without Tenants.UpdateTheme.
+  const tabs = TABS.filter((t) => !t.perm || perms.includes(t.perm));
   const activeIndex = Math.max(
     0,
-    TABS.findIndex((t) => location.pathname.startsWith(t.to)),
+    tabs.findIndex((t) => location.pathname.startsWith(t.to)),
   );
-  const active = TABS[activeIndex] ?? TABS[0];
+  const active = tabs[activeIndex] ?? tabs[0];
 
   return (
     <div className="space-y-6">
@@ -81,7 +99,7 @@ export function SettingsLayout() {
                 aria-hidden
                 className="absolute left-[14px] top-1 bottom-1 w-px bg-[oklch(from_var(--color-border)_l_c_h_/_0.6)]"
               />
-              {TABS.map((t, i) => {
+              {tabs.map((t, i) => {
                 const num = pad2(i + 1);
                 return (
                   <li key={t.to}>
@@ -151,7 +169,7 @@ export function SettingsLayout() {
           {/* Mobile: horizontal scroll tabs */}
           <div className="-mx-2 overflow-x-auto pb-1 lg:hidden">
             <div className="flex gap-1 px-2">
-              {TABS.map(({ to, label, icon: Icon }) => (
+              {tabs.map(({ to, label, icon: Icon }) => (
                 <NavLink
                   key={to}
                   to={to}

@@ -21,6 +21,17 @@ public sealed class EventingOptions
     public int OutboxMaxRetries { get; set; } = 5;
 
     /// <summary>
+    /// Base delay (seconds) for exponential retry backoff after a failed dispatch. The n-th retry
+    /// waits <c>base * 2^(n-1)</c>, capped at <see cref="OutboxRetryMaxDelaySeconds"/>.
+    /// </summary>
+    public int OutboxRetryBaseDelaySeconds { get; set; } = 30;
+
+    /// <summary>
+    /// Upper bound (seconds) on the exponential retry backoff.
+    /// </summary>
+    public int OutboxRetryMaxDelaySeconds { get; set; } = 3600;
+
+    /// <summary>
     /// Whether inbox-based idempotent handling is enabled.
     /// </summary>
     public bool EnableInbox { get; set; } = true;
