@@ -20,6 +20,7 @@ using FSH.Framework.Web.Origin;
 using FSH.Framework.Web.RateLimiting;
 using FSH.Framework.Web.Realtime;
 using FSH.Framework.Web.Security;
+using FSH.Framework.Web.TrustedProxy;
 using FSH.Framework.Web.Versioning;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -30,6 +31,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Mediator;
+using System.Net;
 
 namespace FSH.Framework.Web;
 
@@ -65,16 +67,36 @@ public static class Extensions
 
         builder.Services.AddHttpContextAccessor();
 
-        // The app runs behind a reverse proxy (Caddy / cloudflared), so the real client IP and scheme
-        // arrive via X-Forwarded-*. Without this, RemoteIpAddress is the proxy's container IP, which
-        // collapses the rate-limit partition into one bucket and records useless audit IPs. Known
-        // networks/proxies are cleared to trust the immediate upstream; lock them down via config
-        // when the ingress topology is fixed.
+        // The app runs behind a reverse proxy (e.g. cloudflared → Caddy → app), so the real client IP
+        // and scheme arrive via X-Forwarded-*. Without this, RemoteIpAddress is the proxy's container
+        // IP, which collapses the rate-limit partition into one bucket and records useless audit IPs.
+        // Trust is bound to the configured ingress CIDRs/proxies (see TrustedProxyOptions): forwarded
+        // headers from any other source are ignored, so a client reaching the app directly cannot forge
+        // its IP/scheme. With nothing configured, the framework default (loopback only) stands.
+        var trustedProxy = builder.Configuration
+            .GetSection(nameof(TrustedProxyOptions)).Get<TrustedProxyOptions>() ?? new TrustedProxyOptions();
         builder.Services.Configure<ForwardedHeadersOptions>(forwarded =>
         {
             forwarded.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-            forwarded.KnownIPNetworks.Clear();
+            forwarded.ForwardLimit = trustedProxy.ForwardLimit;
+
+            if (trustedProxy.KnownProxies.Length == 0 && trustedProxy.KnownNetworks.Length == 0)
+            {
+                return;
+            }
+
             forwarded.KnownProxies.Clear();
+            forwarded.KnownIPNetworks.Clear();
+
+            foreach (var proxy in trustedProxy.KnownProxies)
+            {
+                forwarded.KnownProxies.Add(IPAddress.Parse(proxy));
+            }
+
+            foreach (var network in trustedProxy.KnownNetworks)
+            {
+                forwarded.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(network));
+            }
         });
 
         builder.Services.AddHeroDatabaseOptions(builder.Configuration);

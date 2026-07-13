@@ -8,15 +8,18 @@ namespace Integration.Tests.Tests.Security;
 
 /// <summary>
 /// Runtime repro for audit finding API-02 (no UseForwardedHeaders → proxy IP collapses the real
-/// client IP). Token issuance persists a UserSession whose IpAddress comes from
-/// RequestContextService.IpAddress => Connection.RemoteIpAddress. With a trusted-proxy
-/// forwarded-headers config, a request carrying X-Forwarded-For should surface the real client IP;
-/// because UseHeroPlatform never calls UseForwardedHeaders, the header is ignored.
+/// client IP) plus its security boundary. Token issuance persists a UserSession whose IpAddress comes
+/// from RequestContextService.IpAddress => Connection.RemoteIpAddress. The forwarded-headers config
+/// trusts only the configured upstream (TestConstants.TrustedProxyIp), so:
+/// - a request arriving from the trusted proxy has its X-Forwarded-For honored (real client IP), and
+/// - a request arriving from any other source has X-Forwarded-For ignored (spoofing is blocked).
+/// TestServer has no socket, so the connection IP is stamped via the X-Test-Remote-Ip header (see
+/// TestRemoteIpStartupFilter).
 /// </summary>
 [Collection(FshCollectionDefinition.Name)]
 public sealed class ForwardedHeadersIpTests
 {
-    private const string ForwardedIp = "203.0.113.7";
+    private const string ForwardedClientIp = "203.0.113.7";
 
     private readonly FshWebApplicationFactory _factory;
 
@@ -26,12 +29,39 @@ public sealed class ForwardedHeadersIpTests
     }
 
     [Fact]
-    public async Task TokenIssue_Should_RecordForwardedClientIp_When_RequestCarriesXForwardedFor()
+    public async Task TokenIssue_Should_RecordForwardedClientIp_When_RequestArrivesFromTrustedProxy()
+    {
+        var recordedIp = await IssueTokenAndReadSessionIpAsync(
+            connectionIp: TestConstants.TrustedProxyIp,
+            forwardedFor: ForwardedClientIp);
+
+        recordedIp.ShouldBe(
+            ForwardedClientIp,
+            "behind a trusted proxy the persisted session IP should be the real client IP from " +
+            "X-Forwarded-For.");
+    }
+
+    [Fact]
+    public async Task TokenIssue_Should_IgnoreForwardedClientIp_When_RequestArrivesFromUntrustedSource()
+    {
+        var recordedIp = await IssueTokenAndReadSessionIpAsync(
+            connectionIp: TestConstants.UntrustedSourceIp,
+            forwardedFor: ForwardedClientIp);
+
+        recordedIp.ShouldBe(
+            TestConstants.UntrustedSourceIp,
+            "X-Forwarded-For from a source outside the trusted-proxy set must be ignored; the persisted " +
+            "IP should be the connection IP, never the attacker-supplied forwarded value.");
+        recordedIp.ShouldNotBe(ForwardedClientIp);
+    }
+
+    private async Task<string?> IssueTokenAndReadSessionIpAsync(string connectionIp, string forwardedFor)
     {
         using var client = _factory.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{TestConstants.IdentityBasePath}/token/issue");
         request.Headers.Add("tenant", TestConstants.RootTenantId);
-        request.Headers.Add("X-Forwarded-For", ForwardedIp);
+        request.Headers.Add(TestRemoteIpStartupFilter.RemoteIpHeader, connectionIp);
+        request.Headers.Add("X-Forwarded-For", forwardedFor);
         request.Content = JsonContent.Create(new
         {
             email = TestConstants.RootAdminEmail,
@@ -41,12 +71,7 @@ public sealed class ForwardedHeadersIpTests
         using var response = await client.SendAsync(request);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        var recordedIp = await GetNewestSessionIpAsync();
-
-        recordedIp.ShouldBe(
-            ForwardedIp,
-            "behind a trusted proxy the persisted session IP should be the real client IP from " +
-            "X-Forwarded-For; without UseForwardedHeaders the app records the connection/loopback IP instead.");
+        return await GetNewestSessionIpAsync();
     }
 
     private async Task<string?> GetNewestSessionIpAsync()
