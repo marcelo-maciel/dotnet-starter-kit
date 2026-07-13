@@ -1,7 +1,7 @@
-using System.Collections.ObjectModel;
 using System.Net;
 using FSH.Framework.Mailing;
 using FSH.Framework.Mailing.Services;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using SendGrid;
@@ -9,10 +9,10 @@ using SendGrid.Helpers.Mail;
 
 namespace Framework.Tests.Mailing;
 
-// REL-01 repro: SendGridMailService discards the Response from SendEmailAsync and the client is
-// built with HttpErrorAsException=false, so a non-2xx SendGrid reply is swallowed and the caller
-// believes the mail was delivered. This test pins the DESIRED behaviour (a non-success status must
-// surface) and is expected to FAIL against the current code — that failure IS the confirmation.
+// REL-01: SendGridMailService must not swallow a non-2xx SendGrid reply (the client is built with
+// HttpErrorAsException=false, so a failure comes back as a Response, not an exception). Transient
+// failures (429/5xx) throw so the caller's Hangfire job retries; permanent failures (other 4xx) are
+// logged and returned — retrying a bad key / rejected recipient only floods the dead-letter queue.
 public sealed class SendGridMailServiceTests
 {
     private static SendGridMailService BuildService(ISendGridClient client)
@@ -23,41 +23,55 @@ public sealed class SendGridMailServiceTests
             From = "noreply@x.com",
             SendGrid = new SendGridOptions { ApiKey = "sg-key", From = "noreply@x.com" },
         });
-        return new SendGridMailService(options, client);
+        return new SendGridMailService(options, client, NullLogger<SendGridMailService>.Instance);
+    }
+
+    private static ISendGridClient ClientReturning(HttpStatusCode status)
+    {
+        var client = Substitute.For<ISendGridClient>();
+        client.SendEmailAsync(Arg.Any<SendGridMessage>(), Arg.Any<CancellationToken>())
+            .Returns(new Response(status, null, null));
+        return client;
     }
 
     private static MailRequest ValidRequest() =>
         new(to: ["dest@x.com"], subject: "hi", body: "body");
 
-    [Fact]
-    public async Task SendAsync_When_SendGridReturnsNonSuccess_Should_SurfaceFailure()
+    [Theory]
+    [InlineData(HttpStatusCode.TooManyRequests)]        // 429 — rate limited
+    [InlineData(HttpStatusCode.InternalServerError)]    // 500 — SendGrid-side
+    [InlineData(HttpStatusCode.ServiceUnavailable)]     // 503 — SendGrid-side
+    public async Task SendAsync_When_TransientFailure_Should_Throw_ForRetry(HttpStatusCode status)
     {
-        // Arrange
-        var client = Substitute.For<ISendGridClient>();
-        client.SendEmailAsync(Arg.Any<SendGridMessage>(), Arg.Any<CancellationToken>())
-            .Returns(new Response(HttpStatusCode.Unauthorized, null, null));
-        var service = BuildService(client);
+        var service = BuildService(ClientReturning(status));
 
-        // Act
         var send = async () => await service.SendAsync(ValidRequest(), CancellationToken.None);
 
-        // Assert — a 401 from SendGrid must NOT be reported as a successful send.
+        // Throwing routes the send back through the caller's Hangfire automatic retry.
         await send.ShouldThrowAsync<Exception>();
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]   // 401 — bad API key
+    [InlineData(HttpStatusCode.BadRequest)]     // 400 — rejected recipient / malformed
+    [InlineData(HttpStatusCode.Forbidden)]      // 403 — sender not verified
+    public async Task SendAsync_When_PermanentRejection_Should_NotThrow_ToAvoidRetryStorm(HttpStatusCode status)
+    {
+        var service = BuildService(ClientReturning(status));
+
+        var send = async () => await service.SendAsync(ValidRequest(), CancellationToken.None);
+
+        // Logged as an error (surfaced to ops) but not thrown — a retry cannot make it succeed.
+        await send.ShouldNotThrowAsync();
     }
 
     [Fact]
     public async Task SendAsync_When_SendGridReturnsAccepted_Should_Complete()
     {
-        // Arrange
-        var client = Substitute.For<ISendGridClient>();
-        client.SendEmailAsync(Arg.Any<SendGridMessage>(), Arg.Any<CancellationToken>())
-            .Returns(new Response(HttpStatusCode.Accepted, null, null));
-        var service = BuildService(client);
+        var service = BuildService(ClientReturning(HttpStatusCode.Accepted));
 
-        // Act
         var send = async () => await service.SendAsync(ValidRequest(), CancellationToken.None);
 
-        // Assert
         await send.ShouldNotThrowAsync();
     }
 }
