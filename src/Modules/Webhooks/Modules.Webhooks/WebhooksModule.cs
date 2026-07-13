@@ -19,6 +19,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
+using System.Net.Http;
 
 [assembly: FshModule(typeof(FSH.Modules.Webhooks.WebhooksModule), 400)]
 
@@ -46,6 +47,14 @@ public sealed class WebhooksModule : IModule
             typeof(WebhookFanoutHandler<>));
 
         builder.Services.AddHttpClient("Webhooks")
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+            {
+                // Untrusted tenant-supplied destination: never follow redirects (a 302 could bounce
+                // to an internal host) and screen the resolved IP at connect time so DNS-rebinding
+                // cannot map a public hostname to an internal address after the create-time check.
+                AllowAutoRedirect = false,
+                ConnectCallback = WebhookUrlGuard.ConnectAsync,
+            })
             .AddHeroResilience(builder.Configuration);
 
         builder.Services.AddHealthChecks()

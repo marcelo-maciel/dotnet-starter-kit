@@ -68,7 +68,7 @@ public sealed class WebhookDispatchJobTests
             $"{TestConstants.WebhooksBasePath}/subscriptions",
             new
             {
-                url = "https://127.0.0.1:1/dispatch-test", // unreachable → transient failure
+                url = "https://webhook-dispatch.invalid/dispatch-test", // .invalid never resolves → transient failure (and passes the SSRF create guard, unlike a loopback/private target)
                 events = new[] { uniqueEvent },
                 secret = "dispatch-secret"
             });

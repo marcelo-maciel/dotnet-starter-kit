@@ -17,4 +17,8 @@ public sealed class GetExceptionAuditsQuery : IQuery<IReadOnlyList<AuditSummaryD
     public DateTime? FromUtc { get; init; }
 
     public DateTime? ToUtc { get; init; }
+
+    public int? Skip { get; init; }
+
+    public int? Take { get; init; }
 }

@@ -10,6 +10,9 @@ namespace FSH.Modules.Auditing.Features.v1.GetSecurityAudits;
 
 public sealed class GetSecurityAuditsQueryHandler : IQueryHandler<GetSecurityAuditsQuery, IReadOnlyList<AuditSummaryDto>>
 {
+    private const int MaxPageSize = 200;
+    private const int DefaultPageSize = 50;
+
     private readonly AuditDbContext _dbContext;
 
     public GetSecurityAuditsQueryHandler(AuditDbContext dbContext)
@@ -49,8 +52,14 @@ public sealed class GetSecurityAuditsQueryHandler : IQueryHandler<GetSecurityAud
                 EF.Functions.ILike(AsText(a.PayloadJson), $"%\"action\": \"{actionValue}\"%"));
         }
 
+        // Cap server-side so an unpaged call can't materialize a tenant's whole audit history.
+        var take = query.Take is >= 1 and <= MaxPageSize ? query.Take.Value : DefaultPageSize;
+        var skip = query.Skip is > 0 ? query.Skip.Value : 0;
+
         var list = await audits
             .OrderByDescending(a => a.OccurredAtUtc)
+            .Skip(skip)
+            .Take(take)
             .Select(a => new AuditSummaryDto
             {
                 Id = a.Id,
