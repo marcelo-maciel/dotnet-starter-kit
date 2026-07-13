@@ -42,15 +42,19 @@ export function BrandingSettings() {
   const themeQuery = useQuery({
     queryKey: THEME_QUERY_KEY,
     queryFn: getTenantTheme,
-    // Re-fetch on focus so a co-admin's edits are picked up without a manual
-    // refresh; the draft is reseeded from the fresh payload below.
-    refetchOnWindowFocus: true,
+    // Do NOT refetch in the background: a focus/reconnect refetch produces a new
+    // payload that the seed effect below would adopt, silently wiping the user's
+    // unsaved edits mid-form. The data only changes here on initial load and on
+    // our own save/reset invalidations, all of which SHOULD reseed the draft.
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   const [draft, setDraft] = useState<TenantThemeDto | null>(null);
 
-  // Seed the draft whenever a fresh server payload arrives (initial load, a
-  // co-admin's edit picked up on focus, or our own reset).
+  // Seed the draft from the server payload — fires on initial load and after our
+  // own save/reset invalidations (background refetches are disabled above, so
+  // this never clobbers in-progress edits).
   useEffect(() => {
     if (themeQuery.data) {
       setDraft(themeQuery.data);
