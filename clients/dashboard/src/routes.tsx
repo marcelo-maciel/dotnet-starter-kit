@@ -75,6 +75,10 @@ const SettingsLayout = lazyNamed(
 );
 const ProfileSettings = lazyNamed(() => import("@/pages/settings/profile"), "ProfileSettings");
 const SecuritySettings = lazyNamed(() => import("@/pages/settings/security"), "SecuritySettings");
+const BrandingSettings = lazyNamed(
+  () => import("@/pages/settings/branding"),
+  "BrandingSettings",
+);
 const AppearanceSettings = lazyNamed(
   () => import("@/pages/settings/appearance"),
   "AppearanceSettings",
@@ -232,6 +236,7 @@ export const router = createBrowserRouter([
               { path: "profile", element: withSuspense(<ProfileSettings />) },
               { path: "security", element: withSuspense(<SecuritySettings />) },
               { path: "appearance", element: withSuspense(<AppearanceSettings />) },
+              { path: "branding", element: withSuspense(<BrandingSettings />) },
               { path: "notifications", element: withSuspense(<NotificationsSettings />) },
               { path: "api-keys", element: withSuspense(<ApiKeysSettings />) },
             ],

@@ -10,6 +10,9 @@ namespace FSH.Modules.Auditing.Features.v1.GetExceptionAudits;
 
 public sealed class GetExceptionAuditsQueryHandler : IQueryHandler<GetExceptionAuditsQuery, IReadOnlyList<AuditSummaryDto>>
 {
+    private const int MaxPageSize = 200;
+    private const int DefaultPageSize = 50;
+
     private readonly AuditDbContext _dbContext;
 
     public GetExceptionAuditsQueryHandler(AuditDbContext dbContext)
@@ -26,7 +29,11 @@ public sealed class GetExceptionAuditsQueryHandler : IQueryHandler<GetExceptionA
         audits = ApplySeverityFilter(audits, query);
         audits = ApplyPayloadFilters(audits, query);
 
-        return await ProjectToDto(audits, cancellationToken);
+        // Cap server-side so an unpaged call can't materialize a tenant's whole exception history.
+        var take = query.Take is >= 1 and <= MaxPageSize ? query.Take.Value : DefaultPageSize;
+        var skip = query.Skip is > 0 ? query.Skip.Value : 0;
+
+        return await ProjectToDto(audits, skip, take, cancellationToken);
     }
 
     private IQueryable<AuditRecord> GetBaseQuery()
@@ -87,10 +94,12 @@ public sealed class GetExceptionAuditsQueryHandler : IQueryHandler<GetExceptionA
         return audits;
     }
 
-    private static async Task<IReadOnlyList<AuditSummaryDto>> ProjectToDto(IQueryable<AuditRecord> audits, CancellationToken cancellationToken)
+    private static async Task<IReadOnlyList<AuditSummaryDto>> ProjectToDto(IQueryable<AuditRecord> audits, int skip, int take, CancellationToken cancellationToken)
     {
         return await audits
             .OrderByDescending(a => a.OccurredAtUtc)
+            .Skip(skip)
+            .Take(take)
             .Select(a => new AuditSummaryDto
             {
                 Id = a.Id,
