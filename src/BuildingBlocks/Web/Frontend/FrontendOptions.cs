@@ -22,6 +22,12 @@ public sealed class FrontendOptions
     /// callers such as curl / the Scalar try-it UI / mobile apps / server-to-server), for
     /// operator-driven flows whose link must land on the recipient's app rather than the caller's,
     /// and for background jobs that run without an HTTP request. Typically the tenant dashboard URL.
+    /// <para>
+    /// This is a single global value, not per-tenant or custom-domain aware: operator-driven
+    /// register / resend-confirmation therefore point <em>every</em> tenant's link at this one SPA.
+    /// That fits the kit's single-dashboard model; a deployment with per-tenant custom domains would
+    /// need to resolve the recipient tenant's own origin here instead.
+    /// </para>
     /// </summary>
     public string? DefaultOrigin { get; init; }
 }

@@ -35,7 +35,13 @@ internal sealed class FrontendOriginResolver(
 
         // A present-but-unlisted Origin is a forged or misconfigured client, not a server fault:
         // surface a 4xx so error-rate alerting doesn't page on bot traffic to anonymous endpoints.
-        logger.LogWarning("Rejected front-end origin {Origin}: not in FrontendOptions:AllowedOrigins", header);
+        // Logged at Debug, not Warning: these endpoints are anonymous, so bot/forged traffic would
+        // flood the aggregator at Warning. A genuine deployer misconfig (a real SPA origin missing
+        // from the list) already surfaces loudly as a 400 to that SPA's own users.
+        if (logger.IsEnabled(LogLevel.Debug))
+        {
+            logger.LogDebug("Rejected front-end origin {Origin}: not in FrontendOptions:AllowedOrigins", header);
+        }
         throw new CustomException(
             "The request origin is not an allowed front-end origin.",
             errors: null,

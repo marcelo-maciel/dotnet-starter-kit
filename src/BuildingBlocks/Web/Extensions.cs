@@ -144,7 +144,9 @@ public static class Extensions
             .BindConfiguration(nameof(FrontendOptions))
             .Validate(
                 o => o.AllowedOrigins.Length > 0 || !string.IsNullOrWhiteSpace(o.DefaultOrigin),
-                "FrontendOptions requires AllowedOrigins or DefaultOrigin to be configured.")
+                "No front-end origin configured in FrontendOptions. Set FrontendOptions:AllowedOrigins " +
+                "(the SPA origins trusted in e-mail links) and/or FrontendOptions:DefaultOrigin (the " +
+                "fallback SPA for non-browser and operator-driven flows) before starting the host.")
             .ValidateOnStart();
         builder.Services.AddScoped<IFrontendOriginResolver, FrontendOriginResolver>();
 
