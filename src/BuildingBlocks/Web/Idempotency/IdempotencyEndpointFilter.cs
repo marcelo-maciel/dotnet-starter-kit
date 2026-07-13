@@ -75,7 +75,7 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
         // Atomically reserve the key so concurrent duplicates don't both execute the handler.
         var multiplexer = httpContext.RequestServices.GetService<IConnectionMultiplexer>();
         var reservationKey = cacheKey + ":inflight";
-        if (!await TryReserveAsync(multiplexer, reservationKey, options.DefaultTtl, httpContext.RequestAborted).ConfigureAwait(false))
+        if (!await TryReserveAsync(multiplexer, reservationKey, options.ReservationTtl, logger, idempotencyKey, httpContext.RequestAborted).ConfigureAwait(false))
         {
             // Another request with this key is in flight. It may have finished between the probe
             // and the reservation — re-probe once, otherwise report the in-progress conflict.
@@ -137,7 +137,7 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
         }
         finally
         {
-            await ReleaseReservationAsync(multiplexer, reservationKey).ConfigureAwait(false);
+            await ReleaseReservationAsync(multiplexer, reservationKey, logger, idempotencyKey).ConfigureAwait(false);
         }
     }
 
@@ -207,23 +207,44 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
     }
 
     private static async ValueTask<bool> TryReserveAsync(
-        IConnectionMultiplexer? multiplexer, string reservationKey, TimeSpan ttl, CancellationToken ct)
+        IConnectionMultiplexer? multiplexer, string reservationKey, TimeSpan ttl, ILogger logger, string idempotencyKey, CancellationToken ct)
     {
         if (multiplexer is not null)
         {
-            var db = multiplexer.GetDatabase();
-            return await db.StringSetAsync(reservationKey, "1", ttl, When.NotExists).ConfigureAwait(false);
+            try
+            {
+                var db = multiplexer.GetDatabase();
+                return await db.StringSetAsync(reservationKey, "1", ttl, When.NotExists).ConfigureAwait(false);
+            }
+            // Fail open on a Redis blip: the reservation is a concurrency convenience, not a correctness
+            // requirement (the response cache still dedups later retries). Proceed rather than 500 the
+            // request, matching the best-effort stance the response write already takes.
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "Idempotency reservation failed for key {KeyHash}; proceeding without it", HashKey(idempotencyKey));
+                return true;
+            }
         }
 
         _ = ct;
         return InFlight.TryAdd(reservationKey, 0);
     }
 
-    private static async ValueTask ReleaseReservationAsync(IConnectionMultiplexer? multiplexer, string reservationKey)
+    private static async ValueTask ReleaseReservationAsync(IConnectionMultiplexer? multiplexer, string reservationKey, ILogger logger, string idempotencyKey)
     {
         if (multiplexer is not null)
         {
-            await multiplexer.GetDatabase().KeyDeleteAsync(reservationKey).ConfigureAwait(false);
+            try
+            {
+                await multiplexer.GetDatabase().KeyDeleteAsync(reservationKey).ConfigureAwait(false);
+            }
+            // Best-effort release: a Redis fault here must not throw out of the finally. The short
+            // ReservationTtl expires the key anyway, so a missed delete self-heals in seconds.
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "Failed to release idempotency reservation for key {KeyHash}", HashKey(idempotencyKey));
+            }
+
             return;
         }
 
