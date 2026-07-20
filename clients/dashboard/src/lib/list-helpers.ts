@@ -63,17 +63,17 @@ export function formatRelative(iso: string | null | undefined) {
   const diffMs = Date.now() - new Date(iso).getTime();
   if (Number.isNaN(diffMs) || diffMs < 0) return "";
   const sec = Math.floor(diffMs / 1000);
-  if (sec < 60) return "just now";
+  if (sec < 60) return i18n.t("relative.justNow");
   const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m ago`;
+  if (min < 60) return i18n.t("relative.minutesAgo", { n: min });
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
+  if (hr < 24) return i18n.t("relative.hoursAgo", { n: hr });
   const day = Math.floor(hr / 24);
-  if (day < 30) return `${day}d ago`;
+  if (day < 30) return i18n.t("relative.daysAgo", { n: day });
   const mo = Math.floor(day / 30);
-  if (mo < 12) return `${mo}mo ago`;
+  if (mo < 12) return i18n.t("relative.monthsAgo", { n: mo });
   const yr = Math.floor(day / 365);
-  return `${yr}y ago`;
+  return i18n.t("relative.yearsAgo", { n: yr });
 }
 
 export function pad2(n: number) {

@@ -72,5 +72,22 @@
   "impersonationBanner.toastEnded": "Impersonation ended",
   "impersonationBanner.toastReturned": "Returned to your session",
   "impersonationBanner.toastErrorTitle": "Could not end impersonation cleanly",
-  "impersonationBanner.toastErrorDesc": "Restored local session."
+  "impersonationBanner.toastErrorDesc": "Restored local session.",
+  "backToSignIn": "Back to sign in",
+  "relative.justNow": "just now",
+  "relative.secondsAgo": "{{n}}s ago",
+  "relative.minutesAgo": "{{n}}m ago",
+  "relative.hoursAgo": "{{n}}h ago",
+  "relative.daysAgo": "{{n}}d ago",
+  "relative.monthsAgo": "{{n}}mo ago",
+  "relative.yearsAgo": "{{n}}y ago",
+  "notFound.title": "Page not found",
+  "notFound.body": "We couldn't find anything at that address. It may be a stale link, a renamed route, or a path that never existed.",
+  "notFound.requested": "Requested",
+  "notFound.backHome": "Back home",
+  "notFound.goBack": "Go back to the previous page",
+  "tenantDeactivated.title": "Tenant deactivated",
+  "tenantDeactivated.body": "This tenant has been deactivated and is no longer available. If you think this is a mistake, please contact your administrator.",
+  "impersonationEnded.title": "Impersonation ended",
+  "impersonationEnded.body": "The operator's access to this session was revoked or has expired. Sign in with your own account to continue."
 }
