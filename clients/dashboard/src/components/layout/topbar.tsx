@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar } from "@/components/ui/avatar";
 import { getMyProfile } from "@/api/identity";
+import i18n from "@/i18n";
 import { useAuth } from "@/auth/use-auth";
 import { useSseStatus } from "@/sse/sse-context";
 import { useTheme } from "@/components/theme/theme-provider";
@@ -156,6 +157,16 @@ export function Topbar() {
     staleTime: 5 * 60 * 1000,
   });
   const avatarUrl = profile?.imageUrl ?? null;
+
+  // Hydrate the UI language from the server-persisted locale once the profile
+  // loads, so a locale chosen on another device carries over on this one.
+  const persistedLocale = profile?.locale;
+  useEffect(() => {
+    if (persistedLocale && persistedLocale !== i18n.language) {
+      void i18n.changeLanguage(persistedLocale);
+    }
+  }, [persistedLocale]);
+
   const { status: sseStatus, eventCount } = useSseStatus();
   const { mode, setMode } = useTheme();
   const { setOpen: setPaletteOpen } = useCommandPalette();

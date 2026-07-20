@@ -16,6 +16,7 @@ export type UserDto = {
   phoneNumber?: string;
   imageUrl?: string;
   twoFactorEnabled?: boolean;
+  locale?: string | null;
 };
 
 export type UserRoleDto = {
