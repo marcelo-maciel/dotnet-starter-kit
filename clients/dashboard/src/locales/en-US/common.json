@@ -55,5 +55,22 @@
   "nav.health": "Health",
   "nav.audits": "Audit trail",
   "nav.sessions": "Sessions",
-  "nav.trash": "Trash"
+  "nav.trash": "Trash",
+  "expiryBanner.expired": "Your subscription has expired. Contact your operator to renew and restore full access.",
+  "expiryBanner.grace": "Your subscription expired — {{days}} of grace left (until {{date}}). Contact your operator to renew.",
+  "expiryBanner.nearing": "Your subscription expires in {{days}}.",
+  "expiryBanner.days_one": "{{count}} day",
+  "expiryBanner.days_other": "{{count}} days",
+  "expiryBanner.graceSoon": "soon",
+  "expiryBanner.dismiss": "Dismiss",
+  "expiryBanner.dismissNotice": "Dismiss subscription notice",
+  "impersonationBanner.crossTenant": "Cross-tenant impersonation",
+  "impersonationBanner.impersonating": "Impersonating",
+  "impersonationBanner.operator": "operator",
+  "impersonationBanner.end": "End impersonation",
+  "impersonationBanner.ending": "Ending…",
+  "impersonationBanner.toastEnded": "Impersonation ended",
+  "impersonationBanner.toastReturned": "Returned to your session",
+  "impersonationBanner.toastErrorTitle": "Could not end impersonation cleanly",
+  "impersonationBanner.toastErrorDesc": "Restored local session."
 }

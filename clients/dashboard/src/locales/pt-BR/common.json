@@ -55,5 +55,22 @@
   "nav.health": "Saúde",
   "nav.audits": "Trilha de auditoria",
   "nav.sessions": "Sessões",
-  "nav.trash": "Lixeira"
+  "nav.trash": "Lixeira",
+  "expiryBanner.expired": "Sua assinatura expirou. Entre em contato com seu operador para renovar e restaurar o acesso completo.",
+  "expiryBanner.grace": "Sua assinatura expirou — {{days}} de carência restantes (até {{date}}). Entre em contato com seu operador para renovar.",
+  "expiryBanner.nearing": "Sua assinatura expira em {{days}}.",
+  "expiryBanner.days_one": "{{count}} dia",
+  "expiryBanner.days_other": "{{count}} dias",
+  "expiryBanner.graceSoon": "em breve",
+  "expiryBanner.dismiss": "Dispensar",
+  "expiryBanner.dismissNotice": "Dispensar aviso de assinatura",
+  "impersonationBanner.crossTenant": "Personificação entre tenants",
+  "impersonationBanner.impersonating": "Personificando",
+  "impersonationBanner.operator": "operador",
+  "impersonationBanner.end": "Encerrar personificação",
+  "impersonationBanner.ending": "Encerrando…",
+  "impersonationBanner.toastEnded": "Personificação encerrada",
+  "impersonationBanner.toastReturned": "De volta à sua sessão",
+  "impersonationBanner.toastErrorTitle": "Não foi possível encerrar a personificação corretamente",
+  "impersonationBanner.toastErrorDesc": "Sessão local restaurada."
 }

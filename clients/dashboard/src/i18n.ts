@@ -3,6 +3,8 @@ import LanguageDetector from "i18next-browser-languagedetector";
 import { initReactI18next } from "react-i18next";
 import enCommon from "@/locales/en-US/common.json";
 import ptCommon from "@/locales/pt-BR/common.json";
+import enAuth from "@/locales/en-US/auth.json";
+import ptAuth from "@/locales/pt-BR/auth.json";
 
 // Canonical tags: specific (what the switcher offers, User.Locale persists, the claim carries).
 export const SUPPORTED = ["en-US", "pt-BR"] as const;
@@ -15,6 +17,7 @@ type Catalog = Record<string, string>;
 // other wiring changes.
 const catalogs: Record<string, Record<(typeof SUPPORTED)[number], Catalog>> = {
   common: { "en-US": enCommon, "pt-BR": ptCommon },
+  auth: { "en-US": enAuth, "pt-BR": ptAuth },
 };
 
 export const NAMESPACES = Object.keys(catalogs);

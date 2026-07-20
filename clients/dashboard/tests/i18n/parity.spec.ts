@@ -14,10 +14,15 @@ const load = (locale: string, ns: string): Record<string, string> =>
     ),
   );
 
+// One entry per shipped namespace. Add new namespaces here as each wave lands.
+const NAMESPACES = ["common", "auth"];
+
 test.describe("i18n catalog parity", () => {
-  test("common: en-US and pt-BR expose the same keys", () => {
-    const en = load("en-US", "common");
-    const pt = load("pt-BR", "common");
-    expect(Object.keys(en).sort()).toEqual(Object.keys(pt).sort());
-  });
+  for (const ns of NAMESPACES) {
+    test(`${ns}: en-US and pt-BR expose the same keys`, () => {
+      const en = load("en-US", ns);
+      const pt = load("pt-BR", ns);
+      expect(Object.keys(en).sort()).toEqual(Object.keys(pt).sort());
+    });
+  }
 });
