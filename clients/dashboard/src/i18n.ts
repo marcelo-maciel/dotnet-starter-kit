@@ -19,6 +19,8 @@ import enCatalog from "@/locales/en-US/catalog.json";
 import ptCatalog from "@/locales/pt-BR/catalog.json";
 import enTickets from "@/locales/en-US/tickets.json";
 import ptTickets from "@/locales/pt-BR/tickets.json";
+import enFiles from "@/locales/en-US/files.json";
+import ptFiles from "@/locales/pt-BR/files.json";
 
 // Canonical tags: specific (what the switcher offers, User.Locale persists, the claim carries).
 export const SUPPORTED = ["en-US", "pt-BR"] as const;
@@ -39,6 +41,7 @@ const catalogs: Record<string, Record<(typeof SUPPORTED)[number], Catalog>> = {
   activity: { "en-US": enActivity, "pt-BR": ptActivity },
   catalog: { "en-US": enCatalog, "pt-BR": ptCatalog },
   tickets: { "en-US": enTickets, "pt-BR": ptTickets },
+  files: { "en-US": enFiles, "pt-BR": ptFiles },
 };
 
 export const NAMESPACES = Object.keys(catalogs);
