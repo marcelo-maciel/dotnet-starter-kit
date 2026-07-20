@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar } from "@/components/ui/avatar";
 import { useAuth } from "@/auth/use-auth";
+import i18n from "@/i18n";
 import { getMyProfile } from "@/api/users";
 import { useTheme } from "@/components/theme/theme-provider";
 import { cn } from "@/lib/cn";
@@ -160,6 +161,15 @@ export function Topbar() {
   });
   const avatarUrl = profile.data?.imageUrl ?? null;
   const displayName = user?.name ?? user?.email ?? "Unknown";
+
+  // Hydrate the UI language from the server-persisted locale once the profile
+  // loads, so a locale chosen on another device carries over on this one.
+  const persistedLocale = profile.data?.locale;
+  useEffect(() => {
+    if (persistedLocale && persistedLocale !== i18n.language) {
+      void i18n.changeLanguage(persistedLocale);
+    }
+  }, [persistedLocale]);
 
   const onConfirmSignOut = () => {
     setConfirmOpen(false);

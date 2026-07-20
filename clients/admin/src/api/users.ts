@@ -12,6 +12,8 @@ export type UserDto = {
   phoneNumber?: string | null;
   imageUrl?: string | null;
   twoFactorEnabled?: boolean;
+  /** Persisted BCP 47 UI language tag (e.g. "pt-BR"); null when the user never chose. */
+  locale?: string | null;
 };
 
 export type UserRoleDto = {
