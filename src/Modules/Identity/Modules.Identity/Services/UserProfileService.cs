@@ -48,6 +48,7 @@ internal sealed class UserProfileService(
             EmailConfirmed = user.EmailConfirmed,
             PhoneNumber = user.PhoneNumber,
             TwoFactorEnabled = user.TwoFactorEnabled,
+            Locale = user.Locale,
         };
     }
 
@@ -75,7 +76,7 @@ internal sealed class UserProfileService(
         return result;
     }
 
-    public async Task UpdateAsync(string userId, string firstName, string lastName, string phoneNumber, FileUploadRequest image, bool deleteCurrentImage, CancellationToken cancellationToken = default)
+    public async Task UpdateAsync(string userId, string firstName, string lastName, string phoneNumber, FileUploadRequest image, bool deleteCurrentImage, string? locale, CancellationToken cancellationToken = default)
     {
         var user = await userManager.FindByIdAsync(userId);
 
@@ -101,6 +102,13 @@ internal sealed class UserProfileService(
 
         user.FirstName = firstName;
         user.LastName = lastName;
+        // Null locale means "not provided by this update" — preserve the existing value so a
+        // text-only profile edit never clears a language the user already chose.
+        if (locale is not null)
+        {
+            user.Locale = locale;
+        }
+
         string? currentPhoneNumber = await userManager.GetPhoneNumberAsync(user);
         if (phoneNumber != currentPhoneNumber)
         {

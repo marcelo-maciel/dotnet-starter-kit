@@ -104,7 +104,9 @@ public sealed class StartImpersonationCommandHandler
         // ImpersonationGrant row and the issued JWT share the same jti.
         var jti = Guid.NewGuid().ToString("N");
         var impersonationClaims = claims
-            .Where(c => c.Type != JwtRegisteredClaimNames.Jti)
+            // Drop the target's locale: language is a presentation concern, so the operator reads in
+            // THEIR own language (falls through to Accept-Language), not the impersonated user's.
+            .Where(c => c.Type != JwtRegisteredClaimNames.Jti && c.Type != "locale")
             .Concat(
             [
                 new Claim(JwtRegisteredClaimNames.Jti, jti),

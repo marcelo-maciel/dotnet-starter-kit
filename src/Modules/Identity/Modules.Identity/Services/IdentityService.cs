@@ -301,11 +301,11 @@ public sealed class IdentityService : IIdentityService
         return claims;
     }
 
-    private static List<Claim> CreateBasicClaims(FshUser user, string tenantId)
+    internal static List<Claim> CreateBasicClaims(FshUser user, string tenantId)
     {
         var fullName = $"{user.FirstName} {user.LastName}".Trim();
-        return
-        [
+        var claims = new List<Claim>
+        {
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             // RFC 7519 short-form sub/name/email emitted alongside legacy ClaimTypes.* so JWT consumers read them per spec.
             // `name` is published explicitly because the default outbound map turns ClaimTypes.Name into `unique_name`, not `name`.
@@ -320,7 +320,17 @@ public sealed class IdentityService : IIdentityService
             new(ClaimTypes.Surname, user.LastName ?? string.Empty),
             new(ClaimConstants.Tenant, tenantId),
             new(ClaimConstants.ImageUrl, user.ImageUrl?.ToString() ?? string.Empty)
-        ];
+        };
+
+        // OIDC-standard `locale` claim, emitted ONLY when the user explicitly chose a language.
+        // A null/blank Locale emits no claim so the culture-resolution chain falls to Accept-Language
+        // rather than forcing the deployment default onto users who never picked one.
+        if (!string.IsNullOrWhiteSpace(user.Locale))
+        {
+            claims.Add(new Claim("locale", user.Locale));
+        }
+
+        return claims;
     }
 
     private async Task AddRoleClaimsAsync(List<Claim> claims, FshUser user, CancellationToken ct)
