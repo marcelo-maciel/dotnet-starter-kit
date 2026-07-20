@@ -15,7 +15,7 @@ const load = (locale: string, ns: string): Record<string, string> =>
   );
 
 // One entry per shipped namespace. Add new namespaces here as each wave lands.
-const NAMESPACES = ["common", "auth", "settings", "identity", "overview", "subscription", "activity", "catalog", "tickets", "files", "audits"];
+const NAMESPACES = ["common", "auth", "settings", "identity", "overview", "subscription", "activity", "catalog", "tickets", "files", "audits", "commandPalette", "notifications"];
 
 test.describe("i18n catalog parity", () => {
   for (const ns of NAMESPACES) {

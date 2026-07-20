@@ -23,6 +23,10 @@ import enFiles from "@/locales/en-US/files.json";
 import ptFiles from "@/locales/pt-BR/files.json";
 import enAudits from "@/locales/en-US/audits.json";
 import ptAudits from "@/locales/pt-BR/audits.json";
+import enCommandPalette from "@/locales/en-US/commandPalette.json";
+import ptCommandPalette from "@/locales/pt-BR/commandPalette.json";
+import enNotifications from "@/locales/en-US/notifications.json";
+import ptNotifications from "@/locales/pt-BR/notifications.json";
 
 // Canonical tags: specific (what the switcher offers, User.Locale persists, the claim carries).
 export const SUPPORTED = ["en-US", "pt-BR"] as const;
@@ -45,6 +49,8 @@ const catalogs: Record<string, Record<(typeof SUPPORTED)[number], Catalog>> = {
   tickets: { "en-US": enTickets, "pt-BR": ptTickets },
   files: { "en-US": enFiles, "pt-BR": ptFiles },
   audits: { "en-US": enAudits, "pt-BR": ptAudits },
+  commandPalette: { "en-US": enCommandPalette, "pt-BR": ptCommandPalette },
+  notifications: { "en-US": enNotifications, "pt-BR": ptNotifications },
 };
 
 export const NAMESPACES = Object.keys(catalogs);
