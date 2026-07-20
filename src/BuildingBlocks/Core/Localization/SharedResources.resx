@@ -85,4 +85,103 @@
   <data name="Validation.UnsupportedLocale" xml:space="preserve">
     <value>Unsupported locale.</value>
   </data>
+  <data name="Validation.GroupIdRequired" xml:space="preserve">
+    <value>Group ID is required.</value>
+  </data>
+  <data name="Validation.AtLeastOneUserIdRequired" xml:space="preserve">
+    <value>At least one user ID is required.</value>
+  </data>
+  <data name="Validation.UserIdsNotEmptyOrWhitespace" xml:space="preserve">
+    <value>User IDs cannot be empty or whitespace.</value>
+  </data>
+  <data name="Validation.GroupNameRequired" xml:space="preserve">
+    <value>Group name is required.</value>
+  </data>
+  <data name="Validation.GroupNameMaxLength" xml:space="preserve">
+    <value>Group name must not exceed 256 characters.</value>
+  </data>
+  <data name="Validation.DescriptionMaxLength" xml:space="preserve">
+    <value>Description must not exceed 1024 characters.</value>
+  </data>
+  <data name="Validation.RoleIdRequired" xml:space="preserve">
+    <value>Role ID is required.</value>
+  </data>
+  <data name="Validation.RoleNameRequired" xml:space="preserve">
+    <value>Role name is required.</value>
+  </data>
+  <data name="Validation.PageNumberMinimum" xml:space="preserve">
+    <value>Page number must be greater than or equal to 1.</value>
+  </data>
+  <data name="Validation.PageSizeMinimum" xml:space="preserve">
+    <value>Page size must be greater than or equal to 1.</value>
+  </data>
+  <data name="Validation.SessionIdRequired" xml:space="preserve">
+    <value>Session ID is required.</value>
+  </data>
+  <data name="Validation.ReasonMaxLength" xml:space="preserve">
+    <value>Reason must not exceed 500 characters.</value>
+  </data>
+  <data name="Validation.UserRolesRequired" xml:space="preserve">
+    <value>User roles list is required.</value>
+  </data>
+  <data name="Validation.ConfirmationCodeRequired" xml:space="preserve">
+    <value>Confirmation code is required.</value>
+  </data>
+  <data name="Validation.TenantRequired" xml:space="preserve">
+    <value>Tenant is required.</value>
+  </data>
+  <data name="Validation.CurrentPasswordRequired" xml:space="preserve">
+    <value>Current password is required.</value>
+  </data>
+  <data name="Validation.NewPasswordRequired" xml:space="preserve">
+    <value>New password is required.</value>
+  </data>
+  <data name="Validation.NewPasswordMustDiffer" xml:space="preserve">
+    <value>New password must be different from the current password.</value>
+  </data>
+  <data name="Validation.PasswordRecentlyUsed" xml:space="preserve">
+    <value>This password has been used recently. Please choose a different password.</value>
+  </data>
+  <data name="Validation.PasswordsDoNotMatch" xml:space="preserve">
+    <value>Passwords do not match.</value>
+  </data>
+  <data name="Validation.FirstNameRequired" xml:space="preserve">
+    <value>First name is required.</value>
+  </data>
+  <data name="Validation.FirstNameMaxLength" xml:space="preserve">
+    <value>First name must not exceed 100 characters.</value>
+  </data>
+  <data name="Validation.LastNameRequired" xml:space="preserve">
+    <value>Last name is required.</value>
+  </data>
+  <data name="Validation.LastNameMaxLength" xml:space="preserve">
+    <value>Last name must not exceed 100 characters.</value>
+  </data>
+  <data name="Validation.EmailRequired" xml:space="preserve">
+    <value>Email is required.</value>
+  </data>
+  <data name="Validation.EmailInvalid" xml:space="preserve">
+    <value>A valid email address is required.</value>
+  </data>
+  <data name="Validation.UsernameRequired" xml:space="preserve">
+    <value>Username is required.</value>
+  </data>
+  <data name="Validation.UsernameMinLength" xml:space="preserve">
+    <value>Username must be at least 3 characters.</value>
+  </data>
+  <data name="Validation.UsernameMaxLength" xml:space="preserve">
+    <value>Username must not exceed 50 characters.</value>
+  </data>
+  <data name="Validation.PasswordRequired" xml:space="preserve">
+    <value>Password is required.</value>
+  </data>
+  <data name="Validation.PasswordMinLength" xml:space="preserve">
+    <value>Password must be at least 6 characters.</value>
+  </data>
+  <data name="Validation.PasswordConfirmationRequired" xml:space="preserve">
+    <value>Password confirmation is required.</value>
+  </data>
+  <data name="Validation.PhoneNumberMaxLength" xml:space="preserve">
+    <value>Phone number must not exceed 20 characters.</value>
+  </data>
 </root>
