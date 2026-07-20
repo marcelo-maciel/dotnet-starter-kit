@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using FSH.Framework.Core.Localization;
 using FSH.Framework.Storage;
 using FSH.Modules.Identity.Contracts.v1.Users.UpdateUser;

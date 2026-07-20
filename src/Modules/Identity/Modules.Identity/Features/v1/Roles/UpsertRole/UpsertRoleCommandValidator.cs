@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using FSH.Framework.Core.Localization;
 using FSH.Modules.Identity.Contracts.v1.Roles.UpsertRole;
 using Microsoft.Extensions.Localization;
