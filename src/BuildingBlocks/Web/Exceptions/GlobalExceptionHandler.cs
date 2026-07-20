@@ -1,15 +1,19 @@
 using System.Diagnostics;
 using System;
 using FSH.Framework.Core.Exceptions;
+using FSH.Framework.Core.Localization;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Serilog.Context;
 
 namespace FSH.Framework.Web.Exceptions;
 
-public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IExceptionHandler
+public class GlobalExceptionHandler(
+    ILogger<GlobalExceptionHandler> logger,
+    IStringLocalizer<SharedResources> localizer) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
@@ -28,7 +32,7 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
             statusCode = StatusCodes.Status400BadRequest;
 
             problemDetails.Status = statusCode;
-            problemDetails.Title = "Validation error";
+            problemDetails.Title = localizer["Error.Validation"];
             problemDetails.Detail = "One or more validation errors occurred.";
             problemDetails.Type = "https://tools.ietf.org/html/rfc7231#section-6.5.1";
 
@@ -57,14 +61,14 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
         {
             statusCode = StatusCodes.Status401Unauthorized;
             problemDetails.Status = statusCode;
-            problemDetails.Title = "Unauthorized";
+            problemDetails.Title = localizer["Error.Unauthorized"];
             problemDetails.Detail = exception.Message;
         }
         else if (exception is KeyNotFoundException)
         {
             statusCode = StatusCodes.Status404NotFound;
             problemDetails.Status = statusCode;
-            problemDetails.Title = "Not Found";
+            problemDetails.Title = localizer["Error.NotFound"];
             problemDetails.Detail = exception.Message;
         }
         else if (exception is BadHttpRequestException badRequest)
@@ -73,15 +77,15 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
             // Client error carrying the correct status (usually 400) — honour it instead of falling through to a generic 500.
             statusCode = badRequest.StatusCode;
             problemDetails.Status = statusCode;
-            problemDetails.Title = "Bad Request";
+            problemDetails.Title = localizer["Error.BadRequest"];
             problemDetails.Detail = badRequest.Message;
         }
         else
         {
             statusCode = StatusCodes.Status500InternalServerError;
             problemDetails.Status = statusCode;
-            problemDetails.Title = "An unexpected error occurred";
-            problemDetails.Detail = "An unexpected error occurred. Please try again later.";
+            problemDetails.Title = localizer["Error.Unexpected"];
+            problemDetails.Detail = localizer["Error.Unexpected.Detail"];
         }
 
         httpContext.Response.StatusCode = statusCode;
