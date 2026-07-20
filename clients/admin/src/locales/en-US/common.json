@@ -1,5 +1,25 @@
 {
   "language": "Language",
   "language.enUS": "English (US)",
-  "language.ptBR": "Português (BR)"
+  "language.ptBR": "Português (BR)",
+  "actions.signOut": "Sign out",
+  "actions.cancel": "Cancel",
+  "shell.skipToContent": "Skip to content",
+  "shell.loading": "Loading…",
+  "shell.openProfileMenu": "Open profile menu",
+  "shell.openNavMenu": "Open navigation menu",
+  "shell.primaryNav": "Primary navigation",
+  "shell.mobileNavDescription": "Admin sections and account links.",
+  "shell.collapseSidebar": "Collapse sidebar",
+  "shell.expandSidebar": "Expand sidebar",
+  "shell.appSubtitle": "Admin",
+  "shell.unknownUser": "Unknown",
+  "theme.title": "Theme",
+  "theme.light": "Light",
+  "theme.dark": "Dark",
+  "account.title": "Account",
+  "account.profile": "Profile",
+  "account.settings": "Settings",
+  "signOut.title": "Sign out of fullstackhero?",
+  "signOut.description": "You'll need to sign in again to access this admin. Any unsaved work in this session will be lost."
 }

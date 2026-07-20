@@ -1,5 +1,25 @@
 {
   "language": "Idioma",
   "language.enUS": "English (US)",
-  "language.ptBR": "Português (BR)"
+  "language.ptBR": "Português (BR)",
+  "actions.signOut": "Sair",
+  "actions.cancel": "Cancelar",
+  "shell.skipToContent": "Pular para o conteúdo",
+  "shell.loading": "Carregando…",
+  "shell.openProfileMenu": "Abrir menu do perfil",
+  "shell.openNavMenu": "Abrir menu de navegação",
+  "shell.primaryNav": "Navegação principal",
+  "shell.mobileNavDescription": "Seções do admin e links da conta.",
+  "shell.collapseSidebar": "Recolher a barra lateral",
+  "shell.expandSidebar": "Expandir a barra lateral",
+  "shell.appSubtitle": "Admin",
+  "shell.unknownUser": "Desconhecido",
+  "theme.title": "Tema",
+  "theme.light": "Claro",
+  "theme.dark": "Escuro",
+  "account.title": "Conta",
+  "account.profile": "Perfil",
+  "account.settings": "Configurações",
+  "signOut.title": "Sair do fullstackhero?",
+  "signOut.description": "Você precisará entrar novamente para acessar este painel. Qualquer trabalho não salvo nesta sessão será perdido."
 }

@@ -3,9 +3,32 @@ import LanguageDetector from "i18next-browser-languagedetector";
 import { initReactI18next } from "react-i18next";
 import enCommon from "@/locales/en-US/common.json";
 import ptCommon from "@/locales/pt-BR/common.json";
+import enNav from "@/locales/en-US/nav.json";
+import ptNav from "@/locales/pt-BR/nav.json";
 
 // Canonical tags: specific (what the switcher offers, User.Locale persists, the claim carries).
 export const SUPPORTED = ["en-US", "pt-BR"] as const;
+
+// Translation namespaces keyed by name → per-locale catalog. This map is the
+// single source string-migration waves extend: to add a namespace, import its
+// two JSON catalogs and add one entry here — `resources` and `ns` below derive
+// from it, so no other wiring changes.
+const CATALOGS = {
+  common: { "en-US": enCommon, "pt-BR": ptCommon },
+  nav: { "en-US": enNav, "pt-BR": ptNav },
+} as const;
+
+// react-i18next wants resources shaped { <lng>: { <ns>: catalog } }. Build it from
+// CATALOGS so SUPPORTED (what the switcher offers) and the namespace list stay the
+// one source of truth for both the store and the type surface.
+const resources = Object.fromEntries(
+  SUPPORTED.map((lng) => [
+    lng,
+    Object.fromEntries(
+      Object.entries(CATALOGS).map(([ns, byLng]) => [ns, byLng[lng]]),
+    ),
+  ]),
+);
 
 // i18next's nonExplicitSupportedLngs does NOT rewrite pt-PT->pt-BR. Normalize explicitly via
 // convertDetectedLanguage: map any variant onto a canonical tag by its language part.
@@ -20,10 +43,8 @@ export function initI18n(deploymentDefault: string) {
     .use(LanguageDetector)
     .use(initReactI18next)
     .init({
-      resources: {
-        "en-US": { common: enCommon },
-        "pt-BR": { common: ptCommon },
-      },
+      resources,
+      ns: Object.keys(CATALOGS),
       fallbackLng: (SUPPORTED as readonly string[]).includes(deploymentDefault)
         ? deploymentDefault
         : "en-US",
