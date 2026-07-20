@@ -31,6 +31,8 @@ import enSystem from "@/locales/en-US/system.json";
 import ptSystem from "@/locales/pt-BR/system.json";
 import enChat from "@/locales/en-US/chat.json";
 import ptChat from "@/locales/pt-BR/chat.json";
+import enHealth from "@/locales/en-US/health.json";
+import ptHealth from "@/locales/pt-BR/health.json";
 
 // Canonical tags: specific (what the switcher offers, User.Locale persists, the claim carries).
 export const SUPPORTED = ["en-US", "pt-BR"] as const;
@@ -57,6 +59,7 @@ const catalogs: Record<string, Record<(typeof SUPPORTED)[number], Catalog>> = {
   notifications: { "en-US": enNotifications, "pt-BR": ptNotifications },
   system: { "en-US": enSystem, "pt-BR": ptSystem },
   chat: { "en-US": enChat, "pt-BR": ptChat },
+  health: { "en-US": enHealth, "pt-BR": ptHealth },
 };
 
 export const NAMESPACES = Object.keys(catalogs);
