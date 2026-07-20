@@ -21,5 +21,16 @@
   "account.profile": "Profile",
   "account.settings": "Settings",
   "signOut.title": "Sign out of fullstackhero?",
-  "signOut.description": "You'll need to sign in again to access this admin. Any unsaved work in this session will be lost."
+  "signOut.description": "You'll need to sign in again to access this admin. Any unsaved work in this session will be lost.",
+  "notFound.title": "Page not found",
+  "notFound.body": "We couldn't find anything at that address. It may be a stale link, a renamed route, or a path that never existed.",
+  "notFound.requested": "Requested",
+  "notFound.backHome": "Back home",
+  "notFound.goBack": "Go back to the previous page",
+  "routeError.systemResponse": "// SYSTEM RESPONSE",
+  "routeError.stackTrace": "// stack trace · click to expand",
+  "routeError.reload": "Reload →",
+  "routeError.returnOverview": "Return to overview",
+  "routeError.routeError": "Route error",
+  "routeError.unexpected": "Unexpected error"
 }

@@ -17,6 +17,20 @@ import enRoles from "@/locales/en-US/roles.json";
 import ptRoles from "@/locales/pt-BR/roles.json";
 import enImpersonation from "@/locales/en-US/impersonation.json";
 import ptImpersonation from "@/locales/pt-BR/impersonation.json";
+import enBilling from "@/locales/en-US/billing.json";
+import ptBilling from "@/locales/pt-BR/billing.json";
+import enTenants from "@/locales/en-US/tenants.json";
+import ptTenants from "@/locales/pt-BR/tenants.json";
+import enWebhooks from "@/locales/en-US/webhooks.json";
+import ptWebhooks from "@/locales/pt-BR/webhooks.json";
+import enAudits from "@/locales/en-US/audits.json";
+import ptAudits from "@/locales/pt-BR/audits.json";
+import enNotifications from "@/locales/en-US/notifications.json";
+import ptNotifications from "@/locales/pt-BR/notifications.json";
+import enHealth from "@/locales/en-US/health.json";
+import ptHealth from "@/locales/pt-BR/health.json";
+import enDashboard from "@/locales/en-US/dashboard.json";
+import ptDashboard from "@/locales/pt-BR/dashboard.json";
 
 // Canonical tags: specific (what the switcher offers, User.Locale persists, the claim carries).
 export const SUPPORTED = ["en-US", "pt-BR"] as const;
@@ -34,6 +48,13 @@ const CATALOGS = {
   users: { "en-US": enUsers, "pt-BR": ptUsers },
   roles: { "en-US": enRoles, "pt-BR": ptRoles },
   impersonation: { "en-US": enImpersonation, "pt-BR": ptImpersonation },
+  billing: { "en-US": enBilling, "pt-BR": ptBilling },
+  tenants: { "en-US": enTenants, "pt-BR": ptTenants },
+  webhooks: { "en-US": enWebhooks, "pt-BR": ptWebhooks },
+  audits: { "en-US": enAudits, "pt-BR": ptAudits },
+  notifications: { "en-US": enNotifications, "pt-BR": ptNotifications },
+  health: { "en-US": enHealth, "pt-BR": ptHealth },
+  dashboard: { "en-US": enDashboard, "pt-BR": ptDashboard },
 } as const;
 
 // react-i18next wants resources shaped { <lng>: { <ns>: catalog } }. Build it from

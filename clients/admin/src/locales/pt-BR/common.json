@@ -21,5 +21,16 @@
   "account.profile": "Perfil",
   "account.settings": "Configurações",
   "signOut.title": "Sair do fullstackhero?",
-  "signOut.description": "Você precisará entrar novamente para acessar este painel. Qualquer trabalho não salvo nesta sessão será perdido."
+  "signOut.description": "Você precisará entrar novamente para acessar este painel. Qualquer trabalho não salvo nesta sessão será perdido.",
+  "notFound.title": "Página não encontrada",
+  "notFound.body": "Não encontramos nada neste endereço. Pode ser um link desatualizado, uma rota renomeada ou um caminho que nunca existiu.",
+  "notFound.requested": "Solicitado",
+  "notFound.backHome": "Voltar ao início",
+  "notFound.goBack": "Voltar à página anterior",
+  "routeError.systemResponse": "// RESPOSTA DO SISTEMA",
+  "routeError.stackTrace": "// stack trace · clique para expandir",
+  "routeError.reload": "Recarregar →",
+  "routeError.returnOverview": "Voltar à visão geral",
+  "routeError.routeError": "Erro de rota",
+  "routeError.unexpected": "Erro inesperado"
 }
