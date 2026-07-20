@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
   Check,
   ChevronsUpDown,
   KeyRound,
+  Languages,
   LogOut,
   Monitor,
   Moon,
@@ -36,8 +38,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar } from "@/components/ui/avatar";
-import { getMyProfile } from "@/api/identity";
-import i18n from "@/i18n";
+import { getMyProfile, updateMyProfile } from "@/api/identity";
+import { refreshAccessToken } from "@/lib/api-client";
+import i18n, { SUPPORTED } from "@/i18n";
 import { useAuth } from "@/auth/use-auth";
 import { useSseStatus } from "@/sse/sse-context";
 import { useTheme } from "@/components/theme/theme-provider";
@@ -120,6 +123,37 @@ function ThemeMenuItem({
   );
 }
 
+/** Language-pick row — mirrors ThemeMenuItem but keeps the menu open on
+ *  select so the section label re-localizes in place instead of the menu
+ *  closing before the switch is visible. */
+function LanguageMenuItem({
+  label,
+  active,
+  onSelect,
+}: {
+  label: string;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <DropdownMenuItem
+      onSelect={(e) => {
+        e.preventDefault();
+        onSelect();
+      }}
+      className="!my-0 flex cursor-pointer items-center gap-2.5 rounded-md !px-2.5 !py-1.5"
+    >
+      <Languages className="size-3.5 shrink-0 text-[var(--color-muted-foreground)]" />
+      <span className="flex-1 text-[12.5px] font-medium text-[var(--color-foreground)]">
+        {label}
+      </span>
+      {active && (
+        <Check className="size-3.5 shrink-0 text-[var(--color-primary)]" aria-hidden />
+      )}
+    </DropdownMenuItem>
+  );
+}
+
 /** Simple icon + label menu item — used by the Account quick links. */
 function SimpleMenuItem({
   icon: Icon,
@@ -149,6 +183,9 @@ function SimpleMenuItem({
 
 export function Topbar() {
   const { user, logout } = useAuth();
+  // useTranslation subscribes this component to `languageChanged`, so the menu
+  // labels and the active-locale check re-render the instant we switch.
+  const { t } = useTranslation();
   // Shared with the Profile settings page (same query key), so changing the
   // photo there invalidates this and the topbar avatar updates live.
   const { data: profile } = useQuery({
@@ -172,6 +209,27 @@ export function Topbar() {
   const { setOpen: setPaletteOpen } = useCommandPalette();
   const navigate = useNavigate();
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const updateProfile = useMutation({
+    mutationFn: updateMyProfile,
+    onSuccess: () => {
+      // Re-mint the JWT so the fresh `locale` claim is issued. The UI already
+      // switched client-side; without this, backend-generated strings lag
+      // behind until the next natural token refresh. Best-effort: a refresh
+      // failure must not undo the language switch.
+      void refreshAccessToken().catch(() => undefined);
+    },
+  });
+
+  // Switch the UI language and persist it. The locale travels through the
+  // mutation argument (never closed-over state). updateMyProfile echoes the
+  // current name/phone from the profile it reads, so a locale-only save does
+  // not wipe them. We deliberately do NOT invalidate the profile query on
+  // success — a refetch would revert the language mid-switch.
+  const onSelectLanguage = (tag: string) => {
+    void i18n.changeLanguage(tag);
+    updateProfile.mutate({ locale: tag });
+  };
 
   const onConfirmSignOut = () => {
     setConfirmOpen(false);
@@ -342,6 +400,23 @@ export function Topbar() {
             <ThemeMenuItem icon={Sun} label="Light" active={mode === "light"} onSelect={() => setMode("light")} />
             <ThemeMenuItem icon={Moon} label="Dark" active={mode === "dark"} onSelect={() => setMode("dark")} />
             <ThemeMenuItem icon={Monitor} label="System" active={mode === "system"} onSelect={() => setMode("system")} />
+          </div>
+
+          <DropdownMenuSeparator className="!my-0" />
+
+          {/* Language — one item per supported locale, check on the active one */}
+          <DropdownMenuLabel className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">
+            {t("language")}
+          </DropdownMenuLabel>
+          <div className="px-1 pb-1">
+            {SUPPORTED.map((tag) => (
+              <LanguageMenuItem
+                key={tag}
+                label={t(`language.${tag.replace("-", "")}`)}
+                active={i18n.language === tag}
+                onSelect={() => onSelectLanguage(tag)}
+              />
+            ))}
           </div>
 
           <DropdownMenuSeparator className="!my-0" />
