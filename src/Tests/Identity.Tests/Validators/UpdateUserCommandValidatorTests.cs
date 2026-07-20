@@ -1,3 +1,4 @@
+using System.Linq;
 using FSH.Modules.Identity.Contracts.v1.Users.UpdateUser;
 using FSH.Modules.Identity.Features.v1.Users.UpdateUser;
 using Shouldly;
@@ -89,5 +90,23 @@ public sealed class UpdateUserCommandValidatorTests
         // Assert
         result.IsValid.ShouldBeFalse();
         result.Errors.ShouldContain(e => e.ErrorMessage == "You cannot upload a new image and delete the current one simultaneously.");
+    }
+
+    [Theory]
+    [InlineData("pt-BR", true)]
+    [InlineData("en-US", true)]
+    [InlineData(null, true)]
+    [InlineData("xx-YY", false)]
+    [InlineData("notaculture", false)]
+    public void Locale_Must_Be_Supported_Or_Null(string? locale, bool expectedValid)
+    {
+        // Arrange
+        var command = new UpdateUserCommand { Id = "user-123", Locale = locale };
+
+        // Act
+        var result = _sut.Validate(command);
+
+        // Assert
+        result.Errors.Any(e => e.PropertyName == nameof(UpdateUserCommand.Locale)).ShouldBe(!expectedValid);
     }
 }

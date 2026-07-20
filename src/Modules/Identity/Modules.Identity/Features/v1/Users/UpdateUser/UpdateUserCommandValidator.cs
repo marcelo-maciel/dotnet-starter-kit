@@ -1,4 +1,5 @@
 ﻿using FluentValidation;
+using FSH.Framework.Core.Localization;
 using FSH.Framework.Storage;
 using FSH.Modules.Identity.Contracts.v1.Users.UpdateUser;
 
@@ -38,5 +39,10 @@ public sealed class UpdateUserCommandValidator : AbstractValidator<UpdateUserCom
         RuleFor(x => x)
             .Must(x => !(x.DeleteCurrentImage && x.Image is not null))
             .WithMessage("You cannot upload a new image and delete the current one simultaneously.");
+
+        RuleFor(x => x.Locale)
+            .Must(l => SupportedCultures.Tags.Contains(l!))
+            .When(x => !string.IsNullOrWhiteSpace(x.Locale))
+            .WithMessage("Unsupported locale.");
     }
 }
