@@ -9,7 +9,7 @@ import path from "node:path";
 const readCatalog = (locale: string, ns: string): Record<string, string> =>
   JSON.parse(readFileSync(path.resolve("src/locales", locale, `${ns}.json`), "utf8"));
 
-const namespaces = ["common", "nav"];
+const namespaces = ["common", "nav", "auth", "settings", "sessions", "users", "roles", "impersonation"];
 
 test.describe("catalog parity", () => {
   for (const ns of namespaces) {

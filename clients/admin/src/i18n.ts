@@ -5,6 +5,18 @@ import enCommon from "@/locales/en-US/common.json";
 import ptCommon from "@/locales/pt-BR/common.json";
 import enNav from "@/locales/en-US/nav.json";
 import ptNav from "@/locales/pt-BR/nav.json";
+import enAuth from "@/locales/en-US/auth.json";
+import ptAuth from "@/locales/pt-BR/auth.json";
+import enSettings from "@/locales/en-US/settings.json";
+import ptSettings from "@/locales/pt-BR/settings.json";
+import enSessions from "@/locales/en-US/sessions.json";
+import ptSessions from "@/locales/pt-BR/sessions.json";
+import enUsers from "@/locales/en-US/users.json";
+import ptUsers from "@/locales/pt-BR/users.json";
+import enRoles from "@/locales/en-US/roles.json";
+import ptRoles from "@/locales/pt-BR/roles.json";
+import enImpersonation from "@/locales/en-US/impersonation.json";
+import ptImpersonation from "@/locales/pt-BR/impersonation.json";
 
 // Canonical tags: specific (what the switcher offers, User.Locale persists, the claim carries).
 export const SUPPORTED = ["en-US", "pt-BR"] as const;
@@ -16,6 +28,12 @@ export const SUPPORTED = ["en-US", "pt-BR"] as const;
 const CATALOGS = {
   common: { "en-US": enCommon, "pt-BR": ptCommon },
   nav: { "en-US": enNav, "pt-BR": ptNav },
+  auth: { "en-US": enAuth, "pt-BR": ptAuth },
+  settings: { "en-US": enSettings, "pt-BR": ptSettings },
+  sessions: { "en-US": enSessions, "pt-BR": ptSessions },
+  users: { "en-US": enUsers, "pt-BR": ptUsers },
+  roles: { "en-US": enRoles, "pt-BR": ptRoles },
+  impersonation: { "en-US": enImpersonation, "pt-BR": ptImpersonation },
 } as const;
 
 // react-i18next wants resources shaped { <lng>: { <ns>: catalog } }. Build it from
