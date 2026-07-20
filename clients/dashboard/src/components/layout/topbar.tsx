@@ -40,6 +40,7 @@ import {
 import { Avatar } from "@/components/ui/avatar";
 import { getMyProfile, updateMyProfile } from "@/api/identity";
 import { refreshAccessToken } from "@/lib/api-client";
+import { formatNumber } from "@/lib/list-helpers";
 import i18n, { SUPPORTED } from "@/i18n";
 import { useAuth } from "@/auth/use-auth";
 import { useSseStatus } from "@/sse/sse-context";
@@ -240,19 +241,22 @@ export function Topbar() {
     if (sseStatus === "connected") {
       return {
         color: "var(--color-success)",
-        text: `Connected · ${new Intl.NumberFormat("en-US").format(eventCount)} events`,
+        text: t("common:presence.connected", {
+          count: eventCount,
+          formatted: formatNumber(eventCount),
+        }),
       };
     }
     if (sseStatus === "error") {
-      return { color: "var(--color-destructive)", text: "Stream offline" };
+      return { color: "var(--color-destructive)", text: t("common:presence.offline") };
     }
     if (sseStatus === "connecting") {
-      return { color: "var(--color-muted-foreground)", text: "Connecting…" };
+      return { color: "var(--color-muted-foreground)", text: t("common:presence.connecting") };
     }
     if (sseStatus === "reconnecting") {
-      return { color: "var(--color-warning)", text: "Reconnecting…" };
+      return { color: "var(--color-warning)", text: t("common:presence.reconnecting") };
     }
-    return { color: "var(--color-muted-foreground)", text: "Idle" };
+    return { color: "var(--color-muted-foreground)", text: t("common:presence.idle") };
   })();
 
   return (
@@ -276,7 +280,7 @@ export function Topbar() {
       <button
         type="button"
         onClick={() => setPaletteOpen(true)}
-        aria-label="Open command palette"
+        aria-label={t("common:commandPalette.open")}
         className={cn(
           "grid h-9 w-9 cursor-pointer place-items-center rounded-md md:hidden",
           "text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)] hover:text-[var(--color-foreground)]",
@@ -292,7 +296,7 @@ export function Topbar() {
       <button
         type="button"
         onClick={() => setPaletteOpen(true)}
-        title="Open command palette"
+        title={t("common:commandPalette.open")}
         className={cn(
           "hidden h-8 cursor-pointer items-center gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-muted)] px-2.5 text-xs",
           "text-[var(--color-muted-foreground)]",
@@ -302,7 +306,7 @@ export function Topbar() {
         )}
       >
         <Search className="h-3.5 w-3.5" />
-        <span>Search</span>
+        <span>{t("common:search")}</span>
         <kbd className="ml-2 rounded border border-[var(--color-border)] bg-[var(--color-card)] px-1.5 py-px font-mono text-[10px] font-medium tracking-tight">
           ⌘K
         </kbd>
@@ -329,7 +333,7 @@ export function Topbar() {
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            aria-label="Open profile menu"
+            aria-label={t("common:profileMenu.open")}
             className={cn(
               "group flex cursor-pointer items-center gap-2.5 rounded-lg py-1 pl-1 pr-2 outline-none",
               "transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out-cubic)]",
@@ -343,7 +347,7 @@ export function Topbar() {
             {/* Name + role caption — desktop only */}
             <div className="hidden min-w-0 text-left md:block">
               <p className="truncate text-[12px] font-medium leading-none text-[var(--color-foreground)]">
-                {user?.name ?? user?.email ?? "Unknown"}
+                {user?.name ?? user?.email ?? t("common:unknownUser")}
               </p>
               <p className="mt-1 truncate text-[10px] leading-none text-[var(--color-muted-foreground)]">
                 {user?.tenant ?? "—"}
@@ -368,7 +372,7 @@ export function Topbar() {
           {/* User info header — name + email, plain warm-paper */}
           <div className="px-3 py-2.5">
             <p className="truncate text-[12px] font-semibold text-[var(--color-foreground)]">
-              {user?.name ?? user?.email ?? "Unknown"}
+              {user?.name ?? user?.email ?? t("common:unknownUser")}
             </p>
             {user?.email && user.name && (
               <p className="mt-0.5 truncate text-[10.5px] text-[var(--color-muted-foreground)]">
@@ -394,25 +398,25 @@ export function Topbar() {
 
           {/* Theme — three simple menu items with a check on the active one */}
           <DropdownMenuLabel className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">
-            Theme
+            {t("common:theme.title")}
           </DropdownMenuLabel>
           <div className="px-1 pb-1">
-            <ThemeMenuItem icon={Sun} label="Light" active={mode === "light"} onSelect={() => setMode("light")} />
-            <ThemeMenuItem icon={Moon} label="Dark" active={mode === "dark"} onSelect={() => setMode("dark")} />
-            <ThemeMenuItem icon={Monitor} label="System" active={mode === "system"} onSelect={() => setMode("system")} />
+            <ThemeMenuItem icon={Sun} label={t("common:theme.light")} active={mode === "light"} onSelect={() => setMode("light")} />
+            <ThemeMenuItem icon={Moon} label={t("common:theme.dark")} active={mode === "dark"} onSelect={() => setMode("dark")} />
+            <ThemeMenuItem icon={Monitor} label={t("common:theme.system")} active={mode === "system"} onSelect={() => setMode("system")} />
           </div>
 
           <DropdownMenuSeparator className="!my-0" />
 
           {/* Language — one item per supported locale, check on the active one */}
           <DropdownMenuLabel className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">
-            {t("language")}
+            {t("common:language")}
           </DropdownMenuLabel>
           <div className="px-1 pb-1">
             {SUPPORTED.map((tag) => (
               <LanguageMenuItem
                 key={tag}
-                label={t(`language.${tag.replace("-", "")}`)}
+                label={t(`common:language.${tag.replace("-", "")}`)}
                 active={i18n.language === tag}
                 onSelect={() => onSelectLanguage(tag)}
               />
@@ -423,12 +427,12 @@ export function Topbar() {
 
           {/* Account quick actions */}
           <DropdownMenuLabel className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">
-            Account
+            {t("common:account.title")}
           </DropdownMenuLabel>
           <div className="px-1 pb-1">
-            <SimpleMenuItem icon={UserRound} label="Profile" onSelect={() => navigate("/settings/profile")} />
-            <SimpleMenuItem icon={SettingsIcon} label="Settings" onSelect={() => navigate("/settings")} />
-            <SimpleMenuItem icon={KeyRound} label="API keys" onSelect={() => navigate("/settings/api-keys")} />
+            <SimpleMenuItem icon={UserRound} label={t("common:account.profile")} onSelect={() => navigate("/settings/profile")} />
+            <SimpleMenuItem icon={SettingsIcon} label={t("common:account.settings")} onSelect={() => navigate("/settings")} />
+            <SimpleMenuItem icon={KeyRound} label={t("common:account.apiKeys")} onSelect={() => navigate("/settings/api-keys")} />
           </div>
 
           <DropdownMenuSeparator className="!my-0" />
@@ -441,7 +445,7 @@ export function Topbar() {
               className="!my-0 cursor-pointer rounded-md !px-2.5 !py-1.5"
             >
               <LogOut className="size-3.5" />
-              <span className="text-[12.5px] font-medium">Sign out</span>
+              <span className="text-[12.5px] font-medium">{t("common:account.signOut")}</span>
             </DropdownMenuItem>
           </div>
         </DropdownMenuContent>
@@ -451,10 +455,9 @@ export function Topbar() {
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Sign out of fullstackhero?</DialogTitle>
+            <DialogTitle>{t("common:signOut.title")}</DialogTitle>
             <DialogDescription>
-              You'll need to sign in again to access this tenant. Any unsaved
-              work in this session will be lost.
+              {t("common:signOut.description")}
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
@@ -462,7 +465,7 @@ export function Topbar() {
               <Avatar name={user?.name ?? user?.email ?? "?"} src={avatarUrl} size="md" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium tracking-tight">
-                  {user?.name ?? user?.email ?? "Unknown"}
+                  {user?.name ?? user?.email ?? t("common:unknownUser")}
                 </div>
                 {user?.email && user.name && (
                   <div className="truncate text-xs text-[var(--color-muted-foreground)]">
@@ -481,7 +484,7 @@ export function Topbar() {
               size="sm"
               onClick={() => setConfirmOpen(false)}
             >
-              Cancel
+              {t("common:signOut.cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -490,7 +493,7 @@ export function Topbar() {
               autoFocus
             >
               <LogOut className="mr-1.5 h-3.5 w-3.5" />
-              Sign out
+              {t("common:signOut.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
