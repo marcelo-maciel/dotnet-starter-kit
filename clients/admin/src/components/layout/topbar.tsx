@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
   Check,
   ChevronsUpDown,
+  Languages,
   LogOut,
   Moon,
   Settings as SettingsIcon,
@@ -32,8 +34,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar } from "@/components/ui/avatar";
 import { useAuth } from "@/auth/use-auth";
-import i18n from "@/i18n";
-import { getMyProfile } from "@/api/users";
+import i18n, { SUPPORTED } from "@/i18n";
+import { getMyProfile, updateMyProfile } from "@/api/users";
+import { refreshAccessToken } from "@/lib/api-client";
 import { useTheme } from "@/components/theme/theme-provider";
 import { cn } from "@/lib/cn";
 
@@ -119,6 +122,36 @@ function ThemeMenuItem({
   );
 }
 
+function LanguageMenuItem({
+  label,
+  active,
+  onSelect,
+}: {
+  label: string;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <DropdownMenuItem
+      onSelect={(e) => {
+        // Keep the menu open on select so the switch reflects in place (the
+        // section label localizes immediately) instead of the menu closing.
+        e.preventDefault();
+        onSelect();
+      }}
+      className="!my-0 flex cursor-pointer items-center gap-2.5 rounded-md !px-2.5 !py-1.5"
+    >
+      <Languages className="size-3.5 shrink-0 text-[var(--color-muted-foreground)]" />
+      <span className="flex-1 text-[12.5px] font-medium text-[var(--color-foreground)]">
+        {label}
+      </span>
+      {active && (
+        <Check className="size-3.5 shrink-0 text-[var(--color-primary)]" aria-hidden />
+      )}
+    </DropdownMenuItem>
+  );
+}
+
 function SimpleMenuItem({
   icon: Icon,
   label,
@@ -148,6 +181,9 @@ function SimpleMenuItem({
 export function Topbar() {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
+  // useTranslation subscribes this component to `languageChanged`, so the
+  // menu labels and the active-locale check re-render the instant we switch.
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -170,6 +206,32 @@ export function Topbar() {
       void i18n.changeLanguage(persistedLocale);
     }
   }, [persistedLocale]);
+
+  const updateProfile = useMutation({
+    mutationFn: updateMyProfile,
+    onSuccess: () => {
+      // Re-mint the JWT so the fresh `locale` claim is issued (resolution-chain
+      // level 2). The UI already switched client-side; without this, backend-
+      // generated strings lag behind until the next natural token refresh.
+      // Best-effort: a refresh failure must not undo the language switch.
+      void refreshAccessToken().catch(() => undefined);
+    },
+  });
+
+  // Switch the UI language and persist it. The locale travels through the
+  // mutation argument (never closed-over state). The current name/phone are
+  // echoed because the backend sets FirstName/LastName unconditionally from the
+  // command — a locale-only save would otherwise wipe them.
+  const onSelectLanguage = (tag: string) => {
+    void i18n.changeLanguage(tag);
+    const snap = profile.data;
+    updateProfile.mutate({
+      firstName: snap?.firstName ?? undefined,
+      lastName: snap?.lastName ?? undefined,
+      phoneNumber: snap?.phoneNumber ?? undefined,
+      locale: tag,
+    });
+  };
 
   const onConfirmSignOut = () => {
     setConfirmOpen(false);
@@ -277,6 +339,23 @@ export function Topbar() {
               active={theme === "dark"}
               onSelect={() => setTheme("dark")}
             />
+          </div>
+
+          <DropdownMenuSeparator className="!my-0" />
+
+          {/* Language */}
+          <DropdownMenuLabel className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">
+            {t("language")}
+          </DropdownMenuLabel>
+          <div className="px-1 pb-1">
+            {SUPPORTED.map((tag) => (
+              <LanguageMenuItem
+                key={tag}
+                label={t(`language.${tag.replace("-", "")}`)}
+                active={i18n.language === tag}
+                onSelect={() => onSelectLanguage(tag)}
+              />
+            ))}
           </div>
 
           <DropdownMenuSeparator className="!my-0" />

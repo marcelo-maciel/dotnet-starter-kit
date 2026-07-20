@@ -78,6 +78,28 @@ export async function setProfileImage(imageUrl: string | null): Promise<void> {
   });
 }
 
+export type UpdateMyProfileInput = {
+  firstName?: string | null;
+  lastName?: string | null;
+  phoneNumber?: string | null;
+  /** BCP 47 UI language tag persisted on the user (drives the JWT locale claim). */
+  locale?: string | null;
+};
+
+/**
+ * Self-update of the authenticated user's profile (PUT /identity/profile,
+ * server forces the id to the caller). The backend sets FirstName/LastName
+ * unconditionally from the command, so callers that only mean to change one
+ * field (e.g. the language switcher) must echo the current values to avoid
+ * wiping the others.
+ */
+export async function updateMyProfile(input: UpdateMyProfileInput): Promise<void> {
+  await apiFetch<void>(`${IDENTITY}/profile`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
 export async function changePassword(input: {
   password: string;
   newPassword: string;
