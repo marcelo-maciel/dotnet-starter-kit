@@ -34,10 +34,17 @@ public static class LocalizationExtensions
             o.AddSupportedUICultures(SupportedCultures.RequestMatch);
             o.ApplyCurrentCultureToResponseHeaders = true;
 
-            // Default order is [Query(0), Cookie(1), AcceptLanguage(2)]. Drop the cookie provider and
-            // insert the user-claim provider right after query, so the final chain is
-            // Query → UserLocaleClaim → AcceptLanguage → configured default → en-US neutral resx.
-            o.RequestCultureProviders.RemoveAt(1);
+            // Default order is [Query(0), Cookie(1), AcceptLanguage(2)]. Drop the cookie provider by
+            // type (order-independent, so a framework reshuffle of the defaults can't silently remove
+            // the wrong provider) and insert the user-claim provider right after query, so the final
+            // chain is Query → UserLocaleClaim → AcceptLanguage → configured default → en-US neutral resx.
+            var cookieProvider = o.RequestCultureProviders
+                .FirstOrDefault(p => p is CookieRequestCultureProvider);
+            if (cookieProvider is not null)
+            {
+                o.RequestCultureProviders.Remove(cookieProvider);
+            }
+
             o.RequestCultureProviders.Insert(1, new UserLocaleRequestCultureProvider());
         });
 

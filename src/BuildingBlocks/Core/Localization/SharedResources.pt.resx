@@ -61,6 +61,9 @@
   <data name="Error.Validation" xml:space="preserve">
     <value>Ocorreram um ou mais erros de validação.</value>
   </data>
+  <data name="Error.Validation.Detail" xml:space="preserve">
+    <value>Ocorreram um ou mais erros de validação.</value>
+  </data>
   <data name="Error.Unauthorized" xml:space="preserve">
     <value>Não autorizado</value>
   </data>

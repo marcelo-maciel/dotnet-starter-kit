@@ -33,7 +33,7 @@ public class GlobalExceptionHandler(
 
             problemDetails.Status = statusCode;
             problemDetails.Title = localizer["Error.Validation"];
-            problemDetails.Detail = "One or more validation errors occurred.";
+            problemDetails.Detail = localizer["Error.Validation.Detail"];
             problemDetails.Type = "https://tools.ietf.org/html/rfc7231#section-6.5.1";
 
             var errors = fluentException.Errors

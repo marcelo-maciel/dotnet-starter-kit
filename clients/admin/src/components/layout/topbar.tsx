@@ -218,19 +218,14 @@ export function Topbar() {
     },
   });
 
-  // Switch the UI language and persist it. The locale travels through the
-  // mutation argument (never closed-over state). The current name/phone are
-  // echoed because the backend sets FirstName/LastName unconditionally from the
-  // command — a locale-only save would otherwise wipe them.
+  // Switch the UI language and persist it. Only the locale travels through the
+  // mutation argument (never closed-over state); updateMyProfile re-reads the
+  // profile from the server and merges the current name/phone, so the switch
+  // never wipes those fields even if this component's profile query has not
+  // resolved (or failed).
   const onSelectLanguage = (tag: string) => {
     void i18n.changeLanguage(tag);
-    const snap = profile.data;
-    updateProfile.mutate({
-      firstName: snap?.firstName ?? undefined,
-      lastName: snap?.lastName ?? undefined,
-      phoneNumber: snap?.phoneNumber ?? undefined,
-      locale: tag,
-    });
+    updateProfile.mutate({ locale: tag });
   };
 
   const onConfirmSignOut = () => {
