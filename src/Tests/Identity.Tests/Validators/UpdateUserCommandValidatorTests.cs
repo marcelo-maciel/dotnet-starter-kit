@@ -112,6 +112,13 @@ public sealed class UpdateUserCommandValidatorTests
     [InlineData("pt-BR", true)]
     [InlineData("en-US", true)]
     [InlineData(null, true)]
+    // Empty/whitespace is treated as "not provided": the .When(!IsNullOrWhiteSpace) guard skips the
+    // rule, so an empty locale is valid (the caller simply isn't changing it).
+    [InlineData("", true)]
+    // Case matters: SupportedCultures.Tags.Contains is ordinal, so a wrong-case tag is rejected —
+    // pins the ordinal comparison against an accidental case-insensitive refactor.
+    [InlineData("pt-br", false)]
+    [InlineData("PT-BR", false)]
     [InlineData("xx-YY", false)]
     [InlineData("notaculture", false)]
     public void Locale_Must_Be_Supported_Or_Null(string? locale, bool expectedValid)

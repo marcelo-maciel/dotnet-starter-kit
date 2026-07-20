@@ -56,4 +56,40 @@ test.describe("i18n", () => {
 
     expect(seenLang).toBe("en-US");
   });
+
+  test("apiFetch sends Accept-Language: pt-BR once the locale is Portuguese", async ({ page }) => {
+    // Boot the app in Portuguese via the ?culture querystring — the i18n detector gives
+    // querystring top priority (order: ["querystring", ...]), so the active locale is pt-BR
+    // before the first apiFetch runs. A hardcoded "en-US" in apiFetch would fail this.
+    let seenLang: string | null = null;
+
+    // Return a profile whose locale already matches pt-BR so the topbar's sync effect does not
+    // switch the language back.
+    await page.route("**/api/v1/identity/profile", async (route) => {
+      if (route.request().method() !== "GET") {
+        await route.fallback();
+        return;
+      }
+      seenLang = route.request().headers()["accept-language"] ?? null;
+      await route.fulfill({
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: "u-test-1",
+          isActive: true,
+          emailConfirmed: true,
+          locale: "pt-BR",
+        }),
+      });
+    });
+
+    const profileReq = page.waitForRequest(
+      (r) => r.url().includes("/api/v1/identity/profile") && r.method() === "GET",
+      { timeout: 10_000 },
+    );
+    await page.goto("/?culture=pt-BR");
+    await profileReq;
+
+    expect(seenLang).toBe("pt-BR");
+  });
 });

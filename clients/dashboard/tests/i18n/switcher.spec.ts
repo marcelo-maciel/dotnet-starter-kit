@@ -98,4 +98,92 @@ test.describe("language switcher", () => {
     // (c) the token refresh fired to re-mint the locale claim.
     await expect.poll(() => refreshCalled).toBe(true);
   });
+
+  // Regression (data-loss): the PUT body must be built from a fresh server read
+  // inside updateMyProfile, NOT from the topbar's ["identity","profile"] query
+  // snapshot. If that query is still pending (or failed) when the user switches
+  // language, the old code sent firstName/lastName = undefined and the backend
+  // wiped the name. We gate every GET so the profile is provably NOT loaded in
+  // the component at click time, then release it and assert the PUT still
+  // carries the name.
+  test("preserves firstName/lastName even when the profile query has not loaded", async ({
+    page,
+  }) => {
+    // A gate held closed until we've already clicked the language item, so at
+    // click time no GET has resolved — profile.data in the topbar is undefined.
+    let releaseGet: () => void = () => {};
+    const getGate = new Promise<void>((resolve) => {
+      releaseGet = resolve;
+    });
+
+    await page.route("**/api/v1/identity/profile", async (route) => {
+      const method = route.request().method();
+      if (method === "PUT") {
+        await route.fulfill({ status: 200 });
+        return;
+      }
+      if (method === "GET") {
+        await getGate;
+        await route.fulfill({
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: "u-test-1",
+            firstName: "Alice",
+            lastName: "Nguyen",
+            phoneNumber: "",
+            email: "alice@acme.com",
+            isActive: true,
+            emailConfirmed: true,
+            locale: "en-US",
+          }),
+        });
+        return;
+      }
+      await route.fallback();
+    });
+
+    await page.route("**/api/v1/identity/token/refresh", async (route) => {
+      const token = fakeJwt({
+        sub: "u-test-1",
+        email: TEST_USER.email,
+        name: "Alice Nguyen",
+        tenant: "acme",
+        locale: "pt-BR",
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        iat: Math.floor(Date.now() / 1000),
+      });
+      await route.fulfill({
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, refreshToken: "fresh-refresh-token" }),
+      });
+    });
+
+    await page.goto("/");
+
+    // The dropdown and language list render from i18n/SUPPORTED, not the profile,
+    // so the menu is usable while the (gated) profile GET is still pending.
+    await page.getByRole("button", { name: /open profile menu/i }).click();
+    await expect(page.getByText("Language", { exact: true })).toBeVisible();
+
+    const putRequest = page.waitForRequest(
+      (r) => r.url().includes("/api/v1/identity/profile") && r.method() === "PUT",
+    );
+    await page.getByRole("menuitem", { name: "Português (BR)" }).click();
+
+    // Only now let the profile reads resolve: updateMyProfile's own GET feeds the PUT.
+    releaseGet();
+    // Read the body straight off the resolved request (race-free — waitForRequest
+    // fires on dispatch, before the route handler would have captured anything).
+    const putBody = (await putRequest).postDataJSON() as {
+      locale?: string;
+      firstName?: string;
+      lastName?: string;
+    };
+
+    expect(putBody.locale).toBe("pt-BR");
+    expect(putBody.firstName).toBe("Alice");
+    expect(putBody.lastName).toBe("Nguyen");
+  });
 });
