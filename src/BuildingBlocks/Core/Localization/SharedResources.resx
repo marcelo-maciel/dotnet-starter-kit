@@ -76,4 +76,13 @@
   <data name="Error.Unexpected.Detail" xml:space="preserve">
     <value>An unexpected error occurred. Please try again later.</value>
   </data>
+  <data name="Validation.UserIdRequired" xml:space="preserve">
+    <value>User ID is required.</value>
+  </data>
+  <data name="Validation.ImageUploadDeleteConflict" xml:space="preserve">
+    <value>You cannot upload a new image and delete the current one simultaneously.</value>
+  </data>
+  <data name="Validation.UnsupportedLocale" xml:space="preserve">
+    <value>Unsupported locale.</value>
+  </data>
 </root>

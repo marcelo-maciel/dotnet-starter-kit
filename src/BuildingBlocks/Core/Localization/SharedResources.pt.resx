@@ -76,4 +76,13 @@
   <data name="Error.Unexpected.Detail" xml:space="preserve">
     <value>Ocorreu um erro inesperado. Tente novamente mais tarde.</value>
   </data>
+  <data name="Validation.UserIdRequired" xml:space="preserve">
+    <value>O ID do usuário é obrigatório.</value>
+  </data>
+  <data name="Validation.ImageUploadDeleteConflict" xml:space="preserve">
+    <value>Você não pode enviar uma nova imagem e excluir a atual ao mesmo tempo.</value>
+  </data>
+  <data name="Validation.UnsupportedLocale" xml:space="preserve">
+    <value>Idioma não suportado.</value>
+  </data>
 </root>
