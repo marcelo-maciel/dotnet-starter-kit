@@ -8,6 +8,7 @@ using FSH.Framework.Web.Origin;
 using FSH.Modules.Identity.Contracts.DTOs;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Domain;
+using FSH.Modules.Identity.Localization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -34,7 +35,11 @@ internal sealed class UserProfileService(
             .Where(u => u.Id == userId)
             .FirstOrDefaultAsync(cancellationToken);
 
-        _ = user ?? throw new NotFoundException("user not found");
+        _ = user ?? throw new NotFoundException("user not found")
+        {
+            MessageKey = "Identity.UserNotFound",
+            ResourceSource = typeof(IdentityResources),
+        };
 
         return new UserDto
         {
@@ -80,7 +85,11 @@ internal sealed class UserProfileService(
     {
         var user = await userManager.FindByIdAsync(userId);
 
-        _ = user ?? throw new NotFoundException("user not found");
+        _ = user ?? throw new NotFoundException("user not found")
+        {
+            MessageKey = "Identity.UserNotFound",
+            ResourceSource = typeof(IdentityResources),
+        };
 
         Uri imageUri = user.ImageUrl ?? null!;
         // image is optional: text-only edits forward a null FileUploadRequest, so guard before
@@ -120,7 +129,11 @@ internal sealed class UserProfileService(
 
         if (!result.Succeeded)
         {
-            throw new CustomException("Update profile failed");
+            throw new CustomException("Update profile failed")
+            {
+                MessageKey = "Identity.UpdateProfileFailed",
+                ResourceSource = typeof(IdentityResources),
+            };
         }
     }
 
@@ -128,7 +141,11 @@ internal sealed class UserProfileService(
     {
         EnsureValidTenant();
         var user = await userManager.FindByIdAsync(userId)
-            ?? throw new NotFoundException("user not found");
+            ?? throw new NotFoundException("user not found")
+            {
+                MessageKey = "Identity.UserNotFound",
+                ResourceSource = typeof(IdentityResources),
+            };
 
         user.ImageUrl = string.IsNullOrWhiteSpace(imageUrl)
             ? null
@@ -137,7 +154,11 @@ internal sealed class UserProfileService(
         var result = await userManager.UpdateAsync(user);
         if (!result.Succeeded)
         {
-            throw new CustomException("Update profile image failed");
+            throw new CustomException("Update profile image failed")
+            {
+                MessageKey = "Identity.UpdateProfileImageFailed",
+                ResourceSource = typeof(IdentityResources),
+            };
         }
 
         await signInManager.RefreshSignInAsync(user);
@@ -165,7 +186,10 @@ internal sealed class UserProfileService(
     {
         if (string.IsNullOrWhiteSpace(multiTenantContextAccessor?.MultiTenantContext?.TenantInfo?.Id))
         {
-            throw new UnauthorizedException("invalid tenant");
+            throw new UnauthorizedException("invalid tenant")
+            {
+                MessageKey = "Error.InvalidTenant",
+            };
         }
     }
 

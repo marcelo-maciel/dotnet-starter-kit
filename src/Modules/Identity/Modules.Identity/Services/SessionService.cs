@@ -40,7 +40,10 @@ public sealed class SessionService : ISessionService
     {
         if (string.IsNullOrWhiteSpace(_multiTenantContextAccessor?.MultiTenantContext?.TenantInfo?.Id))
         {
-            throw new UnauthorizedException("Invalid tenant");
+            throw new UnauthorizedException("Invalid tenant")
+            {
+                MessageKey = "Error.InvalidTenant",
+            };
         }
     }
 
