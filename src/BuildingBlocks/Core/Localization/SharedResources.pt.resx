@@ -73,6 +73,9 @@
   <data name="Error.BadRequest" xml:space="preserve">
     <value>Requisição inválida</value>
   </data>
+  <data name="Error.Forbidden" xml:space="preserve">
+    <value>Acesso negado</value>
+  </data>
   <data name="Error.Unexpected" xml:space="preserve">
     <value>Ocorreu um erro inesperado</value>
   </data>

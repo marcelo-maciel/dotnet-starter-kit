@@ -20,6 +20,24 @@ public class CustomException : Exception
     public HttpStatusCode StatusCode { get; }
 
     /// <summary>
+    /// Optional resource key resolved against <see cref="ResourceSource"/> to localize the
+    /// response body under the request culture. When null, the literal <see cref="Exception.Message"/>
+    /// is used. The message itself always stays the (English) fallback for logs.
+    /// </summary>
+    public string? MessageKey { get; init; }
+
+    /// <summary>
+    /// Format arguments applied to the localized message ({0}, {1}, …).
+    /// </summary>
+    public IReadOnlyList<object> MessageArgs { get; init; } = [];
+
+    /// <summary>
+    /// Marker type identifying the resource catalog for <see cref="MessageKey"/>. When null,
+    /// the shared (Core) catalog is used; module-specific keys point it at the module's own catalog.
+    /// </summary>
+    public Type? ResourceSource { get; init; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="CustomException"/> class with default message and internal server error status.
     /// </summary>
     public CustomException()

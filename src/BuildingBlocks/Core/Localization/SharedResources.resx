@@ -73,6 +73,9 @@
   <data name="Error.BadRequest" xml:space="preserve">
     <value>Bad Request</value>
   </data>
+  <data name="Error.Forbidden" xml:space="preserve">
+    <value>Forbidden</value>
+  </data>
   <data name="Error.Unexpected" xml:space="preserve">
     <value>An unexpected error occurred</value>
   </data>

@@ -17,7 +17,8 @@ public sealed class GlobalExceptionHandlerTests
 
         var handler = new GlobalExceptionHandler(
             NullLogger<GlobalExceptionHandler>.Instance,
-            SharedResourcesLocalizerFactory.Create());
+            SharedResourcesLocalizerFactory.Create(),
+            SharedResourcesLocalizerFactory.CreateFactory());
         await handler.TryHandleAsync(context, exception, CancellationToken.None);
         return context;
     }
