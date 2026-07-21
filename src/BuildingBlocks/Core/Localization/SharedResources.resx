@@ -127,6 +127,12 @@
   <data name="Validation.PageSizeMinimum" xml:space="preserve">
     <value>Page size must be greater than or equal to 1.</value>
   </data>
+  <data name="Validation.PageSizeRange" xml:space="preserve">
+    <value>Page size must be between 1 and 100.</value>
+  </data>
+  <data name="Validation.SortMaxLength" xml:space="preserve">
+    <value>Sort expression must not exceed 200 characters.</value>
+  </data>
   <data name="Validation.SessionIdRequired" xml:space="preserve">
     <value>Session ID is required.</value>
   </data>

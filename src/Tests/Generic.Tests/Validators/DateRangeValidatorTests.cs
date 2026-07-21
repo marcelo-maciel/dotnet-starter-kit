@@ -1,3 +1,4 @@
+using FSH.Framework.Core.Localization;
 using FSH.Modules.Auditing.Contracts.v1.GetAudits;
 using FSH.Modules.Auditing.Contracts.v1.GetAuditsByCorrelation;
 using FSH.Modules.Auditing.Contracts.v1.GetAuditsByTrace;
@@ -10,6 +11,8 @@ using FSH.Modules.Auditing.Features.v1.GetAuditsByTrace;
 using FSH.Modules.Auditing.Features.v1.GetAuditSummary;
 using FSH.Modules.Auditing.Features.v1.GetExceptionAudits;
 using FSH.Modules.Auditing.Features.v1.GetSecurityAudits;
+using Generic.Tests.Support;
+using Microsoft.Extensions.Localization;
 
 namespace Generic.Tests.Validators;
 
@@ -20,12 +23,13 @@ namespace Generic.Tests.Validators;
 public sealed class DateRangeValidatorTests
 {
     private static readonly DateTime BaseDate = new(2024, 1, 15, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly IStringLocalizer<SharedResources> Localizer = SharedResourcesLocalizerFactory.Create();
 
     [Fact]
     public void DateRange_Should_Pass_When_BothNull_GetAudits()
     {
         // Arrange
-        var validator = new GetAuditsQueryValidator();
+        var validator = new GetAuditsQueryValidator(Localizer);
         var query = new GetAuditsQuery { FromUtc = null, ToUtc = null };
 
         // Act
@@ -81,7 +85,7 @@ public sealed class DateRangeValidatorTests
     public void DateRange_Should_Pass_When_OnlyFromUtcSet_GetAudits()
     {
         // Arrange
-        var validator = new GetAuditsQueryValidator();
+        var validator = new GetAuditsQueryValidator(Localizer);
         var query = new GetAuditsQuery { FromUtc = BaseDate, ToUtc = null };
 
         // Act
@@ -95,7 +99,7 @@ public sealed class DateRangeValidatorTests
     public void DateRange_Should_Pass_When_OnlyToUtcSet_GetAudits()
     {
         // Arrange
-        var validator = new GetAuditsQueryValidator();
+        var validator = new GetAuditsQueryValidator(Localizer);
         var query = new GetAuditsQuery { FromUtc = null, ToUtc = BaseDate };
 
         // Act
@@ -109,7 +113,7 @@ public sealed class DateRangeValidatorTests
     public void DateRange_Should_Pass_When_FromUtcEqualsToUtc_GetAudits()
     {
         // Arrange
-        var validator = new GetAuditsQueryValidator();
+        var validator = new GetAuditsQueryValidator(Localizer);
         var query = new GetAuditsQuery { FromUtc = BaseDate, ToUtc = BaseDate };
 
         // Act
@@ -123,7 +127,7 @@ public sealed class DateRangeValidatorTests
     public void DateRange_Should_Pass_When_FromUtcBeforeToUtc_GetAudits()
     {
         // Arrange
-        var validator = new GetAuditsQueryValidator();
+        var validator = new GetAuditsQueryValidator(Localizer);
         var query = new GetAuditsQuery
         {
             FromUtc = BaseDate,
@@ -141,7 +145,7 @@ public sealed class DateRangeValidatorTests
     public void DateRange_Should_Fail_When_FromUtcAfterToUtc_GetAudits()
     {
         // Arrange
-        var validator = new GetAuditsQueryValidator();
+        var validator = new GetAuditsQueryValidator(Localizer);
         var query = new GetAuditsQuery
         {
             FromUtc = BaseDate.AddDays(7),
@@ -260,7 +264,7 @@ public sealed class DateRangeValidatorTests
     public void DateRange_Should_Pass_When_FromUtcSlightlyBeforeToUtc(int secondsDiff)
     {
         // Arrange
-        var validator = new GetAuditsQueryValidator();
+        var validator = new GetAuditsQueryValidator(Localizer);
         var query = new GetAuditsQuery
         {
             FromUtc = BaseDate,

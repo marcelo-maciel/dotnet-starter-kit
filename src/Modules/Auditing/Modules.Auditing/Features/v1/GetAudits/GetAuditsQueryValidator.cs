@@ -1,14 +1,16 @@
 using FluentValidation;
+using FSH.Framework.Core.Localization;
 using FSH.Framework.Web.Validation;
 using FSH.Modules.Auditing.Contracts.v1.GetAudits;
+using Microsoft.Extensions.Localization;
 
 namespace FSH.Modules.Auditing.Features.v1.GetAudits;
 
 public sealed class GetAuditsQueryValidator : AbstractValidator<GetAuditsQuery>
 {
-    public GetAuditsQueryValidator()
+    public GetAuditsQueryValidator(IStringLocalizer<SharedResources> localizer)
     {
-        Include(new PagedQueryValidator<GetAuditsQuery>());
+        Include(new PagedQueryValidator<GetAuditsQuery>(localizer));
 
         RuleFor(q => q)
             .Must(q => !q.FromUtc.HasValue || !q.ToUtc.HasValue || q.FromUtc <= q.ToUtc)
