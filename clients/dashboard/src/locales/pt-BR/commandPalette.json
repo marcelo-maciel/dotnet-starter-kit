@@ -6,7 +6,7 @@
   "group.accent": "Cor de destaque",
   "group.session": "Sessão",
   "nav.overview.label": "Visão geral",
-  "nav.overview.hint": "Telemetria e uso do tenant",
+  "nav.overview.hint": "Telemetria e uso da organização",
   "nav.activity.label": "Atividade ao vivo",
   "nav.activity.hint": "Fluxo de eventos em tempo real",
   "nav.chat.label": "Chat",

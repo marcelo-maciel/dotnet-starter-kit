@@ -1,10 +1,9 @@
 {
   "title": "Assinatura",
-  "description": "O plano, a validade, o uso e as faturas recentes do seu tenant.",
-
+  "description": "O plano, a validade, o uso e as faturas recentes da sua organização.",
   "plan.title": "Plano",
   "plan.noneTitle": "Nenhuma assinatura ativa",
-  "plan.noneBody": "Seu tenant não tem plano atribuído. Entre em contato com o operador para habilitar cobrança, cotas e controle de excedente.",
+  "plan.noneBody": "Sua organização não tem plano atribuído. Entre em contato com o operador para habilitar cobrança, cotas e controle de excedente.",
   "plan.started": "Início",
   "plan.ends": "Término",
   "plan.openEnded": "sem prazo",
@@ -12,9 +11,8 @@
   "plan.status.Active": "Ativa",
   "plan.status.Suspended": "Suspensa",
   "plan.status.Cancelled": "Cancelada",
-
   "validity.title": "Validade",
-  "validity.unavailable": "O status do tenant está indisponível no momento.",
+  "validity.unavailable": "O status da organização está indisponível no momento.",
   "validity.inactive": "Inativo",
   "validity.validUntil": "Válido até",
   "validity.graceEnds": "Carência termina",
@@ -22,28 +20,25 @@
   "validity.state.expired": "Expirada",
   "validity.state.active": "Ativa",
   "validity.state.unknown": "Desconhecida",
-
   "usage.title": "Uso por recurso",
   "usage.description": "Consumo do mês atual em relação aos limites do seu plano.",
   "usage.loadError": "Não foi possível carregar o uso. Tente atualizar.",
   "usage.emptyTitle": "Nenhum uso registrado ainda",
   "usage.emptyBody": "O consumo aparecerá aqui conforme os snapshots forem registrados neste período.",
-
   "recent.title": "Faturas recentes",
   "recent.description": "Suas cinco faturas mais recentes.",
   "recent.seeAll": "Ver todas",
   "recent.loadError": "Não foi possível carregar as faturas. Tente atualizar.",
-
   "invoices.title": "Faturas",
   "invoices.unit": "fatura",
-  "invoices.description": "O histórico de cobrança do seu tenant, da mais recente para a mais antiga.",
+  "invoices.description": "O histórico de cobrança da sua organização, da mais recente para a mais antiga.",
   "invoices.searchPlaceholder": "Buscar por número da fatura, status ou período…",
   "invoices.loadError": "Falha ao carregar as faturas.",
   "invoices.clearSearch": "Limpar busca",
   "invoices.empty.foundTitle": "Nenhuma fatura encontrada",
   "invoices.empty.emptyTitle": "Nenhuma fatura ainda",
   "invoices.empty.foundBody": "Nada corresponde a \"{{term}}\". Tente outro termo ou limpe a busca.",
-  "invoices.empty.emptyBody": "Assim que seu tenant for cobrado por um período, as faturas aparecerão aqui.",
+  "invoices.empty.emptyBody": "Assim que sua organização for cobrada por um período, as faturas aparecerão aqui.",
   "invoices.matched_one": "{{count}} fatura corresponde nesta página",
   "invoices.matched_other": "{{count}} faturas correspondem nesta página",
   "invoices.showing_one": "Exibindo {{shown}} de {{count}} fatura",
@@ -61,7 +56,6 @@
   "invoices.status.Issued": "Emitida",
   "invoices.status.Paid": "Paga",
   "invoices.status.Void": "Anulada",
-
   "wallet.title": "Carteira do WhatsApp",
   "wallet.description": "Seu saldo pré-pago para mensagens do WhatsApp. Solicite uma recarga e emitiremos uma fatura para creditar sua carteira.",
   "wallet.currentBalance": "Saldo atual",
@@ -93,7 +87,6 @@
   "wallet.status.Completed": "Concluída",
   "wallet.status.Rejected": "Rejeitada",
   "wallet.status.Cancelled": "Cancelada",
-
   "invoiceDetail.back": "Voltar para faturas",
   "invoiceDetail.downloadFailed": "Falha no download",
   "invoiceDetail.periodLabel": "Período {{period}}",
@@ -120,6 +113,6 @@
   "invoiceDetail.row.periodStart": "Início do período",
   "invoiceDetail.row.periodEnd": "Fim do período",
   "invoiceDetail.notFoundTitle": "Fatura não encontrada",
-  "invoiceDetail.notFoundBody": "Ela pode não pertencer ao seu tenant, ou o link pode estar errado.",
+  "invoiceDetail.notFoundBody": "Ela pode não pertencer à sua organização, ou o link pode estar errado.",
   "invoiceDetail.notFoundBack": "Voltar para faturas"
 }

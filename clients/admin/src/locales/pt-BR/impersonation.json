@@ -20,7 +20,7 @@
   "empty.kicker": "// nada aqui",
   "empty.noActiveTitle": "Nenhuma personificação ativa.",
   "empty.noMatchTitle": "Nenhuma concessão corresponde a este filtro.",
-  "empty.noActiveDesc": "Quando um operador começa a personificar um usuário de tenant, a sessão aparece aqui em tempo real.",
+  "empty.noActiveDesc": "Quando um operador começa a personificar um usuário de organização, a sessão aparece aqui em tempo real.",
   "empty.noMatchDesc": "Tente um filtro de status diferente para ver o restante do histórico de concessões.",
   "expires": "expira {{time}}",
   "hide": "ocultar",
@@ -39,9 +39,8 @@
   "detail.revokedAt": "Revogada em",
   "detail.revokedBy": "Revogada por",
   "detail.revokeReason": "Motivo da revogação",
-
   "dialog.title": "Personificar usuário",
-  "dialog.tenant": "Tenant",
+  "dialog.tenant": "Organização",
   "dialog.descPick": "escolha um usuário para personificar.",
   "dialog.descConfigure": "detalhes da sessão. O token será emitido e aberto no dashboard.",
   "dialog.pick.searchPlaceholder": "Buscar por nome, email ou usuário…",
@@ -65,7 +64,6 @@
   "dialog.toast.startedDesc": "Dashboard aberto como {{name}}. Encerre a personificação de dentro da aba do dashboard.",
   "dialog.toast.failed": "Falha na personificação",
   "dialog.unnamedUser": "Usuário sem nome",
-
   "revokeDialog.title": "Revogar concessão de personificação",
   "revokeDialog.description": "O token emitido será rejeitado na próxima requisição autenticada (dentro de ~1 segundo do TTL de cache). A sessão na aba do dashboard é encerrada sem aviso.",
   "revokeDialog.reasonLabel": "Motivo (opcional)",
@@ -80,5 +78,10 @@
   "revokeDialog.summary.impersonating": "Personificando",
   "revokeDialog.summary.startedBy": "Iniciada por",
   "revokeDialog.summary.reason": "Motivo",
-  "revokeDialog.summary.expires": "Expira"
+  "revokeDialog.summary.expires": "Expira",
+  "card.title": "Personificações ativas",
+  "card.description": "Operadores atualmente conectados como usuários desta organização. Revogar invalida imediatamente o token emitido; a aba do dashboard receberá 401 na próxima requisição.",
+  "card.activeSession": "Sessão ativa",
+  "card.viewOnly": "somente leitura",
+  "card.reopenTooltip": "Emita um novo token de personificação. Use quando você perdeu a aba original do dashboard."
 }

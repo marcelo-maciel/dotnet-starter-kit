@@ -1,7 +1,7 @@
 {
   "sessions.title": "Sessões ativas",
   "sessions.description": "Todos os navegadores e dispositivos conectados a {{tenant}} agora. Atualiza a cada 30 segundos.",
-  "sessions.thisTenant": "este tenant",
+  "sessions.thisTenant": "esta organização",
   "sessions.refresh": "Atualizar",
   "sessions.searchPlaceholder": "Buscar por usuário, e-mail ou IP…",
   "sessions.filter.visibility": "Visibilidade",
@@ -40,7 +40,7 @@
   "trash.title": "Lixeira",
   "trash.description": "Registros excluídos, mantidos indefinidamente até você restaurá-los. Restaurar um registro o traz de volta à lista original com o mesmo ID e histórico intactos.",
   "trash.noAccessTitle": "Nenhuma lixeira disponível",
-  "trash.noAccessBody": "Você não tem permissão para restaurar registros excluídos neste tenant. Fale com um administrador se acha que deveria ter.",
+  "trash.noAccessBody": "Você não tem permissão para restaurar registros excluídos nesta organização. Fale com um administrador se acha que deveria ter.",
   "trash.sections": "Seções da lixeira",
   "trash.tab.products": "Produtos",
   "trash.tab.brands": "Marcas",

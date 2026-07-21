@@ -69,7 +69,7 @@
   "drawer.section.payload": "Payload",
   "drawer.section.pipeline": "Pipeline",
   "drawer.section.related": "Eventos relacionados",
-  "drawer.field.tenant": "Tenant",
+  "drawer.field.tenant": "Organização",
   "drawer.field.user": "Usuário",
   "drawer.field.userId": "ID do usuário",
   "drawer.field.source": "Origem",

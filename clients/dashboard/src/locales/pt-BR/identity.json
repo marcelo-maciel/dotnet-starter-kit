@@ -4,12 +4,10 @@
   "notFound": "Usuário não encontrado.",
   "member": "Membro",
   "cancel": "Cancelar",
-
   "badge.active": "Ativo",
   "badge.inactive": "Inativo",
   "badge.emailConfirmed": "Email confirmado",
   "badge.emailPending": "Email pendente",
-
   "actions.impersonate": "Personificar",
   "actions.impersonateDisabledTitle": "Não é possível personificar um usuário inativo",
   "actions.sending": "Enviando…",
@@ -19,12 +17,10 @@
   "actions.deactivate": "Desativar",
   "actions.reactivate": "Reativar",
   "actions.delete": "Excluir",
-
   "stat.role_one": "função",
   "stat.role_other": "funções",
   "stat.session_one": "sessão",
   "stat.session_other": "sessões",
-
   "card.title": "Cartão de identidade",
   "card.description": "Somente leitura aqui. Os membros atualizam o próprio perfil nas configurações.",
   "field.username": "Usuário",
@@ -33,7 +29,6 @@
   "field.lastName": "Sobrenome",
   "field.phone": "Telefone",
   "field.id": "ID",
-
   "roles.title": "Atribuição de funções",
   "roles.description": "Alterne quais funções se aplicam. As alterações ficam pendentes até salvar.",
   "roles.pending_one": "{{count}} pendente",
@@ -52,7 +47,6 @@
   "roles.updatedDesc_one": "{{count}} função alterada.",
   "roles.updatedDesc_other": "{{count}} funções alteradas.",
   "roles.updateFailed": "Falha na atualização",
-
   "status.deactivated": "Usuário desativado",
   "status.reactivated": "Usuário reativado",
   "status.changeFailed": "Falha ao alterar o status",
@@ -61,12 +55,10 @@
   "status.deactivateDesc": "{{name}} não poderá entrar até ser reativado. As sessões existentes permanecem, a menos que sejam revogadas.",
   "status.reactivateDesc": "{{name}} recuperará o acesso de login imediatamente.",
   "status.working": "Processando…",
-
   "email.confirmed": "Email confirmado",
   "email.confirmFailed": "Falha ao confirmar o email",
   "email.resent": "Email de confirmação enviado",
   "email.resendFailed": "Não foi possível enviar o email de confirmação",
-
   "delete.deleted": "Usuário excluído",
   "delete.failed": "Falha ao excluir",
   "delete.title": "Excluir este membro",
@@ -74,7 +66,6 @@
   "delete.descPost": "Ele perderá o acesso imediatamente. Isto não pode ser desfeito.",
   "delete.deleting": "Excluindo…",
   "delete.confirm": "Excluir usuário",
-
   "sessions.revoked": "Sessão revogada",
   "sessions.revokeFailed": "Falha ao revogar",
   "sessions.revokedCount_one": "{{count}} sessão revogada",
@@ -96,7 +87,6 @@
   "sessions.revokeAllTitle": "Revogar todas as sessões de {{name}}?",
   "sessions.revokeAllDesc": "Toda sessão ativa — desktop, celular, aba do navegador — será encerrada imediatamente. O usuário precisará entrar novamente em cada dispositivo.",
   "sessions.revokingAll": "Revogando…",
-
   "impersonate.started": "Personificação iniciada",
   "impersonate.startedDesc": "Você agora está agindo como este usuário. Use o banner para encerrar.",
   "impersonate.failed": "Falha na personificação",
@@ -106,12 +96,10 @@
   "impersonate.reasonPlaceholder": "Investigando um relato de bug deste usuário…",
   "impersonate.starting": "Iniciando…",
   "impersonate.start": "Iniciar personificação",
-
   "field.name": "Nome",
   "field.description": "Descrição",
   "field.password": "Senha",
   "field.confirm": "Confirmar",
-
   "rolesList.title": "Funções",
   "rolesList.description": "Funções agrupam permissões em faixas de autoridade nomeadas. Atribua-as pela página de detalhe do usuário.",
   "rolesList.newRole": "Nova função",
@@ -143,7 +131,6 @@
   "rolesList.toastCreated": "Função criada",
   "rolesList.toastCreatedDesc": "Agora configure as permissões de {{name}}.",
   "rolesList.toastCreateFailed": "Falha ao criar",
-
   "groupsList.title": "Grupos",
   "groupsList.description": "Grupos agrupam membros e funções em coortes reutilizáveis. Adicione um usuário a um grupo para conceder todas as funções vinculadas a ele.",
   "groupsList.newGroup": "Novo grupo",
@@ -180,9 +167,8 @@
   "groupsList.toastCreated": "Grupo criado",
   "groupsList.toastCreatedDesc": "Adicione membros e funções a seguir.",
   "groupsList.toastCreateFailed": "Falha ao criar",
-
   "usersList.title": "Usuários",
-  "usersList.description": "Todo membro com acesso a este tenant. Registre novos usuários, revise o status e gerencie funções.",
+  "usersList.description": "Todo membro com acesso a esta organização. Registre novos usuários, revise o status e gerencie funções.",
   "usersList.registerUser": "Registrar usuário",
   "usersList.searchPlaceholder": "Buscar por nome, usuário ou e-mail…",
   "usersList.filterAccountStatus": "Status da conta",
@@ -198,7 +184,7 @@
   "usersList.emptyTitle": "Nenhum usuário ainda",
   "usersList.emptySearchBodyTerm": "Nada corresponde a \"{{term}}\". Tente outro termo ou limpe os filtros.",
   "usersList.emptySearchBodyNoTerm": "Nenhum usuário corresponde aos filtros atuais.",
-  "usersList.emptyBody": "Registre o primeiro membro para popular este tenant. Ele receberá um e-mail de confirmação se a confirmação de e-mail estiver habilitada.",
+  "usersList.emptyBody": "Registre o primeiro membro para popular esta organização. Ele receberá um e-mail de confirmação se a confirmação de e-mail estiver habilitada.",
   "usersList.clearFilters": "Limpar filtros",
   "usersList.found_one": "{{count}} usuário encontrado",
   "usersList.found_other": "{{count}} usuários encontrados",
@@ -211,7 +197,7 @@
   "usersList.badgeConfirmed": "Confirmado",
   "usersList.badgePending": "Pendente",
   "usersList.registerTitle": "Registrar um membro",
-  "usersList.registerDescription": "Adicione um novo usuário a este tenant. Usuário e e-mail devem ser únicos. Senhas precisam de uma letra maiúscula, uma minúscula e um dígito.",
+  "usersList.registerDescription": "Adicione um novo usuário a esta organização. Usuário e e-mail devem ser únicos. Senhas precisam de uma letra maiúscula, uma minúscula e um dígito.",
   "usersList.firstPlaceholder": "Ada",
   "usersList.lastPlaceholder": "Lovelace",
   "usersList.usernameHint": "Usado no login. Minúsculas, sem espaços.",
@@ -225,7 +211,6 @@
   "usersList.toastRegistered": "Usuário registrado",
   "usersList.toastRegisteredDesc": "Uma confirmação de e-mail pode ser necessária antes do login.",
   "usersList.toastRegisterFailed": "Falha no registro",
-
   "roleDetail.back": "Voltar para funções",
   "roleDetail.notFound": "Função não encontrada.",
   "roleDetail.catalogError": "Não foi possível carregar o catálogo de permissões: {{error}}",
@@ -288,7 +273,6 @@
   "roleDetail.toastDeleted": "Função excluída",
   "roleDetail.toastDeleteFailed": "Falha ao excluir",
   "roleDetail.toastSaved": "Função salva",
-
   "groupDetail.back": "Voltar para grupos",
   "groupDetail.notFound": "Grupo não encontrado.",
   "groupDetail.default": "Padrão",

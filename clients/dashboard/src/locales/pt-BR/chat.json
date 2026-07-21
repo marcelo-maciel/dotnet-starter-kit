@@ -5,9 +5,8 @@
   "day.today": "Hoje",
   "day.yesterday": "Ontem",
   "unnamed": "(sem nome)",
-
   "page.emptyTitle": "Escolha uma conversa",
-  "page.emptyBody": "Escolha um canal à esquerda para participar. Canais são públicos para o seu tenant; DMs são privadas para as pessoas nelas. Menções chegam no sino de notificações, no canto superior direito.",
+  "page.emptyBody": "Escolha um canal à esquerda para participar. Canais são públicos para a sua organização; DMs são privadas para as pessoas nelas. Menções chegam no sino de notificações, no canto superior direito.",
   "page.hintSend": "Enviar",
   "page.hintNewline": "Nova linha",
   "page.hintMention": "Mencionar",
@@ -19,7 +18,6 @@
   "page.searchMessages": "Buscar mensagens",
   "page.channelSettings": "Configurações do canal",
   "page.olderThanWindow": "Essa mensagem é mais antiga que a janela carregada.",
-
   "rail.brand": "Chat",
   "rail.filterPlaceholder": "Filtrar canais…",
   "rail.clearFilter": "Limpar filtro",
@@ -36,7 +34,7 @@
   "rail.footerCount_other": "{{count}} canais",
   "rail.unreadAria": "{{n}} não lidas",
   "rail.createTitle": "Criar um canal",
-  "rail.createDescription": "Canais são onde os times conversam. Qualquer pessoa no seu tenant pode entrar em canais públicos.",
+  "rail.createDescription": "Canais são onde os times conversam. Qualquer pessoa na sua organização pode entrar em canais públicos.",
   "rail.nameLabel": "Nome",
   "rail.namePlaceholder": "engenharia, feedback-de-design…",
   "rail.descLabel": "Descrição (opcional)",
@@ -46,16 +44,15 @@
   "rail.cancel": "Cancelar",
   "rail.createSubmit": "Criar canal",
   "rail.dmTitle": "Nova mensagem direta",
-  "rail.dmDescription": "Encontre alguém no seu tenant e abriremos uma DM com essa pessoa. DMs existentes são reutilizadas, você não cria duplicatas.",
+  "rail.dmDescription": "Encontre alguém na sua organização e abriremos uma DM com essa pessoa. DMs existentes são reutilizadas, você não cria duplicatas.",
   "rail.dmSearchLabel": "Buscar",
   "rail.dmSearchPlaceholder": "Nome, usuário ou e-mail…",
   "rail.dmSearching": "Buscando…",
   "rail.dmLoadingPeople": "Carregando pessoas…",
   "rail.dmNoMatch": "Ninguém corresponde a \"{{term}}\".",
-  "rail.dmNoTeammates": "Nenhum colega no seu tenant ainda.",
+  "rail.dmNoTeammates": "Nenhum colega na sua organização ainda.",
   "rail.dmSearchResults": "Resultados da busca",
   "rail.dmSuggested": "Sugeridos",
-
   "composer.replyPlaceholder": "Digite sua resposta…",
   "composer.messageChannel": "Mensagem para #{{name}}",
   "composer.messageOther": "Mensagem para {{name}}",
@@ -84,11 +81,9 @@
   "composer.uploadCancel": "Cancelar",
   "composer.readyToSend": "pronto para enviar",
   "composer.removeAttachment": "Remover anexo",
-
   "typing.one": "{{name}} está digitando…",
   "typing.two": "{{a}} e {{b}} estão digitando…",
   "typing.many": "{{a}} e mais {{count}} estão digitando…",
-
   "pinned.bar_one": "{{count}} mensagem fixada",
   "pinned.bar_other": "{{count}} mensagens fixadas",
   "pinned.countAria_one": "{{count}} mensagem fixada, clique para revisar",
@@ -97,7 +92,6 @@
   "pinned.noText": "(sem texto)",
   "pinned.attachment": "📎 {{name}}",
   "pinned.attachmentMore": "📎 {{name}} (+{{count}})",
-
   "search.close": "Fechar busca",
   "search.placeholder": "Buscar mensagens neste canal",
   "search.clear": "Limpar busca",
@@ -106,12 +100,10 @@
   "search.footer_one": "{{count}} correspondência · clique para ir · Esc para fechar",
   "search.footer_other": "{{count}} correspondências · clique para ir · Esc para fechar",
   "search.footerEsc": "Esc para fechar",
-
   "mention.title": "Menção",
   "mention.hint": "↑↓ navegar · Enter selecionar · Esc cancelar",
   "mention.searching": "Buscando…",
   "mention.listboxAria": "Sugestões de menção",
-
   "message.edited": "· editada",
   "message.pinned": "Fixada",
   "message.deleted": "[mensagem excluída]",
@@ -159,7 +151,6 @@
   "message.editCancel": "Cancelar",
   "message.editSaving": "Salvando…",
   "message.editSave": "Salvar",
-
   "list.loading": "Carregando mensagens…",
   "list.emptyTitle": "Nenhuma mensagem ainda",
   "list.emptyBody": "Este é o começo da conversa. Envie a primeira mensagem para quebrar o silêncio.",
@@ -171,7 +162,6 @@
   "list.jumpAria_other": "Ir para a mais recente, {{count}} mensagens não vistas",
   "list.jump_one": "nova mensagem",
   "list.jump_other": "novas mensagens",
-
   "settings.title": "Configurações do canal",
   "settings.description": "Gerencie o nome, os membros e o ciclo de vida do canal.",
   "settings.general": "Geral",

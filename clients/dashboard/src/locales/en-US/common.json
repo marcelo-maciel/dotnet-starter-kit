@@ -124,5 +124,13 @@
   "unit.session_one": "{{count}} session",
   "unit.session_other": "{{count}} sessions",
   "unit.ticket_one": "{{count}} ticket",
-  "unit.ticket_other": "{{count}} tickets"
+  "unit.ticket_other": "{{count}} tickets",
+  "realtimeStatus.offline": "Offline",
+  "realtimeStatus.connecting": "Connecting",
+  "realtimeStatus.live": "Live",
+  "realtimeStatus.reconnecting": "Reconnecting",
+  "realtimeStatus.title": "Realtime: {{label}}",
+  "session.restoring": "Restoring your session…",
+  "field.required": "required",
+  "errorBand.failure": "Failure"
 }
