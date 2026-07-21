@@ -377,7 +377,7 @@ export function CreateTenantDialog({
                 <Input
                   id="ct-name"
                   autoComplete="off"
-                  placeholder="Acme Corp"
+                  placeholder={t("create.field.namePlaceholder")}
                   {...register("name")}
                 />
               </Field>

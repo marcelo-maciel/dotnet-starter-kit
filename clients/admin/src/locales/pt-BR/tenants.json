@@ -93,6 +93,7 @@
   "create.title": "Nova organização",
   "create.description": "Provisione uma organização e seu admin inicial. O identificador é o slug seguro para URL usado no roteamento e nas claims do JWT.",
   "create.field.name": "Nome de exibição",
+  "create.field.namePlaceholder": "Acme Ltda.",
   "create.field.identifier": "Identificador",
   "create.field.identifierValid": "Formato válido. A disponibilidade é confirmada quando você criar.",
   "create.field.identifierHint": "Letras minúsculas, dígitos e hífens. 3–64 caracteres.",

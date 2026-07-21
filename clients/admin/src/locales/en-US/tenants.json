@@ -96,6 +96,7 @@
   "create.title": "New tenant",
   "create.description": "Provision a tenant and its seed admin. The identifier is the URL-safe slug used in routing and JWT claims.",
   "create.field.name": "Display name",
+  "create.field.namePlaceholder": "Acme Corp",
   "create.field.identifier": "Identifier",
   "create.field.identifierValid": "Valid format — availability is confirmed when you create.",
   "create.field.identifierHint": "Lowercase letters, digits, and hyphens. 3–64 characters.",

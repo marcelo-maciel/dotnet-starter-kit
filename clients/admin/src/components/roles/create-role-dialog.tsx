@@ -129,7 +129,7 @@ export function CreateRoleDialog({
             <Field id="cr-name" label={t("create.field.name")} required error={errors.name?.message}>
               <Input
                 id="cr-name"
-                placeholder="Support agent"
+                placeholder={t("create.field.namePlaceholder")}
                 autoComplete="off"
                 aria-invalid={errors.name ? true : undefined}
                 {...register("name")}
@@ -143,7 +143,7 @@ export function CreateRoleDialog({
             >
               <Input
                 id="cr-description"
-                placeholder="Inbound support · read-only on billing"
+                placeholder={t("create.field.descriptionPlaceholder")}
                 aria-invalid={errors.description ? true : undefined}
                 {...register("description")}
               />
