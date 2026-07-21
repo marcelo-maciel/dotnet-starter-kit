@@ -1,6 +1,7 @@
 using FSH.Framework.Core.Localization;
 using FSH.Modules.Auditing.Contracts.v1.GetAudits;
 using FSH.Modules.Auditing.Features.v1.GetAudits;
+using FSH.Modules.Auditing.Localization;
 using FSH.Modules.Identity.Contracts.v1.Users.SearchUsers;
 using FSH.Modules.Identity.Features.v1.Users.SearchUsers;
 using Generic.Tests.Support;
@@ -15,10 +16,11 @@ namespace Generic.Tests.Validators;
 public sealed class PagedQueryValidatorTests
 {
     private static readonly IStringLocalizer<SharedResources> Localizer = SharedResourcesLocalizerFactory.Create();
+    private static readonly IStringLocalizer<AuditingResources> AuditingLocalizer = AuditingResourcesLocalizerFactory.Create();
 
     public static TheoryData<IValidator, object> PagedQueryValidators => new()
     {
-        { new GetAuditsQueryValidator(Localizer), new GetAuditsQuery() },
+        { new GetAuditsQueryValidator(Localizer, AuditingLocalizer), new GetAuditsQuery() },
         { new SearchUsersQueryValidator(Localizer), new SearchUsersQuery() }
     };
 
@@ -40,7 +42,7 @@ public sealed class PagedQueryValidatorTests
     public void PageNumber_Should_Pass_When_GreaterThanZero_Auditing()
     {
         // Arrange
-        var validator = new GetAuditsQueryValidator(Localizer);
+        var validator = new GetAuditsQueryValidator(Localizer, AuditingLocalizer);
         var query = new GetAuditsQuery { PageNumber = 1 };
 
         // Act
@@ -68,7 +70,7 @@ public sealed class PagedQueryValidatorTests
     public void PageNumber_Should_Fail_When_Zero_Auditing()
     {
         // Arrange
-        var validator = new GetAuditsQueryValidator(Localizer);
+        var validator = new GetAuditsQueryValidator(Localizer, AuditingLocalizer);
         var query = new GetAuditsQuery { PageNumber = 0 };
 
         // Act
@@ -96,7 +98,7 @@ public sealed class PagedQueryValidatorTests
     public void PageNumber_Should_Fail_When_Negative_Auditing()
     {
         // Arrange
-        var validator = new GetAuditsQueryValidator(Localizer);
+        var validator = new GetAuditsQueryValidator(Localizer, AuditingLocalizer);
         var query = new GetAuditsQuery { PageNumber = -1 };
 
         // Act
@@ -124,7 +126,7 @@ public sealed class PagedQueryValidatorTests
     public void PageSize_Should_Pass_When_Null_Auditing()
     {
         // Arrange
-        var validator = new GetAuditsQueryValidator(Localizer);
+        var validator = new GetAuditsQueryValidator(Localizer, AuditingLocalizer);
         var query = new GetAuditsQuery { PageSize = null };
 
         // Act
@@ -155,7 +157,7 @@ public sealed class PagedQueryValidatorTests
     public void PageSize_Should_Pass_When_Between1And100_Auditing(int pageSize)
     {
         // Arrange
-        var validator = new GetAuditsQueryValidator(Localizer);
+        var validator = new GetAuditsQueryValidator(Localizer, AuditingLocalizer);
         var query = new GetAuditsQuery { PageSize = pageSize };
 
         // Act
@@ -186,7 +188,7 @@ public sealed class PagedQueryValidatorTests
     public void PageSize_Should_Fail_When_Zero_Auditing()
     {
         // Arrange
-        var validator = new GetAuditsQueryValidator(Localizer);
+        var validator = new GetAuditsQueryValidator(Localizer, AuditingLocalizer);
         var query = new GetAuditsQuery { PageSize = 0 };
 
         // Act
@@ -214,7 +216,7 @@ public sealed class PagedQueryValidatorTests
     public void PageSize_Should_Fail_When_GreaterThan100_Auditing()
     {
         // Arrange
-        var validator = new GetAuditsQueryValidator(Localizer);
+        var validator = new GetAuditsQueryValidator(Localizer, AuditingLocalizer);
         var query = new GetAuditsQuery { PageSize = 101 };
 
         // Act

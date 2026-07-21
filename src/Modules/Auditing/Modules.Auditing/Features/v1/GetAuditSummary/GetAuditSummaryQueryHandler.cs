@@ -4,6 +4,7 @@ using FSH.Modules.Auditing.Contracts;
 using FSH.Modules.Auditing.Contracts.Authorization;
 using FSH.Modules.Auditing.Contracts.Dtos;
 using FSH.Modules.Auditing.Contracts.v1.GetAuditSummary;
+using FSH.Modules.Auditing.Localization;
 using FSH.Modules.Auditing.Persistence;
 using FSH.Modules.Identity.Contracts.Services;
 using Mediator;
@@ -104,7 +105,11 @@ public sealed class GetAuditSummaryQueryHandler : IQueryHandler<GetAuditSummaryQ
             .ConfigureAwait(false);
         if (!allowed)
         {
-            throw new ForbiddenException("Cross-tenant audit summary requires Permissions.AuditTrails.ViewCrossTenant.");
+            throw new ForbiddenException("Cross-tenant audit summary requires Permissions.AuditTrails.ViewCrossTenant.")
+            {
+                MessageKey = "Error.Auditing.CrossTenantSummaryForbidden",
+                ResourceSource = typeof(AuditingResources),
+            };
         }
 
         return _dbContext.AuditRecords
