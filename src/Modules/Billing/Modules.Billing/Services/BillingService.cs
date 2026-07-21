@@ -7,6 +7,7 @@ using FSH.Modules.Billing.Contracts;
 using FSH.Modules.Billing.Contracts.Events;
 using FSH.Modules.Billing.Data;
 using FSH.Modules.Billing.Domain;
+using FSH.Modules.Billing.Localization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -74,7 +75,12 @@ public sealed class BillingService : IBillingService
         }
 
         var plan = await _db.Plans.FirstOrDefaultAsync(p => p.Id == subscription.PlanId, cancellationToken).ConfigureAwait(false)
-            ?? throw new NotFoundException($"Plan {subscription.PlanId} not found for tenant {tenantId}.");
+            ?? throw new NotFoundException($"Plan {subscription.PlanId} not found for tenant {tenantId}.")
+            {
+                MessageKey = "Billing.PlanNotFoundForTenant",
+                MessageArgs = [subscription.PlanId, tenantId],
+                ResourceSource = typeof(BillingResources),
+            };
 
         var snapshots = await _usageReporter.CaptureForPeriodAsync(tenantId, periodYear, periodMonth, cancellationToken).ConfigureAwait(false);
 
@@ -187,7 +193,12 @@ public sealed class BillingService : IBillingService
         var request = await _db.TopupRequests
             .FirstOrDefaultAsync(r => r.Id == topupRequestId && r.TenantId == tenantId && r.Status == TopupRequestStatus.Pending, cancellationToken)
             .ConfigureAwait(false)
-            ?? throw new NotFoundException($"Top-up request {topupRequestId} not found or not pending.");
+            ?? throw new NotFoundException($"Top-up request {topupRequestId} not found or not pending.")
+            {
+                MessageKey = "Billing.TopupRequestNotFoundOrNotPending",
+                MessageArgs = [topupRequestId],
+                ResourceSource = typeof(BillingResources),
+            };
 
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         var invoiceNumber = BuildTopupInvoiceNumber(tenantId, now, topupRequestId);
@@ -281,13 +292,21 @@ public sealed class BillingService : IBillingService
     private async Task<Invoice> LoadInvoiceAsync(Guid invoiceId, CancellationToken cancellationToken)
     {
         var callerTenantId = _tenantAccessor.MultiTenantContext?.TenantInfo?.Id
-            ?? throw new UnauthorizedException("Tenant context is required.");
+            ?? throw new UnauthorizedException("Tenant context is required.")
+            {
+                MessageKey = "Error.TenantContextRequired",
+            };
         var isRoot = callerTenantId == MultitenancyConstants.Root.Id;
 
         return await _db.Invoices
             .FirstOrDefaultAsync(i => i.Id == invoiceId && (isRoot || i.TenantId == callerTenantId), cancellationToken)
             .ConfigureAwait(false)
-            ?? throw new NotFoundException($"Invoice {invoiceId} not found.");
+            ?? throw new NotFoundException($"Invoice {invoiceId} not found.")
+            {
+                MessageKey = "Billing.InvoiceNotFound",
+                MessageArgs = [invoiceId],
+                ResourceSource = typeof(BillingResources),
+            };
     }
 
     public async Task<Invoice?> CreateSubscriptionInvoiceAsync(
@@ -300,7 +319,12 @@ public sealed class BillingService : IBillingService
         ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
 
         var plan = await _db.Plans.FirstOrDefaultAsync(p => p.Id == planId, cancellationToken).ConfigureAwait(false)
-            ?? throw new NotFoundException($"Plan {planId} not found for tenant {tenantId}.");
+            ?? throw new NotFoundException($"Plan {planId} not found for tenant {tenantId}.")
+            {
+                MessageKey = "Billing.PlanNotFoundForTenant",
+                MessageArgs = [planId, tenantId],
+                ResourceSource = typeof(BillingResources),
+            };
 
         var termPrice = plan.TermPrice;
         if (termPrice.Amount <= 0m)
