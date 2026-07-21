@@ -50,7 +50,7 @@ public sealed class XCommandValidator : AbstractValidator<XCommand>
 }
 ```
 
-Always the `.WithMessage(_ => localizer["Key"])` lambda (resolution is deferred to `Validate()`, under the request culture) — never `.WithMessage(localizer["Key"])`. Validator messages are cross-cutting → Core catalog. DI provides the localizer automatically (`AddValidatorsFromAssembly` + `AddHeroLocalization`); nested validators (`Include(new PagedQueryValidator<T>(localizer))`) receive it from the parent.
+Always the `.WithMessage(_ => localizer["Key"])` lambda (resolution is deferred to `Validate()`, under the request culture) — never `.WithMessage(localizer["Key"])`. **Catalog choice:** inject `IStringLocalizer<SharedResources>` for genuinely shared/generic validation (`Validation.*` already in Core, reuse them), or `IStringLocalizer<<Module>Resources>` for module-specific validation messages kept in the module's own catalog. DI provides the localizer automatically (`AddValidatorsFromAssembly` + `AddHeroLocalization` + the module's own `AddLocalization`); nested validators (`Include(new PagedQueryValidator<T>(localizer))`) receive it from the parent.
 
 ## Tests (required with every catalog change)
 
