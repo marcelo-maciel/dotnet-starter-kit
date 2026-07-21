@@ -79,6 +79,12 @@
   <data name="Error.Unexpected.Detail" xml:space="preserve">
     <value>An unexpected error occurred. Please try again later.</value>
   </data>
+  <data name="Error.AppBoundary" xml:space="preserve">
+    <value>App boundary</value>
+  </data>
+  <data name="Error.AppBoundary.Detail" xml:space="preserve">
+    <value>SuperAdmin accounts must use the admin app. Sign in there instead of the tenant dashboard.</value>
+  </data>
   <data name="Validation.UserIdRequired" xml:space="preserve">
     <value>User ID is required.</value>
   </data>
