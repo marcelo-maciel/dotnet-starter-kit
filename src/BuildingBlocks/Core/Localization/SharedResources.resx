@@ -82,6 +82,9 @@
   <data name="Error.InvalidTenant" xml:space="preserve">
     <value>Invalid or missing tenant.</value>
   </data>
+  <data name="Error.TenantContextRequired" xml:space="preserve">
+    <value>Tenant context is required.</value>
+  </data>
   <data name="Error.Unexpected" xml:space="preserve">
     <value>An unexpected error occurred</value>
   </data>
