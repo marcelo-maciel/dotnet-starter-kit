@@ -118,6 +118,12 @@
   <data name="Validation.MaxFileSize" xml:space="preserve">
     <value>O arquivo deve ter no máximo {0} MB.</value>
   </data>
+  <data name="Jobs.DatabaseOptionsNotFound" xml:space="preserve">
+    <value>Opções de banco de dados não encontradas.</value>
+  </data>
+  <data name="Jobs.UnsupportedStorageProvider" xml:space="preserve">
+    <value>O provedor de armazenamento {0} do Hangfire não é suportado.</value>
+  </data>
   <data name="Validation.UserIdRequired" xml:space="preserve">
     <value>O ID do usuário é obrigatório.</value>
   </data>

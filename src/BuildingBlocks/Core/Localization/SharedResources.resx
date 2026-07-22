@@ -118,6 +118,12 @@
   <data name="Validation.MaxFileSize" xml:space="preserve">
     <value>File must be &lt;= {0} MB.</value>
   </data>
+  <data name="Jobs.DatabaseOptionsNotFound" xml:space="preserve">
+    <value>Database options not found.</value>
+  </data>
+  <data name="Jobs.UnsupportedStorageProvider" xml:space="preserve">
+    <value>Hangfire storage provider {0} is not supported.</value>
+  </data>
   <data name="Validation.UserIdRequired" xml:space="preserve">
     <value>User ID is required.</value>
   </data>

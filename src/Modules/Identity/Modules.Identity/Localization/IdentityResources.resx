@@ -253,4 +253,13 @@
   <data name="Identity.CannotRevokeOthersSessions" xml:space="preserve">
     <value>Cannot revoke sessions for another user</value>
   </data>
+  <data name="Identity.RoleManagerNotResolved" xml:space="preserve">
+    <value>RoleManager&lt;FshRole&gt; not resolved. Check Identity registration.</value>
+  </data>
+  <data name="Identity.RoleStoreNotConfigured" xml:space="preserve">
+    <value>Role store not configured. Ensure .AddRoles&lt;FshRole&gt;() and EF stores.</value>
+  </data>
+  <data name="Identity.InScopeInitializationOnly" xml:space="preserve">
+    <value>Method reserved for in-scope initialization</value>
+  </data>
 </root>

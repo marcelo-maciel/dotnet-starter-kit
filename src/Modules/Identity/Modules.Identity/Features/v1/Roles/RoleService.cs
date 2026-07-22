@@ -58,10 +58,18 @@ public sealed class RoleService(RoleManager<FshRole> roleManager,
         CancellationToken cancellationToken = default)
     {
         if (roleManager is null)
-            throw new NotFoundException("RoleManager<FshRole> not resolved. Check Identity registration.");
+            throw new NotFoundException("RoleManager<FshRole> not resolved. Check Identity registration.")
+            {
+                MessageKey = "Identity.RoleManagerNotResolved",
+                ResourceSource = typeof(IdentityResources),
+            };
 
         if (roleManager.Roles is null)
-            throw new NotFoundException("Role store not configured. Ensure .AddRoles<FshRole>() and EF stores.");
+            throw new NotFoundException("Role store not configured. Ensure .AddRoles<FshRole>() and EF stores.")
+            {
+                MessageKey = "Identity.RoleStoreNotConfigured",
+                ResourceSource = typeof(IdentityResources),
+            };
 
         var page = Math.Max(1, pageNumber);
         var size = Math.Clamp(pageSize, 1, 200);
