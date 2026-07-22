@@ -112,4 +112,7 @@
   <data name="Files.StorageQuotaExceeded" xml:space="preserve">
     <value>Storage quota exceeded ({0}/{1} bytes).</value>
   </data>
+  <data name="Files.VisibilityInvalid" xml:space="preserve">
+    <value>Visibility must be Public or Private.</value>
+  </data>
 </root>

@@ -100,6 +100,12 @@
   <data name="Error.AuthenticationFailed" xml:space="preserve">
     <value>Falha na autenticação.</value>
   </data>
+  <data name="Error.ForbiddenAccess" xml:space="preserve">
+    <value>Acesso não autorizado.</value>
+  </data>
+  <data name="Storage.QuotaExceeded" xml:space="preserve">
+    <value>Cota de armazenamento excedida ({0}/{1} bytes).</value>
+  </data>
   <data name="Validation.UserIdRequired" xml:space="preserve">
     <value>O ID do usuário é obrigatório.</value>
   </data>
