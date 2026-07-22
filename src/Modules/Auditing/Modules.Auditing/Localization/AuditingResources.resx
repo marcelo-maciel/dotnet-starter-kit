@@ -73,4 +73,7 @@
   <data name="Validation.SummaryWindowExceeded" xml:space="preserve">
     <value>Audit summary window cannot exceed {0} days.</value>
   </data>
+  <data name="Auditing.AuditRecordNotFound" xml:space="preserve">
+    <value>Audit record {0} not found.</value>
+  </data>
 </root>

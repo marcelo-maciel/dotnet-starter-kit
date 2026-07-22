@@ -73,4 +73,7 @@
   <data name="Validation.SummaryWindowExceeded" xml:space="preserve">
     <value>A janela do resumo de auditoria não pode exceder {0} dias.</value>
   </data>
+  <data name="Auditing.AuditRecordNotFound" xml:space="preserve">
+    <value>Registro de auditoria {0} não encontrado.</value>
+  </data>
 </root>

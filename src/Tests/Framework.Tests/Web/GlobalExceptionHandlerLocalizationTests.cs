@@ -116,4 +116,40 @@ public sealed class GlobalExceptionHandlerLocalizationTests
         var (_, detail) = await HandleAsync(exception, "pt-BR");
         detail.ShouldBe("English fallback detail.");
     }
+
+    // BCL-subclass exceptions (kept as their base type so audit severity classification is unaffected)
+    // still localize their Detail from MessageKey through the shared handler path.
+    [Theory]
+    [InlineData("pt-BR", "Falha na autenticação.")]
+    [InlineData("en-US", "Authentication failed.")]
+    public async Task LocalizedUnauthorizedAccess_detail_is_localized(string culture, string expected)
+    {
+        var exception = new LocalizedUnauthorizedAccessException("english fallback")
+        {
+            MessageKey = "Error.AuthenticationFailed",
+        };
+        var (_, detail) = await HandleAsync(exception, culture);
+        detail.ShouldBe(expected);
+    }
+
+    [Theory]
+    [InlineData("pt-BR", "Não encontrado")]
+    [InlineData("en-US", "Not Found")]
+    public async Task LocalizedKeyNotFound_detail_is_localized(string culture, string expected)
+    {
+        var exception = new LocalizedKeyNotFoundException("english fallback")
+        {
+            MessageKey = "Error.NotFound",
+        };
+        var (_, detail) = await HandleAsync(exception, culture);
+        detail.ShouldBe(expected);
+    }
+
+    // No MessageKey on a localized subclass → Detail falls back to the literal (English) message.
+    [Fact]
+    public async Task LocalizedUnauthorizedAccess_without_key_falls_back_to_message()
+    {
+        var (_, detail) = await HandleAsync(new LocalizedUnauthorizedAccessException("Plain English."), "pt-BR");
+        detail.ShouldBe("Plain English.");
+    }
 }

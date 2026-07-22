@@ -26,6 +26,32 @@ public class GlobalExceptionHandler(
         _ => "Error.Unexpected",
     };
 
+    // Resolves the localized Detail for an exception carrying a MessageKey, under the request culture.
+    // The [key, args] indexer runs string.Format; a stray '{' in the resx would throw FormatException
+    // from inside the handler, so fall back to the (English) message on a format error or a missing key.
+    // A null key keeps the literal message. Shared by the CustomException, Unauthorized and NotFound
+    // branches so a localized BCL subclass (ILocalizableMessage) translates the same way.
+    private string LocalizeDetail(ILocalizableMessage localizable, string fallbackMessage)
+    {
+        if (localizable.MessageKey is null)
+        {
+            return fallbackMessage;
+        }
+
+        var moduleLocalizer = localizerFactory.Create(localizable.ResourceSource ?? typeof(SharedResources));
+        try
+        {
+            var message = localizable.MessageArgs.Count == 0
+                ? moduleLocalizer[localizable.MessageKey]
+                : moduleLocalizer[localizable.MessageKey, localizable.MessageArgs.ToArray()];
+            return message.ResourceNotFound ? fallbackMessage : message.Value;
+        }
+        catch (FormatException)
+        {
+            return fallbackMessage;
+        }
+    }
+
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(httpContext);
@@ -63,28 +89,7 @@ public class GlobalExceptionHandler(
             var title = localizer[TitleKeyFor(e.StatusCode)];
             problemDetails.Title = title.ResourceNotFound ? e.GetType().Name : title.Value;
 
-            if (e.MessageKey is not null)
-            {
-                var moduleLocalizer = localizerFactory.Create(e.ResourceSource ?? typeof(SharedResources));
-                try
-                {
-                    // The [key, args] indexer always runs string.Format; a literal '{' or an orphan
-                    // '{1}' in the resx would throw FormatException from inside the handler. Use the
-                    // single-arg indexer when there are no args, and fall back to the English message.
-                    var message = e.MessageArgs.Count == 0
-                        ? moduleLocalizer[e.MessageKey]
-                        : moduleLocalizer[e.MessageKey, e.MessageArgs.ToArray()];
-                    problemDetails.Detail = message.ResourceNotFound ? e.Message : message.Value;
-                }
-                catch (FormatException)
-                {
-                    problemDetails.Detail = e.Message;
-                }
-            }
-            else
-            {
-                problemDetails.Detail = e.Message;
-            }
+            problemDetails.Detail = LocalizeDetail(e, e.Message);
 
             if (e.ErrorMessages is { Count: > 0 })
             {
@@ -96,14 +101,18 @@ public class GlobalExceptionHandler(
             statusCode = StatusCodes.Status401Unauthorized;
             problemDetails.Status = statusCode;
             problemDetails.Title = localizer["Error.Unauthorized"];
-            problemDetails.Detail = exception.Message;
+            problemDetails.Detail = exception is ILocalizableMessage unauthorizedLoc
+                ? LocalizeDetail(unauthorizedLoc, exception.Message)
+                : exception.Message;
         }
         else if (exception is KeyNotFoundException)
         {
             statusCode = StatusCodes.Status404NotFound;
             problemDetails.Status = statusCode;
             problemDetails.Title = localizer["Error.NotFound"];
-            problemDetails.Detail = exception.Message;
+            problemDetails.Detail = exception is ILocalizableMessage notFoundLoc
+                ? LocalizeDetail(notFoundLoc, exception.Message)
+                : exception.Message;
         }
         else if (exception is BadHttpRequestException badRequest)
         {

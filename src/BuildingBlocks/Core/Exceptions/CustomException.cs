@@ -7,7 +7,7 @@ namespace FSH.Framework.Core.Exceptions;
 /// FullStackHero exception used for consistent error handling across the stack.
 /// Includes HTTP status codes and optional detailed error messages.
 /// </summary>
-public class CustomException : Exception
+public class CustomException : Exception, ILocalizableMessage
 {
     /// <summary>
     /// A list of error messages (e.g., validation errors, business rules).

@@ -241,4 +241,16 @@
   <data name="Identity.ToggleStatusFailed" xml:space="preserve">
     <value>Toggle status failed.</value>
   </data>
+  <data name="Identity.InvalidCredentials" xml:space="preserve">
+    <value>Invalid credentials.</value>
+  </data>
+  <data name="Identity.CannotViewOthersSessions" xml:space="preserve">
+    <value>Cannot view sessions for another user</value>
+  </data>
+  <data name="Identity.CannotRevokeOthersSession" xml:space="preserve">
+    <value>Cannot revoke session for another user</value>
+  </data>
+  <data name="Identity.CannotRevokeOthersSessions" xml:space="preserve">
+    <value>Cannot revoke sessions for another user</value>
+  </data>
 </root>

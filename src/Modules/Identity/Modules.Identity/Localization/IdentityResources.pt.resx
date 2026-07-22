@@ -241,4 +241,16 @@
   <data name="Identity.ToggleStatusFailed" xml:space="preserve">
     <value>Falha ao alternar o status.</value>
   </data>
+  <data name="Identity.InvalidCredentials" xml:space="preserve">
+    <value>Credenciais inválidas.</value>
+  </data>
+  <data name="Identity.CannotViewOthersSessions" xml:space="preserve">
+    <value>Não é possível visualizar sessões de outro usuário</value>
+  </data>
+  <data name="Identity.CannotRevokeOthersSession" xml:space="preserve">
+    <value>Não é possível revogar a sessão de outro usuário</value>
+  </data>
+  <data name="Identity.CannotRevokeOthersSessions" xml:space="preserve">
+    <value>Não é possível revogar sessões de outro usuário</value>
+  </data>
 </root>

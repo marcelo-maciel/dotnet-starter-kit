@@ -6,6 +6,7 @@ using FSH.Modules.Identity.Contracts.DTOs;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Data;
 using FSH.Modules.Identity.Domain;
+using FSH.Modules.Identity.Localization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using UAParser;
@@ -91,7 +92,11 @@ public sealed class SessionService : ISessionService
         var currentUserId = _currentUser.GetUserId().ToString();
         if (!string.Equals(userId, currentUserId, StringComparison.OrdinalIgnoreCase))
         {
-            throw new UnauthorizedAccessException("Cannot view sessions for another user");
+            throw new LocalizedUnauthorizedAccessException("Cannot view sessions for another user")
+            {
+                MessageKey = "Identity.CannotViewOthersSessions",
+                ResourceSource = typeof(IdentityResources),
+            };
         }
 
         var now = _timeProvider.GetUtcNow().UtcDateTime;
@@ -199,7 +204,11 @@ public sealed class SessionService : ISessionService
         var currentUserId = _currentUser.GetUserId().ToString();
         if (!string.Equals(session.UserId, currentUserId, StringComparison.OrdinalIgnoreCase))
         {
-            throw new UnauthorizedAccessException("Cannot revoke session for another user");
+            throw new LocalizedUnauthorizedAccessException("Cannot revoke session for another user")
+            {
+                MessageKey = "Identity.CannotRevokeOthersSession",
+                ResourceSource = typeof(IdentityResources),
+            };
         }
 
         var tenantId = _multiTenantContextAccessor?.MultiTenantContext?.TenantInfo?.Id;
@@ -227,7 +236,11 @@ public sealed class SessionService : ISessionService
         var currentUserId = _currentUser.GetUserId().ToString();
         if (!string.Equals(userId, currentUserId, StringComparison.OrdinalIgnoreCase))
         {
-            throw new UnauthorizedAccessException("Cannot revoke sessions for another user");
+            throw new LocalizedUnauthorizedAccessException("Cannot revoke sessions for another user")
+            {
+                MessageKey = "Identity.CannotRevokeOthersSessions",
+                ResourceSource = typeof(IdentityResources),
+            };
         }
 
         var query = _db.UserSessions
