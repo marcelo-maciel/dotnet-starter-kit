@@ -97,6 +97,17 @@ public sealed class GlobalExceptionHandlerLocalizationTests
         detail.ShouldBe("Plain English detail.");
     }
 
+    // Parameterless UnauthorizedException carries Error.AuthenticationFailed, so generic auth failures
+    // localize their Detail without any call-site key (English fallback stays "Authentication failed.").
+    [Theory]
+    [InlineData("pt-BR", "Falha na autenticação.")]
+    [InlineData("en-US", "Authentication failed.")]
+    public async Task Parameterless_unauthorized_detail_is_localized(string culture, string expected)
+    {
+        var (_, detail) = await HandleAsync(new UnauthorizedException(), culture);
+        detail.ShouldBe(expected);
+    }
+
     // Unknown MessageKey: ResourceNotFound path falls back to the English Message, never leaks the raw key.
     [Fact]
     public async Task CustomException_detail_falls_back_when_key_missing()

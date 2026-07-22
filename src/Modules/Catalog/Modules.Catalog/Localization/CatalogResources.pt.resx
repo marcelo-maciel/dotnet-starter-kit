@@ -106,4 +106,7 @@
   <data name="Validation.DeltaNonZero" xml:space="preserve">
     <value>O delta deve ser diferente de zero.</value>
   </data>
+  <data name="Catalog.StockAdjustmentNegative" xml:space="preserve">
+    <value>O ajuste de estoque de {0} resultaria em estoque negativo (atual: {1}).</value>
+  </data>
 </root>

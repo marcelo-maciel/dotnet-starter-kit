@@ -31,7 +31,12 @@ public sealed class AdjustProductStockCommandHandler(CatalogDbContext dbContext)
         }
         catch (InvalidOperationException ex)
         {
-            throw new CustomException(ex.Message, (IEnumerable<string>?)null, HttpStatusCode.Conflict);
+            throw new CustomException(ex.Message, (IEnumerable<string>?)null, HttpStatusCode.Conflict)
+            {
+                MessageKey = "Catalog.StockAdjustmentNegative",
+                MessageArgs = [command.Delta, product.Stock],
+                ResourceSource = typeof(CatalogResources),
+            };
         }
 
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

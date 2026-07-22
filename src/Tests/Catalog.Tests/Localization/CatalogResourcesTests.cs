@@ -77,4 +77,28 @@ public sealed class CatalogResourcesTests
             CultureInfo.CurrentUICulture = previous;
         }
     }
+
+    // The AdjustStock domain overflow message is localized with two positional args ({0}=delta, {1}=current stock).
+    [Fact]
+    public void StockAdjustmentNegative_formats_args_in_both_cultures()
+    {
+        var localizer = BuildLocalizer();
+        var previous = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = new CultureInfo("en-US");
+            var en = localizer["Catalog.StockAdjustmentNegative", -4, 3];
+            en.ResourceNotFound.ShouldBeFalse();
+            en.Value.ShouldBe("Stock adjustment of -4 would result in negative stock (current: 3).");
+
+            CultureInfo.CurrentUICulture = new CultureInfo("pt-BR");
+            var pt = localizer["Catalog.StockAdjustmentNegative", -4, 3];
+            pt.ResourceNotFound.ShouldBeFalse();
+            pt.Value.ShouldBe("O ajuste de estoque de -4 resultaria em estoque negativo (atual: 3).");
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = previous;
+        }
+    }
 }

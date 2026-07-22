@@ -97,6 +97,9 @@
   <data name="Error.AppBoundary.Detail" xml:space="preserve">
     <value>Contas de superadministrador devem usar o aplicativo de administração. Entre por lá, não pelo painel da organização.</value>
   </data>
+  <data name="Error.AuthenticationFailed" xml:space="preserve">
+    <value>Falha na autenticação.</value>
+  </data>
   <data name="Validation.UserIdRequired" xml:space="preserve">
     <value>O ID do usuário é obrigatório.</value>
   </data>
