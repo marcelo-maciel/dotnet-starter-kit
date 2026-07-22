@@ -33,7 +33,7 @@ public sealed class UpdateUserCommandValidator : AbstractValidator<UpdateUserCom
         When(x => x.Image is not null, () =>
         {
             RuleFor(x => x.Image!)
-                .SetValidator(new UserImageValidator(FileType.Image));
+                .SetValidator(new UserImageValidator(FileType.Image, localizer));
         });
 
         // Prevent deleting and uploading image at the same time

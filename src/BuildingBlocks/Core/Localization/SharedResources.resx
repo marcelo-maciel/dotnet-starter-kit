@@ -106,6 +106,18 @@
   <data name="Storage.QuotaExceeded" xml:space="preserve">
     <value>Storage quota exceeded ({0}/{1} bytes).</value>
   </data>
+  <data name="Validation.ImpersonationTakeRange" xml:space="preserve">
+    <value>Take must be between 1 and {0}.</value>
+  </data>
+  <data name="Validation.ImpersonationDurationRange" xml:space="preserve">
+    <value>Duration must be between 1 and {0} minutes.</value>
+  </data>
+  <data name="Validation.AllowedExtensions" xml:space="preserve">
+    <value>Only these extensions are allowed: {0}</value>
+  </data>
+  <data name="Validation.MaxFileSize" xml:space="preserve">
+    <value>File must be &lt;= {0} MB.</value>
+  </data>
   <data name="Validation.UserIdRequired" xml:space="preserve">
     <value>User ID is required.</value>
   </data>
