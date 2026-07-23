@@ -136,17 +136,17 @@ public static class Extensions
         builder.Services.AddOptions<OriginOptions>().BindConfiguration(nameof(OriginOptions));
         builder.Services.AddOptions<SecurityHeadersOptions>().BindConfiguration(nameof(SecurityHeadersOptions));
 
-        // Front-end origin resolution for user-facing links in e-mails/notifications. Validated at
-        // startup so a deployment missing both the allow-list and the default fails loud on boot
-        // rather than 500-ing (or shipping empty links) on the first password-reset request.
-        builder.Services.AddHttpContextAccessor();
+        // Front-end origin resolution for user-facing links in e-mails/notifications. DefaultOrigin
+        // is required and validated at startup: operator-driven flows (admin register / resend), all
+        // non-browser callers (no Origin header) and background jobs resolve through it, so a host
+        // that boots without it would 500 on the first such request instead of failing loud here.
         builder.Services.AddOptions<FrontendOptions>()
             .BindConfiguration(nameof(FrontendOptions))
             .Validate(
-                o => o.AllowedOrigins.Length > 0 || !string.IsNullOrWhiteSpace(o.DefaultOrigin),
-                "No front-end origin configured in FrontendOptions. Set FrontendOptions:AllowedOrigins " +
-                "(the SPA origins trusted in e-mail links) and/or FrontendOptions:DefaultOrigin (the " +
-                "fallback SPA for non-browser and operator-driven flows) before starting the host.")
+                o => !string.IsNullOrWhiteSpace(o.DefaultOrigin),
+                "FrontendOptions:DefaultOrigin is required before starting the host (the fallback SPA " +
+                "for operator-driven, non-browser and background flows). Add FrontendOptions:AllowedOrigins " +
+                "only to additionally trust per-request origins echoed into self-service links.")
             .ValidateOnStart();
         builder.Services.AddScoped<IFrontendOriginResolver, FrontendOriginResolver>();
 
