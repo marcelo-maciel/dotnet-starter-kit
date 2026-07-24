@@ -19,6 +19,12 @@ public sealed class GlobalExceptionHandlerLocalizationTests
 {
     private static async Task<(string? Title, string? Detail)> HandleAsync(Exception exception, string culture)
     {
+        var (title, detail, _) = await HandleWithCodeAsync(exception, culture);
+        return (title, detail);
+    }
+
+    private static async Task<(string? Title, string? Detail, string? Code)> HandleWithCodeAsync(Exception exception, string culture)
+    {
         var previous = CultureInfo.CurrentUICulture;
         try
         {
@@ -40,7 +46,8 @@ public sealed class GlobalExceptionHandlerLocalizationTests
             var root = doc.RootElement;
             var title = root.TryGetProperty("title", out var t) ? t.GetString() : null;
             var detail = root.TryGetProperty("detail", out var d) ? d.GetString() : null;
-            return (title, detail);
+            var code = root.TryGetProperty("code", out var c) ? c.GetString() : null;
+            return (title, detail, code);
         }
         finally
         {
@@ -151,5 +158,54 @@ public sealed class GlobalExceptionHandlerLocalizationTests
     {
         var (_, detail) = await HandleAsync(new LocalizedUnauthorizedAccessException("Plain English."), "pt-BR");
         detail.ShouldBe("Plain English.");
+    }
+
+    // Detail is prose under the request culture, so the MessageKey travels as a stable "code" extension:
+    // clients branch on the code instead of matching localized text. Same key in every culture.
+    [Theory]
+    [InlineData("pt-BR")]
+    [InlineData("en-US")]
+    public async Task CustomException_surfaces_the_message_key_as_code(string culture)
+    {
+        var exception = new UnauthorizedException("english fallback") { MessageKey = "Error.Unauthorized" };
+        var (_, _, code) = await HandleWithCodeAsync(exception, culture);
+        code.ShouldBe("Error.Unauthorized");
+    }
+
+    // A localized BCL subclass carries its key through the same path.
+    [Fact]
+    public async Task LocalizedKeyNotFound_surfaces_the_message_key_as_code()
+    {
+        var exception = new LocalizedKeyNotFoundException("english fallback") { MessageKey = "Error.NotFound" };
+        var (_, _, code) = await HandleWithCodeAsync(exception, "pt-BR");
+        code.ShouldBe("Error.NotFound");
+    }
+
+    // No key → no code property at all, rather than a null or an invented one.
+    [Fact]
+    public async Task Exception_without_key_omits_the_code()
+    {
+        var (_, _, code) = await HandleWithCodeAsync(new NotFoundException("Plain English detail."), "pt-BR");
+        code.ShouldBeNull();
+    }
+
+    // An unknown key still travels as the code even though Detail fell back to English: the code is the
+    // contract, the resx lookup is presentation.
+    [Fact]
+    public async Task Unknown_key_still_surfaces_as_code()
+    {
+        var exception = new NotFoundException("English fallback detail.") { MessageKey = "Does.Not.Exist" };
+        var (_, detail, code) = await HandleWithCodeAsync(exception, "pt-BR");
+        detail.ShouldBe("English fallback detail.");
+        code.ShouldBe("Does.Not.Exist");
+    }
+
+    // A raw BCL exception (no ILocalizableMessage) keeps its message and gets no code.
+    [Fact]
+    public async Task Raw_key_not_found_has_no_code()
+    {
+        var (_, detail, code) = await HandleWithCodeAsync(new KeyNotFoundException("missing"), "pt-BR");
+        detail.ShouldBe("missing");
+        code.ShouldBeNull();
     }
 }

@@ -52,6 +52,20 @@ public class GlobalExceptionHandler(
         }
     }
 
+    // Writes the localized Detail and, when the exception carries a MessageKey, surfaces that key as a
+    // stable machine-readable "code". Detail is prose under the request culture, so a client that needs
+    // to branch on a specific error (a terminal state, a dedicated screen, a retry) keys off the code
+    // instead of matching text that changes with Accept-Language.
+    private void ApplyLocalizedDetail(ProblemDetails problemDetails, ILocalizableMessage localizable, string fallbackMessage)
+    {
+        problemDetails.Detail = LocalizeDetail(localizable, fallbackMessage);
+
+        if (localizable.MessageKey is not null)
+        {
+            problemDetails.Extensions["code"] = localizable.MessageKey;
+        }
+    }
+
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(httpContext);
@@ -89,7 +103,7 @@ public class GlobalExceptionHandler(
             var title = localizer[TitleKeyFor(e.StatusCode)];
             problemDetails.Title = title.ResourceNotFound ? e.GetType().Name : title.Value;
 
-            problemDetails.Detail = LocalizeDetail(e, e.Message);
+            ApplyLocalizedDetail(problemDetails, e, e.Message);
 
             if (e.ErrorMessages is { Count: > 0 })
             {
@@ -101,18 +115,28 @@ public class GlobalExceptionHandler(
             statusCode = StatusCodes.Status401Unauthorized;
             problemDetails.Status = statusCode;
             problemDetails.Title = localizer["Error.Unauthorized"];
-            problemDetails.Detail = exception is ILocalizableMessage unauthorizedLoc
-                ? LocalizeDetail(unauthorizedLoc, exception.Message)
-                : exception.Message;
+            if (exception is ILocalizableMessage unauthorizedLoc)
+            {
+                ApplyLocalizedDetail(problemDetails, unauthorizedLoc, exception.Message);
+            }
+            else
+            {
+                problemDetails.Detail = exception.Message;
+            }
         }
         else if (exception is KeyNotFoundException)
         {
             statusCode = StatusCodes.Status404NotFound;
             problemDetails.Status = statusCode;
             problemDetails.Title = localizer["Error.NotFound"];
-            problemDetails.Detail = exception is ILocalizableMessage notFoundLoc
-                ? LocalizeDetail(notFoundLoc, exception.Message)
-                : exception.Message;
+            if (exception is ILocalizableMessage notFoundLoc)
+            {
+                ApplyLocalizedDetail(problemDetails, notFoundLoc, exception.Message);
+            }
+            else
+            {
+                problemDetails.Detail = exception.Message;
+            }
         }
         else if (exception is BadHttpRequestException badRequest)
         {
