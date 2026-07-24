@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
+import {
+  IMPERSONATED_USER,
+  OPERATOR_ACTOR,
+  seedAuthedSession,
+  seedImpersonationSession,
+  TEST_USER,
+} from "../helpers/auth-seed";
 import { installShellMocks } from "../helpers/shell-mocks";
 
 // Task 10 — the topbar language switcher. Switching to Português must:
@@ -185,5 +191,73 @@ test.describe("language switcher", () => {
     expect(putBody.locale).toBe("pt-BR");
     expect(putBody.firstName).toBe("Alice");
     expect(putBody.lastName).toBe("Nguyen");
+  });
+});
+
+// Language is the operator's own presentation choice: StartImpersonation strips
+// the target's `locale` claim so the operator keeps reading in their language.
+// /identity/profile is scoped to the impersonated subject, so persisting the
+// switch would write the operator's language onto the target's profile, and
+// hydrating from it would yank the operator into the target's language.
+test.describe("language switcher during impersonation", () => {
+  // Overrides the file-level authed session: the impersonation seed installs an
+  // act_sub token and drops the refresh slot.
+  test.beforeEach(async ({ page }) => {
+    await seedImpersonationSession(page, IMPERSONATED_USER, OPERATOR_ACTOR);
+  });
+
+  test("switches the UI locally without persisting onto the impersonated user", async ({
+    page,
+  }) => {
+    let putSeen = false;
+    let refreshCalled = false;
+
+    // The impersonated user's persisted locale is pt-BR — the operator's UI must
+    // NOT hydrate from it.
+    await page.route("**/api/v1/identity/profile", async (route) => {
+      if (route.request().method() === "PUT") {
+        putSeen = true;
+        await route.fulfill({ status: 200 });
+        return;
+      }
+      if (route.request().method() === "GET") {
+        await route.fulfill({
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: IMPERSONATED_USER.sub,
+            firstName: IMPERSONATED_USER.firstName,
+            lastName: IMPERSONATED_USER.lastName,
+            phoneNumber: "",
+            email: IMPERSONATED_USER.email,
+            isActive: true,
+            emailConfirmed: true,
+            locale: "pt-BR",
+          }),
+        });
+        return;
+      }
+      await route.fallback();
+    });
+
+    await page.route("**/api/v1/identity/token/refresh", async (route) => {
+      refreshCalled = true;
+      await route.fulfill({ status: 500 });
+    });
+
+    await page.goto("/");
+
+    // The target's pt-BR did not leak into the operator's shell.
+    await page.getByRole("button", { name: /open profile menu/i }).click();
+    await expect(page.getByText("Language", { exact: true })).toBeVisible();
+
+    await page.getByRole("menuitem", { name: "Português (BR)" }).click();
+
+    // The switch still applies client-side…
+    await expect(page.getByText("Idioma", { exact: true })).toBeVisible();
+    // …but nothing was written to the impersonated user, and no token re-mint
+    // fired (the locale claim belongs to the operator's own session).
+    expect(putSeen).toBe(false);
+    expect(refreshCalled).toBe(false);
   });
 });

@@ -183,7 +183,7 @@ function SimpleMenuItem({
 // ─────────────────────────────────────────────────────────────────────
 
 export function Topbar() {
-  const { user, logout } = useAuth();
+  const { user, logout, impersonation } = useAuth();
   // useTranslation subscribes this component to `languageChanged`, so the menu
   // labels and the active-locale check re-render the instant we switch.
   const { t } = useTranslation();
@@ -196,9 +196,15 @@ export function Topbar() {
   });
   const avatarUrl = profile?.imageUrl ?? null;
 
+  // While impersonating, language stays a purely local, operator-owned choice:
+  // StartImpersonation strips the target's `locale` claim so the operator keeps
+  // reading in their own language, and the profile behind /identity/profile is
+  // the *target's*. So neither hydrate from it nor write back to it.
+  const isImpersonating = impersonation !== null;
+
   // Hydrate the UI language from the server-persisted locale once the profile
   // loads, so a locale chosen on another device carries over on this one.
-  const persistedLocale = profile?.locale;
+  const persistedLocale = isImpersonating ? undefined : profile?.locale;
   useEffect(() => {
     if (persistedLocale && persistedLocale !== i18n.language) {
       void i18n.changeLanguage(persistedLocale);
@@ -226,9 +232,12 @@ export function Topbar() {
   // mutation argument (never closed-over state). updateMyProfile echoes the
   // current name/phone from the profile it reads, so a locale-only save does
   // not wipe them. We deliberately do NOT invalidate the profile query on
-  // success — a refetch would revert the language mid-switch.
+  // success — a refetch would revert the language mid-switch. During an
+  // impersonation session the switch stays client-side only: persisting would
+  // write the operator's language onto the impersonated user's profile.
   const onSelectLanguage = (tag: string) => {
     void i18n.changeLanguage(tag);
+    if (isImpersonating) return;
     updateProfile.mutate({ locale: tag });
   };
 
