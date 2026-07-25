@@ -24,7 +24,11 @@ test.describe("format.ts", () => {
     ).toBeVisible({ timeout: 10_000 });
 
     const out = await page.evaluate(async () => {
-      const m = await import("/src/lib/format.ts");
+      // Resolved by the Vite dev server in the browser, not by the bundler or by
+      // tsc — a served URL, not a module specifier. Kept in a variable so the
+      // typechecker doesn't try (and fail) to resolve it from disk.
+      const formatModuleUrl = "/src/lib/format.ts";
+      const m = await import(/* @vite-ignore */ formatModuleUrl);
       return {
         curPt: m.formatCurrency(1234.5, "BRL", "pt-BR"),
         curEn: m.formatCurrency(1234.5, "BRL", "en-US"),

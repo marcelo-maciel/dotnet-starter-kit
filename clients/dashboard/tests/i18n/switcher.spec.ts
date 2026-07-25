@@ -30,7 +30,10 @@ test.describe("language switcher", () => {
   test("switching to Português localizes the UI, persists the locale and refreshes the token", async ({
     page,
   }) => {
-    let putBody: { locale?: string; firstName?: string; lastName?: string } | null = null;
+    // Accumulated rather than held in a `let`: TS narrows a nullable local that is
+    // only assigned inside a callback down to `null` at the assertion site, which
+    // makes every property read an error.
+    const putBodies: Array<{ locale?: string; firstName?: string; lastName?: string }> = [];
     let refreshCalled = false;
 
     // GET returns the current (en-US) profile with a name so we can assert it is
@@ -40,7 +43,7 @@ test.describe("language switcher", () => {
     await page.route("**/api/v1/identity/profile", async (route) => {
       const method = route.request().method();
       if (method === "PUT") {
-        putBody = route.request().postDataJSON();
+        putBodies.push(route.request().postDataJSON());
         await route.fulfill({ status: 200 });
         return;
       }
@@ -94,9 +97,9 @@ test.describe("language switcher", () => {
 
     // (b) the chosen locale was persisted, name preserved (no data loss). Poll
     // the captured body: the route handler that assigns it runs asynchronously.
-    await expect.poll(() => putBody?.locale).toBe("pt-BR");
-    expect(putBody?.firstName).toBe("Alice");
-    expect(putBody?.lastName).toBe("Nguyen");
+    await expect.poll(() => putBodies[0]?.locale).toBe("pt-BR");
+    expect(putBodies[0]?.firstName).toBe("Alice");
+    expect(putBodies[0]?.lastName).toBe("Nguyen");
 
     // (a) the section label localized in place (menu kept open on select).
     await expect(page.getByText("Idioma", { exact: true })).toBeVisible();
