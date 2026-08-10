@@ -1,5 +1,6 @@
 using System.Net;
 using FSH.Framework.Core.Exceptions;
+using FSH.Framework.Web.Origin;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -9,6 +10,7 @@ namespace FSH.Framework.Web.Frontend;
 internal sealed class FrontendOriginResolver(
     IHttpContextAccessor httpContextAccessor,
     IOptions<FrontendOptions> options,
+    IOptions<OriginOptions> originOptions,
     ILogger<FrontendOriginResolver> logger) : IFrontendOriginResolver
 {
     // Normalize the allow-list once at construction: parse to Uri so matching is component-wise
@@ -16,6 +18,11 @@ internal sealed class FrontendOriginResolver(
     // form would silently fail.
     private readonly Uri[] _allowed = Normalize(options.Value.AllowedOrigins);
     private readonly string? _default = options.Value.DefaultOrigin?.TrimEnd('/');
+    // IsAbsoluteUri guard: appsettings ships OriginUrl as "", which binds to a relative Uri whose
+    // AbsoluteUri throws.
+    private readonly string? _apiOrigin = originOptions.Value.OriginUrl is { IsAbsoluteUri: true } api
+        ? api.AbsoluteUri.TrimEnd('/')
+        : null;
 
     public string ResolveForCurrentRequest()
     {
@@ -50,17 +57,25 @@ internal sealed class FrontendOriginResolver(
 
     public string ResolveDefault()
     {
-        if (string.IsNullOrEmpty(_default))
+        if (!string.IsNullOrWhiteSpace(_default))
         {
-            // Startup validation should prevent this; guard anyway so a misconfig surfaces as a
-            // clear 500 rather than an empty link silently shipped into an e-mail.
-            throw new CustomException(
-                "No default front-end origin is configured (FrontendOptions:DefaultOrigin).",
-                errors: null,
-                HttpStatusCode.InternalServerError);
+            return _default;
         }
 
-        return _default;
+        // No DefaultOrigin: fall back to the API's own configured origin rather than taking the
+        // host down at boot over a setting a deployment may never exercise. Links then land on the
+        // API (serviceable, if not the SPA) and startup logs a single Warning naming what degrades.
+        // Deliberately NOT the current request's host: this method exists precisely because the
+        // caller is not the recipient — an operator-driven link must never point at the admin app.
+        if (!string.IsNullOrWhiteSpace(_apiOrigin))
+        {
+            return _apiOrigin;
+        }
+
+        throw new CustomException(
+            "No front-end origin is configured: set FrontendOptions:DefaultOrigin (or OriginOptions:OriginUrl as a fallback).",
+            errors: null,
+            HttpStatusCode.InternalServerError);
     }
 
     private string? MatchAllowed(string header)

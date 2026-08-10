@@ -23,10 +23,13 @@ public sealed class FrontendOptions
     /// operator-driven flows whose link must land on the recipient's app rather than the caller's,
     /// and for background jobs that run without an HTTP request. Typically the tenant dashboard URL.
     /// <para>
-    /// <b>Required.</b> Every deployment resolves through this at some point (operator flows,
-    /// non-browser callers, jobs), so startup validation refuses to boot without it.
-    /// <see cref="AllowedOrigins"/> is additive: it only widens which request origins may be echoed
-    /// into self-service links, and cannot substitute for the default.
+    /// <b>Strongly recommended, not required.</b> Every deployment resolves through this at some
+    /// point (operator flows, non-browser callers, jobs). Left unset, the host still starts, logs a
+    /// single startup <c>Warning</c> and falls back to the API's own origin
+    /// (<c>OriginOptions:OriginUrl</c>): links then land on the API rather than the SPA — serviceable,
+    /// but not where a user expects to arrive. <see cref="AllowedOrigins"/> is additive: it only
+    /// widens which request origins may be echoed into self-service links, and cannot substitute for
+    /// the default.
     /// </para>
     /// <para>
     /// This is a single global value, not per-tenant or custom-domain aware: operator-driven

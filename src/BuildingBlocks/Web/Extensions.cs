@@ -29,6 +29,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Mediator;
 
 namespace FSH.Framework.Web;
@@ -137,17 +139,10 @@ public static class Extensions
         builder.Services.AddOptions<SecurityHeadersOptions>().BindConfiguration(nameof(SecurityHeadersOptions));
 
         // Front-end origin resolution for user-facing links in e-mails/notifications. DefaultOrigin
-        // is required and validated at startup: operator-driven flows (admin register / resend), all
-        // non-browser callers (no Origin header) and background jobs resolve through it, so a host
-        // that boots without it would 500 on the first such request instead of failing loud here.
-        builder.Services.AddOptions<FrontendOptions>()
-            .BindConfiguration(nameof(FrontendOptions))
-            .Validate(
-                o => !string.IsNullOrWhiteSpace(o.DefaultOrigin),
-                "FrontendOptions:DefaultOrigin is required before starting the host (the fallback SPA " +
-                "for operator-driven, non-browser and background flows). Add FrontendOptions:AllowedOrigins " +
-                "only to additionally trust per-request origins echoed into self-service links.")
-            .ValidateOnStart();
+        // is not validated at startup on purpose: a deployment that never sends such a link must not
+        // be taken down by the setting. Unset, the resolver falls back to the API's own origin and
+        // UseHeroPlatform logs one Warning naming the setting and what degrades without it.
+        builder.Services.AddOptions<FrontendOptions>().BindConfiguration(nameof(FrontendOptions));
         builder.Services.AddScoped<IFrontendOriginResolver, FrontendOriginResolver>();
 
         return builder;
@@ -157,6 +152,8 @@ public static class Extensions
     public static WebApplication UseHeroPlatform(this WebApplication app, Action<FshPipelineOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(app);
+
+        WarnOnMissingFrontendOrigin(app);
 
         var options = new FshPipelineOptions();
         configure?.Invoke(options);
@@ -243,6 +240,33 @@ public static class Extensions
     private static bool IsOpenApiEnabled(IConfiguration configuration)
     {
         return configuration.GetValue("OpenApiOptions:Enabled", true);
+    }
+
+    // One Warning at boot, never per request: the resolver is scoped, so logging there would either
+    // flood the aggregator or stay silent on a host that simply never sends a link. An operator who
+    // upgrades into this change reads it once, in the startup banner, with the fix in the message.
+    private static void WarnOnMissingFrontendOrigin(WebApplication app)
+    {
+        var frontend = app.Services.GetRequiredService<IOptions<FrontendOptions>>().Value;
+        if (!string.IsNullOrWhiteSpace(frontend.DefaultOrigin))
+        {
+            return;
+        }
+
+        // Same absolute-Uri guard the resolver applies: OriginUrl ships as "", which binds relative.
+        var apiOrigin = app.Services.GetRequiredService<IOptions<OriginOptions>>().Value.OriginUrl;
+        if (apiOrigin is { IsAbsoluteUri: true })
+        {
+            app.Logger.LogWarning(
+                "FrontendOptions:DefaultOrigin is not set (appsettings.{Environment}.json). Auth e-mail links for operator-driven flows (admin register, resend confirmation) and for callers that send no Origin header will point at the API origin {ApiOrigin} instead of the front-end app. Set FrontendOptions:DefaultOrigin to your dashboard URL, e.g. \"https://app.example.com\".",
+                app.Environment.EnvironmentName,
+                apiOrigin);
+            return;
+        }
+
+        app.Logger.LogWarning(
+            "Neither FrontendOptions:DefaultOrigin nor OriginOptions:OriginUrl is set (appsettings.{Environment}.json). Auth e-mail links for operator-driven flows (admin register, resend confirmation) and for callers that send no Origin header will fail with a 500. Set FrontendOptions:DefaultOrigin to your dashboard URL, e.g. \"https://app.example.com\".",
+            app.Environment.EnvironmentName);
     }
 }
 
