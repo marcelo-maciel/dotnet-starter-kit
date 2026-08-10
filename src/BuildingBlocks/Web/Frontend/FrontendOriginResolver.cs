@@ -123,7 +123,10 @@ internal sealed class FrontendOriginResolver(
             && candidate.Port == allowed.Port;
     }
 
-    private static Uri[] Normalize(string[] origins)
+    // Internal so the startup warning reports the list the resolver will actually match against,
+    // not the raw config array: an entry that fails to parse is dropped here and would otherwise
+    // leave a fully malformed list looking configured while every link silently used the default.
+    internal static Uri[] Normalize(string[] origins)
     {
         var list = new List<Uri>(origins.Length);
         foreach (var origin in origins)

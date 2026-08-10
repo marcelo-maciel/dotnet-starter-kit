@@ -117,6 +117,29 @@ public sealed class FrontendOriginResolverTests
     }
 
     [Fact]
+    public void ResolveForCurrentRequest_Should_FallBackToDefault_When_EveryEntryIsUnparseable()
+    {
+        // Entries that are not absolute URLs are dropped at construction, so a list of nothing but
+        // typos behaves as the empty list it effectively is. The startup warning counts the same way.
+        SetOriginHeader("https://app.example.com");
+        var resolver = CreateResolver(["https;//app.example.com"], defaultOrigin: "https://tenant.example.com");
+
+        resolver.ResolveForCurrentRequest().ShouldBe("https://tenant.example.com");
+    }
+
+    [Fact]
+    public void ResolveForCurrentRequest_Should_Reject_When_OnlyOtherEntriesParse()
+    {
+        // One good entry keeps the list live, so an origin that is not on it is still a 400 —
+        // a partly-malformed list must not silently widen into the empty-list fallback.
+        SetOriginHeader("https://app.example.com");
+        var resolver = CreateResolver(["https;//app.example.com", "https://admin.example.com"], defaultOrigin: "https://tenant.example.com");
+
+        var ex = Should.Throw<CustomException>(() => resolver.ResolveForCurrentRequest());
+        ex.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public void ResolveForCurrentRequest_Should_ReturnConfiguredEntry_When_HeaderCarriesUserInfo()
     {
         // "http://evil.com@localhost:5173" compares equal on scheme+host+port, so the guarantee

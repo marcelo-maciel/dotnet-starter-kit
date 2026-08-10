@@ -251,11 +251,21 @@ public static class Extensions
 
         // Reported independently of DefaultOrigin: a deployment that sets only the default still
         // has every self-service link falling back to it, which is wrong the moment there is more
-        // than one front-end.
-        if (frontend.AllowedOrigins.Length == 0)
+        // than one front-end. Counted after normalization, so a list of nothing but unparseable
+        // entries reports as the empty list it effectively is rather than looking configured.
+        var usableOrigins = FrontendOriginResolver.Normalize(frontend.AllowedOrigins).Length;
+        if (usableOrigins == 0)
         {
             app.Logger.LogWarning(
-                "FrontendOptions:AllowedOrigins is empty (appsettings.{Environment}.json). Password-reset and self-registration links cannot follow the front-end that made the request and will all point at FrontendOptions:DefaultOrigin instead. With more than one front-end that sends users to the wrong app. List every SPA origin, e.g. [ \"https://app.example.com\", \"https://admin.example.com\" ].",
+                "FrontendOptions:AllowedOrigins is empty or entirely unparseable (appsettings.{Environment}.json). Password-reset and self-registration links cannot follow the front-end that made the request and will all point at FrontendOptions:DefaultOrigin instead. With more than one front-end that sends users to the wrong app. List every SPA origin as an absolute URL, e.g. [ \"https://app.example.com\", \"https://admin.example.com\" ].",
+                app.Environment.EnvironmentName);
+        }
+        else if (usableOrigins < frontend.AllowedOrigins.Length)
+        {
+            app.Logger.LogWarning(
+                "{DroppedCount} of {ConfiguredCount} FrontendOptions:AllowedOrigins entries are not absolute URLs and were ignored (appsettings.{Environment}.json). Requests from those origins will be rejected with 400. Each entry must carry a scheme, e.g. \"https://app.example.com\".",
+                frontend.AllowedOrigins.Length - usableOrigins,
+                frontend.AllowedOrigins.Length,
                 app.Environment.EnvironmentName);
         }
 
