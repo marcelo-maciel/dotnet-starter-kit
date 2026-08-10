@@ -45,6 +45,14 @@ public sealed class FrontendOriginResolverTests
         _httpContextAccessor.HttpContext.Returns(context);
     }
 
+    private void SetRequestHost(string scheme, string host)
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Scheme = scheme;
+        context.Request.Host = new HostString(host);
+        _httpContextAccessor.HttpContext.Returns(context);
+    }
+
     // ── ResolveForCurrentRequest ────────────────────────────────────────────
 
     [Fact]
@@ -158,6 +166,7 @@ public sealed class FrontendOriginResolverTests
     public void ResolveDefault_Should_IgnoreApiOrigin_When_NotAbsolute()
     {
         // OriginOptions:OriginUrl also ships as "" in Production, which binds to a relative Uri.
+        _httpContextAccessor.HttpContext.Returns((HttpContext?)null);
         var resolver = CreateResolver([], defaultOrigin: null, apiOrigin: "");
 
         var ex = Should.Throw<CustomException>(() => resolver.ResolveDefault());
@@ -165,8 +174,31 @@ public sealed class FrontendOriginResolverTests
     }
 
     [Fact]
-    public void ResolveDefault_Should_Throw_When_NothingConfigured()
+    public void ResolveDefault_Should_FallBackToRequestHost_When_NothingConfigured()
     {
+        // The both-empty upgrade case: appsettings.Production.json ships DefaultOrigin AND
+        // OriginUrl empty, so the link still has to resolve — to the API's own host, which is
+        // where register / self-register / resend built their links before this resolver existed.
+        SetRequestHost("https", "api.example.com");
+        var resolver = CreateResolver([], defaultOrigin: null);
+
+        resolver.ResolveDefault().ShouldBe("https://api.example.com");
+    }
+
+    [Fact]
+    public void ResolveDefault_Should_PreferApiOrigin_Over_RequestHost()
+    {
+        SetRequestHost("https", "internal.cluster.local");
+        var resolver = CreateResolver([], defaultOrigin: null, apiOrigin: "https://api.example.com");
+
+        resolver.ResolveDefault().ShouldBe("https://api.example.com");
+    }
+
+    [Fact]
+    public void ResolveDefault_Should_Throw_When_NothingConfiguredAndNoRequest()
+    {
+        // A background job: nothing configured and no request to derive a host from.
+        _httpContextAccessor.HttpContext.Returns((HttpContext?)null);
         var resolver = CreateResolver(["http://localhost:5173"], defaultOrigin: null);
 
         var ex = Should.Throw<CustomException>(() => resolver.ResolveDefault());

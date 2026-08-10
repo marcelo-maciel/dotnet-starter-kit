@@ -265,7 +265,7 @@ public static class Extensions
         }
 
         app.Logger.LogWarning(
-            "Neither FrontendOptions:DefaultOrigin nor OriginOptions:OriginUrl is set (appsettings.{Environment}.json). Auth e-mail links for operator-driven flows (admin register, resend confirmation) and for callers that send no Origin header will fail with a 500. Set FrontendOptions:DefaultOrigin to your dashboard URL, e.g. \"https://app.example.com\".",
+            "Neither FrontendOptions:DefaultOrigin nor OriginOptions:OriginUrl is set (appsettings.{Environment}.json). Auth e-mail links for operator-driven flows (admin register, resend confirmation) and for callers that send no Origin header will point at this API's own request host instead of the front-end app, and will fail outright in a background job, which has no request to derive a host from. Set FrontendOptions:DefaultOrigin to your dashboard URL, e.g. \"https://app.example.com\".",
             app.Environment.EnvironmentName);
     }
 }

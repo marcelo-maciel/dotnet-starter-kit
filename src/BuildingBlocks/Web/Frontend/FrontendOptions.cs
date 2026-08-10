@@ -26,8 +26,11 @@ public sealed class FrontendOptions
     /// <b>Strongly recommended, not required.</b> Every deployment resolves through this at some
     /// point (operator flows, non-browser callers, jobs). Left unset, the host still starts, logs a
     /// single startup <c>Warning</c> and falls back to the API's own origin
-    /// (<c>OriginOptions:OriginUrl</c>): links then land on the API rather than the SPA — serviceable,
-    /// but not where a user expects to arrive. <see cref="AllowedOrigins"/> is additive: it only
+    /// (<c>OriginOptions:OriginUrl</c>, or the current request's host when that is empty too): links
+    /// then land on the API rather than the SPA — serviceable, and the same place register /
+    /// self-register / resend derived them from before this option existed, but not where a user
+    /// expects to arrive. A background job, having no request, fails instead.
+    /// <see cref="AllowedOrigins"/> is additive: it only
     /// widens which request origins may be echoed into self-service links, and cannot substitute for
     /// the default.
     /// </para>

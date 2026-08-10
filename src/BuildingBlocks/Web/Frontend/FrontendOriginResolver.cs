@@ -62,16 +62,29 @@ internal sealed class FrontendOriginResolver(
             return _default;
         }
 
-        // No DefaultOrigin: fall back to the API's own configured origin rather than taking the
-        // host down at boot over a setting a deployment may never exercise. Links then land on the
-        // API (serviceable, if not the SPA) and startup logs a single Warning naming what degrades.
-        // Deliberately NOT the current request's host: this method exists precisely because the
-        // caller is not the recipient — an operator-driven link must never point at the admin app.
+        // No DefaultOrigin: fall back to the API's own origin rather than taking the host down at
+        // boot over a setting a deployment may never exercise. Links then land on the API — which
+        // is where register / self-register / resend derived them from before the resolver existed
+        // — and startup logs a single Warning naming what degrades. The configured value first, the
+        // request host second: appsettings.Production.json ships OriginUrl empty too, and a
+        // deployment that set neither must still send a usable link.
+        //
+        // Note this is the API's own host, never the caller's Origin header: an operator-driven
+        // link must not point at the admin SPA the request came from, which is the whole reason
+        // ResolveDefault exists apart from ResolveForCurrentRequest.
         if (!string.IsNullOrWhiteSpace(_apiOrigin))
         {
             return _apiOrigin;
         }
 
+        var request = httpContextAccessor.HttpContext?.Request;
+        if (request is not null && !string.IsNullOrWhiteSpace(request.Scheme) && request.Host.HasValue)
+        {
+            return $"{request.Scheme}://{request.Host.Value}{request.PathBase}".TrimEnd('/');
+        }
+
+        // Nothing configured and no request to derive from (a background job): there is no origin
+        // to build a link out of.
         throw new CustomException(
             "No front-end origin is configured: set FrontendOptions:DefaultOrigin (or OriginOptions:OriginUrl as a fallback).",
             errors: null,
