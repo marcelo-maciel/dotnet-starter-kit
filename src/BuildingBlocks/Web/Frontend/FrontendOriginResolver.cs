@@ -29,8 +29,10 @@ internal sealed class FrontendOriginResolver(
         var header = httpContextAccessor.HttpContext?.Request.Headers.Origin.ToString();
         if (string.IsNullOrWhiteSpace(header))
         {
-            // Non-browser caller (curl, Scalar try-it, mobile, server-to-server) sends no Origin.
-            // Fall back to the configured default rather than failing an otherwise valid flow.
+            // Non-browser caller (curl, mobile, server-to-server) sends no Origin. Fall back to the
+            // configured default rather than failing an otherwise valid flow. Note the Scalar
+            // try-it UI is NOT in this group: it fetches from the browser, so it sends the API's
+            // own origin and needs that origin allow-listed to exercise these two endpoints.
             return ResolveDefault();
         }
 

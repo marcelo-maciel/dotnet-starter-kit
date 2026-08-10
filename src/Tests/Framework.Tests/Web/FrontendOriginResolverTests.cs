@@ -175,7 +175,7 @@ public sealed class FrontendOriginResolverTests
     [Fact]
     public void ResolveForCurrentRequest_Should_FallBackToDefault_When_NoHeader()
     {
-        // Non-browser callers (curl, Scalar, mobile, server-to-server) send no Origin — use the default.
+        // Non-browser callers (curl, mobile, server-to-server) send no Origin — use the default.
         SetOriginHeader(null);
         var resolver = CreateResolver(["http://localhost:5173"], defaultOrigin: "https://app.example.com");
 

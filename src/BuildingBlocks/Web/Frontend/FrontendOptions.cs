@@ -19,7 +19,7 @@ public sealed class FrontendOptions
 
     /// <summary>
     /// Front-end origin used when the request carries no usable <c>Origin</c> header (non-browser
-    /// callers such as curl / the Scalar try-it UI / mobile apps / server-to-server), for
+    /// callers such as curl / mobile apps / server-to-server), for
     /// operator-driven flows whose link must land on the recipient's app rather than the caller's,
     /// and for background jobs that run without an HTTP request. Typically the tenant dashboard URL.
     /// <para>
