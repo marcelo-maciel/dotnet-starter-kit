@@ -18,8 +18,8 @@ internal sealed class FrontendOriginResolver(
     // form would silently fail.
     private readonly Uri[] _allowed = Normalize(options.Value.AllowedOrigins);
     private readonly string? _default = options.Value.DefaultOrigin?.TrimEnd('/');
-    // IsAbsoluteUri guard: appsettings ships OriginUrl as "", which binds to a relative Uri whose
-    // AbsoluteUri throws.
+    // IsAbsoluteUri guard: OriginUrl is operator-supplied, and only an absolute Uri has an
+    // AbsoluteUri to read.
     private readonly string? _apiOrigin = originOptions.Value.OriginUrl is { IsAbsoluteUri: true } api
         ? api.AbsoluteUri.TrimEnd('/')
         : null;
@@ -31,6 +31,16 @@ internal sealed class FrontendOriginResolver(
         {
             // Non-browser caller (curl, Scalar try-it, mobile, server-to-server) sends no Origin.
             // Fall back to the configured default rather than failing an otherwise valid flow.
+            return ResolveDefault();
+        }
+
+        if (_allowed.Length == 0)
+        {
+            // No allow-list configured: there is nothing to validate the header against, so trust
+            // the server-side default instead of rejecting. Browsers attach Origin to these POSTs
+            // even same-origin, so matching an empty list would 400 every legitimate reset on the
+            // single-SPA and reverse-proxy topologies — and on the shipped Production config.
+            // The header is discarded, never echoed, so this cannot leak a client-chosen origin.
             return ResolveDefault();
         }
 
@@ -99,10 +109,18 @@ internal sealed class FrontendOriginResolver(
         }
 
         // Return the canonical configured entry, never the client-supplied casing.
-        return _allowed
-            .FirstOrDefault(allowed => Uri.Compare(
-                candidate, allowed, UriComponents.SchemeAndServer, UriFormat.Unescaped, StringComparison.OrdinalIgnoreCase) == 0)
+        return _allowed.FirstOrDefault(allowed => IsSameOrigin(candidate, allowed))
             ?.GetLeftPart(UriPartial.Authority);
+    }
+
+    // Scheme + host + port, port exact. Compared through IdnHost so a list entry written in Unicode
+    // ("https://bücher.example") matches the punycode form the browser actually sends; Uri.Port
+    // supplies the scheme's default, so ":443" and the bare host are the same origin.
+    private static bool IsSameOrigin(Uri candidate, Uri allowed)
+    {
+        return string.Equals(candidate.Scheme, allowed.Scheme, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(candidate.IdnHost, allowed.IdnHost, StringComparison.OrdinalIgnoreCase)
+            && candidate.Port == allowed.Port;
     }
 
     private static Uri[] Normalize(string[] origins)

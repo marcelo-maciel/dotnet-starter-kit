@@ -1,4 +1,6 @@
+using System.Net;
 using AutoFixture;
+using FSH.Framework.Core.Exceptions;
 using FSH.Framework.Web.Frontend;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Contracts.v1.Users.ForgotPassword;
@@ -43,13 +45,19 @@ public sealed class ForgotPasswordCommandHandlerTests
     [Fact]
     public async Task Handle_Should_Propagate_When_OriginResolverThrows()
     {
-        // Arrange - a request with a forged Origin header cannot build a reset link.
+        // Arrange - a request with a forged Origin header cannot build a reset link. The resolver
+        // signals that with the 400-mapped CustomException, so that is the type the handler must
+        // let through: catching it here would turn a rejected origin into a sent e-mail.
         var command = _fixture.Create<ForgotPasswordCommand>();
-        _originResolver.ResolveForCurrentRequest().Returns(_ => throw new InvalidOperationException("no origin"));
+        _originResolver.ResolveForCurrentRequest().Returns(_ => throw new CustomException(
+            "The request origin is not an allowed front-end origin.",
+            errors: null,
+            HttpStatusCode.BadRequest));
 
         // Act & Assert
-        await Should.ThrowAsync<InvalidOperationException>(async () =>
+        var ex = await Should.ThrowAsync<CustomException>(async () =>
             await _sut.Handle(command, CancellationToken.None));
+        ex.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         await _userService.DidNotReceive().ForgotPasswordAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 

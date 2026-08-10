@@ -106,6 +106,50 @@ public sealed class FrontendOriginResolverTests
     }
 
     [Fact]
+    public void ResolveForCurrentRequest_Should_FallBackToDefault_When_AllowListEmpty()
+    {
+        // appsettings.Production.json ships AllowedOrigins empty, and browsers attach Origin to
+        // these POSTs even same-origin: matching an empty list would 400 every legitimate reset.
+        SetOriginHeader("https://app.example.com");
+        var resolver = CreateResolver([], defaultOrigin: "https://tenant.example.com");
+
+        resolver.ResolveForCurrentRequest().ShouldBe("https://tenant.example.com");
+    }
+
+    [Fact]
+    public void ResolveForCurrentRequest_Should_ReturnConfiguredEntry_When_HeaderCarriesUserInfo()
+    {
+        // "http://evil.com@localhost:5173" compares equal on scheme+host+port, so the guarantee
+        // that holds is returning the configured entry rather than anything the client sent.
+        SetOriginHeader("http://evil.com@localhost:5173");
+        var resolver = CreateResolver(["http://localhost:5173"]);
+
+        resolver.ResolveForCurrentRequest().ShouldBe("http://localhost:5173");
+    }
+
+    [Fact]
+    public void ResolveForCurrentRequest_Should_MatchIdnEntry_Against_PunycodeHeader()
+    {
+        // A list entry written in Unicode must match the punycode form the browser actually sends,
+        // otherwise a valid IDN deployment fails closed. The emitted value stays the configured
+        // entry, so an operator who writes Unicode gets Unicode in the link.
+        SetOriginHeader("https://xn--bcher-kva.example");
+        var resolver = CreateResolver(["https://bücher.example"]);
+
+        resolver.ResolveForCurrentRequest().ShouldBe("https://bücher.example");
+    }
+
+    [Fact]
+    public void ResolveForCurrentRequest_Should_MatchDefaultPort_Written_Explicitly()
+    {
+        // ":443" is the same origin as the bare host; an entry carrying it must not fail closed.
+        SetOriginHeader("https://app.example.com");
+        var resolver = CreateResolver(["https://app.example.com:443"]);
+
+        resolver.ResolveForCurrentRequest().ShouldBe("https://app.example.com");
+    }
+
+    [Fact]
     public void ResolveForCurrentRequest_Should_FallBackToDefault_When_NoHeader()
     {
         // Non-browser callers (curl, Scalar, mobile, server-to-server) send no Origin — use the default.

@@ -248,12 +248,23 @@ public static class Extensions
     private static void WarnOnMissingFrontendOrigin(WebApplication app)
     {
         var frontend = app.Services.GetRequiredService<IOptions<FrontendOptions>>().Value;
+
+        // Reported independently of DefaultOrigin: a deployment that sets only the default still
+        // has every self-service link falling back to it, which is wrong the moment there is more
+        // than one front-end.
+        if (frontend.AllowedOrigins.Length == 0)
+        {
+            app.Logger.LogWarning(
+                "FrontendOptions:AllowedOrigins is empty (appsettings.{Environment}.json). Password-reset and self-registration links cannot follow the front-end that made the request and will all point at FrontendOptions:DefaultOrigin instead. With more than one front-end that sends users to the wrong app. List every SPA origin, e.g. [ \"https://app.example.com\", \"https://admin.example.com\" ].",
+                app.Environment.EnvironmentName);
+        }
+
         if (!string.IsNullOrWhiteSpace(frontend.DefaultOrigin))
         {
             return;
         }
 
-        // Same absolute-Uri guard the resolver applies: OriginUrl ships as "", which binds relative.
+        // Same absolute-Uri guard the resolver applies.
         var apiOrigin = app.Services.GetRequiredService<IOptions<OriginOptions>>().Value.OriginUrl;
         if (apiOrigin is { IsAbsoluteUri: true })
         {
