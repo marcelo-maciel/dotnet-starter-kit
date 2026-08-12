@@ -94,8 +94,10 @@ public sealed class OptionsDefaultsTests
         services.AddHeroIdempotency(configuration);
         var provider = services.BuildServiceProvider();
 
-        // Act
-        var act = () => provider.GetRequiredService<IOptions<IdempotencyOptions>>().Value;
+        // Act — through IStartupValidator, which is what .ValidateOnStart() registers and what the host
+        // runs before serving traffic. Resolving IOptions<>.Value instead would validate lazily and pass
+        // with .ValidateOnStart() deleted, moving the failure from boot to the first keyed request.
+        var act = () => provider.GetRequiredService<IStartupValidator>().Validate();
 
         // Assert
         act.ShouldThrow<OptionsValidationException>();
@@ -114,9 +116,11 @@ public sealed class OptionsDefaultsTests
         var provider = services.BuildServiceProvider();
 
         // Act
+        provider.GetRequiredService<IStartupValidator>().Validate();
         var options = provider.GetRequiredService<IOptions<IdempotencyOptions>>().Value;
 
-        // Assert — sanity: the validators above reject bad values without rejecting good ones.
+        // Assert — sanity: the validators above reject bad values without rejecting good ones, and the
+        // startup validation this configuration passes through does not reject a valid one.
         options.ReservationTtl.ShouldBe(TimeSpan.FromMinutes(2));
     }
 
