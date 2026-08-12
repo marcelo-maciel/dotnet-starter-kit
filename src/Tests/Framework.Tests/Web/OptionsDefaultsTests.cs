@@ -1,6 +1,9 @@
 using FSH.Framework.Web.Idempotency;
 using FSH.Framework.Web.RateLimiting;
 using FSH.Framework.Web.Security;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Framework.Tests.Web;
 
@@ -67,7 +70,54 @@ public sealed class OptionsDefaultsTests
         // Assert
         options.HeaderName.ShouldBe("Idempotency-Key");
         options.DefaultTtl.ShouldBe(TimeSpan.FromHours(24));
+        options.ReservationTtl.ShouldBe(TimeSpan.FromMinutes(1));
         options.MaxKeyLength.ShouldBe(128);
+    }
+
+    // A bad TTL is invisible at runtime: a zero DefaultTtl throws inside the best-effort cache write,
+    // which logs a warning and carries on, so nothing is ever stored and replay never engages. It has
+    // to be rejected at startup instead.
+    [Theory]
+    [InlineData("DefaultTtl", "00:00:00")]
+    [InlineData("ReservationTtl", "00:00:00")]
+    [InlineData("ReservationTtl", "48:00:00")]
+    [InlineData("MaxKeyLength", "0")]
+    [InlineData("HeaderName", "")]
+    public void AddHeroIdempotency_Should_FailAtStartup_When_OptionsAreInvalid(string key, string value)
+    {
+        // Arrange
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection([new KeyValuePair<string, string?>($"IdempotencyOptions:{key}", value)])
+            .Build();
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddHeroIdempotency(configuration);
+        var provider = services.BuildServiceProvider();
+
+        // Act
+        var act = () => provider.GetRequiredService<IOptions<IdempotencyOptions>>().Value;
+
+        // Assert
+        act.ShouldThrow<OptionsValidationException>();
+    }
+
+    [Fact]
+    public void AddHeroIdempotency_Should_Bind_When_OptionsAreValid()
+    {
+        // Arrange
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection([new KeyValuePair<string, string?>("IdempotencyOptions:ReservationTtl", "00:02:00")])
+            .Build();
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddHeroIdempotency(configuration);
+        var provider = services.BuildServiceProvider();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<IdempotencyOptions>>().Value;
+
+        // Assert — sanity: the validators above reject bad values without rejecting good ones.
+        options.ReservationTtl.ShouldBe(TimeSpan.FromMinutes(2));
     }
 
     #endregion

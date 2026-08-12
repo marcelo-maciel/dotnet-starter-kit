@@ -5,6 +5,7 @@ using System.Text.Json;
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Caching;
 using FSH.Framework.Shared.Constants;
+using FSH.Framework.Shared.Identity.Claims;
 using FSH.Framework.Shared.Multitenancy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -35,6 +36,8 @@ namespace FSH.Framework.Web.Idempotency;
 /// The stored response is written before the body reaches the client and with a token that cannot be
 /// cancelled: it is the durable record that the side effect already happened, so it has to outlive the
 /// request that produced it — a client that times out and retries is the commonest duplicate there is.
+/// For the same reason the handler itself runs with the client's abort token detached, so a disconnect
+/// mid-request cannot leave a committed side effect with no stored response behind it.
 /// </remarks>
 public sealed class IdempotencyEndpointFilter : IEndpointFilter
 {
@@ -56,6 +59,10 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
     // In-process reservation used when no Redis multiplexer is registered. Single-instance only —
     // a multi-instance host in this stack already runs Redis (shared Data Protection key ring), so
     // the Redis branch below covers every deployment where cross-instance duplicates are possible.
+    // ponytail: the multiplexer and the IDistributedCache are resolved independently, so a host that
+    // configures Redis for one and not the other (quota Redis without caching Redis) gets a shared
+    // lock over a per-process entry store. Cross-instance dedup needs the CACHE on Redis; the lock
+    // alone cannot provide it.
     private static readonly ConcurrentDictionary<string, InFlightEntry> InFlight = new(StringComparer.Ordinal);
 
     public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
@@ -90,13 +97,15 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
 
         var tenantId = ResolveTenant(httpContext);
 
-        // Scope the entry to the operation as well as the tenant. Keyed on the tenant alone, one key
-        // reused across two idempotent endpoints replays the first endpoint's response on the second
-        // — the request silently never runs. That was harmless only while replay never engaged; it
-        // does now. Anonymous endpoints (self-registration) resolve no tenant claim and share the
-        // "global" bucket, so scoping by operation is what keeps them apart.
+        // Scope the entry to the caller and the operation, not the tenant alone. Keyed on the tenant
+        // alone, one key reused across two idempotent endpoints replays the first endpoint's response
+        // on the second — the request silently never runs — and two users of the same tenant who pick
+        // the same low-entropy key ("1", "retry") on the same endpoint get each other's response
+        // bodies while their own request is suppressed. That was harmless only while replay never
+        // engaged; it does now. Anonymous endpoints (self-registration) resolve neither a tenant nor a
+        // caller and share one bucket, so the operation is what keeps them apart from each other.
         var operation = $"{httpContext.Request.Method}:{RouteIdentity(httpContext)}";
-        var cacheKey = CacheKeys.IdempotencyEntry(tenantId, $"{operation}:{idempotencyKey}");
+        var cacheKey = CacheKeys.IdempotencyEntry(tenantId, $"{ResolveCaller(httpContext)}:{operation}:{idempotencyKey}");
 
         // Probe-only read via IDistributedCache (real GetAsync, null on miss — unlike HybridCache's
         // factory). Bypasses L1: replays are rare vs first-calls, so L1 warmth has little value.
@@ -120,13 +129,21 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
             // Another request with this key is in flight. It may have finished between the probe
             // and the reservation — re-probe once, otherwise report the in-progress conflict.
             var raced = await ProbeAsync(distributedCache, cacheKey, logger, idempotencyKey, httpContext.RequestAborted).ConfigureAwait(false);
-            return raced is not null
-                ? await ReplayAsync(httpContext, raced, idempotencyKey, logger).ConfigureAwait(false)
-                : TypedResults.Problem(
-                    detail: "A request with this Idempotency-Key is already being processed. Retry shortly.",
-                    instance: httpContext.Request.Path,
-                    statusCode: StatusCodes.Status409Conflict,
-                    title: "Idempotent request in progress");
+            if (raced is not null)
+            {
+                return await ReplayAsync(httpContext, raced, idempotencyKey, logger).ConfigureAwait(false);
+            }
+
+            // "Retry shortly" is only actionable with a number on it. One second, not ReservationTtl:
+            // the original is normally still running and about to store its response, and the TTL is
+            // the worst case (the holder died) — telling every client to wait it out serializes them
+            // behind a lock that has probably already been released.
+            httpContext.Response.Headers.RetryAfter = "1";
+            return TypedResults.Problem(
+                detail: "A request with this Idempotency-Key is already being processed. Retry shortly.",
+                instance: httpContext.Request.Path,
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Idempotent request in progress");
         }
 
         try
@@ -140,7 +157,41 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
                 return await ReplayAsync(httpContext, settled, idempotencyKey, logger).ConfigureAwait(false);
             }
 
-            var result = await next(context).ConfigureAwait(false);
+            // The handler runs with the client's abort token detached. It commits a side effect, and
+            // the record of that side effect is the stored response — so the handler has to reach the
+            // end even if the client hangs up mid-request. Left attached, a disconnect after the
+            // commit cancels the next await inside the handler (an EF read, an outbox write, a
+            // Mediator behaviour), the exception leaves the filter with nothing to store, and the
+            // client's retry re-executes the side effect: the exact duplicate this filter is for.
+            // The trade is that a client disconnect no longer aborts an idempotent handler.
+            var originalAborted = httpContext.RequestAborted;
+            object? result;
+            try
+            {
+                httpContext.RequestAborted = CancellationToken.None;
+                result = await next(context).ConfigureAwait(false);
+            }
+            finally
+            {
+                httpContext.RequestAborted = originalAborted;
+            }
+
+            // A handler that wrote the response itself (an HttpContext-taking handler returning null)
+            // has already started it. Capturing is impossible at that point — the buffer swap comes
+            // too late, so the entry would be an empty body replayed for the full TTL — and setting
+            // the status below would throw. Hand the handler's own return back to the pipeline and
+            // leave idempotency out of it.
+            if (httpContext.Response.HasStarted)
+            {
+                logger.LogWarning(
+                    "Idempotent handler for {Operation} started the response itself; nothing captured or stored for key {KeyHash}",
+                    operation,
+                    HashKey(idempotencyKey));
+
+                // Empty rather than null when the handler returned nothing: a null return makes the
+                // framework append a serialized "null" to what the handler already wrote.
+                return result ?? Results.Empty;
+            }
 
             // Execute the result into a buffer to capture the real wire body + status code, then
             // serve that buffer to the client. Returning the IResult unexecuted would leave
@@ -215,7 +266,21 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
     private static async ValueTask<CachedIdempotentResponse?> ProbeAsync(
         IDistributedCache cache, string cacheKey, ILogger logger, string idempotencyKey, CancellationToken ct)
     {
-        var bytes = await cache.GetAsync(cacheKey, ct).ConfigureAwait(false);
+        byte[]? bytes;
+        try
+        {
+            bytes = await cache.GetAsync(cacheKey, ct).ConfigureAwait(false);
+        }
+        // Fail open here as well, or the probe is the one link that hard-fails the request: the
+        // reservation and the store both degrade to a warning when the cache is down, while the probe
+        // runs on EVERY keyed request — letting a connection error escape takes every idempotent
+        // endpoint down for the clients that send a key, and leaves it up for the ones that don't.
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Idempotency probe failed for key {KeyHash}; treating it as a miss", HashKey(idempotencyKey));
+            return null;
+        }
+
         if (bytes is not { Length: > 0 })
         {
             return null;
@@ -264,6 +329,11 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
         return Results.Empty;
     }
 
+    // ponytail: the whole response is buffered in memory with no size cap, and with the abort token
+    // detached a result that never completes on its own never completes here either. Fine for the
+    // small JSON payloads the idempotent endpoints return; do not put .WithIdempotency() on a
+    // streaming, SSE or large-file endpoint. Add a size ceiling (skip the store, stream through)
+    // before one exists.
     private static async Task<CachedIdempotentResponse> ExecuteAndCaptureAsync(
         object? result, HttpContext httpContext)
     {
@@ -443,11 +513,36 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
         return string.IsNullOrWhiteSpace(fromClaim) ? "global" : fromClaim;
     }
 
-    // The route pattern, not the resolved path: two requests to the same endpoint with different
-    // route values are different operations and their idempotency keys are already distinct, while
-    // the pattern keeps the entry stable for the same operation.
-    private static string RouteIdentity(HttpContext httpContext) =>
-        (httpContext.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText ?? httpContext.Request.Path.ToString();
+    // The caller, so one tenant's users don't share an entry. Falls back to the tenant-wide bucket
+    // for anonymous endpoints, which have no caller to scope by.
+    private static string ResolveCaller(HttpContext httpContext)
+    {
+        var userId = httpContext.User.GetUserId();
+        return string.IsNullOrWhiteSpace(userId) ? "anon" : userId;
+    }
+
+    // The route pattern PLUS its resolved values — the pattern alone makes PUT /tickets/1 and
+    // PUT /tickets/2 the same operation, so one key reused across two resources replays the first
+    // one's response and the second update silently never runs. The values are the parsed ones, not
+    // the raw path, so a retry of the same request matches while a different resource does not.
+    // The request body is deliberately not part of it: reading it here would buffer every payload,
+    // so the same key against the same resource with a changed body still replays (documented).
+    private static string RouteIdentity(HttpContext httpContext)
+    {
+        var pattern = (httpContext.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText ?? httpContext.Request.Path.ToString();
+        var values = httpContext.Request.RouteValues;
+        if (values.Count == 0)
+        {
+            return pattern;
+        }
+
+        var resolved = values
+            .Where(value => value.Value is not null)
+            .OrderBy(value => value.Key, StringComparer.Ordinal)
+            .Select(value => $"{value.Key}={value.Value}");
+
+        return $"{pattern}[{string.Join('&', resolved)}]";
+    }
 
     private static string HashKey(string key)
     {

@@ -7,6 +7,7 @@ using FSH.Framework.Shared.Constants;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Framework.Web.Idempotency;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.Caching.Distributed;
@@ -336,7 +337,7 @@ public sealed class IdempotencyEndpointFilterReplayTests
         // The key the filter reads: tenant + operation + caller key. Proven below by seeding a VALID
         // entry at it first — otherwise a wrong key here would make the real assertion pass as a
         // plain cache miss and the test would assert nothing.
-        var storedKey = CacheKeys.IdempotencyEntry("global", $"POST::{Key}");
+        var storedKey = CacheKeys.IdempotencyEntry("global", $"anon:POST::{Key}");
         await cache.SetAsync(
             storedKey,
             JsonSerializer.SerializeToUtf8Bytes(
@@ -454,10 +455,10 @@ public sealed class IdempotencyEndpointFilterReplayTests
             _ => ValueTask.FromResult<object?>(TypedResults.Ok(new SampleDto(Guid.NewGuid(), "widget"))));
 
         var cache = provider.GetRequiredService<IDistributedCache>();
-        (await cache.GetAsync(CacheKeys.IdempotencyEntry("global", $"POST::{Key}"))).ShouldNotBeNull(
+        (await cache.GetAsync(CacheKeys.IdempotencyEntry("global", $"anon:POST::{Key}"))).ShouldNotBeNull(
             "an unvalidated header must not choose the bucket: taking it would let any caller write into — " +
             "and replay out of — a real tenant's idempotency namespace.");
-        (await cache.GetAsync(CacheKeys.IdempotencyEntry("acme", $"POST::{Key}"))).ShouldBeNull();
+        (await cache.GetAsync(CacheKeys.IdempotencyEntry("acme", $"anon:POST::{Key}"))).ShouldBeNull();
     }
 
     // ─── the reservation must be re-probed: the original can settle between probe and reserve ───
@@ -624,6 +625,210 @@ public sealed class IdempotencyEndpointFilterReplayTests
         (result as IStatusCodeHttpResult)?.StatusCode.ShouldNotBe(StatusCodes.Status409Conflict);
     }
 
+    // ─── the handler must reach the end even if the client hangs up ─────────────────────
+
+    [Fact]
+    public async Task Handler_Should_RunToCompletion_When_ClientDisconnectsMidRequest()
+    {
+        var provider = BuildProvider();
+        var filter = new IdempotencyEndpointFilter();
+        var id = Guid.NewGuid();
+
+        using var aborted = new CancellationTokenSource();
+        var first = NewContext(provider, new MemoryStream());
+        first.RequestAborted = aborted.Token;
+
+        var committed = false;
+        try
+        {
+            await filter.InvokeAsync(
+                new TestFilterContext(first),
+                async invocation =>
+                {
+                    // The side effect commits, then the client gives up — and the handler still has
+                    // work to do (an EF read, an outbox write, a Mediator behaviour), all of which
+                    // observe HttpContext.RequestAborted.
+                    await aborted.CancelAsync().ConfigureAwait(false);
+                    invocation.HttpContext.RequestAborted.ThrowIfCancellationRequested();
+                    committed = true;
+                    return TypedResults.Ok(new SampleDto(id, "widget"));
+                });
+        }
+        catch (OperationCanceledException)
+        {
+            // Writing the body to a socket the client closed is allowed to fail.
+        }
+
+        committed.ShouldBeTrue(
+            "the handler must not be cancelled by the client disconnect: it has already committed, and " +
+            "the stored response is the only record of that. Cancelled mid-handler, nothing is stored " +
+            "and the client's retry re-executes the side effect.");
+
+        var replayBody = new MemoryStream();
+        var second = NewContext(provider, replayBody);
+        await filter.InvokeAsync(
+            new TestFilterContext(second),
+            _ => throw new InvalidOperationException("handler must NOT re-run after a client disconnect"));
+
+        second.Response.Headers.ContainsKey("Idempotency-Replayed").ShouldBeTrue();
+    }
+
+    // ─── a handler that writes the response itself is left alone ────────────────────────
+
+    [Fact]
+    public async Task Filter_Should_PassThrough_When_HandlerStartedTheResponseItself()
+    {
+        var provider = BuildProvider();
+        var filter = new IdempotencyEndpointFilter();
+
+        // DefaultHttpContext's own response feature reports HasStarted = false forever, so the
+        // scenario needs a feature that says what a real server says once bytes are on the wire.
+        var body = new MemoryStream();
+        var context = NewStartedResponseContext(provider, body);
+        var result = await filter.InvokeAsync(
+            new TestFilterContext(context),
+            async invocation =>
+            {
+                await invocation.HttpContext.Response.Body.WriteAsync("written-by-the-handler"u8.ToArray()).ConfigureAwait(false);
+                return null;
+            });
+
+        result.ShouldNotBeNull("a null return would make the framework append a serialized \"null\" to the handler's own output");
+
+        var cache = provider.GetRequiredService<IDistributedCache>();
+        (await cache.GetAsync(CacheKeys.IdempotencyEntry("global", $"anon:POST::{Key}"))).ShouldBeNull(
+            "the buffer swap comes after the handler ran, so a handler that started the response leaves " +
+            "an EMPTY capture — storing it would replay a blank 200 for the full TTL, and setting the " +
+            "captured status on an already-started response throws.");
+    }
+
+    // ─── a cache that is down degrades idempotency, it does not 500 the request ─────────
+
+    [Fact]
+    public async Task Filter_Should_RunHandler_When_TheProbeItselfFails()
+    {
+        var provider = BuildProviderWith(new FaultyCache());
+        var filter = new IdempotencyEndpointFilter();
+
+        int executions = 0;
+        var result = await filter.InvokeAsync(
+            new TestFilterContext(NewContext(provider, new MemoryStream())),
+            _ =>
+            {
+                executions++;
+                return ValueTask.FromResult<object?>(TypedResults.Ok(new SampleDto(Guid.NewGuid(), "widget")));
+            });
+
+        executions.ShouldBe(
+            1,
+            "the reservation and the store both fail open, so the probe must too: it runs on every keyed " +
+            "request, and letting a connection error escape takes every idempotent endpoint down for the " +
+            "clients that send a key while the ones that don't keep working.");
+        result.ShouldNotBeNull();
+    }
+
+    // ─── same key, different resource: the second request must still run ────────────────
+
+    [Fact]
+    public async Task Filter_Should_NotReplayAcrossRouteValues_When_SameKeyTargetsAnotherResource()
+    {
+        var provider = BuildProvider();
+        var filter = new IdempotencyEndpointFilter();
+
+        var onFirstTicket = NewContext(provider, new MemoryStream());
+        onFirstTicket.SetEndpoint(RouteEndpointFor("api/v1/tickets/{id}"));
+        onFirstTicket.Request.RouteValues["id"] = "1";
+        await filter.InvokeAsync(
+            new TestFilterContext(onFirstTicket),
+            _ => ValueTask.FromResult<object?>(TypedResults.Ok(new SampleDto(Guid.NewGuid(), "ticket-1"))));
+
+        int executions = 0;
+        var onSecondTicket = NewContext(provider, new MemoryStream());
+        onSecondTicket.SetEndpoint(RouteEndpointFor("api/v1/tickets/{id}"));
+        onSecondTicket.Request.RouteValues["id"] = "2";
+        await filter.InvokeAsync(
+            new TestFilterContext(onSecondTicket),
+            _ =>
+            {
+                executions++;
+                return ValueTask.FromResult<object?>(TypedResults.Ok(new SampleDto(Guid.NewGuid(), "ticket-2")));
+            });
+
+        executions.ShouldBe(
+            1,
+            "keyed on the route pattern alone, PUT /tickets/1 and PUT /tickets/2 are the same operation: " +
+            "the second request replays the first ticket's response and its own update never runs.");
+        onSecondTicket.Response.Headers.ContainsKey("Idempotency-Replayed").ShouldBeFalse();
+    }
+
+    // ─── two users of one tenant must not share an entry ───────────────────────────────
+
+    [Fact]
+    public async Task Filter_Should_ScopeEntryToTheCaller_When_TwoUsersShareATenantAndAKey()
+    {
+        var cache = NewMemoryCache();
+        var filter = new IdempotencyEndpointFilter();
+
+        var byAlice = NewContext(BuildProviderWith(cache, TenantContext("acme")), new MemoryStream());
+        byAlice.User = CallerPrincipal("acme", userId: "alice");
+        await filter.InvokeAsync(
+            new TestFilterContext(byAlice),
+            _ => ValueTask.FromResult<object?>(TypedResults.Ok(new SampleDto(Guid.NewGuid(), "alice-order"))));
+
+        int executions = 0;
+        var byBob = NewContext(BuildProviderWith(cache, TenantContext("acme")), new MemoryStream());
+        byBob.User = CallerPrincipal("acme", userId: "bob");
+        await filter.InvokeAsync(
+            new TestFilterContext(byBob),
+            _ =>
+            {
+                executions++;
+                return ValueTask.FromResult<object?>(TypedResults.Ok(new SampleDto(Guid.NewGuid(), "bob-order")));
+            });
+
+        executions.ShouldBe(
+            1,
+            "two users of the same tenant who pick the same low-entropy key on the same endpoint would " +
+            "otherwise get each other's response body while their own request is silently suppressed.");
+        byBob.Response.Headers.ContainsKey("Idempotency-Replayed").ShouldBeFalse();
+    }
+
+    // ─── the 409 has to say how long to wait ───────────────────────────────────────────
+
+    [Fact]
+    public async Task Conflict_Should_CarryRetryAfter_When_ADuplicateIsStillInFlight()
+    {
+        var provider = BuildProvider();
+        var filter = new IdempotencyEndpointFilter();
+
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var holderCall = filter.InvokeAsync(
+            new TestFilterContext(NewContext(provider, new MemoryStream())),
+            async _ =>
+            {
+                started.SetResult();
+                await release.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+                return TypedResults.Ok(new SampleDto(Guid.NewGuid(), "holder"));
+            }).AsTask();
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var duplicate = NewContext(provider, new MemoryStream());
+        var result = await filter.InvokeAsync(
+            new TestFilterContext(duplicate),
+            _ => throw new InvalidOperationException("the duplicate's handler must not run"));
+
+        release.SetResult();
+        await holderCall.WaitAsync(TimeSpan.FromSeconds(10));
+
+        (result as IStatusCodeHttpResult)?.StatusCode.ShouldBe(StatusCodes.Status409Conflict);
+        duplicate.Response.Headers.RetryAfter.ToString().ShouldBe(
+            "1",
+            "\"retry shortly\" is only actionable with a number on it, and the original is normally about " +
+            "to store its response — the reservation TTL is the worst case, not the hint.");
+    }
+
     // ─── harness ─────────────────────────────────────────────────────
 
     private static ServiceProvider BuildProvider() => BuildProvider(new IdempotencyOptions(), multiplexer: null);
@@ -739,8 +944,30 @@ public sealed class IdempotencyEndpointFilterReplayTests
         return context;
     }
 
+    // A context whose response reports itself as already started, which is what a handler that writes
+    // to HttpContext.Response leaves behind on a real server.
+    private DefaultHttpContext NewStartedResponseContext(IServiceProvider provider, Stream responseBody)
+    {
+        var features = new FeatureCollection();
+        features.Set<IHttpRequestFeature>(new HttpRequestFeature
+        {
+            Method = "POST",
+            Path = "/",
+            Headers = new HeaderDictionary { ["Idempotency-Key"] = Key },
+        });
+        features.Set<IHttpResponseFeature>(new StartedResponseFeature());
+        features.Set<IHttpResponseBodyFeature>(new StreamResponseBodyFeature(responseBody));
+
+        return new DefaultHttpContext(features) { RequestServices = provider };
+    }
+
     private static ClaimsPrincipal TenantPrincipal(string tenantId) =>
         new(new ClaimsIdentity([new Claim(ClaimConstants.Tenant, tenantId)], "test"));
+
+    private static ClaimsPrincipal CallerPrincipal(string tenantId, string userId) =>
+        new(new ClaimsIdentity(
+            [new Claim(ClaimConstants.Tenant, tenantId), new Claim(ClaimTypes.NameIdentifier, userId)],
+            "test"));
 
     private sealed record SampleDto(Guid Id, string Name);
 
@@ -772,6 +999,55 @@ public sealed class IdempotencyEndpointFilterReplayTests
             token.ThrowIfCancellationRequested();
             return inner.SetAsync(key, value, options, token);
         }
+    }
+
+    private sealed class StartedResponseFeature : IHttpResponseFeature
+    {
+        public Stream Body { get; set; } = Stream.Null;
+
+        public bool HasStarted => true;
+
+        public IHeaderDictionary Headers { get; set; } = new HeaderDictionary();
+
+        public string? ReasonPhrase { get; set; }
+
+        public int StatusCode { get; set; } = StatusCodes.Status200OK;
+
+        public void OnCompleted(Func<object, Task> callback, object state)
+        {
+        }
+
+        public void OnStarting(Func<object, Task> callback, object state)
+        {
+        }
+    }
+
+    /// <summary>
+    /// A cache whose connection is down: every operation throws, the way `RedisCache` does when the
+    /// server is unreachable.
+    /// </summary>
+    private sealed class FaultyCache : IDistributedCache
+    {
+        public byte[]? Get(string key) => throw new InvalidOperationException("cache is down");
+
+        public Task<byte[]?> GetAsync(string key, CancellationToken token = default) =>
+            Task.FromException<byte[]?>(new InvalidOperationException("cache is down"));
+
+        public void Refresh(string key) => throw new InvalidOperationException("cache is down");
+
+        public Task RefreshAsync(string key, CancellationToken token = default) =>
+            Task.FromException(new InvalidOperationException("cache is down"));
+
+        public void Remove(string key) => throw new InvalidOperationException("cache is down");
+
+        public Task RemoveAsync(string key, CancellationToken token = default) =>
+            Task.FromException(new InvalidOperationException("cache is down"));
+
+        public void Set(string key, byte[] value, DistributedCacheEntryOptions options) =>
+            throw new InvalidOperationException("cache is down");
+
+        public Task SetAsync(string key, byte[] value, DistributedCacheEntryOptions options, CancellationToken token = default) =>
+            Task.FromException(new InvalidOperationException("cache is down"));
     }
 
     /// <summary>
