@@ -177,6 +177,109 @@ public sealed class IdempotencyEndpointFilterReplayTests
         result.ShouldNotBeNull("the request must complete normally, not throw out of the filter");
     }
 
+    // ─── MEDIUM: replay must carry the headers the IResult set (Location on 201) ─────────
+
+    [Fact]
+    public async Task Replay_Should_PreserveLocationHeader_When_FirstResponseWasCreated()
+    {
+        var provider = BuildProvider();
+        var filter = new IdempotencyEndpointFilter();
+        var id = Guid.NewGuid();
+        var location = $"/samples/{id}";
+
+        var first = NewContext(provider, new MemoryStream());
+        await filter.InvokeAsync(
+            new TestFilterContext(first),
+            _ => ValueTask.FromResult<object?>(TypedResults.Created(location, new SampleDto(id, "widget"))));
+
+        first.Response.Headers.Location.ToString().ShouldBe(
+            location,
+            "sanity: executing Created(uri, value) is what sets Location, so the first call must have it");
+
+        var second = NewContext(provider, new MemoryStream());
+        await filter.InvokeAsync(
+            new TestFilterContext(second),
+            _ => throw new InvalidOperationException("handler must NOT run on an idempotent replay"));
+
+        second.Response.Headers.Location.ToString().ShouldBe(
+            location,
+            "a replayed 201 without Location breaks any client that follows the header — and only under " +
+            "the retry conditions nobody tests. The captured response must carry the meaningful headers.");
+    }
+
+    // ─── HIGH: the stored response must outlive the request that produced it ─────────────
+
+    [Fact]
+    public async Task FirstCall_Should_StillCacheResponse_When_ClientDisconnectsAfterHandlerRan()
+    {
+        var provider = BuildProvider();
+        var filter = new IdempotencyEndpointFilter();
+        var id = Guid.NewGuid();
+
+        using var aborted = new CancellationTokenSource();
+        await aborted.CancelAsync();
+        var first = NewContext(provider, new MemoryStream());
+        first.RequestAborted = aborted.Token;
+
+        try
+        {
+            await filter.InvokeAsync(
+                new TestFilterContext(first),
+                _ => ValueTask.FromResult<object?>(TypedResults.Ok(new SampleDto(id, "widget"))));
+        }
+        catch (OperationCanceledException)
+        {
+            // Writing to a socket the client already closed is allowed to fail — the handler's side
+            // effect has committed by then, so the stored response must survive it regardless.
+        }
+
+        var replayBody = new MemoryStream();
+        var second = NewContext(provider, replayBody);
+        await filter.InvokeAsync(
+            new TestFilterContext(second),
+            _ => throw new InvalidOperationException(
+                "handler must NOT re-run: client-timeout-then-retry is the exact duplicate this feature defends against"));
+
+        second.Response.Headers.ContainsKey("Idempotency-Replayed").ShouldBeTrue(
+            "the store must not be tied to the client's connection: if it is, a client that times out and " +
+            "retries re-executes the handler — the single most common way a duplicate is generated.");
+
+        using var doc = JsonDocument.Parse(replayBody.ToArray());
+        doc.RootElement.GetProperty("id").GetGuid().ShouldBe(
+            id,
+            "capturing under RequestAborted is worse than not caching: WriteAsJsonAsync swallows the " +
+            "cancellation, so an EMPTY body gets stored and replayed as a 200 for the full TTL.");
+    }
+
+    // ─── note: a failure response must not lock the key out for the full 24h TTL ─────────
+
+    [Fact]
+    public async Task Filter_Should_NotCacheResponse_When_FirstResponseIsNotSuccessful()
+    {
+        var provider = BuildProvider();
+        var filter = new IdempotencyEndpointFilter();
+
+        var first = NewContext(provider, new MemoryStream());
+        await filter.InvokeAsync(
+            new TestFilterContext(first),
+            _ => ValueTask.FromResult<object?>(TypedResults.Conflict("downstream busy")));
+
+        int executions = 0;
+        var second = NewContext(provider, new MemoryStream());
+        await filter.InvokeAsync(
+            new TestFilterContext(second),
+            _ =>
+            {
+                executions++;
+                return ValueTask.FromResult<object?>(TypedResults.Ok(new SampleDto(Guid.NewGuid(), "widget")));
+            });
+
+        executions.ShouldBe(
+            1,
+            "caching a non-2xx locks the caller out of retrying that key for the full response TTL (24h) after " +
+            "a transient downstream failure. Only a successful response is a record of a committed side effect.");
+    }
+
     // ─── harness ─────────────────────────────────────────────────────
 
     private static ServiceProvider BuildProvider() => BuildProvider(new IdempotencyOptions(), multiplexer: null);

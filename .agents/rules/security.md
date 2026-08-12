@@ -17,7 +17,7 @@ Chained partitioned fixed-window limiter: **tenant → user → IP** (defaults 1
 
 ## Idempotency (`Web/Idempotency/`)
 
-Opt-in per endpoint with **`.WithIdempotency()`**. Reads the `Idempotency-Key` header (max 128 chars, 24h TTL); replays return the cached response with `Idempotency-Replayed: true`. Cache key is tenant-scoped (`CacheKeys.IdempotencyEntry`). Put it on POSTs that must be replay-safe (e.g. CreateTenant).
+Opt-in per endpoint with **`.WithIdempotency()`**. Reads the `Idempotency-Key` header (max 128 chars, `DefaultTtl` 24h); replays return the cached status, body and the allow-listed headers (`Location`, `ETag`) plus `Idempotency-Replayed: true`. Cache key is tenant-scoped (`CacheKeys.IdempotencyEntry`) and probe and write share one `IDistributedCache` + key + serializer — asymmetry there makes replay silently never engage. Only **2xx** is stored: a failure isn't a record of a committed side effect, and caching it would lock the key out for the full TTL. The store happens **before** the body reaches the client and on `CancellationToken.None`, so a client that times out and retries replays instead of re-executing. Concurrent duplicates are serialized by an in-flight reservation (Redis `SET NX`, else in-process) on the short `ReservationTtl` (default 1m, must outlast the slowest handler); a duplicate still in flight gets **409**. Reserve and release both fail open. Put it on POSTs that must be replay-safe (e.g. CreateTenant).
 
 ## Quota enforcement (`Quota/`)
 

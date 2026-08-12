@@ -9,6 +9,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 using StackExchange.Redis;
 
 namespace FSH.Framework.Web.Idempotency;
@@ -27,10 +28,20 @@ namespace FSH.Framework.Web.Idempotency;
 /// verbatim, and <c>Response.StatusCode</c> is still the default at filter time — the IResult sets
 /// it only when it executes). Concurrent duplicate keys are serialized by an atomic in-flight
 /// reservation (Redis <c>SET NX</c> when a multiplexer is registered, an in-process set otherwise).
+/// The stored response is written before the body reaches the client and with a token that cannot be
+/// cancelled: it is the durable record that the side effect already happened, so it has to outlive the
+/// request that produced it — a client that times out and retries is the commonest duplicate there is.
 /// </remarks>
 public sealed class IdempotencyEndpointFilter : IEndpointFilter
 {
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+    // Response headers worth replaying. Allow-list rather than block-list: executing an IResult is
+    // exactly when these get set (Created(uri, value) writes Location), and a replayed 201 without
+    // Location breaks any client that follows it — under retry conditions nobody tests. Everything
+    // else is either transport (Content-Length, Transfer-Encoding) or host-owned (Date, Server), and
+    // replaying a stale value there corrupts the response.
+    private static readonly string[] ReplayableHeaders = ["Location", "ETag"];
 
     // In-process reservation used when no Redis multiplexer is registered. Single-instance only —
     // a multi-instance host in this stack already runs Redis (shared Data Protection key ring), so
@@ -75,7 +86,7 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
         // Atomically reserve the key so concurrent duplicates don't both execute the handler.
         var multiplexer = httpContext.RequestServices.GetService<IConnectionMultiplexer>();
         var reservationKey = cacheKey + ":inflight";
-        if (!await TryReserveAsync(multiplexer, reservationKey, options.ReservationTtl, logger, idempotencyKey, httpContext.RequestAborted).ConfigureAwait(false))
+        if (!await TryReserveAsync(multiplexer, reservationKey, options.ReservationTtl, logger, idempotencyKey).ConfigureAwait(false))
         {
             // Another request with this key is in flight. It may have finished between the probe
             // and the reservation — re-probe once, otherwise report the in-progress conflict.
@@ -92,43 +103,28 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
             // Execute the result into a buffer to capture the real wire body + status code, then
             // serve that buffer to the client. Returning the IResult unexecuted would leave
             // Response.StatusCode at its default and cache the wrapper object, not the wire body.
-            var (statusCode, contentType, body) = await ExecuteAndCaptureAsync(result, httpContext).ConfigureAwait(false);
+            var captured = await ExecuteAndCaptureAsync(result, httpContext).ConfigureAwait(false);
 
-            httpContext.Response.StatusCode = statusCode;
-            if (contentType is not null)
+            httpContext.Response.StatusCode = captured.StatusCode;
+            if (captured.ContentType is not null)
             {
-                httpContext.Response.ContentType = contentType;
+                httpContext.Response.ContentType = captured.ContentType;
             }
 
-            if (body.Length > 0)
+            // Store BEFORE the body goes to the client, and only on success. The handler's side effect
+            // has already committed at this point, so the record of it must not depend on the client
+            // still being there; writing to a socket the client closed throws, and doing that first
+            // would skip the store and let the retry re-execute the handler. Non-2xx is not a record
+            // of a committed side effect — caching it would lock the key out for the full TTL after a
+            // transient downstream failure, so a retry with the same key is allowed to run again.
+            if (captured.StatusCode is >= 200 and < 300)
             {
-                await httpContext.Response.Body.WriteAsync(body, httpContext.RequestAborted).ConfigureAwait(false);
+                await CacheResponseAsync(distributedCache, cacheKey, captured, options.DefaultTtl, logger, idempotencyKey).ConfigureAwait(false);
             }
 
-            // Write to the SAME store + key the probe reads. HybridCache.SetAsync keys its L2 entries
-            // under its own scheme, so a raw-key IDistributedCache probe never found them and replay
-            // silently never engaged. Idempotency entries are short-lived (TTL) and their tag-purge
-            // path was unused, so IDistributedCache alone — symmetric with the probe — is correct.
-            try
+            if (captured.Body.Length > 0)
             {
-                var responseToCache = new CachedIdempotentResponse
-                {
-                    StatusCode = statusCode,
-                    ContentType = contentType ?? "application/json",
-                    Body = body,
-                };
-
-                var payload = JsonSerializer.SerializeToUtf8Bytes(responseToCache, JsonOpts);
-                await distributedCache.SetAsync(
-                    cacheKey,
-                    payload,
-                    new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = options.DefaultTtl },
-                    httpContext.RequestAborted).ConfigureAwait(false);
-            }
-            // Best-effort caching: idempotency replay is a convenience, not a correctness requirement
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                logger.LogWarning(ex, "Failed to cache idempotent response for key {KeyHash}", HashKey(idempotencyKey));
+                await httpContext.Response.Body.WriteAsync(captured.Body, httpContext.RequestAborted).ConfigureAwait(false);
             }
 
             // Response already written to the body directly; return an empty result so the framework
@@ -138,6 +134,39 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
         finally
         {
             await ReleaseReservationAsync(multiplexer, reservationKey, logger, idempotencyKey).ConfigureAwait(false);
+        }
+    }
+
+    // Write to the SAME store + key the probe reads. HybridCache.SetAsync keys its L2 entries under
+    // its own scheme, so a raw-key IDistributedCache probe never found them and replay silently never
+    // engaged. Idempotency entries are short-lived (TTL) and their tag-purge path was unused, so
+    // IDistributedCache alone — symmetric with the probe — is correct.
+    private static async ValueTask CacheResponseAsync(
+        IDistributedCache distributedCache,
+        string cacheKey,
+        CachedIdempotentResponse response,
+        TimeSpan ttl,
+        ILogger logger,
+        string idempotencyKey)
+    {
+        try
+        {
+            var payload = JsonSerializer.SerializeToUtf8Bytes(response, JsonOpts);
+
+            // CancellationToken.None on purpose: RequestAborted is already signalled whenever this
+            // matters (client hung up), and cancelling the store is what makes the retry re-execute.
+            await distributedCache.SetAsync(
+                cacheKey,
+                payload,
+                new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = ttl },
+                CancellationToken.None).ConfigureAwait(false);
+        }
+        // Best-effort caching: a store that is down degrades idempotency to a convenience rather
+        // than 500ing a request whose side effect already committed. The token above is None, so
+        // an OperationCanceledException here is not a client disconnect and is left to propagate.
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Failed to cache idempotent response for key {KeyHash}", HashKey(idempotencyKey));
         }
     }
 
@@ -165,6 +194,11 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
             httpContext.Response.ContentType = cached.ContentType;
         }
 
+        foreach (var header in cached.Headers)
+        {
+            httpContext.Response.Headers[header.Key] = header.Value;
+        }
+
         if (cached.Body.Length > 0)
         {
             await httpContext.Response.Body.WriteAsync(cached.Body, httpContext.RequestAborted).ConfigureAwait(false);
@@ -174,12 +208,20 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
         return Results.Empty;
     }
 
-    private static async Task<(int StatusCode, string? ContentType, byte[] Body)> ExecuteAndCaptureAsync(
+    private static async Task<CachedIdempotentResponse> ExecuteAndCaptureAsync(
         object? result, HttpContext httpContext)
     {
         var originalBody = httpContext.Response.Body;
+        var originalAborted = httpContext.RequestAborted;
         await using var buffer = new MemoryStream();
         httpContext.Response.Body = buffer;
+
+        // Detach the client's abort token while capturing. The result is being written to an
+        // in-memory buffer, never the socket, so a client that hung up must not truncate it — and
+        // ASP.NET's WriteAsJsonAsync reads RequestAborted itself and swallows the cancellation, so
+        // the capture would silently come back EMPTY and that empty body would be cached and
+        // replayed for the full TTL.
+        httpContext.RequestAborted = CancellationToken.None;
         try
         {
             switch (result)
@@ -191,23 +233,41 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
                     break;
                 default:
                     // A non-IResult return is serialized as JSON by the framework — mirror that.
-                    await httpContext.Response.WriteAsJsonAsync(result, result.GetType(), options: null, contentType: null, httpContext.RequestAborted).ConfigureAwait(false);
+                    await httpContext.Response.WriteAsJsonAsync(result, result.GetType(), options: null, contentType: null, CancellationToken.None).ConfigureAwait(false);
                     break;
             }
 
             var statusCode = httpContext.Response.StatusCode is > 0 and < 600
                 ? httpContext.Response.StatusCode
                 : StatusCodes.Status200OK;
-            return (statusCode, httpContext.Response.ContentType, buffer.ToArray());
+
+            var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var name in ReplayableHeaders)
+            {
+                var value = httpContext.Response.Headers[name];
+                if (!StringValues.IsNullOrEmpty(value))
+                {
+                    headers[name] = value.ToString();
+                }
+            }
+
+            return new CachedIdempotentResponse
+            {
+                StatusCode = statusCode,
+                ContentType = httpContext.Response.ContentType ?? "application/json",
+                Body = buffer.ToArray(),
+                Headers = headers,
+            };
         }
         finally
         {
             httpContext.Response.Body = originalBody;
+            httpContext.RequestAborted = originalAborted;
         }
     }
 
     private static async ValueTask<bool> TryReserveAsync(
-        IConnectionMultiplexer? multiplexer, string reservationKey, TimeSpan ttl, ILogger logger, string idempotencyKey, CancellationToken ct)
+        IConnectionMultiplexer? multiplexer, string reservationKey, TimeSpan ttl, ILogger logger, string idempotencyKey)
     {
         if (multiplexer is not null)
         {
@@ -226,7 +286,6 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
             }
         }
 
-        _ = ct;
         return InFlight.TryAdd(reservationKey, 0);
     }
 
