@@ -77,13 +77,16 @@ public sealed class OptionsDefaultsTests
     // A bad TTL is invisible at runtime: a zero DefaultTtl throws inside the best-effort cache write,
     // which logs a warning and carries on, so nothing is ever stored and replay never engages. It has
     // to be rejected at startup instead.
+    // The expected message is part of the case: a zero DefaultTtl also trips the
+    // "ReservationTtl must not exceed DefaultTtl" clause, so asserting only the exception type let the
+    // DefaultTtl clause be deleted with every row still green.
     [Theory]
-    [InlineData("DefaultTtl", "00:00:00")]
-    [InlineData("ReservationTtl", "00:00:00")]
-    [InlineData("ReservationTtl", "48:00:00")]
-    [InlineData("MaxKeyLength", "0")]
-    [InlineData("HeaderName", "")]
-    public void AddHeroIdempotency_Should_FailAtStartup_When_OptionsAreInvalid(string key, string value)
+    [InlineData("DefaultTtl", "00:00:00", "DefaultTtl must be greater than zero")]
+    [InlineData("ReservationTtl", "00:00:00", "ReservationTtl must be greater than zero")]
+    [InlineData("ReservationTtl", "48:00:00", "ReservationTtl must not exceed DefaultTtl")]
+    [InlineData("MaxKeyLength", "0", "MaxKeyLength must be greater than zero")]
+    [InlineData("HeaderName", "", "HeaderName is required")]
+    public void AddHeroIdempotency_Should_FailAtStartup_When_OptionsAreInvalid(string key, string value, string expectedFailure)
     {
         // Arrange
         var configuration = new ConfigurationBuilder()
@@ -99,8 +102,9 @@ public sealed class OptionsDefaultsTests
         // with .ValidateOnStart() deleted, moving the failure from boot to the first keyed request.
         var act = () => provider.GetRequiredService<IStartupValidator>().Validate();
 
-        // Assert
-        act.ShouldThrow<OptionsValidationException>();
+        // Assert — the failure has to be the clause this row targets, not any clause that happens to trip
+        act.ShouldThrow<OptionsValidationException>()
+            .Failures.ShouldContain(failure => failure.Contains(expectedFailure, StringComparison.Ordinal));
     }
 
     [Fact]
