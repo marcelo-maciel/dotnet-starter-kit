@@ -576,6 +576,12 @@ public static class IdempotencyEndpointExtensions
     public static RouteHandlerBuilder WithIdempotency(this RouteHandlerBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        return builder.AddEndpointFilter<IdempotencyEndpointFilter>();
+
+        // The marker is what makes the wiring inspectable: an endpoint filter leaves no metadata, so
+        // without it nothing can assert which endpoints are idempotent — including the rule that an
+        // anonymous endpoint must not be, since every unauthenticated caller shares one cache bucket.
+        return builder
+            .WithMetadata(IdempotentEndpointMetadata.Instance)
+            .AddEndpointFilter<IdempotencyEndpointFilter>();
     }
 }
