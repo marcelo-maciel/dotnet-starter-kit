@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text;
 using System.Text.Json;
 using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
@@ -8,6 +9,7 @@ using FSH.Framework.Shared.Multitenancy;
 using FSH.Framework.Web.Idempotency;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.Caching.Distributed;
@@ -101,7 +103,10 @@ public sealed class IdempotencyEndpointFilterReplayTests
     [Fact]
     public async Task Filter_Should_ExecuteHandlerOnce_When_TwoConcurrentRequestsShareKey()
     {
-        var provider = BuildProvider();
+        // Explicit, generous ReservationTtl rather than the 1-minute default: the assertion is about
+        // the lock holding, and on the default a CI freeze longer than the TTL would hand the key over
+        // and turn a real pass into a flake.
+        var provider = BuildProvider(new IdempotencyOptions { ReservationTtl = TimeSpan.FromMinutes(30) }, multiplexer: null);
         var filter = new IdempotencyEndpointFilter();
 
         int executions = 0;
@@ -136,9 +141,12 @@ public sealed class IdempotencyEndpointFilterReplayTests
             1,
             "an idempotent endpoint must execute the handler exactly once for concurrent duplicate keys; " +
             "the second request should be rejected while the first is in flight.");
-        (secondResult as IStatusCodeHttpResult)?.StatusCode.ShouldBe(
-            StatusCodes.Status409Conflict,
-            "a concurrent duplicate that arrives while the original is still running gets 409 Conflict.");
+        // Cast, don't null-conditional: `as ... ?.ShouldBe(...)` skips the assertion entirely for a
+        // result that isn't an IStatusCodeHttpResult — the check evaporates exactly when it's broken.
+        secondResult.ShouldBeAssignableTo<IStatusCodeHttpResult>()!
+            .StatusCode.ShouldBe(
+                StatusCodes.Status409Conflict,
+                "a concurrent duplicate that arrives while the original is still running gets 409 Conflict.");
     }
 
     // ─── HIGH: reservation TTL is the short ReservationTtl, not the 24h response TTL ─────
@@ -471,19 +479,8 @@ public sealed class IdempotencyEndpointFilterReplayTests
 
         // Simulates the original request finishing in the window between the first probe (a miss) and
         // the reservation: the entry appears, and the lock it held is already released.
-        var racing = new SeedAfterFirstMissCache(
-            inner,
-            async key => await inner.SetAsync(
-                key,
-                JsonSerializer.SerializeToUtf8Bytes(
-                    new CachedIdempotentResponse
-                    {
-                        StatusCode = StatusCodes.Status200OK,
-                        ContentType = "application/json",
-                        Body = JsonSerializer.SerializeToUtf8Bytes(new SampleDto(id, "original"), CacheJsonOpts),
-                    },
-                    CacheJsonOpts),
-                new DistributedCacheEntryOptions()).ConfigureAwait(false));
+        var racing = new ProbeHookCache(inner);
+        racing.SeedOnNextProbe(key => SeedEntryAsync(inner, key, id));
 
         var filter = new IdempotencyEndpointFilter();
         int executions = 0;
@@ -558,8 +555,14 @@ public sealed class IdempotencyEndpointFilterReplayTests
             new TestFilterContext(NewContext(provider, new MemoryStream())),
             _ => ValueTask.FromResult<object?>(TypedResults.Ok(new SampleDto(Guid.NewGuid(), "widget"))));
 
+        // The script text is asserted, not just the fact that a script ran: an unconditional
+        // `del` passed through the same call would satisfy a script-agnostic assertion while
+        // deleting a lock a second request now owns.
         await db.Received(1).ScriptEvaluateAsync(
-            Arg.Any<string>(),
+            Arg.Is<string>(script =>
+                script.Contains("get", StringComparison.Ordinal) &&
+                script.Contains("ARGV[1]", StringComparison.Ordinal) &&
+                script.Contains("del", StringComparison.Ordinal)),
             Arg.Any<RedisKey[]>(),
             Arg.Is<RedisValue[]>(values => values.Length == 1 && values[0] == storedToken),
             Arg.Any<CommandFlags>());
@@ -822,11 +825,286 @@ public sealed class IdempotencyEndpointFilterReplayTests
         release.SetResult();
         await holderCall.WaitAsync(TimeSpan.FromSeconds(10));
 
-        (result as IStatusCodeHttpResult)?.StatusCode.ShouldBe(StatusCodes.Status409Conflict);
+        result.ShouldBeAssignableTo<IStatusCodeHttpResult>()!.StatusCode.ShouldBe(StatusCodes.Status409Conflict);
         duplicate.Response.Headers.RetryAfter.ToString().ShouldBe(
             "1",
             "\"retry shortly\" is only actionable with a number on it, and the original is normally about " +
             "to store its response — the reservation TTL is the worst case, not the hint.");
+    }
+
+    // ─── a handler that throws must not strand the key ─────────────────────────────────
+
+    [Fact]
+    public async Task Filter_Should_ReleaseTheReservation_When_TheHandlerThrows()
+    {
+        var provider = BuildProvider();
+        var filter = new IdempotencyEndpointFilter();
+
+        var thrown = await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await filter.InvokeAsync(
+                new TestFilterContext(NewContext(provider, new MemoryStream())),
+                _ => throw new InvalidOperationException("handler blew up")));
+
+        thrown.Message.ShouldBe(
+            "handler blew up",
+            "the filter must not swallow a handler exception — the global handler turns it into ProblemDetails");
+
+        int executions = 0;
+        var retry = NewContext(provider, new MemoryStream());
+        var result = await filter.InvokeAsync(
+            new TestFilterContext(retry),
+            _ =>
+            {
+                executions++;
+                return ValueTask.FromResult<object?>(TypedResults.Ok(new SampleDto(Guid.NewGuid(), "widget")));
+            });
+
+        executions.ShouldBe(
+            1,
+            "released only on the success path, a handler that throws (validation, DB down) strands the " +
+            "reservation and every retry of that key 409s until the TTL expires. The release belongs in " +
+            "the finally.");
+        result.ShouldBeOfType<EmptyHttpResult>();
+    }
+
+    // ─── the claim fallback still partitions tenants ───────────────────────────────────
+
+    [Fact]
+    public async Task Filter_Should_ScopeEntryToTheTenantClaim_When_NoTenantContextIsResolved()
+    {
+        var cache = NewMemoryCache();
+        var filter = new IdempotencyEndpointFilter();
+
+        // A JWT-only request: no tenant header, so Finbuckle's claim strategy (which runs before
+        // authentication) resolved nothing and the claim is all there is.
+        var fromAcme = NewContext(BuildProviderWith(cache), new MemoryStream());
+        fromAcme.User = CallerPrincipal("acme", userId: "shared-integration");
+        await filter.InvokeAsync(
+            new TestFilterContext(fromAcme),
+            _ => ValueTask.FromResult<object?>(TypedResults.Ok(new SampleDto(Guid.NewGuid(), "acme-order"))));
+
+        int executions = 0;
+        var fromGlobex = NewContext(BuildProviderWith(cache), new MemoryStream());
+        fromGlobex.User = CallerPrincipal("globex", userId: "shared-integration");
+        await filter.InvokeAsync(
+            new TestFilterContext(fromGlobex),
+            _ =>
+            {
+                executions++;
+                return ValueTask.FromResult<object?>(TypedResults.Ok(new SampleDto(Guid.NewGuid(), "globex-order")));
+            });
+
+        executions.ShouldBe(
+            1,
+            "collapsing the claim fallback to \"global\" puts every JWT-only caller in one bucket: same " +
+            "key, same route, and tenant A's response body replays to tenant B.");
+        fromGlobex.Response.Headers.ContainsKey("Idempotency-Replayed").ShouldBeFalse();
+    }
+
+    // ─── the denied duplicate re-probes before it 409s ─────────────────────────────────
+
+    [Fact]
+    public async Task DeniedDuplicate_Should_Replay_When_TheOriginalSettledWhileItWasBeingRefused()
+    {
+        var inner = NewMemoryCache();
+        var cache = new ProbeHookCache(inner);
+        var provider = BuildProviderWith(cache);
+        var filter = new IdempotencyEndpointFilter();
+        var id = Guid.NewGuid();
+
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        // The original is in flight and holds the reservation, so the duplicate below is refused.
+        var holderCall = filter.InvokeAsync(
+            new TestFilterContext(NewContext(provider, new MemoryStream())),
+            async _ =>
+            {
+                started.SetResult();
+                await release.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+                return TypedResults.Ok(new SampleDto(id, "original"));
+            }).AsTask();
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // The original stores its response between the duplicate's first probe and its refusal.
+        cache.SeedOnNextProbe(key => SeedEntryAsync(inner, key, id));
+
+        int executions = 0;
+        var duplicate = NewContext(provider, new MemoryStream());
+        await filter.InvokeAsync(
+            new TestFilterContext(duplicate),
+            _ =>
+            {
+                executions++;
+                return ValueTask.FromResult<object?>(TypedResults.Ok(new SampleDto(Guid.NewGuid(), "duplicate")));
+            });
+
+        release.SetResult();
+        await holderCall.WaitAsync(TimeSpan.FromSeconds(10));
+
+        executions.ShouldBe(0);
+        duplicate.Response.Headers.ContainsKey("Idempotency-Replayed").ShouldBeTrue(
+            "409ing straight from the refusal returns a conflict for a request whose answer is already " +
+            "stored — the refused duplicate has to re-probe once before reporting the conflict.");
+    }
+
+    // ─── the header allow-list is a list, not a copy ───────────────────────────────────
+
+    [Fact]
+    public async Task Replay_Should_CarryOnlyAllowListedHeaders_When_TheHandlerSetOthers()
+    {
+        var provider = BuildProvider();
+        var filter = new IdempotencyEndpointFilter();
+
+        var first = NewContext(provider, new MemoryStream());
+        await filter.InvokeAsync(
+            new TestFilterContext(first),
+            invocation =>
+            {
+                invocation.HttpContext.Response.Headers.ETag = "\"v1\"";
+                invocation.HttpContext.Response.Headers.SetCookie = "session=abc; Path=/";
+                invocation.HttpContext.Response.Headers["X-Trace"] = "first-call-only";
+                return ValueTask.FromResult<object?>(TypedResults.Ok(new SampleDto(Guid.NewGuid(), "widget")));
+            });
+
+        first.Response.Headers.SetCookie.ToString().ShouldNotBeEmpty("sanity: the first call sets the header on the real response");
+
+        var second = NewContext(provider, new MemoryStream());
+        await filter.InvokeAsync(
+            new TestFilterContext(second),
+            _ => throw new InvalidOperationException("handler must NOT run on an idempotent replay"));
+
+        second.Response.Headers.ETag.ToString().ShouldBe("\"v1\"", "ETag is on the allow-list and carries meaning for the caller");
+        second.Response.Headers.SetCookie.ToString().ShouldBeEmpty(
+            "replaying everything the first response carried resurrects a stale Set-Cookie (and a stale " +
+            "Content-Length or Date, which corrupts the response) hours after the fact.");
+        second.Response.Headers.ContainsKey("X-Trace").ShouldBeFalse();
+    }
+
+    // ─── a store that fails must not fail the request ──────────────────────────────────
+
+    [Fact]
+    public async Task Filter_Should_Succeed_When_TheStoreFails()
+    {
+        var provider = BuildProviderWith(new WriteFaultyCache(NewMemoryCache()));
+        var filter = new IdempotencyEndpointFilter();
+
+        var result = await filter.InvokeAsync(
+            new TestFilterContext(NewContext(provider, new MemoryStream())),
+            _ => ValueTask.FromResult<object?>(TypedResults.Ok(new SampleDto(Guid.NewGuid(), "widget"))));
+
+        result.ShouldBeOfType<EmptyHttpResult>(
+            "the handler's side effect has already committed when the store runs; 500ing the request " +
+            "because the cache is down reports a failure for work that succeeded.");
+    }
+
+    [Fact]
+    public async Task Filter_Should_NotThrow_When_TheReleaseFaults()
+    {
+        var db = Substitute.For<IDatabase>();
+        db.StringSetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<TimeSpan?>(), Arg.Any<When>())
+            .Returns(Task.FromResult(true));
+        db.ScriptEvaluateAsync(Arg.Any<string>(), Arg.Any<RedisKey[]>(), Arg.Any<RedisValue[]>(), Arg.Any<CommandFlags>())
+            .Returns(Task.FromException<RedisResult>(new RedisException("release blip")));
+        var provider = BuildProvider(new IdempotencyOptions(), RedisMultiplexer(db));
+        var filter = new IdempotencyEndpointFilter();
+
+        var result = await filter.InvokeAsync(
+            new TestFilterContext(NewContext(provider, new MemoryStream())),
+            _ => ValueTask.FromResult<object?>(TypedResults.Ok(new SampleDto(Guid.NewGuid(), "widget"))));
+
+        result.ShouldBeOfType<EmptyHttpResult>(
+            "the release runs in a finally, after the response has gone to the client — an exception out " +
+            "of it can only reset the connection on a request that already succeeded. The short " +
+            "ReservationTtl cleans up the missed delete.");
+    }
+
+    // ─── the opt-in is per request: no header, no idempotency ──────────────────────────
+
+    [Fact]
+    public async Task Filter_Should_PassThrough_When_NoKeyHeaderIsSent()
+    {
+        var provider = BuildProvider();
+        var filter = new IdempotencyEndpointFilter();
+        var handlerResult = TypedResults.Ok(new SampleDto(Guid.NewGuid(), "widget"));
+
+        var first = NewContextForKey(provider, idempotencyKey: string.Empty);
+        var result = await filter.InvokeAsync(
+            new TestFilterContext(first),
+            _ => ValueTask.FromResult<object?>(handlerResult));
+
+        result.ShouldBeSameAs(
+            handlerResult,
+            "with no key the filter is a no-op: the handler's own result goes back unexecuted, exactly as " +
+            "on an endpoint without .WithIdempotency().");
+        first.Response.Headers.ContainsKey("Idempotency-Replayed").ShouldBeFalse();
+
+        int executions = 0;
+        var second = NewContextForKey(provider, idempotencyKey: string.Empty);
+        await filter.InvokeAsync(
+            new TestFilterContext(second),
+            _ =>
+            {
+                executions++;
+                return ValueTask.FromResult<object?>(handlerResult);
+            });
+
+        executions.ShouldBe(
+            1,
+            "keyless requests must not share one entry: dropping the empty-key guard puts every one of " +
+            "them in the same bucket and the second caller replays the first caller's response.");
+    }
+
+    [Fact]
+    public async Task Filter_Should_Reject_When_TheKeyIsLongerThanMaxKeyLength()
+    {
+        var options = new IdempotencyOptions { MaxKeyLength = 16 };
+        var provider = BuildProvider(options, multiplexer: null);
+        var filter = new IdempotencyEndpointFilter();
+
+        int executions = 0;
+        var result = await filter.InvokeAsync(
+            new TestFilterContext(NewContextForKey(provider, new string('k', options.MaxKeyLength + 1))),
+            _ =>
+            {
+                executions++;
+                return ValueTask.FromResult<object?>(TypedResults.Ok(new SampleDto(Guid.NewGuid(), "widget")));
+            });
+
+        executions.ShouldBe(0, "an over-long key is rejected before the handler runs");
+        result.ShouldBeAssignableTo<IStatusCodeHttpResult>()!
+            .StatusCode.ShouldBe(
+                StatusCodes.Status400BadRequest,
+                "an unbounded key is a cache-key injection surface, and the rejection goes out as RFC 9457 " +
+                "ProblemDetails like every other error on these endpoints.");
+    }
+
+    // ─── an entry written before headers were captured still replays ───────────────────
+
+    [Fact]
+    public async Task Replay_Should_Work_When_TheStoredEntryHasNoHeaders()
+    {
+        var provider = BuildProvider();
+        var filter = new IdempotencyEndpointFilter();
+        var cache = provider.GetRequiredService<IDistributedCache>();
+
+        // The shape a previous version wrote: status, content type and body, no headers member.
+        await cache.SetAsync(
+            CacheKeys.IdempotencyEntry("global", $"anon:POST::{Key}"),
+            """{"statusCode":200,"contentType":"application/json","body":"eyJvayI6dHJ1ZX0="}"""u8.ToArray(),
+            new DistributedCacheEntryOptions());
+
+        var replayBody = new MemoryStream();
+        var context = NewContext(provider, replayBody);
+        await filter.InvokeAsync(
+            new TestFilterContext(context),
+            _ => throw new InvalidOperationException("handler must NOT run: the entry is readable"));
+
+        context.Response.StatusCode.ShouldBe(StatusCodes.Status200OK);
+        context.Response.Headers.ContainsKey("Idempotency-Replayed").ShouldBeTrue(
+            "a rolling deploy replays entries written by the previous version: a missing headers member " +
+            "must deserialize to empty, not throw and discard the entry.");
+        Encoding.UTF8.GetString(replayBody.ToArray()).ShouldBe("""{"ok":true}""");
     }
 
     // ─── harness ─────────────────────────────────────────────────────
@@ -880,6 +1158,20 @@ public sealed class IdempotencyEndpointFilterReplayTests
 
     private static MemoryDistributedCache NewMemoryCache() =>
         new(Options.Create(new MemoryDistributedCacheOptions()));
+
+    // The entry the original request would have stored, written straight into the store.
+    private static Task SeedEntryAsync(MemoryDistributedCache cache, string cacheKey, Guid id) =>
+        cache.SetAsync(
+            cacheKey,
+            JsonSerializer.SerializeToUtf8Bytes(
+                new CachedIdempotentResponse
+                {
+                    StatusCode = StatusCodes.Status200OK,
+                    ContentType = "application/json",
+                    Body = JsonSerializer.SerializeToUtf8Bytes(new SampleDto(id, "original"), CacheJsonOpts),
+                },
+                CacheJsonOpts),
+            new DistributedCacheEntryOptions());
 
     // What Finbuckle leaves behind for the endpoint filter: the tenant the request is scoped to,
     // which for a root operator using the tenant header is the target, not the caller's own tenant.
@@ -1132,22 +1424,25 @@ public sealed class IdempotencyEndpointFilterReplayTests
     }
 
     /// <summary>
-    /// Answers the first probe as a miss and then seeds the entry, reproducing the window in which
-    /// the original request stores its response and releases the lock — the window a single
-    /// probe-before-reserve cannot see.
+    /// Lets a test drop an entry into the store at an exact point in the filter's sequence: the hook
+    /// runs after one probe has already answered, which is the window in which the original request
+    /// stores its response and releases the lock.
     /// </summary>
-    private sealed class SeedAfterFirstMissCache(IDistributedCache inner, Func<string, Task> seed) : IDistributedCache
+    private sealed class ProbeHookCache(IDistributedCache inner) : IDistributedCache
     {
-        private int _probes;
+        private Func<string, Task>? _onNextProbe;
+
+        public void SeedOnNextProbe(Func<string, Task> seed) => Interlocked.Exchange(ref _onNextProbe, seed);
 
         public byte[]? Get(string key) => inner.Get(key);
 
         public async Task<byte[]?> GetAsync(string key, CancellationToken token = default)
         {
             var bytes = await inner.GetAsync(key, token).ConfigureAwait(false);
-            if (Interlocked.Increment(ref _probes) == 1)
+            var hook = Interlocked.Exchange(ref _onNextProbe, null);
+            if (hook is not null)
             {
-                await seed(key).ConfigureAwait(false);
+                await hook(key).ConfigureAwait(false);
             }
 
             return bytes;
@@ -1165,6 +1460,30 @@ public sealed class IdempotencyEndpointFilterReplayTests
 
         public Task SetAsync(string key, byte[] value, DistributedCacheEntryOptions options, CancellationToken token = default) =>
             inner.SetAsync(key, value, options, token);
+    }
+
+    /// <summary>
+    /// Reads fine, refuses to write — a cache that has gone down between the probe and the store.
+    /// </summary>
+    private sealed class WriteFaultyCache(IDistributedCache inner) : IDistributedCache
+    {
+        public byte[]? Get(string key) => inner.Get(key);
+
+        public Task<byte[]?> GetAsync(string key, CancellationToken token = default) => inner.GetAsync(key, token);
+
+        public void Refresh(string key) => inner.Refresh(key);
+
+        public Task RefreshAsync(string key, CancellationToken token = default) => inner.RefreshAsync(key, token);
+
+        public void Remove(string key) => inner.Remove(key);
+
+        public Task RemoveAsync(string key, CancellationToken token = default) => inner.RemoveAsync(key, token);
+
+        public void Set(string key, byte[] value, DistributedCacheEntryOptions options) =>
+            throw new InvalidOperationException("cache write is down");
+
+        public Task SetAsync(string key, byte[] value, DistributedCacheEntryOptions options, CancellationToken token = default) =>
+            Task.FromException(new InvalidOperationException("cache write is down"));
     }
 
     private sealed class TestFilterContext : EndpointFilterInvocationContext
