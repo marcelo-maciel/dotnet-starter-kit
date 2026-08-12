@@ -5,6 +5,7 @@ using System.Text.Json;
 using FSH.Framework.Caching;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -65,7 +66,14 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
 
         if (idempotencyKey.Length > options.MaxKeyLength)
         {
-            return TypedResults.BadRequest($"Idempotency key exceeds maximum length of {options.MaxKeyLength}.");
+            // ProblemDetails, not a bare JSON string: every other error these endpoints can produce
+            // goes out as RFC 9457 through the global handler, and a client parsing that shape chokes
+            // on a naked string.
+            return TypedResults.Problem(
+                detail: $"Idempotency key exceeds maximum length of {options.MaxKeyLength}.",
+                instance: httpContext.Request.Path,
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Invalid Idempotency-Key");
         }
 
         var distributedCache = httpContext.RequestServices.GetRequiredService<IDistributedCache>();
@@ -73,11 +81,18 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
 
         // Include tenant context in cache key for isolation
         var tenantId = httpContext.User.FindFirst("tenant")?.Value ?? "global";
-        var cacheKey = CacheKeys.IdempotencyEntry(tenantId, idempotencyKey);
+
+        // Scope the entry to the operation as well as the tenant. Keyed on the tenant alone, one key
+        // reused across two idempotent endpoints replays the first endpoint's response on the second
+        // — the request silently never runs. That was harmless only while replay never engaged; it
+        // does now. Anonymous endpoints (self-registration) resolve no tenant claim and share the
+        // "global" bucket, so scoping by operation is what keeps them apart.
+        var operation = $"{httpContext.Request.Method}:{RouteIdentity(httpContext)}";
+        var cacheKey = CacheKeys.IdempotencyEntry(tenantId, $"{operation}:{idempotencyKey}");
 
         // Probe-only read via IDistributedCache (real GetAsync, null on miss — unlike HybridCache's
         // factory). Bypasses L1: replays are rare vs first-calls, so L1 warmth has little value.
-        var cached = await ProbeAsync(distributedCache, cacheKey, httpContext.RequestAborted).ConfigureAwait(false);
+        var cached = await ProbeAsync(distributedCache, cacheKey, logger, idempotencyKey, httpContext.RequestAborted).ConfigureAwait(false);
         if (cached is not null)
         {
             return await ReplayAsync(httpContext, cached, idempotencyKey, logger).ConfigureAwait(false);
@@ -90,10 +105,14 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
         {
             // Another request with this key is in flight. It may have finished between the probe
             // and the reservation — re-probe once, otherwise report the in-progress conflict.
-            var raced = await ProbeAsync(distributedCache, cacheKey, httpContext.RequestAborted).ConfigureAwait(false);
+            var raced = await ProbeAsync(distributedCache, cacheKey, logger, idempotencyKey, httpContext.RequestAborted).ConfigureAwait(false);
             return raced is not null
                 ? await ReplayAsync(httpContext, raced, idempotencyKey, logger).ConfigureAwait(false)
-                : TypedResults.Conflict("A request with this Idempotency-Key is already being processed.");
+                : TypedResults.Problem(
+                    detail: "A request with this Idempotency-Key is already being processed. Retry shortly.",
+                    instance: httpContext.Request.Path,
+                    statusCode: StatusCodes.Status409Conflict,
+                    title: "Idempotent request in progress");
         }
 
         try
@@ -171,12 +190,26 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
     }
 
     private static async ValueTask<CachedIdempotentResponse?> ProbeAsync(
-        IDistributedCache cache, string cacheKey, CancellationToken ct)
+        IDistributedCache cache, string cacheKey, ILogger logger, string idempotencyKey, CancellationToken ct)
     {
         var bytes = await cache.GetAsync(cacheKey, ct).ConfigureAwait(false);
-        return bytes is { Length: > 0 }
-            ? JsonSerializer.Deserialize<CachedIdempotentResponse>(bytes, JsonOpts)
-            : null;
+        if (bytes is not { Length: > 0 })
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<CachedIdempotentResponse>(bytes, JsonOpts);
+        }
+        // An entry that can't be read is a miss, not a 500. This path only became reachable once
+        // replay started engaging at all, and a shared cache can hold an entry written by another
+        // version or another writer at the same key — re-running the handler beats failing the request.
+        catch (JsonException ex)
+        {
+            logger.LogWarning(ex, "Discarding unreadable idempotency entry for key {KeyHash}", HashKey(idempotencyKey));
+            return null;
+        }
     }
 
     private static async ValueTask<object?> ReplayAsync(
@@ -254,7 +287,9 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
             return new CachedIdempotentResponse
             {
                 StatusCode = statusCode,
-                ContentType = httpContext.Response.ContentType ?? "application/json",
+                // Left null when the result set none (204, an empty body): fabricating
+                // "application/json" there would replay a content type for a response with no content.
+                ContentType = httpContext.Response.ContentType,
                 Body = buffer.ToArray(),
                 Headers = headers,
             };
@@ -297,8 +332,14 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
             {
                 await multiplexer.GetDatabase().KeyDeleteAsync(reservationKey).ConfigureAwait(false);
             }
-            // Best-effort release: a Redis fault here must not throw out of the finally. The short
-            // ReservationTtl expires the key anyway, so a missed delete self-heals in seconds.
+            // Cancellation is swallowed too, not just faults: nothing here may throw out of the
+            // finally, because by this point the response body has already gone to the client and an
+            // exception can only reset the connection on a request that actually succeeded. The short
+            // ReservationTtl expires a missed delete on its own.
+            catch (OperationCanceledException)
+            {
+                // Shutdown or a cancelled Redis call — the reservation expires with its TTL.
+            }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 logger.LogWarning(ex, "Failed to release idempotency reservation for key {KeyHash}", HashKey(idempotencyKey));
@@ -309,6 +350,12 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
 
         InFlight.TryRemove(reservationKey, out _);
     }
+
+    // The route pattern, not the resolved path: two requests to the same endpoint with different
+    // route values are different operations and their idempotency keys are already distinct, while
+    // the pattern keeps the entry stable for the same operation.
+    private static string RouteIdentity(HttpContext httpContext) =>
+        (httpContext.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText ?? httpContext.Request.Path.ToString();
 
     private static string HashKey(string key)
     {

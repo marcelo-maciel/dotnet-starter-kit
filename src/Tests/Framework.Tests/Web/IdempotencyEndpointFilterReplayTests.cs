@@ -1,6 +1,9 @@
 using System.Text.Json;
+using FSH.Framework.Caching;
 using FSH.Framework.Web.Idempotency;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -18,6 +21,9 @@ namespace Framework.Tests.Web;
 public sealed class IdempotencyEndpointFilterReplayTests
 {
     private const string Key = "fixed-idempotency-key";
+
+    // Mirrors the serializer the filter stores entries with.
+    private static readonly JsonSerializerOptions CacheJsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     // ─── API-01: replayed status ─────────────────────────────────────
 
@@ -251,6 +257,32 @@ public sealed class IdempotencyEndpointFilterReplayTests
             "cancellation, so an EMPTY body gets stored and replayed as a 200 for the full TTL.");
     }
 
+    // ─── a bodiless success must not gain a content type it never had ───────────────────
+
+    [Fact]
+    public async Task Replay_Should_NotInventContentType_When_FirstResponseWasNoContent()
+    {
+        var provider = BuildProvider();
+        var filter = new IdempotencyEndpointFilter();
+
+        var first = NewContext(provider, new MemoryStream());
+        await filter.InvokeAsync(
+            new TestFilterContext(first),
+            _ => ValueTask.FromResult<object?>(TypedResults.NoContent()));
+
+        first.Response.ContentType.ShouldBeNull("sanity: a 204 carries no content type");
+
+        var second = NewContext(provider, new MemoryStream());
+        await filter.InvokeAsync(
+            new TestFilterContext(second),
+            _ => throw new InvalidOperationException("handler must NOT run on an idempotent replay"));
+
+        second.Response.StatusCode.ShouldBe(StatusCodes.Status204NoContent);
+        second.Response.ContentType.ShouldBeNull(
+            "defaulting the captured content type to application/json replays a 204 that advertises a JSON " +
+            "body it does not have.");
+    }
+
     // ─── note: a failure response must not lock the key out for the full 24h TTL ─────────
 
     [Fact]
@@ -280,6 +312,85 @@ public sealed class IdempotencyEndpointFilterReplayTests
             "a transient downstream failure. Only a successful response is a record of a committed side effect.");
     }
 
+    // ─── an unreadable entry is a miss, not a 500 ───────────────────────────────────────
+
+    [Fact]
+    public async Task Filter_Should_RunHandler_When_CachedEntryIsUnreadable()
+    {
+        var provider = BuildProvider();
+        var filter = new IdempotencyEndpointFilter();
+        var cache = provider.GetRequiredService<IDistributedCache>();
+
+        // The key the filter reads: tenant + operation + caller key. Proven below by seeding a VALID
+        // entry at it first — otherwise a wrong key here would make the real assertion pass as a
+        // plain cache miss and the test would assert nothing.
+        var storedKey = CacheKeys.IdempotencyEntry("global", $"POST::{Key}");
+        await cache.SetAsync(
+            storedKey,
+            JsonSerializer.SerializeToUtf8Bytes(
+                new CachedIdempotentResponse { StatusCode = StatusCodes.Status200OK, Body = "{}"u8.ToArray() },
+                CacheJsonOpts),
+            new DistributedCacheEntryOptions());
+
+        var seeded = NewContext(provider, new MemoryStream());
+        await filter.InvokeAsync(
+            new TestFilterContext(seeded),
+            _ => throw new InvalidOperationException("sanity: a valid entry at this key must replay"));
+        seeded.Response.Headers.ContainsKey("Idempotency-Replayed").ShouldBeTrue(
+            "sanity: this is the key the filter probes");
+
+        await cache.SetAsync(storedKey, "{ this is not the cached shape"u8.ToArray(), new DistributedCacheEntryOptions());
+
+        int executions = 0;
+        var context = NewContext(provider, new MemoryStream());
+        await filter.InvokeAsync(
+            new TestFilterContext(context),
+            _ =>
+            {
+                executions++;
+                return ValueTask.FromResult<object?>(TypedResults.Ok(new SampleDto(Guid.NewGuid(), "widget")));
+            });
+
+        executions.ShouldBe(
+            1,
+            "an entry written by another version or another writer at the same key must degrade to a cache " +
+            "miss; letting JsonException escape turns a shared-cache accident into a 500 on every retry.");
+    }
+
+    // ─── one key reused across two endpoints must not replay the other's response ────────
+
+    [Fact]
+    public async Task Filter_Should_NotReplayAcrossEndpoints_When_SameKeyIsReused()
+    {
+        var provider = BuildProvider();
+        var filter = new IdempotencyEndpointFilter();
+        var ticketId = Guid.NewGuid();
+
+        var onTickets = NewContext(provider, new MemoryStream());
+        onTickets.SetEndpoint(RouteEndpointFor("api/v1/tickets"));
+        await filter.InvokeAsync(
+            new TestFilterContext(onTickets),
+            _ => ValueTask.FromResult<object?>(TypedResults.Created($"/tickets/{ticketId}", new SampleDto(ticketId, "ticket"))));
+
+        int executions = 0;
+        var onBrands = NewContext(provider, new MemoryStream());
+        onBrands.SetEndpoint(RouteEndpointFor("api/v1/catalog/brands"));
+        await filter.InvokeAsync(
+            new TestFilterContext(onBrands),
+            _ =>
+            {
+                executions++;
+                return ValueTask.FromResult<object?>(TypedResults.Created("/brands/1", new SampleDto(Guid.NewGuid(), "brand")));
+            });
+
+        executions.ShouldBe(
+            1,
+            "keyed on tenant + key alone, a key reused against a second idempotent endpoint replays the " +
+            "first endpoint's response and the second request silently never runs. 31 endpoints in this " +
+            "repo share that namespace, and one of them is anonymous (self-registration, no tenant claim).");
+        onBrands.Response.Headers.ContainsKey("Idempotency-Replayed").ShouldBeFalse();
+    }
+
     // ─── harness ─────────────────────────────────────────────────────
 
     private static ServiceProvider BuildProvider() => BuildProvider(new IdempotencyOptions(), multiplexer: null);
@@ -304,6 +415,13 @@ public sealed class IdempotencyEndpointFilterReplayTests
         mux.GetDatabase(Arg.Any<int>(), Arg.Any<object>()).Returns(db);
         return mux;
     }
+
+    private static RouteEndpoint RouteEndpointFor(string pattern) => new(
+        _ => Task.CompletedTask,
+        RoutePatternFactory.Parse(pattern),
+        order: 0,
+        new EndpointMetadataCollection(),
+        displayName: pattern);
 
     private static DefaultHttpContext NewContext(IServiceProvider provider, Stream? responseBody = null)
     {
