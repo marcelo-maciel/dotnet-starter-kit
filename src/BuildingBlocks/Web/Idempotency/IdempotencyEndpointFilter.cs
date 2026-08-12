@@ -2,7 +2,10 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Caching;
+using FSH.Framework.Shared.Constants;
+using FSH.Framework.Shared.Multitenancy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -44,10 +47,16 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
     // replaying a stale value there corrupts the response.
     private static readonly string[] ReplayableHeaders = ["Location", "ETag"];
 
+    // Compare-and-delete: a reservation is released only by the request that took it. An
+    // unconditional delete lets a request that failed open, or one whose reservation already expired,
+    // free a lock another request is still holding — and then a third request runs the handler too.
+    private const string ReleaseIfOwnedScript =
+        "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+
     // In-process reservation used when no Redis multiplexer is registered. Single-instance only —
     // a multi-instance host in this stack already runs Redis (shared Data Protection key ring), so
     // the Redis branch below covers every deployment where cross-instance duplicates are possible.
-    private static readonly ConcurrentDictionary<string, byte> InFlight = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, InFlightEntry> InFlight = new(StringComparer.Ordinal);
 
     public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
@@ -79,8 +88,7 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
         var distributedCache = httpContext.RequestServices.GetRequiredService<IDistributedCache>();
         var logger = httpContext.RequestServices.GetRequiredService<ILogger<IdempotencyEndpointFilter>>();
 
-        // Include tenant context in cache key for isolation
-        var tenantId = httpContext.User.FindFirst("tenant")?.Value ?? "global";
+        var tenantId = ResolveTenant(httpContext);
 
         // Scope the entry to the operation as well as the tenant. Keyed on the tenant alone, one key
         // reused across two idempotent endpoints replays the first endpoint's response on the second
@@ -98,10 +106,16 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
             return await ReplayAsync(httpContext, cached, idempotencyKey, logger).ConfigureAwait(false);
         }
 
-        // Atomically reserve the key so concurrent duplicates don't both execute the handler.
+        // Atomically reserve the key so concurrent duplicates don't both execute the handler. The
+        // lock lives under its own prefix rather than a suffix on the entry key: a caller-supplied
+        // key ending in the suffix would otherwise land the lock exactly on another entry's key.
+        // ponytail: the reservation is not renewed while the handler runs, so a handler slower than
+        // ReservationTtl lets a duplicate through (the entry is not stored yet either, so the probe
+        // can't catch it). Add lease renewal if an idempotent endpoint ever runs longer than that.
         var multiplexer = httpContext.RequestServices.GetService<IConnectionMultiplexer>();
-        var reservationKey = cacheKey + ":inflight";
-        if (!await TryReserveAsync(multiplexer, reservationKey, options.ReservationTtl, logger, idempotencyKey).ConfigureAwait(false))
+        var reservationKey = "lock:" + cacheKey;
+        var reservation = await TryReserveAsync(multiplexer, reservationKey, options.ReservationTtl, logger, idempotencyKey).ConfigureAwait(false);
+        if (reservation.Denied)
         {
             // Another request with this key is in flight. It may have finished between the probe
             // and the reservation — re-probe once, otherwise report the in-progress conflict.
@@ -117,6 +131,15 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
 
         try
         {
+            // Probe again now that the key is held. The first probe and the reservation are two
+            // steps, and the original request can store its response and release in between — the
+            // duplicate would then take the freed lock and run the handler a second time.
+            var settled = await ProbeAsync(distributedCache, cacheKey, logger, idempotencyKey, httpContext.RequestAborted).ConfigureAwait(false);
+            if (settled is not null)
+            {
+                return await ReplayAsync(httpContext, settled, idempotencyKey, logger).ConfigureAwait(false);
+            }
+
             var result = await next(context).ConfigureAwait(false);
 
             // Execute the result into a buffer to capture the real wire body + status code, then
@@ -152,7 +175,7 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
         }
         finally
         {
-            await ReleaseReservationAsync(multiplexer, reservationKey, logger, idempotencyKey).ConfigureAwait(false);
+            await ReleaseReservationAsync(multiplexer, reservationKey, reservation, logger, idempotencyKey).ConfigureAwait(false);
         }
     }
 
@@ -301,36 +324,80 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
         }
     }
 
-    private static async ValueTask<bool> TryReserveAsync(
+    private static async ValueTask<Reservation> TryReserveAsync(
         IConnectionMultiplexer? multiplexer, string reservationKey, TimeSpan ttl, ILogger logger, string idempotencyKey)
     {
+        var token = Guid.NewGuid().ToString("N");
+
         if (multiplexer is not null)
         {
             try
             {
                 var db = multiplexer.GetDatabase();
-                return await db.StringSetAsync(reservationKey, "1", ttl, When.NotExists).ConfigureAwait(false);
+                return await db.StringSetAsync(reservationKey, token, ttl, When.NotExists).ConfigureAwait(false)
+                    ? Reservation.Held(token)
+                    : Reservation.Refused;
             }
             // Fail open on a Redis blip: the reservation is a concurrency convenience, not a correctness
             // requirement (the response cache still dedups later retries). Proceed rather than 500 the
-            // request, matching the best-effort stance the response write already takes.
+            // request, matching the best-effort stance the response write already takes — but proceed
+            // WITHOUT ownership, so the release can't delete a lock another request is holding.
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 logger.LogWarning(ex, "Idempotency reservation failed for key {KeyHash}; proceeding without it", HashKey(idempotencyKey));
-                return true;
+                return Reservation.Unowned;
             }
         }
 
-        return InFlight.TryAdd(reservationKey, 0);
+        return TryReserveInProcess(reservationKey, token, ttl);
     }
 
-    private static async ValueTask ReleaseReservationAsync(IConnectionMultiplexer? multiplexer, string reservationKey, ILogger logger, string idempotencyKey)
+    // Mirrors the Redis branch: take the key if free, take it over if the holder's reservation has
+    // outlived the TTL. Without the takeover a handler that never returns strands the key until the
+    // process restarts, and every retry of it 409s forever — the Redis branch self-heals on expiry.
+    private static Reservation TryReserveInProcess(string reservationKey, string token, TimeSpan ttl)
     {
+        var ttlMs = (long)ttl.TotalMilliseconds;
+        while (true)
+        {
+            var entry = new InFlightEntry(token, Environment.TickCount64);
+            if (InFlight.TryAdd(reservationKey, entry))
+            {
+                return Reservation.Held(token);
+            }
+
+            if (!InFlight.TryGetValue(reservationKey, out var holder))
+            {
+                continue;
+            }
+
+            if (Environment.TickCount64 - holder.StartedAtMs < ttlMs)
+            {
+                return Reservation.Refused;
+            }
+
+            if (InFlight.TryUpdate(reservationKey, entry, holder))
+            {
+                return Reservation.Held(token);
+            }
+        }
+    }
+
+    private static async ValueTask ReleaseReservationAsync(
+        IConnectionMultiplexer? multiplexer, string reservationKey, Reservation reservation, ILogger logger, string idempotencyKey)
+    {
+        if (reservation.Token is not { } token)
+        {
+            return;
+        }
+
         if (multiplexer is not null)
         {
             try
             {
-                await multiplexer.GetDatabase().KeyDeleteAsync(reservationKey).ConfigureAwait(false);
+                await multiplexer.GetDatabase()
+                    .ScriptEvaluateAsync(ReleaseIfOwnedScript, [reservationKey], [token])
+                    .ConfigureAwait(false);
             }
             // Cancellation is swallowed too, not just faults: nothing here may throw out of the
             // finally, because by this point the response body has already gone to the client and an
@@ -348,7 +415,32 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
             return;
         }
 
-        InFlight.TryRemove(reservationKey, out _);
+        if (InFlight.TryGetValue(reservationKey, out var holder) && holder.Token == token)
+        {
+            InFlight.TryRemove(new KeyValuePair<string, InFlightEntry>(reservationKey, holder));
+        }
+    }
+
+    // Tenant scope for the cache key: the resolved tenant context first, the claim only as a
+    // fallback. The resolved context is the tenant the handler's side effect actually lands in
+    // (BaseDbContext scopes its query filters off the same accessor), including the case where a root
+    // operator scopes one request to another tenant — keyed on the claim alone, every tenant a root
+    // operator touches would share one "root" bucket and a reused key would replay one tenant's
+    // response body to another. The claim covers requests that carry a JWT but no tenant header:
+    // Finbuckle's claim strategy runs before authentication, so it resolves nothing for them.
+    // The raw header is deliberately NOT a fallback — an unresolved header is one Finbuckle refused
+    // (no such tenant), and an unvalidated caller-supplied value has no business in a shared key.
+    private static string ResolveTenant(HttpContext httpContext)
+    {
+        var resolved = httpContext.RequestServices
+            .GetService<IMultiTenantContextAccessor<AppTenantInfo>>()?.MultiTenantContext?.TenantInfo?.Id;
+        if (!string.IsNullOrWhiteSpace(resolved))
+        {
+            return resolved;
+        }
+
+        var fromClaim = httpContext.User.FindFirst(ClaimConstants.Tenant)?.Value;
+        return string.IsNullOrWhiteSpace(fromClaim) ? "global" : fromClaim;
     }
 
     // The route pattern, not the resolved path: two requests to the same endpoint with different
@@ -362,6 +454,22 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(key));
         return Convert.ToHexString(hash.AsSpan(0, 8));
     }
+
+    /// <summary>
+    /// Outcome of an in-flight reservation attempt. <c>Token</c> is the proof of ownership: it is
+    /// null when the reservation was refused (a duplicate is running) and also when the store failed
+    /// and we proceeded without one, so neither case releases a lock it does not hold.
+    /// </summary>
+    private readonly record struct Reservation(bool Denied, string? Token)
+    {
+        public static Reservation Refused => new(Denied: true, Token: null);
+
+        public static Reservation Unowned => new(Denied: false, Token: null);
+
+        public static Reservation Held(string token) => new(Denied: false, token);
+    }
+
+    private readonly record struct InFlightEntry(string Token, long StartedAtMs);
 }
 
 public static class IdempotencyEndpointExtensions
