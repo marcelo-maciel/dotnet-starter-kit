@@ -183,9 +183,14 @@ public sealed class IdempotencyEndpointFilter : IEndpointFilter
             // leave idempotency out of it.
             if (httpContext.Response.HasStarted)
             {
+                // The route PATTERN, not the operation used for the cache key: the latter folds in the
+                // request method, the resolved route values and the raw path, so logging it puts
+                // caller-controlled text in a log line (CodeQL cs/log-forging). The pattern is a literal
+                // from the route table and identifies the endpoint just as well for this warning.
+                var routePattern = (httpContext.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText ?? "unknown";
                 logger.LogWarning(
-                    "Idempotent handler for {Operation} started the response itself; nothing captured or stored for key {KeyHash}",
-                    operation,
+                    "Idempotent handler for {RoutePattern} started the response itself; nothing captured or stored for key {KeyHash}",
+                    routePattern,
                     HashKey(idempotencyKey));
 
                 // Empty rather than null when the handler returned nothing: a null return makes the
