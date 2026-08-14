@@ -23,7 +23,7 @@ public sealed class FinalizeUploadCommandHandler(
     IStorageService storage,
     IFileScanner scanner,
     IQuotaService quotas,
-    IEventBus events,
+    IOutboxWriter outbox,
     ICurrentUser currentUser)
     : ICommandHandler<FinalizeUploadCommand, FileAssetDto>
 {
@@ -83,7 +83,10 @@ public sealed class FinalizeUploadCommandHandler(
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         var correlationId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
-        await events.PublishAsync(new FileFinalizedIntegrationEvent(
+
+        // Outbox rather than the bus: a crash between the SaveChanges above and delivery would
+        // otherwise leave the file marked available with no consumer ever told about it.
+        await outbox.AddAsync(new FileFinalizedIntegrationEvent(
             Id: Guid.NewGuid(),
             OccurredOnUtc: DateTime.UtcNow,
             TenantId: tenantId,

@@ -66,6 +66,12 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.8" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.8" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.8" />
+    <!-- Pin the transitive SQLitePCLRaw.lib.e_sqlite3 explicitly. Microsoft.EntityFrameworkCore.Sqlite 10.0.8
+         brings in 2.1.11, which bundles a SQLite build vulnerable to a memory-corruption bug fixed upstream in
+         SQLite 3.50.2 (GHSA-2m69-gcr7-jv3q) and trips NuGetAudit under TreatWarningsAsErrors. SQLitePCLRaw
+         re-versioned its e_sqlite3 packages to track the embedded SQLite version, so 3.50.3 embeds a fixed build. -->
+    <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.8" />
     <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.8" />
@@ -104,6 +110,12 @@
          trips NuGetAudit under TreatWarningsAsErrors. Stay on the 2.x line — 3.x has breaking API changes that
          fail the framework's OpenAPI transformers. Bump in lockstep with Microsoft.AspNetCore.OpenApi. -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.9.0" />
+    <!-- Pin the transitive System.Security.Cryptography.Xml explicitly. It floats in at 10.0.8 (via
+         Microsoft.AspNetCore.DataProtection), which carries five HIGH-severity advisories — GHSA-23rf-6693-g89p,
+         GHSA-8q5v-6pqq-x66h, GHSA-cvvh-rhrc-wg4q, GHSA-g8r8-53c2-pm3f, GHSA-mmjf-rqrv-855v — that trip
+         NuGetAudit under TreatWarningsAsErrors and fail restore for every project. Bump in lockstep with the
+         .NET 10 patch line. -->
+    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.10" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.5.1" />
     <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.16.0" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />

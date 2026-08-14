@@ -40,6 +40,16 @@ public class OutboxMessage : IGlobalEntity
     /// dispatch cycle; <c>null</c> means immediately eligible (fresh message or after a redrive).
     /// </summary>
     public DateTime? NextRetryAt { get; set; }
+
+    /// <summary>
+    /// Lease expiry. A dispatcher claims a row by stamping this into the future; another instance
+    /// may re-claim only once it has passed, so a crashed dispatcher's rows are recovered rather
+    /// than stranded. <c>null</c> means unclaimed.
+    /// </summary>
+    public DateTime? ClaimedUntilUtc { get; set; }
+
+    /// <summary>Identifier of the dispatcher instance holding the lease. Diagnostic only.</summary>
+    public string? ClaimedBy { get; set; }
 }
 
 public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<OutboxMessage>
@@ -74,5 +84,14 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
 
         builder.Property(o => o.CreatedOnUtc)
             .IsRequired();
+
+        builder.Property(o => o.ClaimedBy)
+            .HasMaxLength(128);
+
+        // Covers the claim scan: eligible rows are filtered on IsDead/ProcessedOnUtc/ClaimedUntilUtc
+        // and ordered by CreatedOnUtc. Without it the claim degrades to a sequential scan under a
+        // row lock, which is exactly where contention hurts most.
+        builder.HasIndex(o => new { o.IsDead, o.ProcessedOnUtc, o.ClaimedUntilUtc, o.CreatedOnUtc })
+            .HasDatabaseName("IX_OutboxMessages_Pending");
     }
 }

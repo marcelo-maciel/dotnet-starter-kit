@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Reflection;
+using FSH.Framework.Eventing;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Framework.Web;
 using FSH.Framework.Web.Modules;
@@ -134,6 +135,10 @@ builder.AddHeroPlatform(o =>
     o.EnableIdempotency = false;
     o.EnableCaching = true;
 });
+
+// Registers EventingDbContext + its IDbInitializer, so the per-tenant migrate loop below
+// creates the framework outbox/inbox schema alongside every module's (issue #1349).
+builder.Services.AddEventingCore(builder.Configuration);
 
 builder.AddModules(moduleAssemblies);
 

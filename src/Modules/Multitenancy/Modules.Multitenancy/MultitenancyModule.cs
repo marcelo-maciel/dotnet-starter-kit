@@ -74,6 +74,14 @@ public sealed class MultitenancyModule : IModule
         builder.Services.Replace(
             ServiceDescriptor.Singleton<IEventTenantScope, FinbuckleEventTenantScope>());
 
+        // Same idea one level up: the outbox dispatcher must visit every database that can hold
+        // outbox rows. Without these, a tenant with a dedicated connection string writes rows the
+        // dispatcher never polls. Scoped provider — IMultiTenantStore is scoped.
+        builder.Services.Replace(
+            ServiceDescriptor.Singleton<IEventingDrainScope, FinbuckleEventingDrainScope>());
+        builder.Services.Replace(
+            ServiceDescriptor.Scoped<IEventingDrainTargetProvider, TenantStoreDrainTargetProvider>());
+
         builder.Services
             .AddMultiTenant<AppTenantInfo>(options =>
             {

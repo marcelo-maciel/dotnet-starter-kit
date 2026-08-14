@@ -1,18 +1,21 @@
+using FSH.Framework.Eventing.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace FSH.Framework.Eventing.Inbox;
 
 /// <summary>
-/// EF Core-based inbox store for a specific DbContext.
+/// EF Core inbox store over the framework-owned <see cref="EventingDbContext"/>.
+/// Non-generic for the same reason as <see cref="Outbox.EfCoreOutboxStore"/>: a
+/// per-DbContext generic store meant one non-keyed <c>IInboxStore</c> registration
+/// per module, so .NET DI silently redirected every module's idempotency writes to
+/// whichever context registered last (issue #1349).
 /// </summary>
-/// <typeparam name="TDbContext">The DbContext that owns the InboxMessages set.</typeparam>
-public sealed class EfCoreInboxStore<TDbContext> : IInboxStore
-    where TDbContext : DbContext
+public sealed class EfCoreInboxStore : IInboxStore
 {
-    private readonly TDbContext _dbContext;
+    private readonly EventingDbContext _dbContext;
     private readonly TimeProvider _timeProvider;
 
-    public EfCoreInboxStore(TDbContext dbContext, TimeProvider timeProvider)
+    public EfCoreInboxStore(EventingDbContext dbContext, TimeProvider timeProvider)
     {
         _dbContext = dbContext;
         _timeProvider = timeProvider;

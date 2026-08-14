@@ -99,6 +99,13 @@ public sealed class SendMessageCommandHandler(
             .ConfigureAwait(false);
 
         // One integration event per distinct mentioned user. Notifications module subscribes.
+        //
+        // Deliberately still on the bus, not the outbox (the documented exception to
+        // .agents/rules/eventing.md): the Notifications handler writes the row AND pushes it over
+        // SignalR, and a mention that lands in the bell up to OutboxDispatchIntervalSeconds after
+        // the message appears in the channel reads as broken. Durability matters less here than
+        // anywhere else in the kit — the message itself is already persisted and visible, so a lost
+        // notification costs a badge, not data. Every other publish in the kit goes via the outbox.
         if (notifyUserIds.Count > 0)
         {
             var correlationId = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString();

@@ -142,11 +142,17 @@ public sealed class RenewTenantTests
         await CreateTenantAsync(rootClient, tenantId, $"renew-drift-{unique}@tenant.com", planKey);
         await WaitForProvisioningAsync(rootClient, tenantId);
 
+        // TenantSubscribed/TenantRenewed go through the outbox now, so Billing reacts on the next
+        // dispatch cycle rather than inside the request.
+        await OutboxDrain.DrainAsync(_factory.Services);
+
         var before = await GetSubscriptionEndUtcAsync(rootClient, tenantId);
         before.ShouldNotBeNull("a plan-bound tenant has an active subscription with an end date");
 
         var result = await RenewAsync(rootClient, tenantId, planKey);
         result.PlanChanged.ShouldBeFalse("renewing the same plan does not change it");
+
+        await OutboxDrain.DrainAsync(_factory.Services);
 
         var after = await PollSubscriptionEndUtcAdvancedAsync(rootClient, tenantId, before!.Value);
         after.ShouldNotBeNull();

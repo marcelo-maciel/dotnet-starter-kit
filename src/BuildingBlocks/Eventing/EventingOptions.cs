@@ -32,6 +32,13 @@ public sealed class EventingOptions
     public int OutboxRetryMaxDelaySeconds { get; set; } = 3600;
 
     /// <summary>
+    /// Seconds a claimed outbox row stays leased to one dispatcher. Must exceed the worst-case
+    /// time to publish a batch, or a second instance re-claims rows still in flight and
+    /// double-publishes them.
+    /// </summary>
+    public int OutboxClaimLeaseSeconds { get; set; } = 300;
+
+    /// <summary>
     /// Whether inbox-based idempotent handling is enabled.
     /// </summary>
     public bool EnableInbox { get; set; } = true;

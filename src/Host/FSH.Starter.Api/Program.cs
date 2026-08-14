@@ -1,4 +1,5 @@
-﻿using FSH.Framework.Web;
+﻿using FSH.Framework.Eventing;
+using FSH.Framework.Web;
 using FSH.Framework.Web.Modules;
 using FSH.Modules.Auditing;
 using FSH.Modules.Identity;
@@ -88,6 +89,10 @@ builder.AddHeroPlatform(o =>
     o.EnableSse = true;
     o.EnableRealtime = true;
 });
+
+// The transactional outbox is framework infrastructure with exactly one owner
+// (EventingDbContext), so the host registers it once for every module (issue #1349).
+builder.Services.AddEventingCore(builder.Configuration);
 
 builder.AddModules(moduleAssemblies);
 

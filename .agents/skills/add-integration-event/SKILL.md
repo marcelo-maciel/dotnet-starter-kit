@@ -30,10 +30,10 @@ public sealed record {Event}IntegrationEvent(
 
 ## Step 2 — Publish via the Outbox (source handler)
 
-The source module must have eventing wired (`add-module` Step 1): `AddEventingCore` + `AddEventingForDbContext<{Source}DbContext>`. Inject `IOutboxStore` and add the event in the same unit of work:
+Publishing needs **no module registration** — the outbox is framework-owned and the host wires it once. Inject `IOutboxWriter` (from `FSH.Framework.Eventing.Abstractions`) and add the event in the same unit of work:
 
 ```csharp
-public sealed class Do{Thing}CommandHandler({Source}DbContext db, IOutboxStore outbox)
+public sealed class Do{Thing}CommandHandler({Source}DbContext db, IOutboxWriter outbox)
     : ICommandHandler<Do{Thing}Command, Unit>
 {
     public async ValueTask<Unit> Handle(Do{Thing}Command command, CancellationToken cancellationToken)
@@ -81,14 +81,14 @@ builder.Services.AddIntegrationEventHandlers(typeof({Consumer}Module).Assembly);
 ## Gotchas
 
 - **Idempotency is free** with the in-memory bus (the Inbox dedups by `{eventId, handlerName}`) — don't hand-roll it.
-- The in-memory bus runs handlers **synchronously in the publisher's scope** — keep the handler lean; a throw surfaces to the originating request.
+- The in-memory bus runs handlers **synchronously in the publisher's scope** — keep the handler lean; a throw surfaces to the originating request. Published via the outbox, that scope belongs to the dispatcher, so the consumer runs on the next cycle and its failures never reach the caller. Don't let a caller (or a test) assume the side effect already happened; integration tests drain with `OutboxDrain.DrainAsync`.
 - If the handler reads a **tenant-filtered** DbContext from a background path (open-generic handler, Hangfire job), restore Finbuckle context first via `IMultiTenantContextSetter` (see `WebhookFanoutHandler`).
 - **Module load order:** the consumer must load before the publisher if it must react (`Order` in `[assembly: FshModule]`) — e.g. Notifications (750) before Chat (800).
 
 ## Checklist
 
 - [ ] Event in source Contracts, implements `IIntegrationEvent`, stable type name
-- [ ] Source module has `AddEventingCore` + `AddEventingForDbContext<T>`; published via `IOutboxStore.AddAsync` (not the bus)
+- [ ] Published via `IOutboxWriter.AddAsync` (not the bus); no per-module eventing registration needed
 - [ ] Consumer handler `sealed : IIntegrationEventHandler<T>`; `AddIntegrationEventHandlers(assembly)` registered
 - [ ] Background readers restore tenant context; module `Order` lets the consumer load first
 - [ ] Build + tests green

@@ -27,10 +27,12 @@ public sealed class TenantBillingLifecycleTests
     };
 
     private readonly AuthHelper _auth;
+    private readonly FshWebApplicationFactory _factory;
 
     public TenantBillingLifecycleTests(FshWebApplicationFactory factory)
     {
         _auth = new AuthHelper(factory);
+        _factory = factory;
     }
 
     [Fact]
@@ -41,6 +43,10 @@ public sealed class TenantBillingLifecycleTests
         var planKey = await CreatePlanAsync(rootClient, $"life-{unique}", monthlyBasePrice: 20m);
         var tenantId = $"life-{unique}";
         await CreateTenantAsync(rootClient, tenantId, $"life-{unique}@tenant.com", planKey);
+
+        // TenantSubscribed now goes through the outbox, so Billing reacts on the next dispatch
+        // cycle rather than inside the create request.
+        await OutboxDrain.DrainAsync(_factory.Services);
 
         // Active subscription on the new plan.
         var subscription = await rootClient.GetFromJsonAsync<SubscriptionDto>(
@@ -73,6 +79,7 @@ public sealed class TenantBillingLifecycleTests
         var planKey = await CreatePlanAsync(rootClient, $"free-{unique}", monthlyBasePrice: 0m);
         var tenantId = $"free-{unique}";
         await CreateTenantAsync(rootClient, tenantId, $"free-{unique}@tenant.com", planKey);
+        await OutboxDrain.DrainAsync(_factory.Services);
 
         var subscription = await rootClient.GetFromJsonAsync<SubscriptionDto>(
             $"{BillingBasePath}/subscriptions?tenantId={tenantId}", Json);

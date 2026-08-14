@@ -2,9 +2,10 @@ using FSH.Framework.Eventing.Abstractions;
 using FSH.Framework.Eventing.Inbox;
 using FSH.Framework.Eventing.InMemory;
 using FSH.Framework.Eventing.Outbox;
+using FSH.Framework.Eventing.Persistence;
 using FSH.Framework.Eventing.RabbitMq;
 using FSH.Framework.Eventing.Serialization;
-using Microsoft.EntityFrameworkCore;
+using FSH.Framework.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -32,6 +33,11 @@ public static class ServiceCollectionExtensions
         // so background publishers establish the tenant before tenant-filtered handler DbContexts build.
         services.TryAddSingleton<IEventTenantScope, NullEventTenantScope>();
 
+        // Which databases the dispatcher drains. Defaults to the configured connection only;
+        // the multitenancy module replaces both so per-tenant databases are drained too.
+        services.TryAddSingleton<IEventingDrainTargetProvider, SingleDatabaseDrainTargetProvider>();
+        services.TryAddSingleton<IEventingDrainScope, NullEventingDrainScope>();
+
         // Register event bus based on configured provider
         var options = configuration.GetSection(nameof(EventingOptions)).Get<EventingOptions>() ?? new EventingOptions();
 
@@ -52,21 +58,19 @@ public static class ServiceCollectionExtensions
             services.AddHostedService<OutboxDispatcherHostedService>();
         }
 
-        return services;
-    }
+        // One framework-owned context owns the outbox/inbox tables, so each store has exactly
+        // one registration. Registering them per module DbContext (the old
+        // AddEventingForDbContext<T>) left .NET DI resolving whichever module registered last —
+        // for the whole application, including Identity's working outbox (issue #1349).
+        services.AddHeroDbContext<EventingDbContext>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IDbInitializer, EventingDbInitializer>());
+        services.TryAddScoped<IOutboxStore, EfCoreOutboxStore>();
 
-    /// <summary>
-    /// Registers EF Core-based outbox and inbox stores for the specified DbContext.
-    /// </summary>
-    public static IServiceCollection AddEventingForDbContext<TDbContext>(
-        this IServiceCollection services)
-        where TDbContext : DbContext
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        services.AddScoped<IOutboxStore, EfCoreOutboxStore<TDbContext>>();
-        services.AddScoped<IInboxStore, EfCoreInboxStore<TDbContext>>();
-        services.AddScoped<OutboxDispatcher>();
+        // Modules inject the publish-side contract from Eventing.Abstractions and stay off the
+        // eventing runtime; it is the same instance as the store.
+        services.TryAddScoped<IOutboxWriter>(sp => sp.GetRequiredService<IOutboxStore>());
+        services.TryAddScoped<IInboxStore, EfCoreInboxStore>();
+        services.TryAddScoped<OutboxDispatcher>();
 
         return services;
     }

@@ -39,10 +39,12 @@ public sealed class {Name}Module : IModule
         builder.Services.AddHeroDbContext<{Name}DbContext>();
         builder.Services.AddScoped<IDbInitializer, {Name}DbInitializer>();
 
-        // Only if the module publishes/handles integration events:
-        // builder.Services.AddEventingCore(builder.Configuration);
-        // builder.Services.AddEventingForDbContext<{Name}DbContext>();
+        // Only if the module HANDLES integration events:
         // builder.Services.AddIntegrationEventHandlers(typeof({Name}Module).Assembly);
+        //
+        // Publishing needs no registration at all — the outbox is framework-owned
+        // (host calls AddEventingCore once). Inject IOutboxWriter and publish.
+        // Never register a per-module outbox store; see .agents/rules/eventing.md.
 
         builder.Services.AddHealthChecks()
             .AddDbContextCheck<{Name}DbContext>(name: "db:{name}");
