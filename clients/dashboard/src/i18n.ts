@@ -79,6 +79,16 @@ const CANON: Record<string, string> = { pt: "pt-BR", en: "en-US" };
 const toCanonical = (lng: string) =>
   (SUPPORTED as readonly string[]).includes(lng) ? lng : (CANON[lng.split("-")[0]] ?? lng);
 
+// Keep the document's language attribute in step with the active locale. index.html ships a
+// static lang="en"; without this, a Portuguese UI still declares itself English to screen
+// readers, browser translation and hyphenation. Registered once, before init, so it also fires
+// for the initial language.
+if (typeof document !== "undefined") {
+  i18n.on("languageChanged", (lng) => {
+    document.documentElement.lang = lng;
+  });
+}
+
 // Called from main.tsx AFTER loadRuntimeConfig(), so fallbackLng reads the per-deployment
 // default: the browser/persisted locale wins, the deployment default is only the fallback.
 export function initI18n(deploymentDefault: string) {
