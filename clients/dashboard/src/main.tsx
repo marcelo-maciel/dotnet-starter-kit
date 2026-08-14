@@ -20,9 +20,9 @@ if (!rootElement) {
 }
 
 // Cross-app impersonation handoff — must run BEFORE createRoot so the
-// installed token is visible to AuthProvider on first paint. See the
-// helper docstring for the why.
-installImpersonationFromHash();
+// installed token and the operator's language are visible to AuthProvider on
+// first paint. See the helper docstring for the why.
+await installImpersonationFromHash();
 
 createRoot(rootElement).render(
   <StrictMode>

@@ -20,6 +20,7 @@ import {
 import { Monogram } from "@/components/monogram";
 import { ApiRequestError } from "@/lib/api-client";
 import { env } from "@/env";
+import i18n from "@/i18n";
 import { cn } from "@/lib/cn";
 
 type TFn = (key: string, opts?: Record<string, unknown>) => string;
@@ -447,12 +448,21 @@ function SelectedUserCard({
  * history.replaceState() to strip the hash before any render.
  *
  * `expiresAt` is included so the dashboard can show a countdown.
+ *
+ * `locale` carries the OPERATOR's language across the origin boundary. The
+ * server deliberately strips the target's `locale` claim so the operator keeps
+ * reading in their own language (StartImpersonationCommandHandler), but the
+ * dashboard usually runs on a different origin and therefore cannot read this
+ * app's persisted `i18nextLng`. Without this parameter the API culture falls
+ * through to the dashboard's own detected locale, so the shell would be in the
+ * operator's language while API errors came back in another.
  */
 function handoffToDashboard(response: ImpersonationResponse, tenantId: string) {
   const params = new URLSearchParams();
   params.set("token", response.accessToken);
   params.set("tenant", tenantId);
   params.set("expiresAt", response.accessTokenExpiresAt);
+  params.set("locale", i18n.language);
   const url = `${env.dashboardUrl}/#impersonate?${params.toString()}`;
   // noopener+noreferrer so the opened tab can't navigate this one and the
   // referrer header is suppressed entirely (defense in depth — the hash
