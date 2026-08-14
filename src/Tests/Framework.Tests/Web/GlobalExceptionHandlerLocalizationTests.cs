@@ -208,4 +208,34 @@ public sealed class GlobalExceptionHandlerLocalizationTests
         detail.ShouldBe("missing");
         code.ShouldBeNull();
     }
+
+    // A 409 must not be titled "an unexpected error occurred". Before Error.Conflict existed the
+    // status-to-key map fell through to Error.Unexpected — which RESOLVES, so the type-name fallback
+    // never fired and every conflict in the API reported a title contradicting its own status and its
+    // own detail. There are 41 Conflict throw sites across Billing and Catalog.
+    [Theory]
+    [InlineData("en-US", "Conflict")]
+    [InlineData("pt-BR", "Conflito")]
+    public async Task Conflict_is_titled_as_a_conflict_not_as_unexpected(string culture, string expected)
+    {
+        var exception = new CustomException("Brand name already taken.", [], HttpStatusCode.Conflict);
+
+        var (title, _) = await HandleAsync(exception, culture);
+
+        title.ShouldBe(expected);
+    }
+
+    // A status with no title of its own keeps the pre-localization behaviour — the exception type
+    // name — instead of claiming the error was unexpected. Status-consistent beats confidently wrong.
+    [Theory]
+    [InlineData("en-US")]
+    [InlineData("pt-BR")]
+    public async Task Untranslated_status_falls_back_to_the_exception_type_name(string culture)
+    {
+        var exception = new CustomException("Mailbox is locked.", [], HttpStatusCode.Locked);
+
+        var (title, _) = await HandleAsync(exception, culture);
+
+        title.ShouldBe(nameof(CustomException));
+    }
 }

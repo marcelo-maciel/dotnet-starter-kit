@@ -17,13 +17,20 @@ public class GlobalExceptionHandler(
     IStringLocalizer<SharedResources> localizer,
     IStringLocalizerFactory localizerFactory) : IExceptionHandler
 {
-    private static string TitleKeyFor(HttpStatusCode statusCode) => statusCode switch
+    // Returns null for a status with no title of its own. Deliberately NOT a catch-all
+    // "Error.Unexpected": that key exists, so ResourceNotFound would be false and a 409 would
+    // report "An unexpected error occurred" alongside Status 409 and a Detail describing a
+    // perfectly ordinary business-rule conflict — a title contradicting its own status code.
+    // A null key keeps the pre-localization behaviour (the exception type name) for every
+    // status not translated here, which is at least status-consistent.
+    private static string? TitleKeyFor(HttpStatusCode statusCode) => statusCode switch
     {
         HttpStatusCode.NotFound => "Error.NotFound",
         HttpStatusCode.Unauthorized => "Error.Unauthorized",
         HttpStatusCode.Forbidden => "Error.Forbidden",
         HttpStatusCode.BadRequest => "Error.BadRequest",
-        _ => "Error.Unexpected",
+        HttpStatusCode.Conflict => "Error.Conflict",
+        _ => null,
     };
 
     // Resolves the localized Detail for an exception carrying a MessageKey, under the request culture.
@@ -100,8 +107,9 @@ public class GlobalExceptionHandler(
             statusCode = (int)e.StatusCode;
             problemDetails.Status = statusCode;
 
-            var title = localizer[TitleKeyFor(e.StatusCode)];
-            problemDetails.Title = title.ResourceNotFound ? e.GetType().Name : title.Value;
+            var titleKey = TitleKeyFor(e.StatusCode);
+            var title = titleKey is null ? null : localizer[titleKey];
+            problemDetails.Title = title is null || title.ResourceNotFound ? e.GetType().Name : title.Value;
 
             ApplyLocalizedDetail(problemDetails, e, e.Message);
 
