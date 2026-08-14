@@ -14,7 +14,8 @@ namespace FSH.Starter.Migrations.PostgreSQL.Identity
                 name: "Locale",
                 schema: "identity",
                 table: "Users",
-                type: "text",
+                type: "character varying(10)",
+                maxLength: 10,
                 nullable: true);
         }
 
