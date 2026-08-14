@@ -151,8 +151,11 @@ public sealed class UpdateUserCommandValidatorTests
         var result = WithCulture("pt-BR", () =>
             _sut.Validate(new UpdateUserCommand { Id = "user-123", Email = "not-an-email" }));
 
-        // Assert — the English built-in text must NOT leak through under pt-BR.
+        // Assert — pin the actual Portuguese text, not merely the absence of the English one.
+        // "does not contain the English sentence" is satisfied by a blank message, by a raw
+        // resource key leaking through, and by any wrong-but-non-English string, so it stayed
+        // green through exactly the failures it existed to catch.
         var message = result.Errors.Single(e => e.PropertyName == "Email").ErrorMessage;
-        message.ShouldNotContain("is not a valid email address");
+        message.ShouldBe("'Email' é um endereço de email inválido.");
     }
 }
