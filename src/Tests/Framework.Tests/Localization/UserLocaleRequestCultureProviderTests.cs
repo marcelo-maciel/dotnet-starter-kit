@@ -50,6 +50,8 @@ public sealed class UserLocaleRequestCultureProviderTests
     [InlineData(null, null, null, "en-US")]          // nothing set -> default fallback
     [InlineData("xx-YY", "pt-BR", null, "pt-BR")]    // unsupported claim ignored -> falls to header
     [InlineData(null, "pt-BR", "en-US", "en-US")]    // explicit query override wins over everything
+    [InlineData(null, "pt", null, "en-US")]          // bare pt is not a supported tag -> default
+    [InlineData(null, "pt-PT", null, "en-US")]       // unsupported variant -> default, never pt-BR
     public async Task Resolves_expected_culture_through_chain(string? claim, string? header, string? query, string expected)
     {
         var options = BuildOptions();
@@ -73,6 +75,52 @@ public sealed class UserLocaleRequestCultureProviderTests
         }
 
         resolved.ShouldBe(expected);
+    }
+
+    // Localization negotiates the UI culture ONLY. CurrentCulture must stay invariant no matter what
+    // the request asks for, so no endpoint's ToString()/Parse()/interpolation shifts per request. Runs
+    // the real RequestLocalizationMiddleware, because this property comes out of the interaction
+    // between DefaultRequestCulture and a null SupportedCultures, not out of our provider.
+    [Theory]
+    [InlineData("pt-BR", null, null, "pt-BR")]       // claim
+    [InlineData(null, "pt-BR", null, "pt-BR")]       // header
+    [InlineData(null, null, "pt-BR", "pt-BR")]       // query override
+    [InlineData(null, null, null, "en-US")]          // nothing set
+    public async Task Formatting_culture_stays_invariant_while_ui_culture_negotiates(
+        string? claim, string? header, string? query, string expectedUiCulture)
+    {
+        var options = BuildOptions();
+        var context = BuildContext(claim, header, query);
+
+        string? formattingCulture = null;
+        string? uiCulture = null;
+        var middleware = new RequestLocalizationMiddleware(
+            _ =>
+            {
+                formattingCulture = CultureInfo.CurrentCulture.Name;
+                uiCulture = CultureInfo.CurrentUICulture.Name;
+                return Task.CompletedTask;
+            },
+            options,
+            NullLoggerFactory.Instance);
+
+        var previous = (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture);
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("pt-BR");
+            await middleware.Invoke(context);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previous.Item1;
+            CultureInfo.CurrentUICulture = previous.Item2;
+        }
+
+        uiCulture.ShouldBe(expectedUiCulture);
+        formattingCulture.ShouldBe(
+            string.Empty,
+            "CurrentCulture must be the invariant culture; a negotiated formatting culture would shift "
+                + "number and date rendering for every endpoint in the request.");
     }
 
     // The custom provider in isolation: emit the claim only when supported, otherwise fall through (null).
