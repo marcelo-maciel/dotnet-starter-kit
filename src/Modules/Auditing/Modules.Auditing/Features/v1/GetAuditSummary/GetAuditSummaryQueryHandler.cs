@@ -14,7 +14,8 @@ namespace FSH.Modules.Auditing.Features.v1.GetAuditSummary;
 
 public sealed class GetAuditSummaryQueryHandler : IQueryHandler<GetAuditSummaryQuery, AuditSummaryAggregateDto>
 {
-    public static readonly TimeSpan MaxWindow = TimeSpan.FromDays(90);
+    public const int MaxWindowDays = 90;
+    public static readonly TimeSpan MaxWindow = TimeSpan.FromDays(MaxWindowDays);
     public static readonly TimeSpan DefaultWindow = TimeSpan.FromDays(7);
 
     private readonly AuditDbContext _dbContext;

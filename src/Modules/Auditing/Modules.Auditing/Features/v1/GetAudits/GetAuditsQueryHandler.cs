@@ -22,7 +22,10 @@ public sealed class GetAuditsQueryHandler : IQueryHandler<GetAuditsQuery, PagedR
     /// to scan the entire table — without this guard, an unconstrained query
     /// degenerates into a full sequential scan as the audit volume grows.
     /// </summary>
-    public static readonly TimeSpan MaxWindow = TimeSpan.FromDays(90);
+    public const int MaxWindowDays = 90;
+
+    /// <inheritdoc cref="MaxWindowDays"/>
+    public static readonly TimeSpan MaxWindow = TimeSpan.FromDays(MaxWindowDays);
 
     /// <summary>
     /// Default lookback when the caller does not supply a from/to. Keeps the

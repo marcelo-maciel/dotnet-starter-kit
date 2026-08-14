@@ -18,6 +18,9 @@ public sealed class GetAuditSummaryQueryValidator : AbstractValidator<GetAuditSu
                 !q.FromUtc.HasValue
                 || !q.ToUtc.HasValue
                 || (q.ToUtc.Value - q.FromUtc.Value) <= GetAuditSummaryQueryHandler.MaxWindow)
-            .WithMessage(_ => localizer["Validation.SummaryWindowExceeded", GetAuditSummaryQueryHandler.MaxWindow.TotalDays]);
+            // MaxWindowDays, not MaxWindow.TotalDays: the localizer formats arguments with
+            // string.Format under the current culture, and a double in a localized message is
+            // culture-sensitive by construction. An int cannot render a decimal separator.
+            .WithMessage(_ => localizer["Validation.SummaryWindowExceeded", GetAuditSummaryQueryHandler.MaxWindowDays]);
     }
 }
