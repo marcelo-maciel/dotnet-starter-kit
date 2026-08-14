@@ -113,8 +113,8 @@ public class IdentityModule : IModule
         services.AddHeroStorage(builder.Configuration);
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddHeroDbContext<IdentityDbContext>();
-        services.AddEventingCore(builder.Configuration);
-        services.AddEventingForDbContext<IdentityDbContext>();
+        // Eventing itself is bootstrapped by the host (AddEventingCore) — the outbox is framework
+        // infrastructure, not Identity's. Handler registration stays per module.
         services.AddIntegrationEventHandlers(typeof(IdentityModule).Assembly);
         builder.Services.AddHealthChecks()
             .AddDbContextCheck<IdentityDbContext>(
@@ -186,8 +186,9 @@ public class IdentityModule : IModule
         group.MapGenerateTokenEndpoint().AllowAnonymous().RequireRateLimiting("auth");
         group.MapRefreshTokenEndpoint().AllowAnonymous().RequireRateLimiting("auth");
 
-        // The outbox is dispatched by the framework's OutboxDispatcherHostedService (on by default). A second dispatcher
-        // here would race the same rows (no row-level claim) → duplicate handlers + PK_InboxMessages collisions, so this module registers none.
+        // The outbox is dispatched by the framework's OutboxDispatcherHostedService (on by default), which now claims
+        // rows with FOR UPDATE SKIP LOCKED so several instances can drain safely. This module still registers no
+        // dispatcher of its own: the outbox is framework infrastructure, not Identity's.
 
         // roles
         group.MapGetRolesEndpoint();

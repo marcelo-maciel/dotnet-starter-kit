@@ -196,8 +196,9 @@ public class BuildingBlocksIndependenceTests
         // Eventing.Abstractions should have no dependencies (lightweight interfaces)
         CheckBuildingBlockDependencies("Eventing.Abstractions", [], layerViolations);
 
-        // Eventing should depend on Core and Eventing.Abstractions
-        CheckBuildingBlockDependencies("Eventing", ["Core", "Eventing.Abstractions"], layerViolations);
+        // Eventing should depend on Core, Eventing.Abstractions, and Persistence (EventingDbContext
+        // derives from BaseDbContext for per-tenant connection routing, issue #1349).
+        CheckBuildingBlockDependencies("Eventing", ["Core", "Eventing.Abstractions", "Persistence"], layerViolations);
 
         layerViolations.ShouldBeEmpty(
             $"BuildingBlocks should follow layered dependency rules. " +

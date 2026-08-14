@@ -15,7 +15,7 @@ public sealed class CreateTenantCommandHandler(
     ITenantProvisioningService provisioningService,
     ITenantInitialPasswordBuffer passwordBuffer,
     IMediator mediator,
-    IEventBus events,
+    IOutboxWriter outbox,
     IOptions<TenantBillingOptions> billingOptions,
     TimeProvider timeProvider)
     : ICommandHandler<CreateTenantCommand, CreateTenantCommandResponse>
@@ -52,7 +52,7 @@ public sealed class CreateTenantCommandHandler(
 
         // Drive the billing side-effects (subscription + term invoice) via an integration event so
         // Multitenancy stays decoupled from the Billing runtime.
-        await events.PublishAsync(new TenantSubscribedIntegrationEvent(
+        await outbox.AddAsync(new TenantSubscribedIntegrationEvent(
             Id: Guid.NewGuid(),
             OccurredOnUtc: periodStart,
             TenantId: tenantId,

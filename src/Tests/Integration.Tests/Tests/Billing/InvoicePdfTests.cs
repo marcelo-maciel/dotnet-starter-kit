@@ -16,10 +16,12 @@ public sealed class InvoicePdfTests
     private const string BillingBasePath = "/api/v1/billing";
 
     private readonly AuthHelper _auth;
+    private readonly FshWebApplicationFactory _factory;
 
     public InvoicePdfTests(FshWebApplicationFactory factory)
     {
         _auth = new AuthHelper(factory);
+        _factory = factory;
     }
 
     [Fact]
@@ -32,6 +34,10 @@ public sealed class InvoicePdfTests
         var planKey = await CreatePlanAsync(rootClient, $"pdf-m-{unique}", 29m);
         await CreateTenantAsync(rootClient, tenantId, adminEmail, planKey);
         await WaitForProvisioningAsync(rootClient, tenantId);
+
+        // TenantSubscribed goes through the outbox now, so the invoice is issued on the next
+        // dispatch cycle rather than inside the create request.
+        await OutboxDrain.DrainAsync(_factory.Services);
 
         // The subscription invoice was issued on create; grab its id from the operator list.
         var invoiceId = await GetFirstInvoiceIdAsync(rootClient, tenantId);

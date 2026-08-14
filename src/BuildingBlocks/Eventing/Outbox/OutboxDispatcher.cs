@@ -11,6 +11,13 @@ namespace FSH.Framework.Eventing.Outbox;
 /// </summary>
 public sealed partial class OutboxDispatcher
 {
+    /// <summary>
+    /// Identifies this process in the lease it takes on a row. Diagnostic only — correctness comes
+    /// from SKIP LOCKED, not from the identifier being unique.
+    /// </summary>
+    private static readonly string InstanceId =
+        $"{Environment.MachineName}:{Environment.ProcessId}";
+
     private readonly IOutboxStore _outbox;
     private readonly IEventBus _bus;
     private readonly IEventSerializer _serializer;
@@ -38,7 +45,8 @@ public sealed partial class OutboxDispatcher
         var batchSize = _options.OutboxBatchSize;
         if (batchSize <= 0) batchSize = 100;
 
-        var messages = await _outbox.GetPendingBatchAsync(batchSize, ct).ConfigureAwait(false);
+        var lease = TimeSpan.FromSeconds(_options.OutboxClaimLeaseSeconds > 0 ? _options.OutboxClaimLeaseSeconds : 300);
+        var messages = await _outbox.ClaimBatchAsync(batchSize, InstanceId, lease, ct).ConfigureAwait(false);
         if (messages.Count == 0)
         {
             _logger.LogDebug("No outbox messages to dispatch.");

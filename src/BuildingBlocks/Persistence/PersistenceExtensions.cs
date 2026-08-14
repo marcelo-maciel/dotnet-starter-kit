@@ -34,6 +34,8 @@ public static class PersistenceExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<ISaveChangesInterceptor, AuditableEntitySaveChangesInterceptor>();
         services.AddScoped<ISaveChangesInterceptor, DomainEventsInterceptor>();
+        services.TryAddScoped<IScopedDbConnectionProvider, ScopedDbConnectionProvider>();
+        services.TryAddScoped<AmbientDbTransactionRegistry>();
         return services;
     }
 
@@ -53,8 +55,15 @@ public static class PersistenceExtensions
         {
             var env = sp.GetRequiredService<IHostEnvironment>();
             var dbConfig = sp.GetRequiredService<IOptions<DatabaseOptions>>().Value;
-            options.ConfigureHeroDatabase(dbConfig.Provider, dbConfig.ConnectionString, dbConfig.MigrationsAssembly, env.IsDevelopment());
+
+            // Every context in the scope gets the same DbConnection object, so a write on one can
+            // join a transaction opened on another (see IScopedDbConnectionProvider).
+            var connection = sp.GetRequiredService<IScopedDbConnectionProvider>()
+                .GetConnection(dbConfig.Provider, dbConfig.ConnectionString);
+
+            options.ConfigureHeroDatabase(dbConfig.Provider, connection, dbConfig.MigrationsAssembly, env.IsDevelopment());
             options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
+            options.AddInterceptors(sp.GetRequiredService<AmbientDbTransactionRegistry>());
         });
         return services;
     }

@@ -4,6 +4,8 @@ using FSH.Framework.Core.Domain;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Framework.Shared.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
@@ -48,14 +50,37 @@ public class BaseDbContext(IMultiTenantContextAccessor<AppTenantInfo> multiTenan
     {
         ArgumentNullException.ThrowIfNull(optionsBuilder);
 
-        if (!string.IsNullOrWhiteSpace(multiTenantContextAccessor?.MultiTenantContext.TenantInfo?.ConnectionString))
+        var tenantConnectionString = multiTenantContextAccessor?.MultiTenantContext.TenantInfo?.ConnectionString;
+        if (string.IsNullOrWhiteSpace(tenantConnectionString))
+        {
+            return;
+        }
+
+        // Route the tenant connection through the scope's connection provider too. Opening a
+        // private connection here would defeat the sharing that lets an outbox write join the
+        // business transaction — a tenant-database context would be the one case that silently
+        // lost atomicity. Falls back to the connection string when no provider is available
+        // (hand-constructed contexts in tests, design-time tooling).
+        var connectionProvider = optionsBuilder.Options
+            .FindExtension<CoreOptionsExtension>()?
+            .ApplicationServiceProvider?
+            .GetService<IScopedDbConnectionProvider>();
+
+        if (connectionProvider is null)
         {
             optionsBuilder.ConfigureHeroDatabase(
                 _settings.Provider,
-                multiTenantContextAccessor.MultiTenantContext.TenantInfo.ConnectionString!,
+                tenantConnectionString,
                 _settings.MigrationsAssembly,
                 environment.IsDevelopment());
+            return;
         }
+
+        optionsBuilder.ConfigureHeroDatabase(
+            _settings.Provider,
+            connectionProvider.GetConnection(_settings.Provider, tenantConnectionString),
+            _settings.MigrationsAssembly,
+            environment.IsDevelopment());
     }
 
     /// <summary>
