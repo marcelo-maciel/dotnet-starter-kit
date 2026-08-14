@@ -4,6 +4,7 @@ using System.Collections;
 using System.Globalization;
 using System.Reflection;
 using System.Resources;
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace Architecture.Tests;
@@ -64,19 +65,43 @@ public sealed class CatalogParityTests
     /// with parent fallback on, a missing pt-BR key would be answered by the neutral catalog
     /// and parity would look perfect while half the strings were English.
     /// </summary>
-    private static HashSet<string>? OwnKeys(ResourceManager manager, CultureInfo culture)
+    private static Dictionary<string, string>? OwnEntries(ResourceManager manager, CultureInfo culture)
     {
         var set = manager.GetResourceSet(culture, createIfNotExists: true, tryParents: false);
         if (set is null) return null;
 
-        var keys = new HashSet<string>(StringComparer.Ordinal);
+        var entries = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (DictionaryEntry entry in set)
         {
-            if (entry.Key is string key) keys.Add(key);
+            if (entry.Key is string key)
+            {
+                entries[key] = entry.Value as string ?? string.Empty;
+            }
         }
 
-        return keys;
+        return entries;
     }
+
+    /// <summary>
+    /// The `{0}`-style argument indexes a message consumes. Escaped braces (`{{`, `}}`) are
+    /// stripped first so a literal brace is not mistaken for a placeholder.
+    /// </summary>
+    private static SortedSet<int> PlaceholderIndexes(string value)
+    {
+        var unescaped = value.Replace("{{", string.Empty, StringComparison.Ordinal)
+            .Replace("}}", string.Empty, StringComparison.Ordinal);
+
+        var indexes = new SortedSet<int>();
+        foreach (var match in PlaceholderPattern.Matches(unescaped).Cast<Match>())
+        {
+            indexes.Add(int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture));
+        }
+
+        return indexes;
+    }
+
+    private static readonly Regex PlaceholderPattern =
+        new(@"\{(\d+)(?::[^}]*)?\}", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     [Fact]
     public void Every_Catalog_Has_Matching_Keys_In_Every_Supported_Culture()
@@ -96,7 +121,7 @@ public sealed class CatalogParityTests
         {
             var manager = new ResourceManager(marker);
 
-            var neutral = OwnKeys(manager, CultureInfo.InvariantCulture);
+            var neutral = OwnEntries(manager, CultureInfo.InvariantCulture);
             if (neutral is null || neutral.Count == 0)
             {
                 violations.Add($"{marker.FullName}: neutral catalog is missing or empty");
@@ -109,15 +134,15 @@ public sealed class CatalogParityTests
                 // `*.en-US.resx` and there should not be one.
                 if (tag == SupportedCultures.Default) continue;
 
-                var translated = OwnKeys(manager, new CultureInfo(tag));
+                var translated = OwnEntries(manager, new CultureInfo(tag));
                 if (translated is null)
                 {
                     violations.Add($"{marker.FullName}: no `.{tag}.resx` catalog at all");
                     continue;
                 }
 
-                var missing = neutral.Except(translated, StringComparer.Ordinal).OrderBy(k => k, StringComparer.Ordinal).ToList();
-                var extra = translated.Except(neutral, StringComparer.Ordinal).OrderBy(k => k, StringComparer.Ordinal).ToList();
+                var missing = neutral.Keys.Except(translated.Keys, StringComparer.Ordinal).OrderBy(k => k, StringComparer.Ordinal).ToList();
+                var extra = translated.Keys.Except(neutral.Keys, StringComparer.Ordinal).OrderBy(k => k, StringComparer.Ordinal).ToList();
 
                 if (missing.Count > 0)
                 {
@@ -127,6 +152,25 @@ public sealed class CatalogParityTests
                 if (extra.Count > 0)
                 {
                     violations.Add($"{marker.FullName} [{tag}]: {extra.Count} key(s) not in the neutral catalog — {string.Join(", ", extra)}");
+                }
+
+                // Matching keys are not enough. The caller passes ONE argument list for every
+                // culture, so a translation consuming a different set of `{n}` placeholders than
+                // the neutral string either drops data silently or throws FormatException at
+                // render time — in the translated culture only, i.e. never on the reviewer's
+                // machine. `{1}` present in Portuguese but not English is the dangerous
+                // direction: string.Format throws when the index is out of range.
+                foreach (var key in neutral.Keys.Intersect(translated.Keys, StringComparer.Ordinal).OrderBy(k => k, StringComparer.Ordinal))
+                {
+                    var neutralArgs = PlaceholderIndexes(neutral[key]);
+                    var translatedArgs = PlaceholderIndexes(translated[key]);
+
+                    if (!neutralArgs.SetEquals(translatedArgs))
+                    {
+                        violations.Add(
+                            $"{marker.FullName} [{tag}] key '{key}': placeholder mismatch — neutral uses " +
+                            $"{{{string.Join(",", neutralArgs)}}} but {tag} uses {{{string.Join(",", translatedArgs)}}}");
+                    }
                 }
             }
         }
