@@ -90,12 +90,24 @@ public static class Extensions
 
             foreach (var proxy in trustedProxy.KnownProxies)
             {
-                forwarded.KnownProxies.Add(IPAddress.Parse(proxy));
+                if (!IPAddress.TryParse(proxy, out var address))
+                {
+                    throw new InvalidOperationException(
+                        $"{nameof(TrustedProxyOptions)}:{nameof(TrustedProxyOptions.KnownProxies)} contains \"{proxy}\", which is not a valid IP address (for example \"10.0.0.5\").");
+                }
+
+                forwarded.KnownProxies.Add(address);
             }
 
             foreach (var network in trustedProxy.KnownNetworks)
             {
-                forwarded.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(network));
+                if (!System.Net.IPNetwork.TryParse(network, out var parsedNetwork))
+                {
+                    throw new InvalidOperationException(
+                        $"{nameof(TrustedProxyOptions)}:{nameof(TrustedProxyOptions.KnownNetworks)} contains \"{network}\", which is not a valid CIDR network (for example \"10.0.0.0/8\").");
+                }
+
+                forwarded.KnownIPNetworks.Add(parsedNetwork);
             }
         });
 

@@ -44,15 +44,27 @@ public sealed class ForwardedHeadersIpTests
     [Fact]
     public async Task TokenIssue_Should_IgnoreForwardedClientIp_When_RequestArrivesFromUntrustedSource()
     {
-        var recordedIp = await IssueTokenAndReadSessionIpAsync(
+        // Both arms send the SAME X-Forwarded-For and differ only in the source address. Asserting the
+        // untrusted outcome alone would pass even with forwarded-header processing removed entirely - the
+        // connection IP gets persisted either way - so the trusted arm is what makes this a boundary test.
+        var fromUntrusted = await IssueTokenAndReadSessionIpAsync(
             connectionIp: TestConstants.UntrustedSourceIp,
             forwardedFor: ForwardedClientIp);
 
-        recordedIp.ShouldBe(
+        var fromTrusted = await IssueTokenAndReadSessionIpAsync(
+            connectionIp: TestConstants.TrustedProxyIp,
+            forwardedFor: ForwardedClientIp);
+
+        fromUntrusted.ShouldBe(
             TestConstants.UntrustedSourceIp,
             "X-Forwarded-For from a source outside the trusted-proxy set must be ignored; the persisted " +
             "IP should be the connection IP, never the attacker-supplied forwarded value.");
-        recordedIp.ShouldNotBe(ForwardedClientIp);
+        fromUntrusted.ShouldNotBe(ForwardedClientIp);
+
+        fromTrusted.ShouldBe(
+            ForwardedClientIp,
+            "the identical header from the trusted proxy must be honored - otherwise the assertion above " +
+            "passes vacuously, satisfied by forwarded headers never being processed at all.");
     }
 
     private async Task<string?> IssueTokenAndReadSessionIpAsync(string connectionIp, string forwardedFor)
