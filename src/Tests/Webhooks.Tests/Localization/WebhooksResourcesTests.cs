@@ -8,7 +8,7 @@ namespace Webhooks.Tests.Localization;
 
 // Proves the WebhooksResources catalog is embedded under the correct manifest name (ResourcesPath="" =>
 // co-located marker + resx). A wrong manifest name flips ResourceNotFound and leaks raw keys; a
-// missing pt entry ships English as "translated". Both are caught here.
+// missing pt-BR entry ships English as "translated". Both are caught here.
 public sealed class WebhooksResourcesTests
 {
     private static IStringLocalizer BuildLocalizer()
@@ -41,10 +41,10 @@ public sealed class WebhooksResourcesTests
     }
 
     [Fact]
-    public void Neutral_and_pt_catalogs_have_matching_keys()
+    public void Neutral_and_ptBR_catalogs_have_matching_keys()
     {
         var neutral = KeysFor(string.Empty);   // WebhooksResources.resx (English / fallback)
-        var pt = KeysFor("pt");                 // WebhooksResources.pt.resx
+        var pt = KeysFor("pt-BR");                 // WebhooksResources.pt-BR.resx
 
         neutral.ShouldNotBeEmpty();
         pt.OrderBy(k => k, StringComparer.Ordinal)
@@ -67,7 +67,7 @@ public sealed class WebhooksResourcesTests
             CultureInfo.CurrentUICulture = new CultureInfo("pt-BR");
             var pt = localizer["Webhooks.SubscriptionNotFound"];
             pt.ResourceNotFound.ShouldBeFalse(
-                "resx did not resolve 'Webhooks.SubscriptionNotFound' for pt-BR — check the .pt catalog manifest name.");
+                "resx did not resolve 'Webhooks.SubscriptionNotFound' for pt-BR — check the .pt-BR catalog manifest name.");
             pt.Value.ShouldBe("Inscrição de webhook {0} não encontrada.");
 
             pt.Value.ShouldNotBe(en.Value);

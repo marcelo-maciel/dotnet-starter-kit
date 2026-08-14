@@ -139,7 +139,7 @@ public sealed class UpdateUserCommandValidatorTests
         // Act
         var result = WithCulture("pt-BR", () => _sut.Validate(new UpdateUserCommand { Id = "" }));
 
-        // Assert — custom WithMessage resolves from the .pt catalog.
+        // Assert — custom WithMessage resolves from the .pt-BR catalog.
         result.Errors.Single(e => e.PropertyName == "Id").ErrorMessage
             .ShouldBe("O ID do usuário é obrigatório.");
     }

@@ -8,7 +8,7 @@ namespace Tickets.Tests.Localization;
 
 // Proves the TicketsResources catalog is embedded under the correct manifest name so the module
 // resx resolves at runtime. A wrong manifest name would flip ResourceNotFound and leak raw keys or
-// English text, and a missing pt entry would ship English as if it were translated. Both are caught
+// English text, and a missing pt-BR entry would ship English as if it were translated. Both are caught
 // here. This is the module's only unit test project, added when Tickets exception bodies were localized.
 public sealed class TicketsResourcesTests
 {
@@ -42,10 +42,10 @@ public sealed class TicketsResourcesTests
     }
 
     [Fact]
-    public void Neutral_and_pt_catalogs_have_matching_keys()
+    public void Neutral_and_ptBR_catalogs_have_matching_keys()
     {
         var neutral = KeysFor(string.Empty);   // TicketsResources.resx (English / fallback)
-        var pt = KeysFor("pt");                 // TicketsResources.pt.resx
+        var pt = KeysFor("pt-BR");                 // TicketsResources.pt-BR.resx
 
         neutral.ShouldNotBeEmpty();
         pt.OrderBy(k => k, StringComparer.Ordinal)
@@ -68,7 +68,7 @@ public sealed class TicketsResourcesTests
             CultureInfo.CurrentUICulture = new CultureInfo("pt-BR");
             var pt = localizer["Tickets.ClosedCannotResolve"];
             pt.ResourceNotFound.ShouldBeFalse(
-                "resx did not resolve 'Tickets.ClosedCannotResolve' for pt-BR — check the .pt catalog manifest name.");
+                "resx did not resolve 'Tickets.ClosedCannotResolve' for pt-BR — check the .pt-BR catalog manifest name.");
             pt.Value.ShouldBe("Um chamado fechado não pode ser resolvido. Reabra-o primeiro.");
 
             pt.Value.ShouldNotBe(en.Value);

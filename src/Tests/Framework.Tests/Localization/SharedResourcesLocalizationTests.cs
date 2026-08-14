@@ -21,10 +21,14 @@ public sealed class SharedResourcesLocalizationTests
         return services.BuildServiceProvider().GetRequiredService<IStringLocalizer<SharedResources>>();
     }
 
+    // Catalogs are named for specific cultures (SharedResources.pt-BR.resx), matching the front-end.
+    // The consequence is deliberate and pinned here: only pt-BR is served Portuguese. A bare `pt` or
+    // an unsupported variant like pt-PT walks its parent chain, finds no catalog of its own and lands
+    // on the neutral (English) one, rather than being silently handed Brazilian strings.
     [Theory]
-    [InlineData("pt-BR", "Não encontrado")]   // specific pt-BR falls back to the neutral .pt catalog
-    [InlineData("pt", "Não encontrado")]      // neutral pt resolves directly
-    [InlineData("pt-PT", "Não encontrado")]   // other pt variant also falls back to .pt
+    [InlineData("pt-BR", "Não encontrado")]   // specific pt-BR resolves directly
+    [InlineData("pt", "Not Found")]           // bare pt has no catalog -> neutral English
+    [InlineData("pt-PT", "Not Found")]         // unsupported variant -> neutral English, NOT pt-BR
     [InlineData("en-US", "Not Found")]        // en-US falls back to the neutral (default) catalog
     public void Localizer_resolves_error_key_per_culture(string culture, string expected)
     {
