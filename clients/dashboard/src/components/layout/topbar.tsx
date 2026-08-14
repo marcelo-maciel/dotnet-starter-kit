@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -202,10 +202,19 @@ export function Topbar() {
   // the *target's*. So neither hydrate from it nor write back to it.
   const isImpersonating = impersonation !== null;
 
-  // Hydrate the UI language from the server-persisted locale once the profile
-  // loads, so a locale chosen on another device carries over on this one.
+  // Hydrate the UI language from the server-persisted locale when the profile first
+  // arrives, so a locale chosen on another device carries over on this one.
+  //
+  // It stops the moment the user picks a language HERE. This query key is shared —
+  // Settings > Profile invalidates ["identity","me"] after its own save — and
+  // updateMyProfile is a read-modify-write with no concurrency token, so that save can
+  // echo back a locale it read before the switch landed. Re-hydrating on every refetch
+  // would then yank the language out from under an explicit in-session choice, with no
+  // error and nothing for the user to act on. See the `ponytail:` note below.
+  const languageChosenThisSession = useRef(false);
   const persistedLocale = isImpersonating ? undefined : profile?.locale;
   useEffect(() => {
+    if (languageChosenThisSession.current) return;
     if (persistedLocale && persistedLocale !== i18n.language) {
       void i18n.changeLanguage(persistedLocale);
     }
@@ -235,7 +244,16 @@ export function Topbar() {
   // success — a refetch would revert the language mid-switch. During an
   // impersonation session the switch stays client-side only: persisting would
   // write the operator's language onto the impersonated user's profile.
+  //
+  // ponytail: the persisted locale can still be lost server-side. updateMyProfile is a
+  // GET-then-PUT with no concurrency token, so a Settings > Profile save whose read
+  // preceded this PUT will echo the old locale back and win if it lands second. The UI
+  // no longer follows it (the hydration guard above), so the damage is bounded to "the
+  // language did not stick across a reload". The real fix is an ETag / RowVersion with
+  // If-Match on PUT /identity/profile, which is a contract change to an existing
+  // endpoint and belongs in its own PR.
   const onSelectLanguage = (tag: string) => {
+    languageChosenThisSession.current = true;
     void i18n.changeLanguage(tag);
     if (isImpersonating) return;
     updateProfile.mutate({ locale: tag });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -198,10 +198,17 @@ export function Topbar() {
   const avatarUrl = profile.data?.imageUrl ?? null;
   const displayName = user?.name ?? user?.email ?? t("shell.unknownUser");
 
-  // Hydrate the UI language from the server-persisted locale once the profile
-  // loads, so a locale chosen on another device carries over on this one.
+  // Hydrate the UI language from the server-persisted locale when the profile first
+  // arrives, so a locale chosen on another device carries over on this one.
+  //
+  // It stops the moment the user picks a language HERE. updateMyProfile is a
+  // read-modify-write with no concurrency token, so two switches in quick succession can
+  // land out of network order and leave the server holding the earlier choice; a later
+  // refetch would then flip the UI back to it. See the `ponytail:` note below.
+  const languageChosenThisSession = useRef(false);
   const persistedLocale = profile.data?.locale;
   useEffect(() => {
+    if (languageChosenThisSession.current) return;
     if (persistedLocale && persistedLocale !== i18n.language) {
       void i18n.changeLanguage(persistedLocale);
     }
@@ -223,7 +230,15 @@ export function Topbar() {
   // profile from the server and merges the current name/phone, so the switch
   // never wipes those fields even if this component's profile query has not
   // resolved (or failed).
+  //
+  // ponytail: two rapid switches issue two independent GET-then-PUT cycles with no
+  // concurrency token, so out-of-order delivery can leave the server holding the earlier
+  // choice. The UI no longer follows a stale server value (the hydration guard above), so
+  // the damage is bounded to "the language did not stick across a reload". The real fix is
+  // an ETag / RowVersion with If-Match on PUT /identity/profile, which is a contract
+  // change to an existing endpoint and belongs in its own PR.
   const onSelectLanguage = (tag: string) => {
+    languageChosenThisSession.current = true;
     void i18n.changeLanguage(tag);
     updateProfile.mutate({ locale: tag });
   };
