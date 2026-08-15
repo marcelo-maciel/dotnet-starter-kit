@@ -236,7 +236,8 @@ export function Topbar() {
   // choice. The UI no longer follows a stale server value (the hydration guard above), so
   // the damage is bounded to "the language did not stick across a reload". The real fix is
   // an ETag / RowVersion with If-Match on PUT /identity/profile, which is a contract
-  // change to an existing endpoint and belongs in its own PR.
+  // change to an existing endpoint and belongs in its own PR. Tracked in
+  // https://github.com/fullstackhero/dotnet-starter-kit/issues/1359.
   const onSelectLanguage = (tag: string) => {
     languageChosenThisSession.current = true;
     void i18n.changeLanguage(tag);
