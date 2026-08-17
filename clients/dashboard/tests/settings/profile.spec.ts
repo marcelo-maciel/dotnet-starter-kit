@@ -111,8 +111,10 @@ test.describe("settings/profile — wired to PUT /identity/profile", () => {
 
   // The dashboard talks to the API cross-origin in dev, and `ETag` is not a CORS-safelisted
   // response header — the browser hides it from JS unless the server also sends
-  // `Access-Control-Expose-Headers: ETag`. These mocks send it for the same reason the API
-  // has to: without it the client reads `null` and silently stops sending `If-Match`.
+  // `Access-Control-Expose-Headers: ETag`. These mocks mirror what the CORS policy now sends;
+  // without it the client reads `null` and silently stops sending `If-Match`. The server side of
+  // that contract is asserted by `GetProfile_Should_ExposeETagToCrossOriginCallers_When_ProfileIsRead`,
+  // since a mock alone would keep passing if the policy stopped exposing the header.
   const ETAG_CORS_HEADERS = {
     "Content-Type": "application/json",
     "Access-Control-Expose-Headers": "ETag",

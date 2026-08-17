@@ -306,7 +306,7 @@ public sealed class UserProfileTests
         dto.FirstName.ShouldBe("Concurrent");
     }
 
-    [Fact(Skip = "Blocked on CORS: FSH.Framework.Web.Cors never calls WithExposedHeaders, so a browser hides the ETag from JS on a cross-origin call and the precondition silently degrades to the old lost-update behaviour. Drop the Skip once ETag is exposed.")]
+    [Fact]
     public async Task GetProfile_Should_ExposeETagToCrossOriginCallers_When_ProfileIsRead()
     {
         // Arrange — ETag is not a CORS-safelisted response header, so the contract only reaches a
