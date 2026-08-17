@@ -41,7 +41,7 @@ public sealed class UserRegisteredEmailHandler
             var mail = new MailRequest(
                 to: new System.Collections.ObjectModel.Collection<string> { @event.Email },
                 subject: "Welcome!",
-                body: EmailBodies.NoticeHtml("Welcome!", greeting),
+                body: HtmlEmail.Notice("Welcome!", greeting),
                 textBody: greeting);
 
             await _mailService.SendAsync(mail, ct).ConfigureAwait(false);
