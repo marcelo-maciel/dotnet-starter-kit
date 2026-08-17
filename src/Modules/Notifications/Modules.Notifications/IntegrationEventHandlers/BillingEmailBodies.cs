@@ -71,7 +71,9 @@ internal static class BillingEmailBodies
         var amountText = $"{amount.ToString("0.00", CultureInfo.InvariantCulture)} {currency}";
         var due = dueAtUtc is null ? string.Empty : $"<p>Due by <strong>{Date(dueAtUtc.Value)}</strong>.</p>";
         var body = Wrap(subject,
-            $"<p>A new invoice <strong>{HtmlEmail.Encode(invoiceNumber)}</strong> for <strong>{amountText}</strong> has been issued.</p>" +
+            // amountText embeds the currency, which is data rather than a literal, so it is encoded
+            // for the HTML part while the text/plain twin below keeps it verbatim.
+            $"<p>A new invoice <strong>{HtmlEmail.Encode(invoiceNumber)}</strong> for <strong>{HtmlEmail.Encode(amountText)}</strong> has been issued.</p>" +
             due +
             "<p>You can view and download this invoice from your dashboard.</p>");
         var text = Text(subject,
