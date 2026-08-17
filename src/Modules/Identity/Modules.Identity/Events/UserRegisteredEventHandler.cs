@@ -11,7 +11,7 @@ namespace FSH.Modules.Identity.Events;
 /// so other modules can react to new user registrations.
 /// </summary>
 public sealed class UserRegisteredHandler(
-    IEventBus eventBus,
+    IOutboxWriter outbox,
     ILogger<UserRegisteredHandler> logger)
     : INotificationHandler<UserRegisteredEvent>
 {
@@ -38,6 +38,6 @@ public sealed class UserRegisteredHandler(
             FirstName: notification.FirstName ?? string.Empty,
             LastName: notification.LastName ?? string.Empty);
 
-        await eventBus.PublishAsync(integrationEvent, cancellationToken).ConfigureAwait(false);
+        await outbox.AddAsync(integrationEvent, cancellationToken).ConfigureAwait(false);
     }
 }

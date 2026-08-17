@@ -1,8 +1,8 @@
 using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Eventing.Outbox;
+using FSH.Framework.Eventing.Persistence;
 using FSH.Framework.Shared.Multitenancy;
-using FSH.Modules.Identity.Data;
 using Integration.Tests.Infrastructure;
 
 namespace Integration.Tests.Tests.Eventing;
@@ -10,7 +10,7 @@ namespace Integration.Tests.Tests.Eventing;
 /// <summary>
 /// Covers audit finding REL-02: a failed outbox message was retried every dispatch cycle with no
 /// backoff, then dead-lettered with no way to recover it. Exercises the real
-/// <see cref="EfCoreOutboxStore{TDbContext}"/> (Identity owns the OutboxMessages set) over Postgres.
+/// <see cref="EfCoreOutboxStore"/> over Postgres.
 /// </summary>
 [Collection(FshCollectionDefinition.Name)]
 public sealed class OutboxRetryTests
@@ -26,7 +26,7 @@ public sealed class OutboxRetryTests
     public async Task MarkAsFailed_NotDead_Should_BackOff_And_ExcludeFromPendingUntilDue()
     {
         using var scope = await CreateTenantScopeAsync();
-        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<EventingDbContext>();
         var store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
 
         var message = NewMessage();
@@ -40,7 +40,7 @@ public sealed class OutboxRetryTests
             DateTime.UtcNow.AddSeconds(20),
             "the first retry backs off by the base delay (30s), not the next 10s cycle");
 
-        var pending = await store.GetPendingBatchAsync(500);
+        var pending = await ClaimAsync(store);
         pending.ShouldNotContain(
             m => m.Id == message.Id,
             "a message whose NextRetryAt is in the future must be excluded from the dispatch batch");
@@ -50,7 +50,7 @@ public sealed class OutboxRetryTests
     public async Task RedriveDeadLetters_Should_ResetDeadMessage_And_MakeItPendingAgain()
     {
         using var scope = await CreateTenantScopeAsync();
-        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<EventingDbContext>();
         var store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
 
         var message = NewMessage();
@@ -64,10 +64,13 @@ public sealed class OutboxRetryTests
 
         redriven.ShouldBe(1);
         (await store.GetDeadLetteredAsync(500)).ShouldNotContain(m => m.Id == message.Id);
-        (await store.GetPendingBatchAsync(500)).ShouldContain(
+        (await ClaimAsync(store)).ShouldContain(
             m => m.Id == message.Id,
             "a redriven message clears IsDead/RetryCount/NextRetryAt and becomes eligible again");
     }
+
+    private static Task<IReadOnlyList<OutboxMessage>> ClaimAsync(IOutboxStore store) =>
+        store.ClaimBatchAsync(500, "OutboxRetryTests", TimeSpan.FromMinutes(5));
 
     private static OutboxMessage NewMessage() => new()
     {

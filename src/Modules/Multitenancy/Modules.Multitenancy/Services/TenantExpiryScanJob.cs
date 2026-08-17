@@ -21,7 +21,7 @@ public sealed class TenantExpiryScanJob
 {
     private readonly IMultiTenantStore<AppTenantInfo> _tenantStore;
     private readonly TenantDbContext _db;
-    private readonly IEventBus _eventBus;
+    private readonly IOutboxWriter _outbox;
     private readonly IMultiTenantContextSetter _tenantContextSetter;
     private readonly TimeProvider _timeProvider;
     private readonly TenantBillingOptions _options;
@@ -30,7 +30,7 @@ public sealed class TenantExpiryScanJob
     public TenantExpiryScanJob(
         IMultiTenantStore<AppTenantInfo> tenantStore,
         TenantDbContext db,
-        IEventBus eventBus,
+        IOutboxWriter outbox,
         IMultiTenantContextSetter tenantContextSetter,
         TimeProvider timeProvider,
         IOptions<TenantBillingOptions> options,
@@ -39,7 +39,7 @@ public sealed class TenantExpiryScanJob
         ArgumentNullException.ThrowIfNull(options);
         _tenantStore = tenantStore;
         _db = db;
-        _eventBus = eventBus;
+        _outbox = outbox;
         _tenantContextSetter = tenantContextSetter;
         _timeProvider = timeProvider;
         _options = options.Value;
@@ -120,7 +120,7 @@ public sealed class TenantExpiryScanJob
         // tenant-filtered DbContexts that NRE without it, since a background job carries no HTTP request.
         _tenantContextSetter.MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenant);
 
-        await _eventBus.PublishAsync(BuildEvent(noticeType, tenant, validUpto, graceEnds, now), ct).ConfigureAwait(false);
+        await _outbox.AddAsync(BuildEvent(noticeType, tenant, validUpto, graceEnds, now), ct).ConfigureAwait(false);
         return true;
     }
 

@@ -72,8 +72,12 @@ public sealed class TenantExpiryScanJobTests
         var mail = (NoOpMailService)_factory.Services.GetRequiredService<IMailService>();
         mail.Clear();
 
-        // Creating a tenant on a paid plan issues the subscription invoice synchronously, which emails the admin.
+        // Creating a tenant on a paid plan issues the subscription invoice, which emails the admin.
+        // Both hops are outbox-driven now — TenantSubscribed, then InvoiceIssued — so this takes
+        // two dispatch cycles rather than happening inside the create request.
         await CreateTenantAsync(rootClient, tenantId, adminEmail, planKey);
+        await OutboxDrain.DrainAsync(_factory.Services);
+        await OutboxDrain.DrainAsync(_factory.Services);
 
         mail.Sent.ShouldContain(
             m => m.To.Contains(adminEmail) && m.Subject.Contains("Invoice", StringComparison.OrdinalIgnoreCase),
@@ -85,6 +89,9 @@ public sealed class TenantExpiryScanJobTests
         using var scope = _factory.Services.CreateScope();
         var job = scope.ServiceProvider.GetRequiredService<TenantExpiryScanJob>();
         await job.RunAsync(CancellationToken.None);
+
+        // The job records its notice via the outbox; the email handler runs on dispatch.
+        await OutboxDrain.DrainAsync(_factory.Services);
     }
 
     private async Task<int> CountNoticesAsync(string tenantId, string noticeType)

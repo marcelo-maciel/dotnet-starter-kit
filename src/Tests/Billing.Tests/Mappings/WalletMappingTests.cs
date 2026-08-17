@@ -1,3 +1,4 @@
+using FSH.Framework.Core.Domain;
 using FSH.Modules.Billing.Domain;
 using FSH.Modules.Billing.Mappings;
 using FSH.Modules.Billing.Contracts;
@@ -12,7 +13,7 @@ public sealed class WalletMappingTests
     public void Wallet_ToDto_emits_string_status_and_balance()
     {
         var w = Wallet.Create("tenant-a", "USD");
-        w.Credit(50m, WalletTransactionKind.Topup, "Top-up", "req-1");
+        w.Credit(new Money(50m, "USD"), WalletTransactionKind.Topup, "Top-up", "req-1");
         var dto = w.ToDto();
         dto.Balance.ShouldBe(50m);
         dto.Status.ShouldBe("Active");

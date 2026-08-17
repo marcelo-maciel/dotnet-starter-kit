@@ -1,4 +1,5 @@
-﻿using FSH.Framework.Shared.Persistence;
+﻿using System.Data.Common;
+using FSH.Framework.Shared.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
@@ -30,8 +31,7 @@ public static class OptionsBuilderExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNullOrWhiteSpace(dbProvider);
 
-        builder.ConfigureWarnings(warnings =>
-            warnings.Log(RelationalEventId.PendingModelChangesWarning));
+        ConfigureCommon(builder, isDevelopment);
 
         switch (dbProvider.ToUpperInvariant())
         {
@@ -55,12 +55,65 @@ public static class OptionsBuilderExtensions
                     $"Database Provider {dbProvider} is not supported.");
         }
 
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures the provider against an existing <see cref="DbConnection"/> owned by the DI scope
+    /// rather than a connection string.
+    ///
+    /// Every context in a scope sharing one connection object is what allows the outbox write to
+    /// join the business transaction — EF Core can only enlist a context in an existing transaction
+    /// when both contexts sit on the same connection.
+    /// </summary>
+    public static DbContextOptionsBuilder ConfigureHeroDatabase(
+        this DbContextOptionsBuilder builder,
+        string dbProvider,
+        DbConnection connection,
+        string migrationsAssembly,
+        bool isDevelopment)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNullOrWhiteSpace(dbProvider);
+
+        ConfigureCommon(builder, isDevelopment);
+
+        switch (dbProvider.ToUpperInvariant())
+        {
+            case DbProviders.PostgreSQL:
+                // contextOwnsConnection: false — the scope disposes it, not the first context to finish.
+                builder.UseNpgsql(connection, contextOwnsConnection: false, e =>
+                {
+                    e.MigrationsAssembly(migrationsAssembly);
+                });
+                break;
+
+            case DbProviders.MSSQL:
+                builder.UseSqlServer(connection, contextOwnsConnection: false, e =>
+                {
+                    e.MigrationsAssembly(migrationsAssembly);
+                    e.EnableRetryOnFailure();
+                });
+                break;
+
+            default:
+                throw new InvalidOperationException(
+                    $"Database Provider {dbProvider} is not supported.");
+        }
+
+        return builder;
+    }
+
+    private static void ConfigureCommon(DbContextOptionsBuilder builder, bool isDevelopment)
+    {
+        builder.ConfigureWarnings(warnings =>
+            warnings.Log(RelationalEventId.PendingModelChangesWarning));
+
         if (isDevelopment)
         {
             builder.EnableSensitiveDataLogging();
             builder.EnableDetailedErrors();
         }
-
-        return builder;
     }
 }
