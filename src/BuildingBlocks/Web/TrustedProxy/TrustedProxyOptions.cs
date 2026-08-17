@@ -20,6 +20,8 @@ public sealed class TrustedProxyOptions
     /// Number of proxy hops to unwind from X-Forwarded-For. Must match the real ingress hop count
     /// (cloudflared → Caddy → app is 2). The framework default of 1 reads only the rightmost hop,
     /// which yields the nearest proxy's IP (or an attacker-injected value) in a multi-hop topology.
+    /// Must be at least 1: anything lower is rejected at startup, since 0 would silently stop
+    /// forwarded-header processing and a negative value would fail every request.
     /// </summary>
     public int ForwardLimit { get; init; } = 1;
 }
