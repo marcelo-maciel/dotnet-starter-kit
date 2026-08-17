@@ -7,6 +7,13 @@ namespace FSH.Framework.Web.TrustedProxy;
 /// outside the proxy network cannot forge its own IP/scheme. When no proxies or networks are
 /// configured, the framework default (loopback only) stands and forwarded headers from any other
 /// source are ignored.
+/// <para>
+/// Only X-Forwarded-For and X-Forwarded-Proto are honoured. X-Forwarded-Host is deliberately left
+/// out: rewriting Request.Host from a header is a host-header injection primitive, and the endpoints
+/// that build a public URL from the request (user registration and confirmation e-mails) would then
+/// send links pointing wherever the header said. The trade-off is that Request.Host keeps the
+/// internal host behind a proxy, and those links carry it.
+/// </para>
 /// </summary>
 public sealed class TrustedProxyOptions
 {
