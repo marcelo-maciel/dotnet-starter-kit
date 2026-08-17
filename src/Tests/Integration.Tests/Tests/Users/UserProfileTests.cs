@@ -274,9 +274,10 @@ public sealed class UserProfileTests
     [Fact]
     public async Task UpdateProfile_Should_KeepAvatar_When_IfMatchIsStaleAndDeleteCurrentImageRequested()
     {
-        // Arrange — the precondition is checked before the storage calls run. Checking it any later
-        // would delete the avatar (and orphan uploads) on a request that then answers 412 and
-        // changes nothing in the database.
+        // Arrange — a rejected delete-my-avatar request must leave the profile exactly as it was.
+        // The precondition runs as the first statement after the user is loaded, ahead of the
+        // storage calls and of SetPhoneNumberAsync (which persists on its own), so a 412 cannot
+        // leave a half-applied update behind.
         using var adminClient = await _auth.CreateRootAdminClientAsync();
         var user = await IdentityUserSeeder.CreateLoginableUserAsync(_factory, adminClient, "etag-image");
         using var userClient = await _auth.CreateAuthenticatedClientAsync(user.Email, user.Password);
@@ -302,6 +303,7 @@ public sealed class UserProfileTests
         var profile = await userClient.GetAsync($"{TestConstants.IdentityBasePath}/profile");
         var dto = await profile.DeserializeAsync<UserDto>();
         dto.ImageUrl.ShouldBe(imageUrl);
+        dto.FirstName.ShouldBe("Concurrent");
     }
 
     private static async Task<string> ReadProfileETagAsync(HttpClient client)
