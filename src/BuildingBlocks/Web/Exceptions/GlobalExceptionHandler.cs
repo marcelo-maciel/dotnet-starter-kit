@@ -1,10 +1,12 @@
 using System.Diagnostics;
 using System;
+using System.Globalization;
 using System.Net;
 using FSH.Framework.Core.Exceptions;
 using FSH.Framework.Core.Localization;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
@@ -73,11 +75,44 @@ public class GlobalExceptionHandler(
         }
     }
 
+    // UseExceptionHandler sits ABOVE UseHeroLocalization in the pipeline, and
+    // RequestLocalizationMiddleware assigns CultureInfo.CurrentUICulture inside its own async frame —
+    // an assignment that belongs to that frame's ExecutionContext and is already gone by the time an
+    // exception unwinds up to this handler. Every localizer below would therefore resolve under the
+    // culture of the host process (the invariant one in a container with no LANG), and answer from the
+    // neutral resx no matter what the client asked for. The negotiated culture survives on the request
+    // itself, so take it from there and restore the ambient one afterwards.
+    //
+    // CurrentUICulture only: AddHeroLocalization pins CurrentCulture to invariant on purpose, so that
+    // no request can shift numeric or date formatting anywhere in the pipeline.
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(httpContext);
         ArgumentNullException.ThrowIfNull(exception);
 
+        var requestUiCulture = httpContext.Features.Get<IRequestCultureFeature>()?.RequestCulture.UICulture;
+
+        // No feature means the exception escaped before localization ran (CORS, security headers,
+        // forwarded headers). Nothing was negotiated, so the ambient culture is all there is.
+        if (requestUiCulture is null)
+        {
+            return await WriteProblemDetailsAsync(httpContext, exception, requestUiCulture: null, cancellationToken).ConfigureAwait(false);
+        }
+
+        var previousUiCulture = CultureInfo.CurrentUICulture;
+        CultureInfo.CurrentUICulture = requestUiCulture;
+        try
+        {
+            return await WriteProblemDetailsAsync(httpContext, exception, requestUiCulture, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = previousUiCulture;
+        }
+    }
+
+    private async ValueTask<bool> WriteProblemDetailsAsync(HttpContext httpContext, Exception exception, CultureInfo? requestUiCulture, CancellationToken cancellationToken)
+    {
         var problemDetails = new ProblemDetails
         {
             Instance = httpContext.Request.Path
@@ -164,6 +199,15 @@ public class GlobalExceptionHandler(
         }
 
         httpContext.Response.StatusCode = statusCode;
+
+        // ExceptionHandlerMiddleware clears the response before re-executing, which drops the
+        // Content-Language RequestLocalizationMiddleware had already written. Put it back, so a client
+        // can tell which culture the prose in this body is in. The invariant culture has an empty name
+        // and is not a valid header value.
+        if (requestUiCulture is not null && requestUiCulture.Name.Length > 0)
+        {
+            httpContext.Response.Headers.ContentLanguage = requestUiCulture.Name;
+        }
 
         // Surface trace and correlation IDs so clients/support can correlate errors to traces
         var traceId = Activity.Current?.TraceId.ToString() ?? httpContext.TraceIdentifier;
