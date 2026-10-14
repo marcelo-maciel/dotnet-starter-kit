@@ -40,14 +40,23 @@ public sealed class EnrollTwoFactorCommandHandlerTests
         new(_userManager, _currentUser, Options.Create(options));
 
     [Fact]
-    public async Task Handle_Should_UseFullStackHeroIssuer_When_IssuerIsNotConfigured()
+    public async Task Handle_Should_UseDefaultIssuer_When_IssuerIsNotConfigured()
     {
+        // The template rewrites the brand in scaffolded projects (possibly to a name with spaces),
+        // so the expectation is derived from the default instead of spelling it out.
+        var issuer = Uri.EscapeDataString(new TwoFactorOptions().Issuer);
         var sut = CreateHandler(new TwoFactorOptions());
 
         var result = await sut.Handle(new EnrollTwoFactorCommand(), CancellationToken.None);
 
         result.AuthenticatorUri.ShouldBe(
-            $"otpauth://totp/FullStackHero:jane@example.com?secret={SharedKey}&issuer=FullStackHero&digits=6");
+            $"otpauth://totp/{issuer}:jane@example.com?secret={SharedKey}&issuer={issuer}&digits=6");
+    }
+
+    [Fact]
+    public void TwoFactorOptions_Should_DefaultIssuerToTheBrand()
+    {
+        new TwoFactorOptions().Issuer.ShouldBe("FullStackHero");
     }
 
     [Fact]
