@@ -2,6 +2,7 @@ using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Shared.Constants;
 using FSH.Framework.Shared.Multitenancy;
+using FSH.Framework.Shared.Persistence;
 using FSH.Modules.Catalog.Contracts.Authorization;
 using FSH.Modules.Identity.Authorization;
 using FSH.Modules.Identity.Contracts.Authorization;
@@ -10,7 +11,10 @@ using FSH.Modules.Identity.Domain;
 using Integration.Tests.Infrastructure;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace Integration.Tests.Tests.Catalog;
 
@@ -28,6 +32,9 @@ public sealed class RolePermissionSyncerTests
     // Well-formed but never registered: stands in for a permission a release removed from the catalog.
     private const string RetiredPermission = "Permissions.Retired.View";
     private const string NonPermissionClaimType = "fsh.test.marker";
+
+    // Target for the throwaway-role tests; never registered, so it cannot collide with a real grant.
+    private static readonly FshPermission ProbePermission = new("Sync probe", "View", "SyncProbe");
 
     private readonly FshWebApplicationFactory _factory;
 
@@ -149,7 +156,173 @@ public sealed class RolePermissionSyncerTests
         }
     }
 
+    // The guards below run SyncRoleAsync against a throwaway role with an explicit target, so they
+    // never touch Basic/Admin, which other tests and the startup sync share.
+
+    [Fact]
+    public async Task SyncRoleAsync_Should_Add_But_Not_Remove_When_RemoveRevoked_Is_Off()
+    {
+        var rootTenant = await GetRootTenantAsync();
+        string roleName = await CreateProbeRoleAsync(rootTenant, RetiredPermission);
+
+        try
+        {
+            int changed = await RunSyncRoleAsync(rootTenant, roleName, [ProbePermission], removeRevoked: false);
+
+            changed.ShouldBe(1, "Only the missing permission should be written.");
+            var claims = await GetClaimsAsync(rootTenant, roleName, ClaimConstants.Permission);
+            claims.ShouldBe([RetiredPermission, ProbePermission.Name], ignoreOrder: true,
+                "With RemoveRevoked off the sync must add the missing permission and keep the revoked one.");
+        }
+        finally
+        {
+            await DeleteRoleAsync(rootTenant, roleName);
+        }
+    }
+
+    [Fact]
+    public async Task SyncRoleAsync_Should_Not_Remove_Anything_When_The_Target_Is_Empty()
+    {
+        var rootTenant = await GetRootTenantAsync();
+        string roleName = await CreateProbeRoleAsync(rootTenant, RetiredPermission);
+
+        try
+        {
+            int changed = await RunSyncRoleAsync(rootTenant, roleName, [], removeRevoked: true);
+
+            changed.ShouldBe(0);
+            var claims = await GetClaimsAsync(rootTenant, roleName, ClaimConstants.Permission);
+            claims.ShouldContain(RetiredPermission,
+                "An empty target means a missing catalog; the sync must not strip the role.");
+        }
+        finally
+        {
+            await DeleteRoleAsync(rootTenant, roleName);
+        }
+    }
+
+    [Fact]
+    public async Task SyncRoleAsync_Should_Treat_A_Lost_Delete_Race_As_Done_And_Keep_Syncing()
+    {
+        var rootTenant = await GetRootTenantAsync();
+        string racedRole = await CreateProbeRoleAsync(rootTenant, RetiredPermission);
+        string nextRole = await CreateProbeRoleAsync(rootTenant, RetiredPermission);
+
+        try
+        {
+            using var scope = _factory.Services.CreateScope();
+            var sp = scope.ServiceProvider;
+            sp.GetRequiredService<IMultiTenantContextSetter>()
+                .MultiTenantContext = new MultiTenantContext<AppTenantInfo>(rootTenant);
+
+            // Stands in for a second instance starting at the same time: just before this instance's
+            // first save, it deletes the same row from its own connection.
+            var otherInstance = new DeleteBeforeFirstSaveInterceptor(
+                () => DeleteClaimAsync(rootTenant, racedRole, RetiredPermission));
+            var options = new DbContextOptionsBuilder<IdentityDbContext>(
+                    sp.GetRequiredService<DbContextOptions<IdentityDbContext>>())
+                .AddInterceptors(otherInstance)
+                .Options;
+            await using var db = new IdentityDbContext(
+                sp.GetRequiredService<IMultiTenantContextAccessor<AppTenantInfo>>(),
+                options,
+                sp.GetRequiredService<IOptions<DatabaseOptions>>(),
+                sp.GetRequiredService<IHostEnvironment>());
+            var syncer = ActivatorUtilities.CreateInstance<RolePermissionSyncer>(
+                sp, db, Options.Create(new PermissionSyncOptions { RemoveRevoked = true }));
+
+            int racedChanged = await syncer.SyncRoleAsync(racedRole, [ProbePermission], CancellationToken.None);
+            int nextChanged = await syncer.SyncRoleAsync(nextRole, [ProbePermission], CancellationToken.None);
+
+            otherInstance.Fired.ShouldBeTrue("Pre-condition: the competing delete must have run.");
+            racedChanged.ShouldBe(0, "A lost race is reported as no change from this instance.");
+            nextChanged.ShouldBe(2, "The next role in the same scope must still sync (one removal, one addition).");
+            var next = await GetClaimsAsync(rootTenant, nextRole, ClaimConstants.Permission);
+            next.ShouldBe([ProbePermission.Name], ignoreOrder: true);
+        }
+        finally
+        {
+            await DeleteRoleAsync(rootTenant, racedRole);
+            await DeleteRoleAsync(rootTenant, nextRole);
+        }
+    }
+
     // ─── helpers ─────────────────────────────────────────────────────
+
+    private async Task<int> RunSyncRoleAsync(AppTenantInfo tenant, string roleName, IReadOnlyList<FshPermission> target, bool removeRevoked)
+    {
+        using var scope = _factory.Services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>()
+            .MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenant);
+
+        var syncer = ActivatorUtilities.CreateInstance<RolePermissionSyncer>(
+            scope.ServiceProvider, Options.Create(new PermissionSyncOptions { RemoveRevoked = removeRevoked }));
+        return await syncer.SyncRoleAsync(roleName, target, CancellationToken.None);
+    }
+
+    private async Task<string> CreateProbeRoleAsync(AppTenantInfo tenant, string permission)
+    {
+        using var scope = _factory.Services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>()
+            .MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenant);
+
+        string roleName = $"sync-probe-{Guid.NewGuid():N}";
+        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<FshRole>>();
+        (await roleManager.CreateAsync(new FshRole(roleName))).Succeeded.ShouldBeTrue();
+
+        await SeedClaimAsync(tenant, roleName, ClaimConstants.Permission, permission);
+        return roleName;
+    }
+
+    private async Task DeleteRoleAsync(AppTenantInfo tenant, string roleName)
+    {
+        using var scope = _factory.Services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>()
+            .MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenant);
+
+        // Role claims cascade with the role.
+        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<FshRole>>();
+        var role = await roleManager.FindByNameAsync(roleName);
+        if (role is not null)
+        {
+            (await roleManager.DeleteAsync(role)).Succeeded.ShouldBeTrue();
+        }
+    }
+
+    private async Task DeleteClaimAsync(AppTenantInfo tenant, string roleName, string claimValue)
+    {
+        using var scope = _factory.Services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>()
+            .MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenant);
+
+        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<FshRole>>();
+        var role = await roleManager.Roles.SingleAsync(r => r.Name == roleName);
+
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        int deleted = await db.RoleClaims
+            .Where(rc => rc.RoleId == role.Id && rc.ClaimValue == claimValue)
+            .ExecuteDeleteAsync();
+        deleted.ShouldBe(1);
+    }
+
+    private sealed class DeleteBeforeFirstSaveInterceptor(Func<Task> competingDelete) : SaveChangesInterceptor
+    {
+        public bool Fired { get; private set; }
+
+        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (!Fired)
+            {
+                Fired = true;
+                await competingDelete();
+            }
+
+            return result;
+        }
+    }
 
     private async Task<AppTenantInfo> GetRootTenantAsync()
     {

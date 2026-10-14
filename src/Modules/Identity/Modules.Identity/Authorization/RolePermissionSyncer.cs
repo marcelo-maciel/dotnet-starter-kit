@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace FSH.Modules.Identity.Authorization;
 
@@ -17,7 +18,8 @@ namespace FSH.Modules.Identity.Authorization;
 /// <see cref="RoleConstants.Basic"/>) with the permission catalog for the current Finbuckle tenant
 /// context: adds the missing ones and removes the ones the catalog no longer grants. Authoritative
 /// because those roles are locked against manual edits, so no operator change can be lost.
-/// Idempotent, so it can run on every startup safely.
+/// Idempotent, so it can run on every startup safely. Removal can be turned off with
+/// <see cref="PermissionSyncOptions.RemoveRevoked"/>.
 /// </summary>
 public sealed class RolePermissionSyncer(
     IdentityDbContext context,
@@ -25,6 +27,7 @@ public sealed class RolePermissionSyncer(
     IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor,
     HybridCache cache,
     TimeProvider timeProvider,
+    IOptions<PermissionSyncOptions> options,
     ILogger<RolePermissionSyncer> logger)
 {
     public async Task SyncAsync(CancellationToken cancellationToken)
@@ -48,7 +51,7 @@ public sealed class RolePermissionSyncer(
         }
     }
 
-    private async Task<int> SyncRoleAsync(string roleName, IReadOnlyList<FshPermission> targetPermissions, CancellationToken cancellationToken)
+    internal async Task<int> SyncRoleAsync(string roleName, IReadOnlyList<FshPermission> targetPermissions, CancellationToken cancellationToken)
     {
         var role = await roleManager.Roles
             .SingleOrDefaultAsync(r => r.Name == roleName, cancellationToken)
@@ -78,10 +81,7 @@ public sealed class RolePermissionSyncer(
             })
             .ToList();
 
-        // A null value grants nothing, so it is as stale as a retired permission.
-        var toRemove = existing
-            .Where(rc => rc.ClaimValue is null || !targetSet.Contains(rc.ClaimValue))
-            .ToList();
+        var toRemove = SelectRevokedClaims(roleName, existing, targetSet);
 
         if (toAdd.Count == 0 && toRemove.Count == 0)
         {
@@ -90,7 +90,18 @@ public sealed class RolePermissionSyncer(
 
         context.RoleClaims.RemoveRange(toRemove);
         await context.RoleClaims.AddRangeAsync(toAdd, cancellationToken).ConfigureAwait(false);
-        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        if (!await TrySaveAsync(cancellationToken).ConfigureAwait(false))
+        {
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation(
+                    "Permission sync for '{Role}' in tenant '{Tenant}' lost a race with another instance; its changes are already applied",
+                    roleName,
+                    tenantAccessor.MultiTenantContext.TenantInfo?.Id);
+            }
+
+            return 0;
+        }
 
         if (toRemove.Count > 0 && logger.IsEnabled(LogLevel.Warning))
         {
@@ -114,5 +125,52 @@ public sealed class RolePermissionSyncer(
         }
 
         return toAdd.Count + toRemove.Count;
+    }
+
+    /// <summary>
+    /// Saves the pending claim changes. Returns <c>false</c> when another instance starting at the same
+    /// time deleted the same rows first (a delete matched 0 rows): its write already reached the same
+    /// end state, so this is not an error.
+    /// </summary>
+    private async Task<bool> TrySaveAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Drop the failed entries, or the next role's save in this scope would retry them.
+            context.ChangeTracker.Clear();
+            return false;
+        }
+    }
+
+    private List<FshRoleClaim> SelectRevokedClaims(string roleName, List<FshRoleClaim> existing, HashSet<string> targetSet)
+    {
+        if (!options.Value.RemoveRevoked)
+        {
+            return [];
+        }
+
+        // An empty target means the catalog is missing, not that the role should hold nothing.
+        if (targetSet.Count == 0)
+        {
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning(
+                    "Skipped permission removal for '{Role}' in tenant '{Tenant}': the permission catalog grants it nothing",
+                    roleName,
+                    tenantAccessor.MultiTenantContext.TenantInfo?.Id);
+            }
+
+            return [];
+        }
+
+        // A null value grants nothing, so it is as stale as a retired permission.
+        return existing
+            .Where(rc => rc.ClaimValue is null || !targetSet.Contains(rc.ClaimValue))
+            .ToList();
     }
 }
