@@ -111,9 +111,11 @@ public sealed class {Name}Resources;
 - `Localization/{Name}Resources.resx` next to the marker: the neutral (English) catalog. Copy
   `TicketsResources.resx` and delete its `<data>` entries. `Localization/{Name}Resources.pt-BR.resx`
   is optional; a missing translation falls back to English.
-- The resx is embedded under `RootNamespace` + folder + file name, which must equal the marker's full
-  name (`FSH.Modules.{Name}.Localization.{Name}Resources`). Keep `<RootNamespace>FSH.Modules.{Name}</RootNamespace>`
-  in the csproj and the marker in that namespace; no `<EmbeddedResource>` item is needed.
+- The embedded resource must be named after the marker's full name
+  (`FSH.Modules.{Name}.Localization.{Name}Resources`). Because each resx sits next to a `.cs` file of the
+  same base name, the SDK names it after the class declared in that file
+  (`EmbeddedResourceUseDependentUponConvention`), so keep the marker's class name equal to its file
+  name; no `<EmbeddedResource>` item is needed.
 - Add `S2094` to the runtime csproj's `<NoWarn>` (the marker is an empty class on purpose).
 - No per-module registration: `AddHeroLocalization` in the host serves every catalog.
 

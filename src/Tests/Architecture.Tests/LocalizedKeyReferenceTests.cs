@@ -60,6 +60,21 @@ public sealed partial class LocalizedKeyReferenceTests
             string.Join("\n  ", scan.Violations));
     }
 
+    // The argument count drives the placeholder check, so a comma inside a literal or a comment must
+    // not split an argument, and an apostrophe in a comment must not open a char literal.
+    [Theory]
+    [InlineData("(\"K\", a, b)", 3)]
+    [InlineData("(\"K\", // the user's id, not a separator\n a)", 2)]
+    [InlineData("(\"K\", /* x, y */ a)", 2)]
+    [InlineData("(\"K\", $\"{a}, {{b}}\", 'x', ',')", 4)]
+    [InlineData("(\"K\", @\"say \"\"hi, there\"\"\")", 2)]
+    [InlineData("(\"K\", string.Join(\", \", ids))", 2)]
+    public void Argument_Splitter_Ignores_Commas_Inside_Literals_Brackets_And_Comments(string call, int expected)
+    {
+        ArgumentNullException.ThrowIfNull(call);
+        SplitArguments(call, 0).Count.ShouldBe(expected);
+    }
+
     private sealed class Scan(Dictionary<string, Dictionary<string, string>> catalogs)
     {
         public List<string> Violations { get; } = [];
@@ -84,7 +99,8 @@ public sealed partial class LocalizedKeyReferenceTests
                 }
 
                 FactoryCallCount++;
-                var catalog = call.Groups["catalog"].Success ? call.Groups["catalog"].Value : SharedCatalog;
+                // Catalogs are keyed by the marker's short name, so a qualified `Ns.XResources` keeps its last segment.
+                var catalog = call.Groups["catalog"].Success ? call.Groups["catalog"].Value.Split('.')[^1] : SharedCatalog;
                 Check(Where(path, source, call.Index), catalog, key, args.Count - 1);
             }
         }
@@ -245,13 +261,31 @@ public sealed partial class LocalizedKeyReferenceTests
         throw new InvalidOperationException($"unbalanced '{source[open]}' at offset {open}");
     }
 
-    /// <summary>The index after the token at <paramref name="i"/>, stepping over whole literals and bracket groups.</summary>
+    /// <summary>
+    /// The index after the token at <paramref name="i"/>, stepping over whole literals, bracket groups and
+    /// comments, so a comma, quote or apostrophe inside a comment within a call is not read as code.
+    /// </summary>
     private static int Next(string source, int i) => source[i] switch
     {
         '"' or '\'' => SkipLiteral(source, i) + 1,
         '(' or '[' or '{' => MatchingClose(source, i) + 1,
+        '/' when i + 1 < source.Length && source[i + 1] is '/' or '*' => SkipComment(source, i),
         _ => i + 1,
     };
+
+    private static int SkipComment(string source, int slash)
+    {
+        if (source[slash + 1] == '/')
+        {
+            var lineEnd = source.IndexOf('\n', slash);
+            return lineEnd < 0 ? source.Length : lineEnd;
+        }
+
+        var blockEnd = source.IndexOf("*/", slash + 2, StringComparison.Ordinal);
+        return blockEnd < 0
+            ? throw new InvalidOperationException($"unterminated comment at offset {slash}")
+            : blockEnd + 2;
+    }
 
     /// <summary>Index of the quote closing the literal that opens at <paramref name="quote"/>.</summary>
     private static int SkipLiteral(string source, int quote)
@@ -287,9 +321,9 @@ public sealed partial class LocalizedKeyReferenceTests
         return match.Success;
     }
 
-    // `.Localized<IdentityResources>(` and `.Localized(`; the lookbehind keeps
-    // LocalizedKeyNotFoundException and its siblings out.
-    [GeneratedRegex(@"(?<![\w])Localized(?:<(?<catalog>\w+)>)?\(")]
+    // `.Localized<IdentityResources>(`, `.Localized<Ns.IdentityResources> (` and `.Localized(`. Requiring
+    // `<` or `(` right after the name keeps LocalizedKeyNotFoundException and its siblings out.
+    [GeneratedRegex(@"(?<![\w])Localized\s*(?:<\s*(?<catalog>[\w.]+)\s*>)?\s*\(")]
     private static partial Regex FactoryCallRegex();
 
     // The localization wrappers around BCL exceptions keep the initializer form.
