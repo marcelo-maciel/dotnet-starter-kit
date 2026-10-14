@@ -5,6 +5,7 @@ using System.Text.Json;
 using FSH.Framework.Core.Exceptions;
 using FSH.Framework.Web.Exceptions;
 using FSH.Framework.Web.Localization;
+using Framework.Tests.Localization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Localization;
@@ -115,6 +116,22 @@ public sealed class ExceptionLocalizationPipelineTests
         var outcome = await InvokeAsync(acceptLanguage, exception);
 
         outcome.Code.ShouldBe("Error.NotFound");
+        outcome.Detail.ShouldBe(expected);
+    }
+
+    // Localized<T> must carry the module catalog and the arguments to the handler: without the
+    // catalog the key is looked up in the shared one and the English fallback comes back; without
+    // the arguments the placeholder reaches the client unformatted.
+    [Theory]
+    [InlineData("pt-BR", "Item 42 não foi encontrado")]
+    [InlineData("en-US", "Item 42 was not found")]
+    public async Task Detail_is_localized_from_the_module_catalog_named_by_the_factory(string acceptLanguage, string expected)
+    {
+        var exception = new NotFoundException("English fallback").Localized<FallbackProbeResources>("Probe.ItemNotFound", 42);
+
+        var outcome = await InvokeAsync(acceptLanguage, exception);
+
+        outcome.Code.ShouldBe("Probe.ItemNotFound");
         outcome.Detail.ShouldBe(expected);
     }
 

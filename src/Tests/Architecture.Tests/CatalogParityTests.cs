@@ -30,7 +30,7 @@ public sealed class CatalogParityTests
     /// full name — which is exactly the co-located `ResourcesPath = ""` convention the
     /// framework relies on. Anything else named `*Resources` is skipped.
     /// </summary>
-    private static List<Type> DiscoverCatalogMarkers()
+    internal static List<Type> DiscoverCatalogMarkers()
     {
         var assemblies = ModuleAssemblyDiscovery.GetModuleAssemblies()
             .Append(typeof(SharedResources).Assembly)
@@ -66,7 +66,7 @@ public sealed class CatalogParityTests
     /// with parent fallback on, every neutral key would appear in pt-BR too, and its English
     /// value would be compared against itself in the placeholder check.
     /// </summary>
-    private static Dictionary<string, string>? OwnEntries(ResourceManager manager, CultureInfo culture)
+    internal static Dictionary<string, string>? OwnEntries(ResourceManager manager, CultureInfo culture)
     {
         var set = manager.GetResourceSet(culture, createIfNotExists: true, tryParents: false);
         if (set is null) return null;
@@ -87,7 +87,7 @@ public sealed class CatalogParityTests
     /// The `{0}`-style argument indexes a message consumes. Escaped braces (`{{`, `}}`) are
     /// stripped first so a literal brace is not mistaken for a placeholder.
     /// </summary>
-    private static SortedSet<int> PlaceholderIndexes(string value)
+    internal static SortedSet<int> PlaceholderIndexes(string value)
     {
         var unescaped = value.Replace("{{", string.Empty, StringComparison.Ordinal)
             .Replace("}}", string.Empty, StringComparison.Ordinal);
