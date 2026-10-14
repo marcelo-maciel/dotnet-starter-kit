@@ -59,7 +59,8 @@ public sealed class TwoFactorAuthTests
         var enrollment = await DeserializeAsync<TwoFactorEnrollmentResponse>(response);
         enrollment.ShouldNotBeNull();
         enrollment.SharedKey.ShouldNotBeNullOrWhiteSpace();
-        enrollment.AuthenticatorUri.ShouldStartWith("otpauth://totp/");
+        enrollment.AuthenticatorUri.ShouldStartWith("otpauth://totp/FullStackHero:");
+        enrollment.AuthenticatorUri.ShouldContain("&issuer=FullStackHero&");
         enrollment.AuthenticatorUri.ShouldContain("secret=");
     }
 
