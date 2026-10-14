@@ -95,6 +95,34 @@ public sealed class {Name}DbContext : BaseDbContext
 }
 ```
 
+## Step 3b — Localization catalog (module-owned messages)
+
+Every client-visible message the module throws or validates lives in its own resx catalog, so the
+module ships localized from its first feature. Mirror `Modules.Tickets/Localization/`:
+
+```csharp
+// src/Modules/{Name}/Modules.{Name}/Localization/{Name}Resources.cs
+namespace FSH.Modules.{Name}.Localization;
+
+/// <summary>Marker type binding <c>IStringLocalizer&lt;{Name}Resources&gt;</c> to the {Name} resx catalog.</summary>
+public sealed class {Name}Resources;
+```
+
+- `Localization/{Name}Resources.resx` next to the marker: the neutral (English) catalog. Copy
+  `TicketsResources.resx` and delete its `<data>` entries. `Localization/{Name}Resources.pt-BR.resx`
+  is optional; a missing translation falls back to English.
+- The resx is embedded under `RootNamespace` + folder + file name, which must equal the marker's full
+  name (`FSH.Modules.{Name}.Localization.{Name}Resources`). Keep `<RootNamespace>FSH.Modules.{Name}</RootNamespace>`
+  in the csproj and the marker in that namespace; no `<EmbeddedResource>` item is needed.
+- Add `S2094` to the runtime csproj's `<NoWarn>` (the marker is an empty class on purpose).
+- No per-module registration: `AddHeroLocalization` in the host serves every catalog.
+
+Throws use `.Localized<{Name}Resources>("{Name}.Case", args)` and validators inject
+`IStringLocalizer<{Name}Resources>` (see **add-feature**). Once the module is referenced from
+`FSH.Starter.Api` (Step 4), `Architecture.Tests` picks the catalog up on its own: `CatalogParityTests`
+checks the pt-BR file against the neutral one and `LocalizedKeyReferenceTests` fails on any key the
+code uses that the catalog lacks, which also catches a wrong manifest name. Rules: `.agents/rules/localization.md`.
+
 ## Step 4 — Solution + project references
 
 ```bash
@@ -132,6 +160,7 @@ dotnet test src/FSH.Starter.slnx
 - [ ] `IModule`: `AddHeroDbContext<T>()`, `PermissionConstants.Register`, version-set group, eventing trio if needed
 - [ ] `{Name}DbContext : BaseDbContext`, 4-arg ctor, `base.OnModelCreating` last
 - [ ] `{Name}Permissions` in Contracts/Authorization
+- [ ] `Localization/{Name}Resources.cs` marker + `{Name}Resources.resx` (English; pt-BR optional), `S2094` in `<NoWarn>`
 - [ ] Migrations folder + initial migration (`--context {Name}DbContext`)
 - [ ] **Registered in all four places** (Api + DbMigrator × Mediator + moduleAssemblies)
 - [ ] Build + Architecture.Tests green
