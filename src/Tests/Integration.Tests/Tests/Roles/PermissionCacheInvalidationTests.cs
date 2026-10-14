@@ -187,19 +187,27 @@ public sealed class PermissionCacheInvalidationTests
         await AssignRoleAsync(adminClient, userId, RoleConstants.Basic);
         await SeedRootRoleClaimAsync(RoleConstants.Basic, retiredPermission);
 
-        using var userClient = await _auth.CreateAuthenticatedClientAsync(email, password);
+        // Basic is shared by every test: if anything below fails before the sync revokes the claim, it must not leak.
+        try
+        {
+            using var userClient = await _auth.CreateAuthenticatedClientAsync(email, password);
 
-        var warmed = await GetOwnPermissionsAsync(userClient);
-        warmed.ShouldContain(retiredPermission,
-            "Pre-condition: the user must hold the retired permission via Basic before the sync.");
+            var warmed = await GetOwnPermissionsAsync(userClient);
+            warmed.ShouldContain(retiredPermission,
+                "Pre-condition: the user must hold the retired permission via Basic before the sync.");
 
-        // Act — the startup sync revokes it from Basic and must drop the warmed entry with it.
-        await RunRootTenantSyncAsync();
+            // Act — the startup sync revokes it from Basic and must drop the warmed entry with it.
+            await RunRootTenantSyncAsync();
 
-        // Assert
-        var afterSync = await GetOwnPermissionsAsync(userClient);
-        afterSync.ShouldNotContain(retiredPermission,
-            "Cache was NOT invalidated: a permission the sync revoked is still being served from the stale cache entry.");
+            // Assert
+            var afterSync = await GetOwnPermissionsAsync(userClient);
+            afterSync.ShouldNotContain(retiredPermission,
+                "Cache was NOT invalidated: a permission the sync revoked is still being served from the stale cache entry.");
+        }
+        finally
+        {
+            await RemoveRootRoleClaimAsync(RoleConstants.Basic, retiredPermission);
+        }
     }
 
     #endregion
@@ -309,6 +317,26 @@ public sealed class PermissionCacheInvalidationTests
         var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         db.RoleClaims.Add(new FshRoleClaim { RoleId = role.Id, ClaimType = ClaimConstants.Permission, ClaimValue = permission });
         await db.SaveChangesAsync();
+    }
+
+    // No-op when the sync already revoked it.
+    private async Task RemoveRootRoleClaimAsync(string roleName, string permission)
+    {
+        using var scope = _factory.Services.CreateScope();
+
+        var tenant = await scope.ServiceProvider
+            .GetRequiredService<IMultiTenantStore<AppTenantInfo>>()
+            .GetAsync(TestConstants.RootTenantId);
+        scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>()
+            .MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenant);
+
+        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<FshRole>>();
+        var role = await roleManager.Roles.SingleAsync(r => r.Name == roleName);
+
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        await db.RoleClaims
+            .Where(rc => rc.RoleId == role.Id && rc.ClaimType == ClaimConstants.Permission && rc.ClaimValue == permission)
+            .ExecuteDeleteAsync();
     }
 
     private async Task RunRootTenantSyncAsync()
