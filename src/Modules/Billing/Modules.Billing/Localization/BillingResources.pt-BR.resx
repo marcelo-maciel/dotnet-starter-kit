@@ -88,6 +88,9 @@
   <data name="Billing.TopupRequestCannotBeRejected" xml:space="preserve">
     <value>Não é possível rejeitar a solicitação de recarga {0} porque ela está {1} (somente solicitações Pendentes podem ser rejeitadas).</value>
   </data>
+  <data name="Billing.WalletCurrencyMismatch" xml:space="preserve">
+    <value>Não é possível creditar uma recarga em {0} numa carteira em {1}.</value>
+  </data>
   <data name="TopupRequestStatus.Pending" xml:space="preserve">
     <value>Pendente</value>
   </data>

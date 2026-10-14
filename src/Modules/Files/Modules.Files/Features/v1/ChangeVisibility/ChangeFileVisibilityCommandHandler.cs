@@ -59,13 +59,13 @@ public sealed class ChangeFileVisibilityCommandHandler(
         {
             if (asset.IsDeleted)
             {
-                throw new NotFoundException("file not found");
+                throw new NotFoundException("file not found").Localized<FilesResources>("Files.FileNotFound");
             }
 
             asset.ChangeVisibility(cmd.Visibility);
             return true;
         }, cancellationToken).ConfigureAwait(false);
-        f = changed ?? throw new NotFoundException("file not found");
+        f = changed ?? throw new NotFoundException("file not found").Localized<FilesResources>("Files.FileNotFound");
 
         var publicUrl = f.Visibility == Visibility.Public
             ? storage.BuildPublicUrl(f.StorageKey)

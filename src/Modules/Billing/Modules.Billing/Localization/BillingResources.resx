@@ -88,6 +88,9 @@
   <data name="Billing.TopupRequestCannotBeRejected" xml:space="preserve">
     <value>Top-up request {0} cannot be rejected because it is {1} (only Pending requests can be rejected).</value>
   </data>
+  <data name="Billing.WalletCurrencyMismatch" xml:space="preserve">
+    <value>Cannot credit a {0} top-up to a {1} wallet.</value>
+  </data>
   <data name="TopupRequestStatus.Pending" xml:space="preserve">
     <value>Pending</value>
   </data>
