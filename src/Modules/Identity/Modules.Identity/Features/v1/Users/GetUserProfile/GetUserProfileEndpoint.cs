@@ -26,12 +26,11 @@ public static class GetUserProfileEndpoint
 
             // The profile is a full-representation resource: PUT /profile rewrites every field, so
             // a caller editing a stale copy would blank whatever changed meanwhile. Publishing the
-            // stored concurrency token as a strong ETag lets that caller echo it back in If-Match
-            // and have the server reject the stale write.
-            if (!string.IsNullOrEmpty(profile.ConcurrencyStamp))
-            {
-                response.Headers.ETag = new EntityTagHeaderValue($"\"{profile.ConcurrencyStamp}\"", isWeak: false).ToString();
-            }
+            // profile version as a strong ETag lets that caller echo it back in If-Match and have
+            // the server reject the stale write. The tag covers only the fields PUT /profile writes
+            // (not email, status or the host-prefixed avatar URL in this body), so it is a write
+            // precondition only: never use it to answer a conditional GET with 304.
+            response.Headers.ETag = new EntityTagHeaderValue($"\"{profile.ProfileVersion}\"", isWeak: false).ToString();
 
             return TypedResults.Ok(profile);
         })
