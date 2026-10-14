@@ -44,10 +44,7 @@ internal sealed class CurrentUserService : ICurrentUserService
         if (_user != null)
         {
             throw new CustomException("Method reserved for in-scope initialization")
-            {
-                MessageKey = "Identity.InScopeInitializationOnly",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.InScopeInitializationOnly");
         }
 
         _user = user;
@@ -58,10 +55,7 @@ internal sealed class CurrentUserService : ICurrentUserService
         if (_userId != Guid.Empty)
         {
             throw new CustomException("Method reserved for in-scope initialization")
-            {
-                MessageKey = "Identity.InScopeInitializationOnly",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.InScopeInitializationOnly");
         }
 
         if (!string.IsNullOrEmpty(userId))

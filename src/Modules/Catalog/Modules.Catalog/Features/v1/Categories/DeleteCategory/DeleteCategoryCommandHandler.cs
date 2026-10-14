@@ -19,11 +19,7 @@ public sealed class DeleteCategoryCommandHandler(CatalogDbContext dbContext)
             .FirstOrDefaultAsync(c => c.Id == command.CategoryId, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new NotFoundException($"Category {command.CategoryId} not found.")
-            {
-                MessageKey = "Catalog.CategoryNotFound",
-                MessageArgs = [command.CategoryId],
-                ResourceSource = typeof(CatalogResources),
-            };
+                .Localized<CatalogResources>("Catalog.CategoryNotFound", command.CategoryId);
 
         bool hasChildren = await dbContext.Categories
             .AnyAsync(c => c.ParentCategoryId == category.Id, cancellationToken)
@@ -34,10 +30,7 @@ public sealed class DeleteCategoryCommandHandler(CatalogDbContext dbContext)
                 "Cannot delete a category that has child categories. Move or remove the children first.",
                 (IEnumerable<string>?)null,
                 HttpStatusCode.Conflict)
-            {
-                MessageKey = "Catalog.CategoryHasChildren",
-                ResourceSource = typeof(CatalogResources),
-            };
+                .Localized<CatalogResources>("Catalog.CategoryHasChildren");
         }
 
         dbContext.Categories.Remove(category);

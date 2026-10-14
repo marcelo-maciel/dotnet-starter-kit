@@ -185,10 +185,7 @@ public sealed class MultitenancyModule : IModule
                     if (!tenant.IsActive)
                     {
                         throw new ForbiddenException("This tenant has been deactivated. Contact your administrator.")
-                        {
-                            MessageKey = "Multitenancy.TenantDeactivated",
-                            ResourceSource = typeof(MultitenancyResources),
-                        };
+                            .Localized<MultitenancyResources>("Multitenancy.TenantDeactivated");
                     }
 
                     // Expiry is enforced on every request (not just at login) with a grace period:
@@ -200,10 +197,7 @@ public sealed class MultitenancyModule : IModule
                     if (nowUtc > graceEndsUtc)
                     {
                         throw new ForbiddenException("This tenant's subscription has expired. Please renew to continue.")
-                        {
-                            MessageKey = "Multitenancy.TenantSubscriptionExpired",
-                            ResourceSource = typeof(MultitenancyResources),
-                        };
+                            .Localized<MultitenancyResources>("Multitenancy.TenantSubscriptionExpired");
                     }
 
                     // Inside the grace period: surface days-left so clients can warn. Set via OnStarting so

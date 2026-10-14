@@ -18,11 +18,7 @@ public sealed class ResolveTicketCommandHandler(TicketsDbContext dbContext)
             .FirstOrDefaultAsync(t => t.Id == command.TicketId, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new NotFoundException($"Ticket {command.TicketId} not found.")
-            {
-                MessageKey = "Tickets.TicketNotFound",
-                MessageArgs = [command.TicketId],
-                ResourceSource = typeof(TicketsResources),
-            };
+                .Localized<TicketsResources>("Tickets.TicketNotFound", command.TicketId);
 
         ticket.Resolve(command.ResolutionNote);
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

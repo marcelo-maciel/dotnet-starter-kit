@@ -122,10 +122,7 @@ public sealed class Ticket : AggregateRoot<Guid>, ISoftDeletable
                 "A closed ticket cannot be resolved — reopen it first.",
                 (IEnumerable<string>?)null,
                 HttpStatusCode.Conflict)
-            {
-                MessageKey = "Tickets.ClosedCannotResolve",
-                ResourceSource = typeof(TicketsResources),
-            };
+                .Localized<TicketsResources>("Tickets.ClosedCannotResolve");
         }
         if (Status == TicketStatus.Resolved)
         {
@@ -154,11 +151,7 @@ public sealed class Ticket : AggregateRoot<Guid>, ISoftDeletable
                 $"Only a resolved ticket can be closed — current status is {Status}. Resolve it first.",
                 (IEnumerable<string>?)null,
                 HttpStatusCode.Conflict)
-            {
-                MessageKey = "Tickets.OnlyResolvedCanClose",
-                MessageArgs = [Status],
-                ResourceSource = typeof(TicketsResources),
-            };
+                .Localized<TicketsResources>("Tickets.OnlyResolvedCanClose", Status);
         }
 
         ClosedAtUtc = DateTime.UtcNow;
@@ -179,10 +172,7 @@ public sealed class Ticket : AggregateRoot<Guid>, ISoftDeletable
                 "A closed ticket cannot be edited — reopen it first.",
                 (IEnumerable<string>?)null,
                 HttpStatusCode.Conflict)
-            {
-                MessageKey = "Tickets.ClosedCannotEdit",
-                ResourceSource = typeof(TicketsResources),
-            };
+                .Localized<TicketsResources>("Tickets.ClosedCannotEdit");
         }
 
         Title = title.Trim();
@@ -216,10 +206,7 @@ public sealed class Ticket : AggregateRoot<Guid>, ISoftDeletable
                 "A closed ticket cannot accept new comments — reopen it first.",
                 (IEnumerable<string>?)null,
                 HttpStatusCode.Conflict)
-            {
-                MessageKey = "Tickets.ClosedCannotComment",
-                ResourceSource = typeof(TicketsResources),
-            };
+                .Localized<TicketsResources>("Tickets.ClosedCannotComment");
         }
 
         var comment = TicketComment.Create(Id, authorUserId, body);
@@ -253,11 +240,7 @@ public sealed class Ticket : AggregateRoot<Guid>, ISoftDeletable
                 $"Cannot assign a ticket in status {Status} — reopen it first.",
                 (IEnumerable<string>?)null,
                 HttpStatusCode.Conflict)
-            {
-                MessageKey = "Tickets.CannotAssignInStatus",
-                MessageArgs = [Status],
-                ResourceSource = typeof(TicketsResources),
-            };
+                .Localized<TicketsResources>("Tickets.CannotAssignInStatus", Status);
         }
     }
 }

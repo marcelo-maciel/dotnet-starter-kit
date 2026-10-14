@@ -22,11 +22,7 @@ public sealed class RestoreBrandCommandHandler(CatalogDbContext dbContext)
             .FirstOrDefaultAsync(b => b.Id == command.BrandId, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new NotFoundException($"Brand {command.BrandId} not found.")
-            {
-                MessageKey = "Catalog.BrandNotFound",
-                MessageArgs = [command.BrandId],
-                ResourceSource = typeof(CatalogResources),
-            };
+                .Localized<CatalogResources>("Catalog.BrandNotFound", command.BrandId);
 
         brand.Restore();
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

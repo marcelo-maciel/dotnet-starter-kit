@@ -27,11 +27,7 @@ internal sealed class UserRoleService(
         var user = await userManager.Users
             .Where(u => u.Id == userId)
             .FirstOrDefaultAsync(cancellationToken)
-            ?? throw new NotFoundException("user not found")
-            {
-                MessageKey = "Identity.UserNotFound",
-                ResourceSource = typeof(IdentityResources),
-            };
+            ?? throw new NotFoundException("user not found").Localized<IdentityResources>("Identity.UserNotFound");
 
         await ValidateAdminRoleChangeAsync(user, userRoles);
 
@@ -49,18 +45,10 @@ internal sealed class UserRoleService(
     public async Task<List<UserRoleDto>> GetUserRolesAsync(string userId, CancellationToken cancellationToken)
     {
         var user = await userManager.FindByIdAsync(userId)
-            ?? throw new NotFoundException("user not found")
-            {
-                MessageKey = "Identity.UserNotFound",
-                ResourceSource = typeof(IdentityResources),
-            };
+            ?? throw new NotFoundException("user not found").Localized<IdentityResources>("Identity.UserNotFound");
 
         var roles = await roleManager.Roles.AsNoTracking().ToListAsync(cancellationToken)
-            ?? throw new NotFoundException("roles not found")
-            {
-                MessageKey = "Identity.RolesNotFound",
-                ResourceSource = typeof(IdentityResources),
-            };
+            ?? throw new NotFoundException("roles not found").Localized<IdentityResources>("Identity.RolesNotFound");
 
         // Single membership query instead of one IsInRoleAsync round-trip per role.
         var memberships = await userManager.GetRolesAsync(user);
@@ -104,20 +92,14 @@ internal sealed class UserRoleService(
                 "Administrators cannot remove their own admin role.",
                 Array.Empty<string>(),
                 HttpStatusCode.BadRequest)
-            {
-                MessageKey = "Identity.AdminCannotRemoveOwnRole",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.AdminCannotRemoveOwnRole");
         }
 
         // The root tenant's seed admin is the framework's last-resort recovery account.
         if (IsRootTenantAdmin(user))
         {
             throw new ForbiddenException("The root tenant administrator cannot be demoted.")
-            {
-                MessageKey = "Identity.RootAdminCannotBeDemoted",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.RootAdminCannotBeDemoted");
         }
 
         // After this removal, at least one admin must remain in the tenant — matches
@@ -140,10 +122,7 @@ internal sealed class UserRoleService(
                 "Tenant must retain at least one administrator.",
                 Array.Empty<string>(),
                 HttpStatusCode.BadRequest)
-            {
-                MessageKey = "Identity.TenantMustRetainOneAdmin",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.TenantMustRetainOneAdmin");
         }
     }
 

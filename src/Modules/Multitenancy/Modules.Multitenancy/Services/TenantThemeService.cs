@@ -222,10 +222,7 @@ public sealed class TenantThemeService : ITenantThemeService
         if (currentTenantId != MultitenancyConstants.Root.Id)
         {
             throw new ForbiddenException("Only the root tenant can set the default theme")
-            {
-                MessageKey = "Multitenancy.OnlyRootCanSetDefaultTheme",
-                ResourceSource = typeof(MultitenancyResources),
-            };
+                .Localized<MultitenancyResources>("Multitenancy.OnlyRootCanSetDefaultTheme");
         }
 
         // Clear existing default
@@ -246,11 +243,7 @@ public sealed class TenantThemeService : ITenantThemeService
         if (entity is null)
         {
             throw new NotFoundException($"Theme for tenant {tenantId} not found")
-            {
-                MessageKey = "Multitenancy.TenantThemeNotFound",
-                MessageArgs = [tenantId],
-                ResourceSource = typeof(MultitenancyResources),
-            };
+                .Localized<MultitenancyResources>("Multitenancy.TenantThemeNotFound", tenantId);
         }
 
         entity.IsDefault = true;

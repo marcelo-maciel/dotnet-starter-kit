@@ -35,10 +35,7 @@ public sealed class UpdateGroupCommandHandler : ICommandHandler<UpdateGroupComma
         if (group.IsSystemGroup)
         {
             throw new ForbiddenException("System groups cannot be modified.")
-            {
-                MessageKey = "Identity.SystemGroupsCannotBeModified",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.SystemGroupsCannotBeModified");
         }
 
         await ValidateUniqueNameAsync(command.Id, command.Name, cancellationToken);
@@ -75,11 +72,7 @@ public sealed class UpdateGroupCommandHandler : ICommandHandler<UpdateGroupComma
             .Include(g => g.GroupRoles)
             .FirstOrDefaultAsync(g => g.Id == id, cancellationToken)
             ?? throw new NotFoundException($"Group with ID '{id}' not found.")
-            {
-                MessageKey = "Identity.GroupNotFound",
-                MessageArgs = [id],
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.GroupNotFound", id);
     }
 
     private async Task ValidateUniqueNameAsync(Guid excludeId, string name, CancellationToken cancellationToken)
@@ -90,11 +83,7 @@ public sealed class UpdateGroupCommandHandler : ICommandHandler<UpdateGroupComma
         if (nameExists)
         {
             throw new CustomException($"Group with name '{name}' already exists.", (IEnumerable<string>?)null, System.Net.HttpStatusCode.Conflict)
-            {
-                MessageKey = "Identity.GroupNameAlreadyExists",
-                MessageArgs = [name],
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.GroupNameAlreadyExists", name);
         }
     }
 
@@ -114,11 +103,7 @@ public sealed class UpdateGroupCommandHandler : ICommandHandler<UpdateGroupComma
         if (invalidRoleIds.Count > 0)
         {
             throw new NotFoundException($"Roles not found: {string.Join(", ", invalidRoleIds)}")
-            {
-                MessageKey = "Identity.RolesNotFoundWithIds",
-                MessageArgs = [string.Join(", ", invalidRoleIds)],
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.RolesNotFoundWithIds", string.Join(", ", invalidRoleIds));
         }
     }
 

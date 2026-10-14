@@ -21,10 +21,7 @@ public sealed class CreateTopupRequestCommandHandler(
 
         // BillingDbContext is not tenant-filtered; resolve caller's own tenant and scope strictly to it.
         var tenantId = tenantAccessor.MultiTenantContext?.TenantInfo?.Id
-            ?? throw new UnauthorizedException("Tenant context is required.")
-            {
-                MessageKey = "Error.TenantContextRequired",
-            };
+            ?? throw new UnauthorizedException("Tenant context is required.").Localized("Error.TenantContextRequired");
 
         var requestedBy = currentUser.IsAuthenticated() ? currentUser.GetUserId().ToString() : null;
         var request = TopupRequest.Create(tenantId, command.Amount, "USD", command.Note, requestedBy);

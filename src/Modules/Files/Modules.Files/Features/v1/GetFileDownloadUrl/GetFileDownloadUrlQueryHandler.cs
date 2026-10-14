@@ -28,28 +28,16 @@ public sealed class GetFileDownloadUrlQueryHandler(
         var f = await db.FileAssets.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == q.FileAssetId, cancellationToken)
             .ConfigureAwait(false)
-            ?? throw new NotFoundException("file not found")
-            {
-                MessageKey = "Files.FileNotFound",
-                ResourceSource = typeof(FilesResources),
-            };
+            ?? throw new NotFoundException("file not found").Localized<FilesResources>("Files.FileNotFound");
 
         var userId = currentUser.GetUserId().ToString();
         var policy = policies.Resolve(f.OwnerType)
-            ?? throw new NotFoundException("file not found")
-            {
-                MessageKey = "Files.FileNotFound",
-                ResourceSource = typeof(FilesResources),
-            };
+            ?? throw new NotFoundException("file not found").Localized<FilesResources>("Files.FileNotFound");
 
         var ctx = new FileAccessContext(f.Id, f.OwnerType, f.OwnerId, f.CreatedByUserId, (int)f.Visibility);
         if (!await policy.CanReadAsync(ctx, userId, cancellationToken).ConfigureAwait(false))
         {
-            throw new NotFoundException("file not found")
-            {
-                MessageKey = "Files.FileNotFound",
-                ResourceSource = typeof(FilesResources),
-            };
+            throw new NotFoundException("file not found").Localized<FilesResources>("Files.FileNotFound");
         }
 
         var ttl = TimeSpan.FromMinutes(options.Value.DownloadUrlTtlMinutes);

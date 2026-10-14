@@ -20,11 +20,7 @@ public sealed class RestoreCategoryCommandHandler(CatalogDbContext dbContext)
             .FirstOrDefaultAsync(c => c.Id == command.CategoryId, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new NotFoundException($"Category {command.CategoryId} not found.")
-            {
-                MessageKey = "Catalog.CategoryNotFound",
-                MessageArgs = [command.CategoryId],
-                ResourceSource = typeof(CatalogResources),
-            };
+                .Localized<CatalogResources>("Catalog.CategoryNotFound", command.CategoryId);
 
         category.Restore();
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

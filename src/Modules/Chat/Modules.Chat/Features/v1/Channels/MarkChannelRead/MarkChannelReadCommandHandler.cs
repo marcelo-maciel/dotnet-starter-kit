@@ -21,16 +21,12 @@ public sealed class MarkChannelReadCommandHandler(
     {
         ArgumentNullException.ThrowIfNull(cmd);
         var userId = currentUser.GetUserId();
-        if (userId == Guid.Empty) throw new UnauthorizedException("no current user") { MessageKey = "Error.NoCurrentUser" };
+        if (userId == Guid.Empty) throw new UnauthorizedException("no current user").Localized("Error.NoCurrentUser");
         var currentUserId = userId.ToString();
 
         var channel = await db.Channels.FirstOrDefaultAsync(c => c.Id == cmd.ChannelId, cancellationToken)
             .ConfigureAwait(false)
-            ?? throw new NotFoundException("Channel not found.")
-            {
-                MessageKey = "Chat.ChannelNotFound",
-                ResourceSource = typeof(ChatResources),
-            };
+            ?? throw new NotFoundException("Channel not found.").Localized<ChatResources>("Chat.ChannelNotFound");
         channel.RequireMember(currentUserId);
 
         // Verify the marker message actually exists in this channel.
@@ -40,10 +36,7 @@ public sealed class MarkChannelReadCommandHandler(
         if (!exists)
         {
             throw new NotFoundException("Message not found in this channel.")
-            {
-                MessageKey = "Chat.MessageNotFoundInChannel",
-                ResourceSource = typeof(ChatResources),
-            };
+                .Localized<ChatResources>("Chat.MessageNotFoundInChannel");
         }
 
         channel.MarkRead(currentUserId, cmd.MessageId);

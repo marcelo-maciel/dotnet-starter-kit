@@ -27,11 +27,7 @@ public sealed class GetUserGroupsQueryHandler : IQueryHandler<GetUserGroupsQuery
         if (!userExists)
         {
             throw new NotFoundException($"User with ID '{query.UserId}' not found.")
-            {
-                MessageKey = "Identity.UserNotFoundById",
-                MessageArgs = [query.UserId],
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.UserNotFoundById", query.UserId);
         }
 
         // Get user's groups

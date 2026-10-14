@@ -23,7 +23,7 @@ public sealed class ListMessageRepliesQueryHandler(
     {
         ArgumentNullException.ThrowIfNull(query);
         var userId = currentUser.GetUserId();
-        if (userId == Guid.Empty) throw new UnauthorizedException("no current user") { MessageKey = "Error.NoCurrentUser" };
+        if (userId == Guid.Empty) throw new UnauthorizedException("no current user").Localized("Error.NoCurrentUser");
         var currentUserId = userId.ToString();
 
         // Load the parent so we can authorize the caller through the channel.
@@ -33,18 +33,12 @@ public sealed class ListMessageRepliesQueryHandler(
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false)
             ?? throw new NotFoundException("Parent message not found.")
-            {
-                MessageKey = "Chat.ParentMessageNotFound",
-                ResourceSource = typeof(ChatResources),
-            };
+                .Localized<ChatResources>("Chat.ParentMessageNotFound");
 
         var channel = await db.Channels.FirstOrDefaultAsync(c => c.Id == parent.ChannelId, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new NotFoundException("Parent message not found.")
-            {
-                MessageKey = "Chat.ParentMessageNotFound",
-                ResourceSource = typeof(ChatResources),
-            };
+                .Localized<ChatResources>("Chat.ParentMessageNotFound");
         channel.RequireMember(currentUserId);
 
         IQueryable<Domain.Message> q = db.Messages

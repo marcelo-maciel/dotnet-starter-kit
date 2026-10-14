@@ -38,21 +38,13 @@ public sealed class TenantProvisioningService : ITenantProvisioningService
     {
         var tenant = await _tenantStore.GetAsync(tenantId).ConfigureAwait(false)
             ?? throw new NotFoundException($"Tenant {tenantId} not found for provisioning.")
-            {
-                MessageKey = "Multitenancy.TenantNotFoundForProvisioning",
-                MessageArgs = [tenantId],
-                ResourceSource = typeof(MultitenancyResources),
-            };
+                .Localized<MultitenancyResources>("Multitenancy.TenantNotFoundForProvisioning", tenantId);
 
         var existing = await GetLatestAsync(tenantId, cancellationToken).ConfigureAwait(false);
         if (existing is not null && (existing.Status is TenantProvisioningStatus.Running or TenantProvisioningStatus.Pending))
         {
             throw new CustomException($"Provisioning already running for tenant {tenantId}.")
-            {
-                MessageKey = "Multitenancy.ProvisioningAlreadyRunning",
-                MessageArgs = [tenantId],
-                ResourceSource = typeof(MultitenancyResources),
-            };
+                .Localized<MultitenancyResources>("Multitenancy.ProvisioningAlreadyRunning", tenantId);
         }
 
         var correlationId = Guid.NewGuid().ToString();
@@ -98,11 +90,7 @@ public sealed class TenantProvisioningService : ITenantProvisioningService
     {
         var provisioning = await GetLatestAsync(tenantId, cancellationToken).ConfigureAwait(false)
             ?? throw new NotFoundException($"Provisioning not found for tenant {tenantId}.")
-            {
-                MessageKey = "Multitenancy.ProvisioningNotFound",
-                MessageArgs = [tenantId],
-                ResourceSource = typeof(MultitenancyResources),
-            };
+                .Localized<MultitenancyResources>("Multitenancy.ProvisioningNotFound", tenantId);
 
         return ToDto(provisioning);
     }
@@ -118,11 +106,7 @@ public sealed class TenantProvisioningService : ITenantProvisioningService
         if (provisioning.Status != TenantProvisioningStatus.Completed)
         {
             throw new CustomException($"Tenant {tenantId} is not provisioned. Status: {provisioning.Status}.")
-            {
-                MessageKey = "Multitenancy.TenantNotProvisioned",
-                MessageArgs = [tenantId, provisioning.Status],
-                ResourceSource = typeof(MultitenancyResources),
-            };
+                .Localized<MultitenancyResources>("Multitenancy.TenantNotProvisioned", tenantId, provisioning.Status);
         }
     }
 
@@ -194,11 +178,7 @@ public sealed class TenantProvisioningService : ITenantProvisioningService
             .FirstOrDefaultAsync(p => p.TenantId == tenantId && p.CorrelationId == correlationId, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new NotFoundException($"Provisioning {correlationId} for tenant {tenantId} not found.")
-            {
-                MessageKey = "Multitenancy.ProvisioningCorrelationNotFound",
-                MessageArgs = [correlationId, tenantId],
-                ResourceSource = typeof(MultitenancyResources),
-            };
+                .Localized<MultitenancyResources>("Multitenancy.ProvisioningCorrelationNotFound", correlationId, tenantId);
     }
 
     private static bool TryEnsureJobStorage()

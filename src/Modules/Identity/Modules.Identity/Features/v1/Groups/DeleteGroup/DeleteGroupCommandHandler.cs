@@ -29,19 +29,12 @@ public sealed class DeleteGroupCommandHandler : ICommandHandler<DeleteGroupComma
         var group = await _dbContext.Groups
             .FirstOrDefaultAsync(g => g.Id == command.Id, cancellationToken)
             ?? throw new NotFoundException($"Group with ID '{command.Id}' not found.")
-            {
-                MessageKey = "Identity.GroupNotFound",
-                MessageArgs = [command.Id],
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.GroupNotFound", command.Id);
 
         if (group.IsSystemGroup)
         {
             throw new ForbiddenException("System groups cannot be deleted.")
-            {
-                MessageKey = "Identity.SystemGroupsCannotBeDeleted",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.SystemGroupsCannotBeDeleted");
         }
 
         // Snapshot members before delete; soft-delete flips IsDeleted but membership rows

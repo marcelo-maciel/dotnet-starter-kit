@@ -20,11 +20,7 @@ public sealed class GetCategoryByIdQueryHandler(CatalogDbContext dbContext)
             .FirstOrDefaultAsync(c => c.Id == query.CategoryId, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new NotFoundException($"Category {query.CategoryId} not found.")
-            {
-                MessageKey = "Catalog.CategoryNotFound",
-                MessageArgs = [query.CategoryId],
-                ResourceSource = typeof(CatalogResources),
-            };
+                .Localized<CatalogResources>("Catalog.CategoryNotFound", query.CategoryId);
 
         return new CategoryDto(c.Id, c.Name, c.Slug, c.Description, c.ParentCategoryId, c.CreatedAtUtc, c.UpdatedAtUtc, c.DeletedOnUtc, c.DeletedBy);
     }

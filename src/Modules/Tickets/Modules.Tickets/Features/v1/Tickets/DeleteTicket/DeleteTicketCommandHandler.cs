@@ -18,11 +18,7 @@ public sealed class DeleteTicketCommandHandler(TicketsDbContext dbContext)
             .FirstOrDefaultAsync(t => t.Id == command.TicketId, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new NotFoundException($"Ticket {command.TicketId} not found.")
-            {
-                MessageKey = "Tickets.TicketNotFound",
-                MessageArgs = [command.TicketId],
-                ResourceSource = typeof(TicketsResources),
-            };
+                .Localized<TicketsResources>("Tickets.TicketNotFound", command.TicketId);
 
         // Soft delete: the audit interceptor converts the EF Delete into an IsDeleted flip.
         // Comments are not auto-included, so they are left untouched and survive a Restore.

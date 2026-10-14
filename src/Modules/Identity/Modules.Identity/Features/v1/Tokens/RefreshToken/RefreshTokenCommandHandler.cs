@@ -53,10 +53,7 @@ public sealed class RefreshTokenCommandHandler
         {
             await _securityAudit.TokenRevokedAsync("unknown", clientId, "InvalidRefreshToken", cancellationToken);
             throw new UnauthorizedException("Invalid refresh token.")
-            {
-                MessageKey = "Identity.InvalidRefreshToken",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.InvalidRefreshToken");
         }
 
         var (subject, claims) = validated.Value;
@@ -68,10 +65,7 @@ public sealed class RefreshTokenCommandHandler
         {
             await _securityAudit.TokenRevokedAsync(subject, clientId, "SessionRevoked", cancellationToken);
             throw new UnauthorizedException("Session has been revoked.")
-            {
-                MessageKey = "Identity.SessionRevoked",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.SessionRevoked");
         }
 
         // Optionally, cross-check the provided access token subject
@@ -97,10 +91,7 @@ public sealed class RefreshTokenCommandHandler
             {
                 await _securityAudit.TokenRevokedAsync(subject, clientId, "RefreshTokenSubjectMismatch", cancellationToken);
                 throw new UnauthorizedException("Access token subject mismatch.")
-                {
-                    MessageKey = "Identity.AccessTokenSubjectMismatch",
-                    ResourceSource = typeof(IdentityResources),
-                };
+                    .Localized<IdentityResources>("Identity.AccessTokenSubjectMismatch");
             }
         }
 

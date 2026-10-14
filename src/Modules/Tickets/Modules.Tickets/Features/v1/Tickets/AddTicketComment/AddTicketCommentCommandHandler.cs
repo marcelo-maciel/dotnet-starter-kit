@@ -25,10 +25,7 @@ public sealed class AddTicketCommentCommandHandler(
                 "Cannot post a comment without an authenticated author.",
                 (IEnumerable<string>?)null,
                 HttpStatusCode.Unauthorized)
-            {
-                MessageKey = "Tickets.CommentAuthorRequired",
-                ResourceSource = typeof(TicketsResources),
-            };
+                .Localized<TicketsResources>("Tickets.CommentAuthorRequired");
         }
 
         // Load the Comments collection up front so EF's change tracker detects the new TicketComment
@@ -38,11 +35,7 @@ public sealed class AddTicketCommentCommandHandler(
             .FirstOrDefaultAsync(t => t.Id == command.TicketId, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new NotFoundException($"Ticket {command.TicketId} not found.")
-            {
-                MessageKey = "Tickets.TicketNotFound",
-                MessageArgs = [command.TicketId],
-                ResourceSource = typeof(TicketsResources),
-            };
+                .Localized<TicketsResources>("Tickets.TicketNotFound", command.TicketId);
 
         var commentId = ticket.AddComment(authorId, command.Body);
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

@@ -18,11 +18,7 @@ public sealed class RestoreChannelCommandHandler(ChatDbContext db)
         var channel = await db.Channels.IgnoreQueryFilters()
             .FirstOrDefaultAsync(c => c.Id == cmd.ChannelId, cancellationToken)
             .ConfigureAwait(false)
-            ?? throw new NotFoundException("Channel not found.")
-            {
-                MessageKey = "Chat.ChannelNotFound",
-                ResourceSource = typeof(ChatResources),
-            };
+            ?? throw new NotFoundException("Channel not found.").Localized<ChatResources>("Chat.ChannelNotFound");
 
         if (!channel.IsDeleted) return Unit.Value; // idempotent
         channel.Restore();

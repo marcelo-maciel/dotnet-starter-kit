@@ -33,43 +33,27 @@ public sealed class FinalizeUploadCommandHandler(
     {
         ArgumentNullException.ThrowIfNull(cmd);
         var tenantId = currentUser.GetTenant() ?? throw new UnauthorizedException("invalid tenant")
-        {
-            MessageKey = "Error.InvalidTenant",
-        };
+            .Localized("Error.InvalidTenant");
         var userId = currentUser.GetUserId().ToString();
 
         var asset = await db.FileAssets
             .FirstOrDefaultAsync(f => f.Id == cmd.FileAssetId, cancellationToken)
             .ConfigureAwait(false)
-            ?? throw new NotFoundException("file not found")
-            {
-                MessageKey = "Files.FileNotFound",
-                ResourceSource = typeof(FilesResources),
-            };
+            ?? throw new NotFoundException("file not found").Localized<FilesResources>("Files.FileNotFound");
 
         if (!string.Equals(asset.CreatedByUserId, userId, StringComparison.Ordinal))
         {
-            throw new ForbiddenException("not your pending file")
-            {
-                MessageKey = "Files.NotYourPendingFile",
-                ResourceSource = typeof(FilesResources),
-            };
+            throw new ForbiddenException("not your pending file").Localized<FilesResources>("Files.NotYourPendingFile");
         }
         if (asset.Status != FileAssetStatus.PendingUpload)
         {
             throw new CustomException("file already finalized", (IEnumerable<string>?)null, HttpStatusCode.Conflict)
-            {
-                MessageKey = "Files.AlreadyFinalized",
-                ResourceSource = typeof(FilesResources),
-            };
+                .Localized<FilesResources>("Files.AlreadyFinalized");
         }
 
         var head = await storage.HeadObjectAsync(asset.StorageKey, cancellationToken).ConfigureAwait(false)
             ?? throw new CustomException("upload not received", (IEnumerable<string>?)null, HttpStatusCode.Conflict)
-            {
-                MessageKey = "Files.UploadNotReceived",
-                ResourceSource = typeof(FilesResources),
-            };
+                .Localized<FilesResources>("Files.UploadNotReceived");
 
         // Allow declared+1% slack (S3 may differ slightly on multipart). Reject larger sizes.
         var maxAllowed = asset.SizeBytes + Math.Max(1024L, asset.SizeBytes / 100);
@@ -82,11 +66,7 @@ public sealed class FinalizeUploadCommandHandler(
                 $"uploaded size ({head.SizeBytes}) exceeds declared ({asset.SizeBytes})",
                 (IEnumerable<string>?)null,
                 HttpStatusCode.BadRequest)
-            {
-                MessageKey = "Files.UploadedSizeExceedsDeclared",
-                MessageArgs = [head.SizeBytes, asset.SizeBytes],
-                ResourceSource = typeof(FilesResources),
-            };
+                .Localized<FilesResources>("Files.UploadedSizeExceedsDeclared", head.SizeBytes, asset.SizeBytes);
         }
 
         if (!string.Equals(head.ContentType, asset.ContentType, StringComparison.OrdinalIgnoreCase))
@@ -98,10 +78,7 @@ public sealed class FinalizeUploadCommandHandler(
                 "uploaded content-type mismatch",
                 (IEnumerable<string>?)null,
                 HttpStatusCode.BadRequest)
-            {
-                MessageKey = "Files.ContentTypeMismatch",
-                ResourceSource = typeof(FilesResources),
-            };
+                .Localized<FilesResources>("Files.ContentTypeMismatch");
         }
 
         var scanResult = await scanner.ScanAsync(asset.StorageKey, cancellationToken).ConfigureAwait(false);

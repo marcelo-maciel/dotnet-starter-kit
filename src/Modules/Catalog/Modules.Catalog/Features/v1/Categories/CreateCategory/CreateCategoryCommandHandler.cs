@@ -24,11 +24,7 @@ public sealed class CreateCategoryCommandHandler(CatalogDbContext dbContext)
             if (!parentExists)
             {
                 throw new NotFoundException($"Parent category {parentId} not found.")
-                {
-                    MessageKey = "Catalog.ParentCategoryNotFound",
-                    MessageArgs = [parentId],
-                    ResourceSource = typeof(CatalogResources),
-                };
+                    .Localized<CatalogResources>("Catalog.ParentCategoryNotFound", parentId);
             }
         }
 
@@ -43,11 +39,7 @@ public sealed class CreateCategoryCommandHandler(CatalogDbContext dbContext)
                 $"A category with name '{command.Name}' already exists.",
                 (IEnumerable<string>?)null,
                 HttpStatusCode.Conflict)
-            {
-                MessageKey = "Catalog.CategoryNameAlreadyExists",
-                MessageArgs = [command.Name],
-                ResourceSource = typeof(CatalogResources),
-            };
+                .Localized<CatalogResources>("Catalog.CategoryNameAlreadyExists", command.Name);
         }
 
         dbContext.Categories.Add(category);

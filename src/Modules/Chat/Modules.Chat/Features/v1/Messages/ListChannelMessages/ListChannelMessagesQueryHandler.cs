@@ -23,16 +23,12 @@ public sealed class ListChannelMessagesQueryHandler(
     {
         ArgumentNullException.ThrowIfNull(query);
         var userId = currentUser.GetUserId();
-        if (userId == Guid.Empty) throw new UnauthorizedException("no current user") { MessageKey = "Error.NoCurrentUser" };
+        if (userId == Guid.Empty) throw new UnauthorizedException("no current user").Localized("Error.NoCurrentUser");
         var currentUserId = userId.ToString();
 
         var channel = await db.Channels.FirstOrDefaultAsync(c => c.Id == query.ChannelId, cancellationToken)
             .ConfigureAwait(false)
-            ?? throw new NotFoundException("Channel not found.")
-            {
-                MessageKey = "Chat.ChannelNotFound",
-                ResourceSource = typeof(ChatResources),
-            };
+            ?? throw new NotFoundException("Channel not found.").Localized<ChatResources>("Chat.ChannelNotFound");
         channel.RequireMember(currentUserId);
 
         // Top-level only (no thread replies). Guid v7 monotonic → Id desc = time desc.

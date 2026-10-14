@@ -97,7 +97,7 @@ public sealed class ExceptionLocalizationPipelineTests
     [InlineData("en-US")]
     public async Task Request_culture_is_negotiated_from_the_accept_language_header(string acceptLanguage)
     {
-        var exception = new NotFoundException("English fallback") { MessageKey = "Error.NotFound" };
+        var exception = new NotFoundException("English fallback").Localized("Error.NotFound");
 
         var outcome = await InvokeAsync(acceptLanguage, exception);
 
@@ -110,7 +110,7 @@ public sealed class ExceptionLocalizationPipelineTests
     [InlineData("en-US", "Not Found")]
     public async Task Detail_is_localized_from_the_negotiated_request_culture(string acceptLanguage, string expected)
     {
-        var exception = new NotFoundException("English fallback") { MessageKey = "Error.NotFound" };
+        var exception = new NotFoundException("English fallback").Localized("Error.NotFound");
 
         var outcome = await InvokeAsync(acceptLanguage, exception);
 
@@ -149,7 +149,7 @@ public sealed class ExceptionLocalizationPipelineTests
     [InlineData("en-US")]
     public async Task Content_language_declares_the_culture_the_body_was_written_in(string acceptLanguage)
     {
-        var exception = new NotFoundException("English fallback") { MessageKey = "Error.NotFound" };
+        var exception = new NotFoundException("English fallback").Localized("Error.NotFound");
 
         var outcome = await InvokeAsync(acceptLanguage, exception);
 
@@ -161,7 +161,7 @@ public sealed class ExceptionLocalizationPipelineTests
     [Fact]
     public async Task Handler_still_answers_when_no_culture_was_negotiated()
     {
-        var exception = new NotFoundException("English fallback") { MessageKey = "Error.NotFound" };
+        var exception = new NotFoundException("English fallback").Localized("Error.NotFound");
 
         var outcome = await InvokeWithoutLocalizationAsync("pt-BR", exception);
 
@@ -177,7 +177,7 @@ public sealed class ExceptionLocalizationPipelineTests
     [Fact]
     public async Task Ambient_culture_is_restored_after_handling()
     {
-        var exception = new NotFoundException("English fallback") { MessageKey = "Error.NotFound" };
+        var exception = new NotFoundException("English fallback").Localized("Error.NotFound");
         var before = CultureInfo.CurrentUICulture;
 
         await InvokeAsync("pt-BR", exception);

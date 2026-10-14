@@ -19,11 +19,7 @@ public sealed class UpdateBrandCommandHandler(CatalogDbContext dbContext)
             .FirstOrDefaultAsync(b => b.Id == command.BrandId, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new NotFoundException($"Brand {command.BrandId} not found.")
-            {
-                MessageKey = "Catalog.BrandNotFound",
-                MessageArgs = [command.BrandId],
-                ResourceSource = typeof(CatalogResources),
-            };
+                .Localized<CatalogResources>("Catalog.BrandNotFound", command.BrandId);
 
         brand.Update(command.Name, command.Description, command.LogoUrl);
 
@@ -36,11 +32,7 @@ public sealed class UpdateBrandCommandHandler(CatalogDbContext dbContext)
                 $"Another brand with name '{command.Name}' already exists.",
                 (IEnumerable<string>?)null,
                 HttpStatusCode.Conflict)
-            {
-                MessageKey = "Catalog.AnotherBrandNameAlreadyExists",
-                MessageArgs = [command.Name],
-                ResourceSource = typeof(CatalogResources),
-            };
+                .Localized<CatalogResources>("Catalog.AnotherBrandNameAlreadyExists", command.Name);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

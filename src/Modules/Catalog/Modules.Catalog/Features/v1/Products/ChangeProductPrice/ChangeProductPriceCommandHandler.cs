@@ -20,11 +20,7 @@ public sealed class ChangeProductPriceCommandHandler(CatalogDbContext dbContext)
             .FirstOrDefaultAsync(p => p.Id == command.ProductId, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new NotFoundException($"Product {command.ProductId} not found.")
-            {
-                MessageKey = "Catalog.ProductNotFound",
-                MessageArgs = [command.ProductId],
-                ResourceSource = typeof(CatalogResources),
-            };
+                .Localized<CatalogResources>("Catalog.ProductNotFound", command.ProductId);
 
         product.ChangePrice(new Money(command.Amount, command.Currency));
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

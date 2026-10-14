@@ -21,29 +21,19 @@ public sealed class RejectTopupRequestCommandHandler(
         ArgumentNullException.ThrowIfNull(command);
 
         var callerTenantId = tenantAccessor.MultiTenantContext?.TenantInfo?.Id
-            ?? throw new UnauthorizedException("Tenant context is required.")
-            {
-                MessageKey = "Error.TenantContextRequired",
-            };
+            ?? throw new UnauthorizedException("Tenant context is required.").Localized("Error.TenantContextRequired");
         var isRoot = callerTenantId == MultitenancyConstants.Root.Id;
 
         var request = await db.TopupRequests
             .FirstOrDefaultAsync(r => r.Id == command.Id, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new NotFoundException($"Top-up request {command.Id} not found.")
-            {
-                MessageKey = "Billing.TopupRequestNotFound",
-                MessageArgs = [command.Id],
-                ResourceSource = typeof(BillingResources),
-            };
+                .Localized<BillingResources>("Billing.TopupRequestNotFound", command.Id);
 
         if (!isRoot && request.TenantId != callerTenantId)
         {
             throw new UnauthorizedException("You can only reject top-up requests for your own tenant.")
-            {
-                MessageKey = "Billing.CannotRejectTopupForOtherTenant",
-                ResourceSource = typeof(BillingResources),
-            };
+                .Localized<BillingResources>("Billing.CannotRejectTopupForOtherTenant");
         }
 
         if (request.Status != TopupRequestStatus.Pending)
@@ -52,11 +42,7 @@ public sealed class RejectTopupRequestCommandHandler(
                 $"Top-up request {command.Id} cannot be rejected because it is {request.Status} (only Pending requests can be rejected).",
                 (IEnumerable<string>?)null,
                 HttpStatusCode.Conflict)
-            {
-                MessageKey = "Billing.TopupRequestCannotBeRejected",
-                MessageArgs = [command.Id, request.Status],
-                ResourceSource = typeof(BillingResources),
-            };
+                .Localized<BillingResources>("Billing.TopupRequestCannotBeRejected", command.Id, request.Status);
         }
 
         request.Reject(command.Reason);

@@ -32,11 +32,7 @@ public sealed class CreateGroupCommandHandler : ICommandHandler<CreateGroupComma
         if (nameExists)
         {
             throw new CustomException($"Group with name '{command.Name}' already exists.", (IEnumerable<string>?)null, System.Net.HttpStatusCode.Conflict)
-            {
-                MessageKey = "Identity.GroupNameAlreadyExists",
-                MessageArgs = [command.Name],
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.GroupNameAlreadyExists", command.Name);
         }
 
         // Validate role IDs exist — fetch Id+Name in a single query to avoid a second roundtrip later
@@ -53,11 +49,7 @@ public sealed class CreateGroupCommandHandler : ICommandHandler<CreateGroupComma
             if (invalidRoleIds.Count > 0)
             {
                 throw new NotFoundException($"Roles not found: {string.Join(", ", invalidRoleIds)}")
-                {
-                    MessageKey = "Identity.RolesNotFoundWithIds",
-                    MessageArgs = [string.Join(", ", invalidRoleIds)],
-                    ResourceSource = typeof(IdentityResources),
-                };
+                    .Localized<IdentityResources>("Identity.RolesNotFoundWithIds", string.Join(", ", invalidRoleIds));
             }
         }
 

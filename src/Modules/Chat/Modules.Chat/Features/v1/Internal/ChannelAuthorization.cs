@@ -16,10 +16,7 @@ internal static class ChannelAuthorization
         var member = channel.Members.FirstOrDefault(m => string.Equals(m.UserId, userId, StringComparison.Ordinal));
         // Use NotFoundException (404) instead of Forbidden so non-members can't probe channel existence.
         return member ?? throw new NotFoundException("Channel not found.")
-        {
-            MessageKey = "Chat.ChannelNotFound",
-            ResourceSource = typeof(ChatResources),
-        };
+            .Localized<ChatResources>("Chat.ChannelNotFound");
     }
 
     public static ChannelMember RequireAdmin(this ChatChannel channel, string userId)
@@ -28,10 +25,7 @@ internal static class ChannelAuthorization
         if (member.Role != ChannelMemberRole.Admin)
         {
             throw new ForbiddenException("Channel admin role required.")
-            {
-                MessageKey = "Chat.ChannelAdminRoleRequired",
-                ResourceSource = typeof(ChatResources),
-            };
+                .Localized<ChatResources>("Chat.ChannelAdminRoleRequired");
         }
         return member;
     }

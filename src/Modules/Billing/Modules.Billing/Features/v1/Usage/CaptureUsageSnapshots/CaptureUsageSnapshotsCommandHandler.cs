@@ -21,10 +21,7 @@ public sealed class CaptureUsageSnapshotsCommandHandler(
         // Only the root operator may capture usage for an arbitrary tenant; a tenant caller is pinned
         // to its own tenant so it can't fabricate another tenant's usage/overage snapshots.
         var callerTenantId = tenantAccessor.MultiTenantContext?.TenantInfo?.Id
-            ?? throw new UnauthorizedException("Tenant context is required.")
-            {
-                MessageKey = "Error.TenantContextRequired",
-            };
+            ?? throw new UnauthorizedException("Tenant context is required.").Localized("Error.TenantContextRequired");
         var isRoot = callerTenantId == MultitenancyConstants.Root.Id;
         var targetTenantId = isRoot ? command.TenantId : callerTenantId;
 

@@ -21,24 +21,16 @@ public sealed class RemoveReactionCommandHandler(
     {
         ArgumentNullException.ThrowIfNull(cmd);
         var userId = currentUser.GetUserId();
-        if (userId == Guid.Empty) throw new UnauthorizedException("no current user") { MessageKey = "Error.NoCurrentUser" };
+        if (userId == Guid.Empty) throw new UnauthorizedException("no current user").Localized("Error.NoCurrentUser");
         var currentUserId = userId.ToString();
 
         var message = await db.Messages.FirstOrDefaultAsync(m => m.Id == cmd.MessageId, cancellationToken)
             .ConfigureAwait(false)
-            ?? throw new NotFoundException("Message not found.")
-            {
-                MessageKey = "Chat.MessageNotFound",
-                ResourceSource = typeof(ChatResources),
-            };
+            ?? throw new NotFoundException("Message not found.").Localized<ChatResources>("Chat.MessageNotFound");
 
         var channel = await db.Channels.FirstOrDefaultAsync(c => c.Id == message.ChannelId, cancellationToken)
             .ConfigureAwait(false)
-            ?? throw new NotFoundException("Message not found.")
-            {
-                MessageKey = "Chat.MessageNotFound",
-                ResourceSource = typeof(ChatResources),
-            };
+            ?? throw new NotFoundException("Message not found.").Localized<ChatResources>("Chat.MessageNotFound");
         channel.RequireMember(currentUserId);
 
         if (!message.RemoveReaction(currentUserId, cmd.Emoji))

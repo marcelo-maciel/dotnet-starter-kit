@@ -60,17 +60,11 @@ public sealed class RoleService(RoleManager<FshRole> roleManager,
     {
         if (roleManager is null)
             throw new NotFoundException("RoleManager<FshRole> not resolved. Check Identity registration.")
-            {
-                MessageKey = "Identity.RoleManagerNotResolved",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.RoleManagerNotResolved");
 
         if (roleManager.Roles is null)
             throw new NotFoundException("Role store not configured. Ensure .AddRoles<FshRole>() and EF stores.")
-            {
-                MessageKey = "Identity.RoleStoreNotConfigured",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.RoleStoreNotConfigured");
 
         var page = Math.Max(1, pageNumber);
         var size = Math.Clamp(pageSize, 1, 200);
@@ -107,11 +101,7 @@ public sealed class RoleService(RoleManager<FshRole> roleManager,
     {
         FshRole? role = await roleManager.FindByIdAsync(id);
 
-        _ = role ?? throw new NotFoundException("role not found")
-        {
-            MessageKey = "Identity.RoleNotFound",
-            ResourceSource = typeof(IdentityResources),
-        };
+        _ = role ?? throw new NotFoundException("role not found").Localized<IdentityResources>("Identity.RoleNotFound");
 
         return new RoleDto { Id = role.Id, Name = role.Name!, Description = role.Description };
     }
@@ -149,11 +139,7 @@ public sealed class RoleService(RoleManager<FshRole> roleManager,
     {
         FshRole? role = await roleManager.FindByIdAsync(id);
 
-        _ = role ?? throw new NotFoundException("role not found")
-        {
-            MessageKey = "Identity.RoleNotFound",
-            ResourceSource = typeof(IdentityResources),
-        };
+        _ = role ?? throw new NotFoundException("role not found").Localized<IdentityResources>("Identity.RoleNotFound");
 
         EnsureNotSystemRole(role.Name, "System roles cannot be deleted.", "Identity.SystemRolesCannotBeDeleted");
 
@@ -167,11 +153,7 @@ public sealed class RoleService(RoleManager<FshRole> roleManager,
     public async Task<RoleDto> GetWithPermissionsAsync(string id, CancellationToken cancellationToken = default)
     {
         var role = await GetRoleAsync(id, cancellationToken);
-        _ = role ?? throw new NotFoundException("role not found")
-        {
-            MessageKey = "Identity.RoleNotFound",
-            ResourceSource = typeof(IdentityResources),
-        };
+        _ = role ?? throw new NotFoundException("role not found").Localized<IdentityResources>("Identity.RoleNotFound");
 
         role.Permissions = await context.RoleClaims
             .AsNoTracking()
@@ -187,11 +169,7 @@ public sealed class RoleService(RoleManager<FshRole> roleManager,
         ArgumentNullException.ThrowIfNull(permissions);
 
         var role = await roleManager.FindByIdAsync(roleId)
-            ?? throw new NotFoundException("role not found")
-            {
-                MessageKey = "Identity.RoleNotFound",
-                ResourceSource = typeof(IdentityResources),
-            };
+            ?? throw new NotFoundException("role not found").Localized<IdentityResources>("Identity.RoleNotFound");
 
         EnsureNotSystemRole(role.Name, "System role permissions are managed by the framework and cannot be modified.", "Identity.SystemRolePermissionsManaged");
         FilterRootPermissions(permissions);
@@ -212,10 +190,7 @@ public sealed class RoleService(RoleManager<FshRole> roleManager,
         if (!string.IsNullOrEmpty(roleName) && RoleConstants.IsDefault(roleName))
         {
             throw new CustomException(message, Array.Empty<string>(), HttpStatusCode.BadRequest)
-            {
-                MessageKey = messageKey,
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>(messageKey);
         }
     }
 
@@ -245,10 +220,7 @@ public sealed class RoleService(RoleManager<FshRole> roleManager,
             {
                 var errors = result.Errors.Select(error => error.Description).ToList();
                 throw new CustomException("operation failed", errors)
-                {
-                    MessageKey = "Identity.OperationFailed",
-                    ResourceSource = typeof(IdentityResources),
-                };
+                    .Localized<IdentityResources>("Identity.OperationFailed");
             }
         }
     }

@@ -16,11 +16,7 @@ public sealed class UpdatePlanCommandHandler(BillingDbContext dbContext)
 
         var plan = await dbContext.Plans.FirstOrDefaultAsync(p => p.Id == command.PlanId, cancellationToken).ConfigureAwait(false)
             ?? throw new NotFoundException($"Plan {command.PlanId} not found.")
-            {
-                MessageKey = "Billing.PlanNotFound",
-                MessageArgs = [command.PlanId],
-                ResourceSource = typeof(BillingResources),
-            };
+                .Localized<BillingResources>("Billing.PlanNotFound", command.PlanId);
 
         plan.Update(command.Name, command.MonthlyBasePrice, command.OverageRates, command.Interval, command.AnnualPrice);
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

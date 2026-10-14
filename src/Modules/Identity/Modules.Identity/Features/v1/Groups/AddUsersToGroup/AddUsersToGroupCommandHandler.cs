@@ -34,11 +34,7 @@ public sealed class AddUsersToGroupCommandHandler : ICommandHandler<AddUsersToGr
         if (!groupExists)
         {
             throw new NotFoundException($"Group with ID '{command.GroupId}' not found.")
-            {
-                MessageKey = "Identity.GroupNotFound",
-                MessageArgs = [command.GroupId],
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.GroupNotFound", command.GroupId);
         }
 
         // Validate user IDs exist
@@ -51,11 +47,7 @@ public sealed class AddUsersToGroupCommandHandler : ICommandHandler<AddUsersToGr
         if (invalidUserIds.Count > 0)
         {
             throw new NotFoundException($"Users not found: {string.Join(", ", invalidUserIds)}")
-            {
-                MessageKey = "Identity.UsersNotFound",
-                MessageArgs = [string.Join(", ", invalidUserIds)],
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.UsersNotFound", string.Join(", ", invalidUserIds));
         }
 
         // Get existing memberships

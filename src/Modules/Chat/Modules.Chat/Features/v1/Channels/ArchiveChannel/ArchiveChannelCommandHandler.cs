@@ -18,15 +18,11 @@ public sealed class ArchiveChannelCommandHandler(
     {
         ArgumentNullException.ThrowIfNull(cmd);
         var userId = currentUser.GetUserId();
-        if (userId == Guid.Empty) throw new UnauthorizedException("no current user") { MessageKey = "Error.NoCurrentUser" };
+        if (userId == Guid.Empty) throw new UnauthorizedException("no current user").Localized("Error.NoCurrentUser");
 
         var channel = await db.Channels.FirstOrDefaultAsync(c => c.Id == cmd.ChannelId, cancellationToken)
             .ConfigureAwait(false)
-            ?? throw new NotFoundException("Channel not found.")
-            {
-                MessageKey = "Chat.ChannelNotFound",
-                ResourceSource = typeof(ChatResources),
-            };
+            ?? throw new NotFoundException("Channel not found.").Localized<ChatResources>("Chat.ChannelNotFound");
 
         channel.RequireAdmin(userId.ToString());
 

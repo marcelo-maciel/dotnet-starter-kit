@@ -36,11 +36,7 @@ public sealed class TenantProvisioningJob
     {
         var tenant = await _tenantStore.GetAsync(tenantId).ConfigureAwait(false)
             ?? throw new NotFoundException($"Tenant {tenantId} not found during provisioning.")
-            {
-                MessageKey = "Multitenancy.TenantNotFoundDuringProvisioning",
-                MessageArgs = [tenantId],
-                ResourceSource = typeof(MultitenancyResources),
-            };
+                .Localized<MultitenancyResources>("Multitenancy.TenantNotFoundDuringProvisioning", tenantId);
 
         var currentStep = TenantProvisioningStepName.Database;
         try

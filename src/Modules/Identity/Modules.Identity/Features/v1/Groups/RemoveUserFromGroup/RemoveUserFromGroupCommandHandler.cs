@@ -30,11 +30,7 @@ public sealed class RemoveUserFromGroupCommandHandler : ICommandHandler<RemoveUs
         if (membership is null)
         {
             throw new NotFoundException($"User '{command.UserId}' is not a member of group '{command.GroupId}'.")
-            {
-                MessageKey = "Identity.UserNotMemberOfGroup",
-                MessageArgs = [command.UserId, command.GroupId],
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.UserNotMemberOfGroup", command.UserId, command.GroupId);
         }
 
         // Default groups (e.g. seeded "All Users") require every tenant user to be a member, so
@@ -42,10 +38,7 @@ public sealed class RemoveUserFromGroupCommandHandler : ICommandHandler<RemoveUs
         if (membership.Group is not null && membership.Group.IsDefault)
         {
             throw new ForbiddenException("Users cannot be removed from a default group.")
-            {
-                MessageKey = "Identity.CannotRemoveFromDefaultGroup",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.CannotRemoveFromDefaultGroup");
         }
 
         _dbContext.UserGroups.Remove(membership);

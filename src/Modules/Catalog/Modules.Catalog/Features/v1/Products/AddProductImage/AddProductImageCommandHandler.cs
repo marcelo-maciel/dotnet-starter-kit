@@ -19,11 +19,7 @@ public sealed class AddProductImageCommandHandler(CatalogDbContext dbContext)
             .FirstOrDefaultAsync(p => p.Id == command.ProductId, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new NotFoundException($"Product {command.ProductId} not found.")
-            {
-                MessageKey = "Catalog.ProductNotFound",
-                MessageArgs = [command.ProductId],
-                ResourceSource = typeof(CatalogResources),
-            };
+                .Localized<CatalogResources>("Catalog.ProductNotFound", command.ProductId);
 
         var image = product.AddImage(command.FileAssetId, command.Url);
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

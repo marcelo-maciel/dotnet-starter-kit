@@ -19,11 +19,7 @@ public sealed class RestoreFileCommandHandler(FilesDbContext db)
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(x => x.Id == cmd.FileAssetId, cancellationToken)
             .ConfigureAwait(false)
-            ?? throw new NotFoundException("file not found")
-            {
-                MessageKey = "Files.FileNotFound",
-                ResourceSource = typeof(FilesResources),
-            };
+            ?? throw new NotFoundException("file not found").Localized<FilesResources>("Files.FileNotFound");
 
         if (!f.IsDeleted)
         {

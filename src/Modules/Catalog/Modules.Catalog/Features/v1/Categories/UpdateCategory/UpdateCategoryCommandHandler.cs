@@ -19,11 +19,7 @@ public sealed class UpdateCategoryCommandHandler(CatalogDbContext dbContext)
             .FirstOrDefaultAsync(c => c.Id == command.CategoryId, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new NotFoundException($"Category {command.CategoryId} not found.")
-            {
-                MessageKey = "Catalog.CategoryNotFound",
-                MessageArgs = [command.CategoryId],
-                ResourceSource = typeof(CatalogResources),
-            };
+                .Localized<CatalogResources>("Catalog.CategoryNotFound", command.CategoryId);
 
         if (command.ParentCategoryId is { } parentId)
         {
@@ -33,10 +29,7 @@ public sealed class UpdateCategoryCommandHandler(CatalogDbContext dbContext)
                     "A category cannot be its own parent.",
                     (IEnumerable<string>?)null,
                     HttpStatusCode.BadRequest)
-                {
-                    MessageKey = "Catalog.CategoryCannotBeOwnParent",
-                    ResourceSource = typeof(CatalogResources),
-                };
+                    .Localized<CatalogResources>("Catalog.CategoryCannotBeOwnParent");
             }
 
             // Walk parent chain to detect cycles (parent → ancestor of self)
@@ -50,10 +43,7 @@ public sealed class UpdateCategoryCommandHandler(CatalogDbContext dbContext)
                         "Setting this parent would create a cycle.",
                         (IEnumerable<string>?)null,
                         HttpStatusCode.BadRequest)
-                    {
-                        MessageKey = "Catalog.CategoryParentCycle",
-                        ResourceSource = typeof(CatalogResources),
-                    };
+                        .Localized<CatalogResources>("Catalog.CategoryParentCycle");
                 }
                 cursor = await dbContext.Categories
                     .Where(c => c.Id == cur)
@@ -74,11 +64,7 @@ public sealed class UpdateCategoryCommandHandler(CatalogDbContext dbContext)
                 $"Another category with name '{command.Name}' already exists.",
                 (IEnumerable<string>?)null,
                 HttpStatusCode.Conflict)
-            {
-                MessageKey = "Catalog.AnotherCategoryNameAlreadyExists",
-                MessageArgs = [command.Name],
-                ResourceSource = typeof(CatalogResources),
-            };
+                .Localized<CatalogResources>("Catalog.AnotherCategoryNameAlreadyExists", command.Name);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

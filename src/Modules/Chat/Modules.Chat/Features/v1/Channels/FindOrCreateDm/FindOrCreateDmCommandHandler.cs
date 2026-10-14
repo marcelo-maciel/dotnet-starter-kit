@@ -22,17 +22,14 @@ public sealed class FindOrCreateDmCommandHandler(
     {
         ArgumentNullException.ThrowIfNull(cmd);
         var userId = currentUser.GetUserId();
-        if (userId == Guid.Empty) throw new UnauthorizedException("no current user") { MessageKey = "Error.NoCurrentUser" };
+        if (userId == Guid.Empty) throw new UnauthorizedException("no current user").Localized("Error.NoCurrentUser");
         var currentUserId = userId.ToString();
 
         var otherIds = cmd.UserIds.Distinct(StringComparer.Ordinal).ToList();
         if (otherIds.Any(id => string.Equals(id, currentUserId, StringComparison.Ordinal)))
         {
             throw new CustomException("Cannot DM yourself.", (IEnumerable<string>?)null, System.Net.HttpStatusCode.BadRequest)
-            {
-                MessageKey = "Chat.CannotDmYourself",
-                ResourceSource = typeof(ChatResources),
-            };
+                .Localized<ChatResources>("Chat.CannotDmYourself");
         }
 
         if (otherIds.Count == 1)

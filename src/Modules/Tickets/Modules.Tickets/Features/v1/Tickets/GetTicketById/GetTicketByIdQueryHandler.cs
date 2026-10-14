@@ -24,11 +24,7 @@ public sealed class GetTicketByIdQueryHandler(TicketsDbContext dbContext)
         if (ticket is null)
         {
             throw new NotFoundException($"Ticket {query.TicketId} not found.")
-            {
-                MessageKey = "Tickets.TicketNotFound",
-                MessageArgs = [query.TicketId],
-                ResourceSource = typeof(TicketsResources),
-            };
+                .Localized<TicketsResources>("Tickets.TicketNotFound", query.TicketId);
         }
 
         int commentCount = await dbContext.TicketComments

@@ -24,11 +24,7 @@ public sealed class GetGroupByIdQueryHandler : IQueryHandler<GetGroupByIdQuery, 
             .Include(g => g.GroupRoles)
             .FirstOrDefaultAsync(g => g.Id == query.Id, cancellationToken)
             ?? throw new NotFoundException($"Group with ID '{query.Id}' not found.")
-            {
-                MessageKey = "Identity.GroupNotFound",
-                MessageArgs = [query.Id],
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.GroupNotFound", query.Id);
 
         var memberCount = await _dbContext.UserGroups
             .AsNoTracking()

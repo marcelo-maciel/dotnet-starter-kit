@@ -19,10 +19,7 @@ public sealed class MarkNotificationReadCommandHandler(
         var userId = currentUser.GetUserId();
         if (userId == Guid.Empty)
         {
-            throw new UnauthorizedException("no current user")
-            {
-                MessageKey = "Error.NoCurrentUser",
-            };
+            throw new UnauthorizedException("no current user").Localized("Error.NoCurrentUser");
         }
         var currentUserId = userId.ToString();
 
@@ -32,10 +29,7 @@ public sealed class MarkNotificationReadCommandHandler(
             .FirstOrDefaultAsync(n => n.Id == cmd.NotificationId && n.UserId == currentUserId, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new NotFoundException("Notification not found.")
-            {
-                MessageKey = "Notifications.NotificationNotFound",
-                ResourceSource = typeof(NotificationsResources),
-            };
+                .Localized<NotificationsResources>("Notifications.NotificationNotFound");
 
         notification.MarkRead();
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

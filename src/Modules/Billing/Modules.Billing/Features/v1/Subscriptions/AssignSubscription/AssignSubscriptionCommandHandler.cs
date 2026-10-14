@@ -22,10 +22,7 @@ public sealed class AssignSubscriptionCommandHandler(
         // Only root may target an arbitrary tenant; a tenant caller is pinned to its own, so it can't
         // (re)assign or cancel another tenant's subscription via a foreign tenant id in the body.
         var callerTenantId = tenantAccessor.MultiTenantContext?.TenantInfo?.Id
-            ?? throw new UnauthorizedException("Tenant context is required.")
-            {
-                MessageKey = "Error.TenantContextRequired",
-            };
+            ?? throw new UnauthorizedException("Tenant context is required.").Localized("Error.TenantContextRequired");
         var isRoot = callerTenantId == MultitenancyConstants.Root.Id;
         var targetTenantId = isRoot ? command.TenantId : callerTenantId;
 
@@ -34,11 +31,7 @@ public sealed class AssignSubscriptionCommandHandler(
 #pragma warning restore CA1308
         var plan = await dbContext.Plans.FirstOrDefaultAsync(p => p.Key == key && p.IsActive, cancellationToken).ConfigureAwait(false)
             ?? throw new NotFoundException($"Active plan with key '{command.PlanKey}' not found.")
-            {
-                MessageKey = "Billing.ActivePlanNotFound",
-                MessageArgs = [command.PlanKey],
-                ResourceSource = typeof(BillingResources),
-            };
+                .Localized<BillingResources>("Billing.ActivePlanNotFound", command.PlanKey);
 
         var now = DateTime.UtcNow;
         var current = await dbContext.Subscriptions

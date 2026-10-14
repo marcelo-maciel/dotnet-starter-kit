@@ -20,11 +20,7 @@ public sealed class GetPlanTermQueryHandler(BillingDbContext dbContext)
         var plan = await dbContext.Plans.AsNoTracking()
             .FirstOrDefaultAsync(p => p.Key == key && p.IsActive, cancellationToken).ConfigureAwait(false)
             ?? throw new NotFoundException($"Active plan with key '{query.PlanKey}' not found.")
-            {
-                MessageKey = "Billing.ActivePlanNotFound",
-                MessageArgs = [query.PlanKey],
-                ResourceSource = typeof(BillingResources),
-            };
+                .Localized<BillingResources>("Billing.ActivePlanNotFound", query.PlanKey);
 
         return new PlanTermResponse(
             plan.Id,

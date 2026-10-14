@@ -22,26 +22,19 @@ public sealed class AddChannelMembersCommandHandler(
     {
         ArgumentNullException.ThrowIfNull(cmd);
         var userId = currentUser.GetUserId();
-        if (userId == Guid.Empty) throw new UnauthorizedException("no current user") { MessageKey = "Error.NoCurrentUser" };
+        if (userId == Guid.Empty) throw new UnauthorizedException("no current user").Localized("Error.NoCurrentUser");
         var currentUserId = userId.ToString();
 
         var channel = await db.Channels.FirstOrDefaultAsync(c => c.Id == cmd.ChannelId, cancellationToken)
             .ConfigureAwait(false)
-            ?? throw new NotFoundException("Channel not found.")
-            {
-                MessageKey = "Chat.ChannelNotFound",
-                ResourceSource = typeof(ChatResources),
-            };
+            ?? throw new NotFoundException("Channel not found.").Localized<ChatResources>("Chat.ChannelNotFound");
 
         // Members can invite to public channels they belong to; private channels require Admin.
         var caller = channel.RequireMember(currentUserId);
         if (channel.IsPrivate && caller.Role != ChannelMemberRole.Admin)
         {
             throw new ForbiddenException("Only channel admins can add members to private channels.")
-            {
-                MessageKey = "Chat.OnlyAdminsCanAddMembersToPrivateChannel",
-                ResourceSource = typeof(ChatResources),
-            };
+                .Localized<ChatResources>("Chat.OnlyAdminsCanAddMembersToPrivateChannel");
         }
 
         var newlyAdded = new List<string>();

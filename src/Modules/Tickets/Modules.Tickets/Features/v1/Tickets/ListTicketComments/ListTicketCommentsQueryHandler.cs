@@ -27,11 +27,7 @@ public sealed class ListTicketCommentsQueryHandler(TicketsDbContext dbContext)
         if (!ticketExists)
         {
             throw new NotFoundException($"Ticket {query.TicketId} not found.")
-            {
-                MessageKey = "Tickets.TicketNotFound",
-                MessageArgs = [query.TicketId],
-                ResourceSource = typeof(TicketsResources),
-            };
+                .Localized<TicketsResources>("Tickets.TicketNotFound", query.TicketId);
         }
 
         var comments = await dbContext.TicketComments

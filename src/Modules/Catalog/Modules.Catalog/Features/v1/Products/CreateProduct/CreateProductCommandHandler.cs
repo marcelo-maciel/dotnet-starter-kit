@@ -23,11 +23,7 @@ public sealed class CreateProductCommandHandler(CatalogDbContext dbContext)
         if (!brandExists)
         {
             throw new NotFoundException($"Brand {command.BrandId} not found.")
-            {
-                MessageKey = "Catalog.BrandNotFound",
-                MessageArgs = [command.BrandId],
-                ResourceSource = typeof(CatalogResources),
-            };
+                .Localized<CatalogResources>("Catalog.BrandNotFound", command.BrandId);
         }
 
         bool categoryExists = await dbContext.Categories
@@ -36,11 +32,7 @@ public sealed class CreateProductCommandHandler(CatalogDbContext dbContext)
         if (!categoryExists)
         {
             throw new NotFoundException($"Category {command.CategoryId} not found.")
-            {
-                MessageKey = "Catalog.CategoryNotFound",
-                MessageArgs = [command.CategoryId],
-                ResourceSource = typeof(CatalogResources),
-            };
+                .Localized<CatalogResources>("Catalog.CategoryNotFound", command.CategoryId);
         }
 
         var product = Product.Create(
@@ -61,11 +53,7 @@ public sealed class CreateProductCommandHandler(CatalogDbContext dbContext)
                 $"A product with SKU '{product.Sku}' already exists.",
                 (IEnumerable<string>?)null,
                 HttpStatusCode.Conflict)
-            {
-                MessageKey = "Catalog.ProductSkuAlreadyExists",
-                MessageArgs = [product.Sku],
-                ResourceSource = typeof(CatalogResources),
-            };
+                .Localized<CatalogResources>("Catalog.ProductSkuAlreadyExists", product.Sku);
         }
 
         bool slugTaken = await dbContext.Products
@@ -77,11 +65,7 @@ public sealed class CreateProductCommandHandler(CatalogDbContext dbContext)
                 $"A product with name '{command.Name}' already exists.",
                 (IEnumerable<string>?)null,
                 HttpStatusCode.Conflict)
-            {
-                MessageKey = "Catalog.ProductNameAlreadyExists",
-                MessageArgs = [command.Name],
-                ResourceSource = typeof(CatalogResources),
-            };
+                .Localized<CatalogResources>("Catalog.ProductNameAlreadyExists", command.Name);
         }
 
         dbContext.Products.Add(product);

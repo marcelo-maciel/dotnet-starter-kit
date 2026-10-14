@@ -27,11 +27,7 @@ public sealed class GetGroupMembersQueryHandler : IQueryHandler<GetGroupMembersQ
         if (!groupExists)
         {
             throw new NotFoundException($"Group with ID '{query.GroupId}' not found.")
-            {
-                MessageKey = "Identity.GroupNotFound",
-                MessageArgs = [query.GroupId],
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.GroupNotFound", query.GroupId);
         }
 
         // Get memberships with user info

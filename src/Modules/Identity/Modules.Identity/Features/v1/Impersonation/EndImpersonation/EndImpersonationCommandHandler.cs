@@ -68,10 +68,7 @@ public sealed class EndImpersonationCommandHandler
                 "current session is not an impersonation session",
                 errors: null,
                 System.Net.HttpStatusCode.BadRequest)
-            {
-                MessageKey = "Identity.NotAnImpersonationSession",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.NotAnImpersonationSession");
         }
 
         var impersonatedUserId = _currentUser.GetUserId().ToString();
@@ -99,10 +96,7 @@ public sealed class EndImpersonationCommandHandler
         if (actorClaimsResult is null)
         {
             throw new NotFoundException("original actor not found")
-            {
-                MessageKey = "Identity.OriginalActorNotFound",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.OriginalActorNotFound");
         }
 
         var (subject, actorClaims) = actorClaimsResult.Value;

@@ -32,20 +32,14 @@ public sealed class RevokeImpersonationGrantCommandHandler(
 
         var callerUserId = currentUser.GetUserId().ToString();
         var callerTenantId = currentUser.GetTenant()
-            ?? throw new UnauthorizedException("missing tenant context")
-            {
-                MessageKey = "Error.InvalidTenant",
-            };
+            ?? throw new UnauthorizedException("missing tenant context").Localized("Error.InvalidTenant");
         var isRoot = string.Equals(callerTenantId, MultitenancyConstants.Root.Id, StringComparison.Ordinal);
 
         // Enforce visibility before revoking: tenant admins may only revoke grants in their own
         // tenant. Cross-tenant grants return 404 (not 403) so existence isn't confirmed out of scope.
         var grant = await grantService.GetByIdAsync(request.GrantId, cancellationToken).ConfigureAwait(false)
             ?? throw new NotFoundException("impersonation grant not found")
-            {
-                MessageKey = "Identity.ImpersonationGrantNotFound",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.ImpersonationGrantNotFound");
 
         var withinTenant = string.Equals(grant.ImpersonatedTenantId, callerTenantId, StringComparison.Ordinal)
             || string.Equals(grant.ActorTenantId, callerTenantId, StringComparison.Ordinal);
@@ -53,10 +47,7 @@ public sealed class RevokeImpersonationGrantCommandHandler(
         if (!isRoot && !withinTenant)
         {
             throw new NotFoundException("impersonation grant not found")
-            {
-                MessageKey = "Identity.ImpersonationGrantNotFound",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.ImpersonationGrantNotFound");
         }
 
         var updated = await grantService.RevokeAsync(

@@ -23,11 +23,7 @@ public sealed class TestWebhookSubscriptionCommandHandler(
             .FirstOrDefaultAsync(s => s.Id == command.Id, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new NotFoundException($"Webhook subscription {command.Id} not found.")
-            {
-                MessageKey = "Webhooks.SubscriptionNotFound",
-                MessageArgs = [command.Id],
-                ResourceSource = typeof(WebhooksResources),
-            };
+                .Localized<WebhooksResources>("Webhooks.SubscriptionNotFound", command.Id);
 
         var testPayload = JsonSerializer.Serialize(new
         {

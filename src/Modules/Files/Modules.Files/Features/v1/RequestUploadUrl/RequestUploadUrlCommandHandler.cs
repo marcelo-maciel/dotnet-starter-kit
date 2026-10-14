@@ -30,27 +30,18 @@ public sealed class RequestUploadUrlCommandHandler(
         ArgumentNullException.ThrowIfNull(cmd);
 
         var tenantId = currentUser.GetTenant() ?? throw new UnauthorizedException("invalid tenant")
-        {
-            MessageKey = "Error.InvalidTenant",
-        };
+            .Localized("Error.InvalidTenant");
         var userId = currentUser.GetUserId();
         if (userId == Guid.Empty)
         {
-            throw new UnauthorizedException("no current user")
-            {
-                MessageKey = "Error.NoCurrentUser",
-            };
+            throw new UnauthorizedException("no current user").Localized("Error.NoCurrentUser");
         }
 
         // Category lookup + extension/size validation.
         if (!options.Value.Categories.TryGetValue(cmd.Category, out var category))
         {
             throw new CustomException($"Unknown category '{cmd.Category}'.", (IEnumerable<string>?)null, HttpStatusCode.BadRequest)
-            {
-                MessageKey = "Files.UnknownCategory",
-                MessageArgs = [cmd.Category],
-                ResourceSource = typeof(FilesResources),
-            };
+                .Localized<FilesResources>("Files.UnknownCategory", cmd.Category);
         }
 
         var extension = Path.GetExtension(cmd.FileName);
@@ -61,11 +52,7 @@ public sealed class RequestUploadUrlCommandHandler(
                 $"Extension '{extension}' not allowed for category '{cmd.Category}'.",
                 (IEnumerable<string>?)null,
                 HttpStatusCode.BadRequest)
-            {
-                MessageKey = "Files.ExtensionNotAllowed",
-                MessageArgs = [extension, cmd.Category],
-                ResourceSource = typeof(FilesResources),
-            };
+                .Localized<FilesResources>("Files.ExtensionNotAllowed", extension, cmd.Category);
         }
 
         if (cmd.SizeBytes > category.MaxBytes)
@@ -74,28 +61,17 @@ public sealed class RequestUploadUrlCommandHandler(
                 $"File exceeds max size of {category.MaxBytes} bytes for category '{cmd.Category}'.",
                 (IEnumerable<string>?)null,
                 HttpStatusCode.BadRequest)
-            {
-                MessageKey = "Files.FileExceedsMaxSize",
-                MessageArgs = [category.MaxBytes, cmd.Category],
-                ResourceSource = typeof(FilesResources),
-            };
+                .Localized<FilesResources>("Files.FileExceedsMaxSize", category.MaxBytes, cmd.Category);
         }
 
         // Authorization: policy must exist and allow the attach.
         var policy = policies.Resolve(cmd.OwnerType)
             ?? throw new ForbiddenException($"No file access policy registered for owner type '{cmd.OwnerType}'.")
-            {
-                MessageKey = "Files.NoPolicyForOwnerType",
-                MessageArgs = [cmd.OwnerType],
-                ResourceSource = typeof(FilesResources),
-            };
+                .Localized<FilesResources>("Files.NoPolicyForOwnerType", cmd.OwnerType);
         if (!await policy.CanAttachAsync(cmd.OwnerId, userId.ToString(), cancellationToken).ConfigureAwait(false))
         {
             throw new ForbiddenException("Not allowed to attach files to this owner.")
-            {
-                MessageKey = "Files.NotAllowedToAttach",
-                ResourceSource = typeof(FilesResources),
-            };
+                .Localized<FilesResources>("Files.NotAllowedToAttach");
         }
 
         // Quota pre-check (no debit yet — debit happens on finalize with actual bytes).
@@ -106,11 +82,7 @@ public sealed class RequestUploadUrlCommandHandler(
                 $"Storage quota exceeded ({quotaCheck.CurrentUsage}/{quotaCheck.Limit} bytes).",
                 (IEnumerable<string>?)null,
                 (HttpStatusCode)507)
-            {
-                MessageKey = "Files.StorageQuotaExceeded",
-                MessageArgs = [quotaCheck.CurrentUsage, quotaCheck.Limit],
-                ResourceSource = typeof(FilesResources),
-            };
+                .Localized<FilesResources>("Files.StorageQuotaExceeded", quotaCheck.CurrentUsage, quotaCheck.Limit);
         }
 
         // Generate id + storage key + presigned URL.

@@ -27,11 +27,7 @@ public sealed class CreateBrandCommandHandler(CatalogDbContext dbContext)
                 $"A brand with name '{command.Name}' already exists.",
                 (IEnumerable<string>?)null,
                 HttpStatusCode.Conflict)
-            {
-                MessageKey = "Catalog.BrandNameAlreadyExists",
-                MessageArgs = [command.Name],
-                ResourceSource = typeof(CatalogResources),
-            };
+                .Localized<CatalogResources>("Catalog.BrandNameAlreadyExists", command.Name);
         }
 
         dbContext.Brands.Add(brand);

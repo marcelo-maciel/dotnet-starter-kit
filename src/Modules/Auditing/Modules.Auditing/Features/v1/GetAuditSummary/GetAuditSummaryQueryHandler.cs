@@ -107,10 +107,7 @@ public sealed class GetAuditSummaryQueryHandler : IQueryHandler<GetAuditSummaryQ
         if (!allowed)
         {
             throw new ForbiddenException("Cross-tenant audit summary requires Permissions.AuditTrails.ViewCrossTenant.")
-            {
-                MessageKey = "Error.Auditing.CrossTenantSummaryForbidden",
-                ResourceSource = typeof(AuditingResources),
-            };
+                .Localized<AuditingResources>("Error.Auditing.CrossTenantSummaryForbidden");
         }
 
         return _dbContext.AuditRecords

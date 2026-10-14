@@ -30,16 +30,12 @@ public sealed class SendMessageCommandHandler(
     {
         ArgumentNullException.ThrowIfNull(cmd);
         var userId = currentUser.GetUserId();
-        if (userId == Guid.Empty) throw new UnauthorizedException("no current user") { MessageKey = "Error.NoCurrentUser" };
+        if (userId == Guid.Empty) throw new UnauthorizedException("no current user").Localized("Error.NoCurrentUser");
         var currentUserId = userId.ToString();
 
         var channel = await db.Channels.FirstOrDefaultAsync(c => c.Id == cmd.ChannelId, cancellationToken)
             .ConfigureAwait(false)
-            ?? throw new NotFoundException("Channel not found.")
-            {
-                MessageKey = "Chat.ChannelNotFound",
-                ResourceSource = typeof(ChatResources),
-            };
+            ?? throw new NotFoundException("Channel not found.").Localized<ChatResources>("Chat.ChannelNotFound");
 
         channel.RequireMember(currentUserId);
 
@@ -49,26 +45,17 @@ public sealed class SendMessageCommandHandler(
             parent = await db.Messages.FirstOrDefaultAsync(m => m.Id == parentId, cancellationToken)
                 .ConfigureAwait(false)
                 ?? throw new NotFoundException("Parent message not found.")
-                {
-                    MessageKey = "Chat.ParentMessageNotFound",
-                    ResourceSource = typeof(ChatResources),
-                };
+                    .Localized<ChatResources>("Chat.ParentMessageNotFound");
             if (parent.ChannelId != channel.Id)
             {
                 throw new CustomException("Parent message belongs to a different channel.", (IEnumerable<string>?)null, HttpStatusCode.BadRequest)
-                {
-                    MessageKey = "Chat.ParentMessageDifferentChannel",
-                    ResourceSource = typeof(ChatResources),
-                };
+                    .Localized<ChatResources>("Chat.ParentMessageDifferentChannel");
             }
             if (parent.ParentMessageId.HasValue)
             {
                 // 1-level deep only per spec.
                 throw new CustomException("Cannot reply to a reply — threads are single-level only.", (IEnumerable<string>?)null, HttpStatusCode.BadRequest)
-                {
-                    MessageKey = "Chat.CannotReplyToReply",
-                    ResourceSource = typeof(ChatResources),
-                };
+                    .Localized<ChatResources>("Chat.CannotReplyToReply");
             }
         }
 

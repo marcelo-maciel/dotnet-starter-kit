@@ -84,10 +84,7 @@ internal sealed class ImpersonationGrantService(
             .FirstOrDefaultAsync(g => g.Id == id, ct)
             .ConfigureAwait(false)
             ?? throw new NotFoundException("impersonation grant not found")
-            {
-                MessageKey = "Identity.ImpersonationGrantNotFound",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.ImpersonationGrantNotFound");
 
         if (grant.IsTerminal)
         {

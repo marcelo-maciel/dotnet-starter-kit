@@ -89,11 +89,7 @@ public sealed class FileAsset : AggregateRoot<Guid>, ISoftDeletable
                 $"Cannot finalize file in status {Status}.",
                 errors: null,
                 HttpStatusCode.Conflict)
-            {
-                MessageKey = "Files.CannotFinalizeInStatus",
-                MessageArgs = [Status],
-                ResourceSource = typeof(FilesResources),
-            };
+                .Localized<FilesResources>("Files.CannotFinalizeInStatus", Status);
         }
         if (actualSize <= 0)
         {
@@ -133,11 +129,7 @@ public sealed class FileAsset : AggregateRoot<Guid>, ISoftDeletable
                 $"Cannot change visibility while file is in status {Status}.",
                 errors: null,
                 HttpStatusCode.Conflict)
-            {
-                MessageKey = "Files.CannotChangeVisibilityInStatus",
-                MessageArgs = [Status],
-                ResourceSource = typeof(FilesResources),
-            };
+                .Localized<FilesResources>("Files.CannotChangeVisibilityInStatus", Status);
         }
         if (Visibility == next) return;
         Visibility = next;

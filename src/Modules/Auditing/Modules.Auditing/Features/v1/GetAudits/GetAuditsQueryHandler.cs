@@ -162,10 +162,7 @@ public sealed class GetAuditsQueryHandler : IQueryHandler<GetAuditsQuery, PagedR
         if (!allowed)
         {
             throw new ForbiddenException("Cross-tenant audit access requires Permissions.AuditTrails.ViewCrossTenant.")
-            {
-                MessageKey = "Error.Auditing.CrossTenantAccessForbidden",
-                ResourceSource = typeof(AuditingResources),
-            };
+                .Localized<AuditingResources>("Error.Auditing.CrossTenantAccessForbidden");
         }
 
         return _dbContext.AuditRecords

@@ -28,10 +28,7 @@ public sealed class CreateTicketCommandHandler(
                 "Cannot create a ticket without an authenticated reporter.",
                 (IEnumerable<string>?)null,
                 HttpStatusCode.Unauthorized)
-            {
-                MessageKey = "Tickets.ReporterRequired",
-                ResourceSource = typeof(TicketsResources),
-            };
+                .Localized<TicketsResources>("Tickets.ReporterRequired");
         }
 
         // Sequential, tenant-scoped ticket numbers (TK-1, …). Count ALL rows incl. soft-deleted so a

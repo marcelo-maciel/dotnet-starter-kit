@@ -21,29 +21,19 @@ public sealed class ApproveTopupRequestCommandHandler(
         ArgumentNullException.ThrowIfNull(command);
 
         var callerTenantId = tenantAccessor.MultiTenantContext?.TenantInfo?.Id
-            ?? throw new UnauthorizedException("Tenant context is required.")
-            {
-                MessageKey = "Error.TenantContextRequired",
-            };
+            ?? throw new UnauthorizedException("Tenant context is required.").Localized("Error.TenantContextRequired");
         var isRoot = callerTenantId == MultitenancyConstants.Root.Id;
 
         var request = await db.TopupRequests
             .FirstOrDefaultAsync(r => r.Id == command.Id, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new NotFoundException($"Top-up request {command.Id} not found.")
-            {
-                MessageKey = "Billing.TopupRequestNotFound",
-                MessageArgs = [command.Id],
-                ResourceSource = typeof(BillingResources),
-            };
+                .Localized<BillingResources>("Billing.TopupRequestNotFound", command.Id);
 
         if (!isRoot && request.TenantId != callerTenantId)
         {
             throw new UnauthorizedException("You can only approve top-up requests for your own tenant.")
-            {
-                MessageKey = "Billing.CannotApproveTopupForOtherTenant",
-                ResourceSource = typeof(BillingResources),
-            };
+                .Localized<BillingResources>("Billing.CannotApproveTopupForOtherTenant");
         }
 
         // For root, operate on the request's own tenant; for non-root, callerTenantId equals request.TenantId.

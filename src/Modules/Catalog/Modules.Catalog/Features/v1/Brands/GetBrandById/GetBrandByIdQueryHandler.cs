@@ -20,11 +20,7 @@ public sealed class GetBrandByIdQueryHandler(CatalogDbContext dbContext)
             .FirstOrDefaultAsync(b => b.Id == query.BrandId, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new NotFoundException($"Brand {query.BrandId} not found.")
-            {
-                MessageKey = "Catalog.BrandNotFound",
-                MessageArgs = [query.BrandId],
-                ResourceSource = typeof(CatalogResources),
-            };
+                .Localized<CatalogResources>("Catalog.BrandNotFound", query.BrandId);
 
         return new BrandDto(
             brand.Id,

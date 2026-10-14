@@ -37,21 +37,14 @@ public sealed class EnrollTwoFactorCommandHandler
         var userId = _currentUser.GetUserId().ToString();
         var user = await _userManager.FindByIdAsync(userId)
             ?? throw new NotFoundException($"User {userId} not found.")
-            {
-                MessageKey = "Identity.UserNotFoundById",
-                MessageArgs = [userId],
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.UserNotFoundById", userId);
 
         // Always reset so calling enroll twice rotates the secret — prevents stale codes
         // from a prior incomplete enrollment from silently succeeding.
         await _userManager.ResetAuthenticatorKeyAsync(user);
         var sharedKey = await _userManager.GetAuthenticatorKeyAsync(user)
             ?? throw new CustomException("Failed to generate authenticator key.")
-            {
-                MessageKey = "Identity.FailedToGenerateAuthenticatorKey",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.FailedToGenerateAuthenticatorKey");
 
         var email = user.Email ?? user.UserName ?? user.Id;
         var authenticatorUri = string.Format(

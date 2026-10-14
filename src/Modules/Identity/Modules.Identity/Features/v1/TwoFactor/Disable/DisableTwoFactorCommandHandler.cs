@@ -33,21 +33,14 @@ public sealed class DisableTwoFactorCommandHandler
         var userId = _currentUser.GetUserId().ToString();
         var user = await _userManager.FindByIdAsync(userId)
             ?? throw new NotFoundException($"User {userId} not found.")
-            {
-                MessageKey = "Identity.UserNotFoundById",
-                MessageArgs = [userId],
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.UserNotFoundById", userId);
 
         // Require current password so a stolen access token alone can't downgrade
         // account security.
         if (!await _userManager.CheckPasswordAsync(user, command.CurrentPassword))
         {
             throw new UnauthorizedException("Current password is incorrect.")
-            {
-                MessageKey = "Identity.CurrentPasswordIncorrect",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.CurrentPasswordIncorrect");
         }
 
         await _userManager.SetTwoFactorEnabledAsync(user, false);

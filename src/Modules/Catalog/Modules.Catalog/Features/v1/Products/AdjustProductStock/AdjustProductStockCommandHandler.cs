@@ -19,11 +19,7 @@ public sealed class AdjustProductStockCommandHandler(CatalogDbContext dbContext)
             .FirstOrDefaultAsync(p => p.Id == command.ProductId, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new NotFoundException($"Product {command.ProductId} not found.")
-            {
-                MessageKey = "Catalog.ProductNotFound",
-                MessageArgs = [command.ProductId],
-                ResourceSource = typeof(CatalogResources),
-            };
+                .Localized<CatalogResources>("Catalog.ProductNotFound", command.ProductId);
 
         try
         {
@@ -32,11 +28,7 @@ public sealed class AdjustProductStockCommandHandler(CatalogDbContext dbContext)
         catch (InvalidOperationException ex)
         {
             throw new CustomException(ex.Message, (IEnumerable<string>?)null, HttpStatusCode.Conflict)
-            {
-                MessageKey = "Catalog.StockAdjustmentNegative",
-                MessageArgs = [command.Delta, product.Stock],
-                ResourceSource = typeof(CatalogResources),
-            };
+                .Localized<CatalogResources>("Catalog.StockAdjustmentNegative", command.Delta, product.Stock);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

@@ -19,17 +19,13 @@ public sealed class GetChannelByIdQueryHandler(
     {
         ArgumentNullException.ThrowIfNull(q);
         var userId = currentUser.GetUserId();
-        if (userId == Guid.Empty) throw new UnauthorizedException("no current user") { MessageKey = "Error.NoCurrentUser" };
+        if (userId == Guid.Empty) throw new UnauthorizedException("no current user").Localized("Error.NoCurrentUser");
         var currentUserId = userId.ToString();
 
         var channel = await db.Channels.AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == q.ChannelId, cancellationToken)
             .ConfigureAwait(false)
-            ?? throw new NotFoundException("Channel not found.")
-            {
-                MessageKey = "Chat.ChannelNotFound",
-                ResourceSource = typeof(ChatResources),
-            };
+            ?? throw new NotFoundException("Channel not found.").Localized<ChatResources>("Chat.ChannelNotFound");
 
         // Private channels & DMs: must be a member. Public channels: anyone with View can see them.
         if (channel.IsPrivate)
