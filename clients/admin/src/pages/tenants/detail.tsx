@@ -182,7 +182,7 @@ export function TenantDetailPage() {
                     </Badge>
                     {tenant.issuer && (
                       <Badge variant="outline" className="font-mono text-[10.5px]">
-                        iss · {tenant.issuer}
+                        <code>iss</code> · {tenant.issuer}
                       </Badge>
                     )}
                   </div>

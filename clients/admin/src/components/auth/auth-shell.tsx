@@ -62,7 +62,7 @@ export function AuthShell({
         <CornerTicks />
         <div className="relative flex flex-1 flex-col justify-between p-12 xl:p-16">
           <div className="meta text-[var(--color-muted-foreground)] fsh-enter">
-            // FSH / CONSOLE / RECOVER
+            {t("authShell.breadcrumb")}
           </div>
           <BrandMarkXL className="fsh-enter fsh-enter-2 max-w-lg" />
           <div className="fsh-enter fsh-enter-4 flex items-end justify-between gap-6">
@@ -77,7 +77,7 @@ export function AuthShell({
             <div className="meta text-right text-[var(--color-muted-foreground)]">
               v0.1
               <br />
-              build · live
+              {t("authShell.buildStatus")}
             </div>
           </div>
         </div>
