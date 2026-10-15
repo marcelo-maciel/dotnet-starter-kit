@@ -76,6 +76,7 @@
   "create.submit": "Criar assinatura",
   "create.validation.url": "Deve ser uma URL http(s) válida.",
   "create.validation.scheme": "Use http:// ou https://",
+  "create.validation.secretMax": "Deve ter no máximo 256 caracteres.",
   "create.toast.created": "Assinatura criada",
   "create.toast.createdDesc": "Use o botão Testar na linha para verificar se o endpoint aceita eventos.",
   "create.toast.createFailed": "Falha ao criar",

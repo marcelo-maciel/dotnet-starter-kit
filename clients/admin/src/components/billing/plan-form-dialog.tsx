@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import type { ParseKeys } from "i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { CreditCard, Gauge } from "lucide-react";
@@ -31,8 +32,9 @@ const PLAN_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/;
 // client-side so a negative price is rejected before any network call (the
 // server also rejects it, but we don't rely on that). Messages are i18n keys,
 // resolved to text at display time via t().
-const NON_NEGATIVE_MSG = "planForm.validation.nonNegative";
-const REQUIRED_MSG = "planForm.validation.required";
+const NON_NEGATIVE_MSG = "planForm.validation.nonNegative" satisfies ParseKeys<"billing">;
+const REQUIRED_MSG = "planForm.validation.required" satisfies ParseKeys<"billing">;
+type ValidationMessage = typeof NON_NEGATIVE_MSG | typeof REQUIRED_MSG;
 
 /** Required non-negative decimal (e.g. monthly base price). */
 const requiredNonNegative = z
@@ -47,7 +49,7 @@ const optionalNonNegative = z
   .trim()
   .refine((v) => v === "" || (Number.isFinite(Number(v)) && Number(v) >= 0), NON_NEGATIVE_MSG);
 
-const OVERAGE_RESOURCES: { key: QuotaResource; labelKey: string; placeholder: string }[] = [
+const OVERAGE_RESOURCES: { key: QuotaResource; labelKey: ParseKeys<"billing">; placeholder: string }[] = [
   { key: "ApiCalls", labelKey: "planForm.overage.apiCalls", placeholder: "0.0010" },
   { key: "StorageBytes", labelKey: "planForm.overage.storageBytes", placeholder: "0.00000001" },
   { key: "Users", labelKey: "planForm.overage.users", placeholder: "5.00" },
@@ -73,9 +75,10 @@ function toOverageNumbers(state: OverageState): Record<string, number> | null {
 }
 
 /** First validation message for a value against a schema, or undefined when valid. */
-function fieldError(schema: z.ZodTypeAny, value: string): string | undefined {
+// zod types a message as string; every schema here sets one of the two keys above.
+function fieldError(schema: z.ZodTypeAny, value: string): ValidationMessage | undefined {
   const result = schema.safeParse(value);
-  return result.success ? undefined : result.error.issues[0]?.message;
+  return result.success ? undefined : (result.error.issues[0]?.message as ValidationMessage | undefined);
 }
 
 function describe(err: unknown, fallback: string): string {
@@ -167,7 +170,7 @@ export function PlanFormDialog({
 
   // Per-resource overage validation — a negative or non-numeric rate blocks submit.
   const overageErrors = useMemo(() => {
-    const out: Partial<Record<string, string>> = {};
+    const out: Partial<Record<string, ValidationMessage>> = {};
     for (const { key: resKey } of OVERAGE_RESOURCES) {
       const err = fieldError(optionalNonNegative, overage[resKey] ?? "");
       if (err) out[resKey] = err;

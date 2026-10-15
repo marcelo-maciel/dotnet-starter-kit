@@ -22,8 +22,9 @@ import { ErrorBand, LoadingRow, SettingsSection } from "@/components/list";
 import { ApiRequestError } from "@/lib/api-client";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import type { TFunction } from "i18next";
 
-type TFn = (key: string, opts?: Record<string, unknown>) => string;
+type TFn = TFunction<"sessions">;
 
 export function SessionsSettings() {
   const { t } = useTranslation("sessions");

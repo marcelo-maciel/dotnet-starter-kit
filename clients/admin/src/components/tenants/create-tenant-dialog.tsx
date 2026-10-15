@@ -33,12 +33,13 @@ import {
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 import { formatCurrency } from "@/lib/format";
+import type { TFunction } from "i18next";
 
 // ─── Schema (unchanged contract) ────────────────────────────────────────────
 
 const TENANT_ID_RE = /^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/;
 
-type TFn = (key: string) => string;
+type TFn = TFunction<"tenants">;
 
 const makeSchema = (t: TFn) =>
   z.object({

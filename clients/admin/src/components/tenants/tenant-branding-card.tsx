@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { ParseKeys } from "i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, Palette, RotateCcw, Save } from "lucide-react";
@@ -190,7 +191,7 @@ export function TenantBrandingCard({ tenantId }: { tenantId: string }) {
 // Palette editor — color swatches paired with hex inputs
 // ─────────────────────────────────────────────────────────────────────────
 
-const PALETTE_FIELDS: ReadonlyArray<{ key: keyof PaletteDto; label: string }> = [
+const PALETTE_FIELDS: ReadonlyArray<{ key: keyof PaletteDto; label: ParseKeys<"tenants"> }> = [
   { key: "primary", label: "branding.paletteField.primary" },
   { key: "secondary", label: "branding.paletteField.secondary" },
   { key: "tertiary", label: "branding.paletteField.tertiary" },

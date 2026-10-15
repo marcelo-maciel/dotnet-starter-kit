@@ -43,6 +43,7 @@ import {
 } from "@/components/list";
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
+import type { TFunction } from "i18next";
 
 /**
  * SecuritySettings — combines password change + 2FA enrollment/disable
@@ -79,7 +80,7 @@ export function SecuritySettings() {
 
 // ─── Password section ────────────────────────────────────────────────────
 
-type TFn = (key: string) => string;
+type TFn = TFunction<"settings">;
 
 const makePasswordSchema = (t: TFn) =>
   z

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
+import type { ParseKeys, TFunction } from "i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, ChevronRight, Heart, RefreshCw } from "lucide-react";
 import { getLiveness, getReadiness, type HealthEntry, type HealthResult, type HealthStatus } from "@/api/health";
@@ -11,10 +11,17 @@ import { cn } from "@/lib/cn";
 
 const REFRESH_INTERVAL_MS = 10_000;
 
+const STATUS_KEYS: Record<string, ParseKeys<"health">> = {
+  Healthy: "status.healthy",
+  Degraded: "status.degraded",
+  Unhealthy: "status.unhealthy",
+};
+
 // Map a HealthStatus enum onto its localized label, falling back to the raw
 // value for any status not in the catalog.
-function statusLabel(t: TFunction, status: HealthStatus): string {
-  return t(`status.${String(status).toLowerCase()}`, { defaultValue: String(status) });
+function statusLabel(t: TFunction<"health">, status: HealthStatus): string {
+  const key = STATUS_KEYS[status];
+  return key ? t(key) : String(status);
 }
 
 export function HealthPage() {

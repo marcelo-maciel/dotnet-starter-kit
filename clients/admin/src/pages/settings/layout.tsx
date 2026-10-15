@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import type { ParseKeys } from "i18next";
 import {
   ChevronRight,
   MonitorSmartphone,
@@ -14,8 +15,8 @@ import { cn } from "@/lib/cn";
 
 type Tab = {
   to: string;
-  labelKey: string;
-  hintKey: string;
+  labelKey: ParseKeys<"settings">;
+  hintKey: ParseKeys<"settings">;
   icon: LucideIcon;
 };
 

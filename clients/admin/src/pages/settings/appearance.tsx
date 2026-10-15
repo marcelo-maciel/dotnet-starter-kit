@@ -1,5 +1,6 @@
 import { Moon, Palette, Sun } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import type { ParseKeys } from "i18next";
 import { useTheme } from "@/components/theme/theme-provider";
 import { Button } from "@/components/ui/button";
 import { SettingsSection } from "@/components/list";
@@ -9,9 +10,9 @@ type Mode = "light" | "dark";
 
 const MODES: {
   value: Mode;
-  labelKey: string;
+  labelKey: ParseKeys<"settings">;
   icon: typeof Sun;
-  blurbKey: string;
+  blurbKey: ParseKeys<"settings">;
 }[] = [
   {
     value: "light",

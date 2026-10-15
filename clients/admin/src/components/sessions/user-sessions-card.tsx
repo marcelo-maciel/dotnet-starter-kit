@@ -21,8 +21,9 @@ import {
 import { IdentityPermissions } from "@/lib/permissions";
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
+import type { TFunction } from "i18next";
 
-type TFn = (key: string, opts?: Record<string, unknown>) => string;
+type TFn = TFunction<"sessions">;
 
 /**
  * UserSessionsCard — admin view on user-detail. Lists every session a user

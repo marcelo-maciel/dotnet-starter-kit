@@ -10,6 +10,7 @@ import {
   issueInvoice,
   markInvoicePaid,
   voidInvoice,
+  invoiceStatusKey,
   type InvoiceStatus,
   type InvoiceLineItemDto,
 } from "@/api/billing";
@@ -57,8 +58,10 @@ export function InvoiceDetailPage() {
   const { t } = useTranslation("billing");
   const { invoiceId = "" } = useParams<{ invoiceId: string }>();
   const navigate = useNavigate();
-  const statusLabel = (status: InvoiceStatus): string =>
-    t(`status.${status.charAt(0).toLowerCase()}${status.slice(1)}`);
+  const statusLabel = (status: InvoiceStatus): string => {
+    const key = invoiceStatusKey(status);
+    return key ? t(key) : status;
+  };
   const queryClient = useQueryClient();
   const { user: currentUser } = useAuth();
   // Issue / mark-paid / void and PDF download all require Billing.Manage on the server.

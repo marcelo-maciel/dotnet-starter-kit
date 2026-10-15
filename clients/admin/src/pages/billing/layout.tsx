@@ -1,10 +1,11 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import type { ParseKeys } from "i18next";
 import { CreditCard } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { EntityPageHeader } from "@/components/list";
 
-type Tab = { to: string; labelKey: string };
+type Tab = { to: string; labelKey: ParseKeys<"billing"> };
 
 const TABS: Tab[] = [
   { to: "/billing/plans", labelKey: "layout.tab.plans" },

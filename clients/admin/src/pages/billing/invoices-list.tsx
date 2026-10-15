@@ -9,7 +9,7 @@ import {
   Filter,
   X,
 } from "lucide-react";
-import { listInvoices, type InvoiceDto, type InvoiceStatus } from "@/api/billing";
+import { invoiceStatusKey, listInvoices, type InvoiceDto, type InvoiceStatus } from "@/api/billing";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -64,8 +64,10 @@ export function InvoicesListPage() {
     if (err instanceof Error) return err.message;
     return t("invoices.loadError");
   };
-  const statusLabel = (status: InvoiceStatus): string =>
-    t(`status.${status.charAt(0).toLowerCase()}${status.slice(1)}`);
+  const statusLabel = (status: InvoiceStatus): string => {
+    const key = invoiceStatusKey(status);
+    return key ? t(key) : status;
+  };
   const [pageNumber, setPageNumber] = useState(1);
 
   const [tenantFilter, setTenantFilter] = useState("");

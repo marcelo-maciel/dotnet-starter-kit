@@ -11,6 +11,7 @@ import {
   Webhook,
   type LucideIcon,
 } from "lucide-react";
+import type { ParseKeys } from "i18next";
 import {
   AuditingPermissions,
   BillingPermissions,
@@ -25,7 +26,7 @@ import {
  */
 export type NavSpec = {
   to: string;
-  label: string;
+  label: ParseKeys<"nav">;
   icon: LucideIcon;
   /** One or more permissions the user must hold to see this item. */
   perms?: readonly string[];
@@ -34,7 +35,7 @@ export type NavSpec = {
 /** A collapsible section that groups related NavSpecs. `caption` is a `nav` key. */
 export type NavSection = {
   id: string;
-  caption: string;
+  caption: ParseKeys<"nav">;
   icon: LucideIcon;
   items: NavSpec[];
 };

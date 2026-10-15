@@ -21,12 +21,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { describeError } from "@/lib/api-client";
+import type { TFunction } from "i18next";
 
 // ─── Schema (identical to the old create page) ───────────────────────────────
 
 const USERNAME_RE = /^[a-zA-Z][a-zA-Z0-9._-]{2,31}$/;
 
-type TFn = (key: string) => string;
+type TFn = TFunction<"users">;
 
 const makeSchema = (t: TFn) =>
   z

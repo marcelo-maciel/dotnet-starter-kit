@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { formatDateTime } from "@/lib/format";
 import { useTranslation } from "react-i18next";
+import type { ParseKeys } from "i18next";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Clock, RefreshCw, ShieldOff, UserCog } from "lucide-react";
 import {
@@ -30,7 +31,14 @@ import { cn } from "@/lib/cn";
 
 const REFRESH_INTERVAL_MS = 5_000;
 
-const STATUS_VALUES: ImpersonationGrantStatus[] = ["Active", "Ended", "Revoked", "Expired"];
+const STATUS_KEYS = {
+  Active: "status.active",
+  Ended: "status.ended",
+  Revoked: "status.revoked",
+  Expired: "status.expired",
+} as const satisfies Record<ImpersonationGrantStatus, ParseKeys<"impersonation">>;
+
+const STATUS_VALUES = Object.keys(STATUS_KEYS) as ImpersonationGrantStatus[];
 
 export function ImpersonationListPage() {
   const { t } = useTranslation("impersonation");
@@ -72,7 +80,7 @@ export function ImpersonationListPage() {
 
   const statusOptions = STATUS_VALUES.map((value) => ({
     value,
-    label: t(`status.${value.toLowerCase()}`),
+    label: t(STATUS_KEYS[value]),
   }));
 
   return (
@@ -354,7 +362,7 @@ function StatusBadge({ status }: { status: ImpersonationGrantStatus }) {
     "muted";
   return (
     <Badge variant={variant} className="font-mono uppercase tracking-[0.14em]">
-      {t(`status.${status.toLowerCase()}`)}
+      {t(STATUS_KEYS[status])}
     </Badge>
   );
 }

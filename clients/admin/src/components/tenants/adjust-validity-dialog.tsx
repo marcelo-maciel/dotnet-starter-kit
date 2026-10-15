@@ -21,8 +21,9 @@ import {
 } from "@/components/ui/dialog";
 import { ApiRequestError } from "@/lib/api-client";
 import { formatDate } from "@/lib/format";
+import type { TFunction } from "i18next";
 
-type TFn = (key: string) => string;
+type TFn = TFunction<"tenants">;
 
 // A `type="date"` input yields a `YYYY-MM-DD` string. zod validates the shape
 // and that it parses to a real calendar date.

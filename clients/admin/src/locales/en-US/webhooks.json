@@ -76,6 +76,7 @@
   "create.submit": "Create subscription",
   "create.validation.url": "Must be a valid http(s) URL.",
   "create.validation.scheme": "Use http:// or https://",
+  "create.validation.secretMax": "Must be 256 characters or fewer.",
   "create.toast.created": "Subscription created",
   "create.toast.createdDesc": "Use the Test button on the row to verify the endpoint accepts events.",
   "create.toast.createFailed": "Create failed",

@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import type { ParseKeys } from "i18next";
 import {
   Check,
   ChevronsUpDown,
@@ -122,6 +123,11 @@ function ThemeMenuItem({
     </DropdownMenuItem>
   );
 }
+
+const LANGUAGE_LABEL_KEYS = {
+  "en-US": "language.enUS",
+  "pt-BR": "language.ptBR",
+} as const satisfies Record<(typeof SUPPORTED)[number], ParseKeys<"common">>;
 
 function LanguageMenuItem({
   label,
@@ -391,7 +397,7 @@ export function Topbar() {
             {SUPPORTED.map((tag) => (
               <LanguageMenuItem
                 key={tag}
-                label={t(`language.${tag.replace("-", "")}`)}
+                label={t(LANGUAGE_LABEL_KEYS[tag])}
                 active={i18n.resolvedLanguage === tag}
                 onSelect={() => onSelectLanguage(tag)}
               />

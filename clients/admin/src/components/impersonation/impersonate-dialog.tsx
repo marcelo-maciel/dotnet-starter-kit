@@ -22,8 +22,9 @@ import { ApiRequestError } from "@/lib/api-client";
 import { env } from "@/env";
 import i18n from "@/i18n";
 import { cn } from "@/lib/cn";
+import type { TFunction } from "i18next";
 
-type TFn = (key: string, opts?: Record<string, unknown>) => string;
+type TFn = TFunction<"impersonation">;
 
 type Props = {
   open: boolean;

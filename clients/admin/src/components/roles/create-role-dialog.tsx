@@ -21,10 +21,11 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { ApiRequestError } from "@/lib/api-client";
+import type { TFunction } from "i18next";
 
 // ─── Schema (identical to the old create page) ───────────────────────────────
 
-type TFn = (key: string) => string;
+type TFn = TFunction<"roles">;
 
 const makeSchema = (t: TFn) =>
   z.object({

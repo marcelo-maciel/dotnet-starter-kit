@@ -30,10 +30,11 @@ import {
 } from "@/lib/permissions";
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
+import type { TFunction } from "i18next";
 
 const SYSTEM_ROLE_NAMES = new Set(["Admin", "Basic"]);
 
-type TFn = (key: string, opts?: Record<string, unknown>) => string;
+type TFn = TFunction<"roles">;
 
 const makeProfileSchema = (t: TFn) =>
   z.object({

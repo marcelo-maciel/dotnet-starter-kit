@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { ParseKeys } from "i18next";
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -25,19 +26,25 @@ import { Field } from "@/components/list";
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 
-// Validation messages are i18n keys, resolved to text at render via t().
+// Validation messages are i18n keys, resolved to text at render via t(). Every rule names one of
+// these, so the message react-hook-form hands back is always a key of this union.
+const URL_MSG = "create.validation.url" satisfies ParseKeys<"webhooks">;
+const SCHEME_MSG = "create.validation.scheme" satisfies ParseKeys<"webhooks">;
+const SECRET_MAX_MSG = "create.validation.secretMax" satisfies ParseKeys<"webhooks">;
+type ValidationMessage = typeof URL_MSG | typeof SCHEME_MSG | typeof SECRET_MAX_MSG;
+
 const schema = z.object({
   url: z
     .string()
     .trim()
-    .url("create.validation.url")
+    .url(URL_MSG)
     .refine((u) => u.startsWith("https://") || u.startsWith("http://"), {
-      message: "create.validation.scheme",
+      message: SCHEME_MSG,
     }),
   secret: z
     .string()
     .trim()
-    .max(256)
+    .max(256, SECRET_MAX_MSG)
     .optional(),
 });
 
@@ -147,7 +154,7 @@ export function CreateWebhookDialog({
 
         <form onSubmit={onSubmit}>
           <DialogBody className="space-y-5">
-            <Field id="webhook-url" label={t("create.url")} required error={errors.url?.message ? t(errors.url.message) : undefined}>
+            <Field id="webhook-url" label={t("create.url")} required error={errors.url?.message ? t(errors.url.message as ValidationMessage) : undefined}>
               <Input
                 id="webhook-url"
                 type="url"
@@ -163,7 +170,7 @@ export function CreateWebhookDialog({
               id="webhook-secret"
               label={t("create.secret")}
               hint={t("create.secretHint")}
-              error={errors.secret?.message ? t(errors.secret.message) : undefined}
+              error={errors.secret?.message ? t(errors.secret.message as ValidationMessage) : undefined}
             >
               <Input
                 id="webhook-secret"

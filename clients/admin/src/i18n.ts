@@ -27,8 +27,8 @@ type Catalog = Record<string, string>;
 // string-migration waves extend: to add a namespace, import its en-US catalog and add one entry
 // here — `resources` and `ns` below derive from it, so no other wiring changes. Its pt-BR file
 // (optional) is picked up by src/locales/pt-BR.ts; a namespace or key pt-BR lacks renders in
-// English through fallbackChain.
-const CATALOGS: Record<string, Catalog> = {
+// English through fallbackChain. Its type is also what src/i18next.d.ts checks every t() key against.
+const CATALOGS = {
   common: enCommon,
   nav: enNav,
   auth: enAuth,
@@ -44,7 +44,9 @@ const CATALOGS: Record<string, Catalog> = {
   notifications: enNotifications,
   health: enHealth,
   dashboard: enDashboard,
-};
+} satisfies Record<string, Catalog>;
+
+export type Catalogs = typeof CATALOGS;
 
 // en-US ships in the main bundle: it is the terminal fallback and must resolve synchronously.
 // Every other language is one lazy chunk, fetched before the UI switches to it.
