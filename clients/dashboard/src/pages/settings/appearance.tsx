@@ -331,7 +331,7 @@ function FontCard({
         aria-hidden
       >
         <span className="font-display text-2xl font-semibold tracking-tight">
-          Aa <span className="font-normal text-[var(--color-muted-foreground)]">0123</span>
+          {t("appearance.font.sample")} <span className="font-normal text-[var(--color-muted-foreground)]">0123</span>
         </span>
       </div>
       <div className="flex items-center justify-between">
@@ -397,9 +397,10 @@ function CustomAccentCard({
         {active && <ActiveTag />}
       </div>
       <SwatchSubtitle>
-        h {Math.round(((spec.h % 360) + 360) % 360)}°
-        {" · "}
-        c {(spec.c * 100).toFixed(0)}%
+        {t("appearance.custom.spec", {
+          hue: Math.round(((spec.h % 360) + 360) % 360),
+          chroma: (spec.c * 100).toFixed(0),
+        })}
       </SwatchSubtitle>
     </SwatchButton>
   );

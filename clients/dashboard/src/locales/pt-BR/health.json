@@ -3,6 +3,7 @@
   "title": "Saúde",
   "subtitlePre": "Sonda de prontidão ao vivo em cada dependência registrada. Consultado a cada ",
   "subtitleSuffix": ".",
+  "pollIntervalValue": "{{seconds}} s",
   "pauseTitle": "Pausar atualização automática",
   "resumeTitle": "Retomar atualização automática",
   "live": "Ao vivo",

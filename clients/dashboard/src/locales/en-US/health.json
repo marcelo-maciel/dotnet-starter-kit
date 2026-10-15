@@ -3,6 +3,7 @@
   "title": "Health",
   "subtitlePre": "Live readiness probe across every registered dependency. Polled every ",
   "subtitleSuffix": ".",
+  "pollIntervalValue": "{{seconds}}s",
   "pauseTitle": "Pause auto-refresh",
   "resumeTitle": "Resume auto-refresh",
   "live": "Live",

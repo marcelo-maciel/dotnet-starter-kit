@@ -184,7 +184,7 @@ export function HealthPage() {
         subtitle={
           <>
             {t("subtitlePre")}
-            <span className="font-mono">{POLL_INTERVAL_MS / 1000}s</span>
+            <span className="font-mono">{t("pollIntervalValue", { seconds: POLL_INTERVAL_MS / 1000 })}</span>
             {t("subtitleSuffix")}
           </>
         }
