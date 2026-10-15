@@ -1,4 +1,5 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
+import type { ParseKeys } from "i18next";
 import { useTranslation } from "react-i18next";
 import {
   Bell,
@@ -17,8 +18,8 @@ import { cn } from "@/lib/cn";
 
 type Tab = {
   to: string;
-  labelKey: string;
-  hintKey: string;
+  labelKey: ParseKeys<"settings">;
+  hintKey: ParseKeys<"settings">;
   icon: LucideIcon;
   /**
    * Permission required to see this tab. Tabs without a `perm` are visible to

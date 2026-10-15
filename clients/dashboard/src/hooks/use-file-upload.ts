@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import type { TFunction } from "i18next";
+import type { ParseKeys, TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import {
   finalizeUpload,
@@ -82,11 +82,11 @@ const DEFAULT_OPTIONS = {
  * where no `t` exists, and they are shown to the user rather than logged.
  */
 export class UploadError extends Error {
-  readonly messageKey: string;
+  readonly messageKey: ParseKeys<"common">;
 
   readonly params?: Record<string, string | number>;
 
-  constructor(messageKey: string, params?: Record<string, string | number>) {
+  constructor(messageKey: ParseKeys<"common">, params?: Record<string, string | number>) {
     super(messageKey);
     this.name = "UploadError";
     this.messageKey = messageKey;
@@ -121,7 +121,7 @@ export function useFileUpload(options: UploadOptions): UseFileUploadResult {
         const dot = file.name.lastIndexOf(".");
         const ext = dot >= 0 ? file.name.slice(dot).toLowerCase() : "";
         if (!opts.allowedExtensions.includes(ext)) {
-          const message = t("common:upload.extensionNotAllowed", { extension: ext || t("common:upload.noExtension") });
+          const message = t("upload.extensionNotAllowed", { extension: ext || t("upload.noExtension") });
           setProgress({
             fileName: file.name,
             totalBytes: file.size,
@@ -134,7 +134,7 @@ export function useFileUpload(options: UploadOptions): UseFileUploadResult {
         }
       }
       if (opts.maxBytes !== undefined && file.size > opts.maxBytes) {
-        const message = t("common:upload.tooLarge", {
+        const message = t("upload.tooLarge", {
           size: formatBytes(file.size),
           limit: formatBytes(opts.maxBytes),
         });
@@ -180,7 +180,7 @@ export function useFileUpload(options: UploadOptions): UseFileUploadResult {
         );
         throw e;
       }
-      if (cancelledRef.current) throw new UploadError("common:upload.cancelled");
+      if (cancelledRef.current) throw new UploadError("upload.cancelled");
 
       setProgress((p) =>
         p ? { ...p, status: "uploading", fileAssetId: presigned.fileAssetId } : null,
@@ -208,7 +208,7 @@ export function useFileUpload(options: UploadOptions): UseFileUploadResult {
         setProgress((p) => (p ? { ...p, status: "error", error: message } : null));
         throw e instanceof Error ? e : new Error(message);
       }
-      if (cancelledRef.current) throw new UploadError("common:upload.cancelled");
+      if (cancelledRef.current) throw new UploadError("upload.cancelled");
 
       setProgress((p) => (p ? { ...p, status: "finalizing", percent: 99 } : null));
 
@@ -261,10 +261,10 @@ function xhrPut(
     };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new UploadError("common:upload.putFailed", { status: `${xhr.status} ${xhr.statusText || ""}`.trim() }));
+      else reject(new UploadError("upload.putFailed", { status: `${xhr.status} ${xhr.statusText || ""}`.trim() }));
     };
-    xhr.onerror = () => reject(new UploadError("common:upload.networkError"));
-    xhr.onabort = () => reject(new UploadError("common:upload.cancelled"));
+    xhr.onerror = () => reject(new UploadError("upload.networkError"));
+    xhr.onabort = () => reject(new UploadError("upload.cancelled"));
     xhr.send(body);
   });
 }
@@ -274,9 +274,9 @@ function xhrPut(
  * because it is raised where no translator is in scope; a server error already carries prose the
  * API localized for this caller, so it is passed through as-is.
  */
-export function describeUploadError(e: unknown, t: TFunction, fallback?: string): string {
+export function describeUploadError(e: unknown, t: TFunction<"common">, fallback?: string): string {
   if (e instanceof UploadError) {
-    // No defaultValue: it would render the key itself ("common:upload.cancelled") if the catalog
+    // No defaultValue: it would render the key itself ("upload.cancelled") if the catalog
     // ever lost the entry. Falling through to the missing-key handler gives "Cancelled" instead.
     return t(e.messageKey, { ...e.params });
   }
@@ -294,7 +294,7 @@ export function describeUploadError(e: unknown, t: TFunction, fallback?: string)
   if (e instanceof Error) {
     console.error("[upload] unhandled failure", e);
   }
-  return fallback ?? t("common:upload.unknownError");
+  return fallback ?? t("upload.unknownError");
 }
 
 export function formatBytes(bytes: number): string {

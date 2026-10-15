@@ -107,7 +107,7 @@ export function MentionPicker({
   );
 }
 
-function renderName(u: UserDto, t: TFunction): string {
+function renderName(u: UserDto, t: TFunction<"chat">): string {
   const full = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
-  return full || u.userName || u.email || t("chat:unnamed");
+  return full || u.userName || u.email || t("unnamed");
 }

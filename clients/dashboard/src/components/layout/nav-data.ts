@@ -19,12 +19,13 @@ import {
   Wallet,
   Wifi,
 } from "lucide-react";
+import type { ParseKeys } from "i18next";
 import { ALL_TRASH_PERMISSIONS } from "@/lib/trash-permissions";
 
 export type NavSpec = {
   to: string;
   /** `common` namespace key resolved at render time (labels localize live). */
-  labelKey: string;
+  labelKey: ParseKeys<"common">;
   icon: React.ComponentType<{ className?: string }>;
   /**
    * Permission required to see this item. Items without a `perm` are visible to
@@ -45,7 +46,7 @@ export type NavSpec = {
 export type NavSection = {
   id: string;
   /** `common` namespace key resolved at render time. */
-  captionKey: string;
+  captionKey: ParseKeys<"common">;
   /** Section-level icon used as a fallback when the sidebar is
    *  collapsed and the section is rendered as a stack of item icons. */
   icon: React.ComponentType<{ className?: string }>;

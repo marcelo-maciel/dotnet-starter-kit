@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
+import type { TFunction, ParseKeys } from "i18next";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -59,7 +59,7 @@ import { cn } from "@/lib/cn";
 
 const PROFILE_KEY = ["identity", "me"] as const;
 
-function describeDevice(s: UserSessionDto, t: TFunction): string {
+function describeDevice(s: UserSessionDto, t: TFunction<"settings">): string {
   const browser = s.browser ?? t("security.sessions.unknownBrowser");
   const version = s.browserVersion ? ` ${s.browserVersion}` : "";
   const os = s.operatingSystem ?? t("security.sessions.unknownOs");
@@ -341,7 +341,7 @@ function PasswordField({
 
 // 0–4 heuristic: length tiers + mixed case + digit/symbol. Drives the meter only;
 // the server enforces the real policy.
-function passwordStrength(pw: string): { score: number; labelKey: string } {
+function passwordStrength(pw: string): { score: number; labelKey: ParseKeys<"settings"> | "" } {
   if (!pw) return { score: 0, labelKey: "" };
   let s = 0;
   if (pw.length >= 8) s++;
@@ -351,7 +351,7 @@ function passwordStrength(pw: string): { score: number; labelKey: string } {
   s = Math.max(1, Math.min(4, s));
   return {
     score: s,
-    labelKey: ["", "security.strength.weak", "security.strength.fair", "security.strength.good", "security.strength.strong"][s],
+    labelKey: (["", "security.strength.weak", "security.strength.fair", "security.strength.good", "security.strength.strong"] as const)[s],
   };
 }
 

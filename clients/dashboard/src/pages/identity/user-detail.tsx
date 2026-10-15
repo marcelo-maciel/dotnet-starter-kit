@@ -73,7 +73,7 @@ type DialogState =
   | { mode: "impersonate" }
   | { mode: "revoke-all-sessions" };
 
-function fullName(u: { firstName?: string; lastName?: string; userName?: string; email?: string }, t: TFunction): string {
+function fullName(u: { firstName?: string; lastName?: string; userName?: string; email?: string }, t: TFunction<"identity">): string {
   const parts = [u.firstName, u.lastName].filter(Boolean);
   if (parts.length > 0) return parts.join(" ");
   return u.userName ?? u.email ?? t("unnamedUser");
@@ -743,7 +743,7 @@ function ProfileRow({
 //  Sessions card
 // ───────────────────────────────────────────────────────────────────────
 
-function describeDevice(s: AdminUserSessionDto, t: TFunction): string {
+function describeDevice(s: AdminUserSessionDto, t: TFunction<"identity">): string {
   const browser = s.browser ?? t("sessions.unknownBrowser");
   const version = s.browserVersion ? ` ${s.browserVersion}` : "";
   const os = s.operatingSystem ?? t("sessions.unknownOs");

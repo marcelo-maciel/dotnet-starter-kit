@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { Link } from "react-router-dom";
 import {
   keepPreviousData,
@@ -15,6 +16,7 @@ import {
   getMyWallet,
   type CreateTopupRequestInput,
   type TopupRequestDto,
+  topupStatusKey,
   type TopupRequestStatus,
 } from "@/api/wallet";
 import { Button } from "@/components/ui/button";
@@ -70,6 +72,11 @@ function statusTone(status: TopupRequestStatus): EntityStatusTone {
 // ────────────────────────────────────────────────────────────────────
 // Page
 // ────────────────────────────────────────────────────────────────────
+
+function statusLabel(status: TopupRequestStatus, t: TFunction<"subscription">): string {
+  const key = topupStatusKey(status);
+  return key ? t(key) : status;
+}
 
 export function WalletPage() {
   const { t } = useTranslation("subscription");
@@ -341,7 +348,7 @@ function MobileCard({ request }: { request: TopupRequestDto }) {
         </div>
         <div className="flex flex-col items-end gap-1.5">
           <EntityStatusBadge tone={statusTone(request.status)}>
-            {t(`wallet.status.${request.status}`)}
+            {statusLabel(request.status, t)}
           </EntityStatusBadge>
           {request.invoiceId && (
             <Link
@@ -393,7 +400,7 @@ function DesktopRow({
       {/* Status */}
       <span>
         <EntityStatusBadge tone={statusTone(request.status)}>
-          {t(`wallet.status.${request.status}`)}
+          {statusLabel(request.status, t)}
         </EntityStatusBadge>
       </span>
 

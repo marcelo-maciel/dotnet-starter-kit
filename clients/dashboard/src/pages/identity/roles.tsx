@@ -193,7 +193,7 @@ export function RolesPage() {
 //  Rows
 // ───────────────────────────────────────────────────────────────────────
 
-function permissionLabel(role: RoleDto, t: TFunction) {
+function permissionLabel(role: RoleDto, t: TFunction<"identity">) {
   if (role.permissions === undefined || role.permissions === null)
     return t("rolesList.permNone");
   return t("rolesList.perm", { count: role.permissions.length });

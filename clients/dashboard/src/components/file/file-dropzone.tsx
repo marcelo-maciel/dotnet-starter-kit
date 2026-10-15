@@ -199,7 +199,7 @@ function DropzoneIcon({ status }: { status: string | undefined }) {
   );
 }
 
-function captionFor(status: string | undefined, t: TFunction, fileName?: string): string {
+function captionFor(status: string | undefined, t: TFunction<"files">, fileName?: string): string {
   switch (status) {
     case "preparing":
       return t("dropzone.caption.preparing");
@@ -220,7 +220,7 @@ function detailFor(
   status: string | undefined,
   progress: ReturnType<typeof useFileUpload>["progress"],
   options: UploadOptions,
-  t: TFunction,
+  t: TFunction<"files">,
 ): string {
   if (status === "error" && progress?.error) return progress.error;
   if (status === "done" && progress?.fileAsset) {

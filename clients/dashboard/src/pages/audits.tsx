@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ParseKeys } from "i18next";
 import { useTranslation } from "react-i18next";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import i18n from "@/i18n";
@@ -67,14 +68,14 @@ const PAGE_SIZE = 25;
 const DESKTOP_COLS = "grid-cols-[minmax(0,1fr)_minmax(0,2fr)_96px_160px]";
 
 // i18n key maps for the audit enums (labels resolved via t() against the "audits" ns).
-const EVENT_TYPE_KEY: Record<AuditEventType, string> = {
+const EVENT_TYPE_KEY: Record<AuditEventType, ParseKeys<"audits">> = {
   None: "eventType.none",
   EntityChange: "eventType.entity",
   Security: "eventType.security",
   Activity: "eventType.activity",
   Exception: "eventType.exception",
 };
-const SEVERITY_KEY: Record<AuditSeverity, string> = {
+const SEVERITY_KEY: Record<AuditSeverity, ParseKeys<"audits">> = {
   None: "severity.none",
   Trace: "severity.trace",
   Debug: "severity.debug",
@@ -83,7 +84,7 @@ const SEVERITY_KEY: Record<AuditSeverity, string> = {
   Error: "severity.error",
   Critical: "severity.critical",
 };
-const TAG_KEY_BY_NAME: Record<string, string> = {
+const TAG_KEY_BY_NAME: Record<string, ParseKeys<"audits">> = {
   "PII masked": "tag.piiMasked",
   "Quota exceeded": "tag.quotaExceeded",
   Sampled: "tag.sampled",

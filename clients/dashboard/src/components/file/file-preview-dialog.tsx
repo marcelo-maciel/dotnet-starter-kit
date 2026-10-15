@@ -502,7 +502,7 @@ function DownloadButton({ file }: { file: FileAssetDto }) {
   );
 }
 
-function statusLabel(status: FileAssetStatusValue, t: TFunction): string {
+function statusLabel(status: FileAssetStatusValue, t: TFunction<"files">): string {
   switch (status) {
     case FileAssetStatus.PendingUpload:
       return t("preview.status.pending");

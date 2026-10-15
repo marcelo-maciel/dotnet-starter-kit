@@ -61,13 +61,13 @@ import {
 import { describe, pad2 } from "@/lib/list-helpers";
 import { cn } from "@/lib/cn";
 
-function memberDisplay(m: GroupMemberDto, t: TFunction): string {
+function memberDisplay(m: GroupMemberDto, t: TFunction<"identity">): string {
   const parts = [m.firstName, m.lastName].filter(Boolean);
   if (parts.length > 0) return parts.join(" ");
   return m.userName ?? m.email ?? t("groupDetail.unknownUser");
 }
 
-function userDisplay(u: UserDto, t: TFunction): string {
+function userDisplay(u: UserDto, t: TFunction<"identity">): string {
   const parts = [u.firstName, u.lastName].filter(Boolean);
   if (parts.length > 0) return parts.join(" ");
   return u.userName ?? u.email ?? t("groupDetail.unknownUser");

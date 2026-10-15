@@ -61,7 +61,7 @@ test.describe("upload failures are localized", () => {
     page,
   }) => {
     await mockJsonResponse(page, "**/api/v1/files/upload-url", PRESIGNED);
-    // Aborting is what xhr.onerror is for; the hook turns it into common:upload.networkError, and
+    // Aborting is what xhr.onerror is for; the hook turns it into the common upload.networkError key, and
     // the toast resolves it through a `t` bound to "files".
     await page.route(STORAGE_URL, (route) => route.abort());
 

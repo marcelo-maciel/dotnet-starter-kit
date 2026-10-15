@@ -44,6 +44,8 @@ type Props = {
  */
 export function ProductImageManager({ productId, images, invalidateKey, className }: Props) {
   const { t } = useTranslation("files");
+  // Upload errors carry keys of the common catalog.
+  const { t: tCommon } = useTranslation("common");
   const queryClient = useQueryClient();
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [pendingRemove, setPendingRemove] = useState<ProductImageDto | null>(null);
@@ -64,7 +66,7 @@ export function ProductImageManager({ productId, images, invalidateKey, classNam
       void queryClient.invalidateQueries({ queryKey: invalidateKey });
     },
     onError: (e: unknown) => {
-      toast.error(describeUploadError(e, t, t("pim.errAttach")));
+      toast.error(describeUploadError(e, tCommon, t("pim.errAttach")));
     },
   });
 
@@ -74,7 +76,7 @@ export function ProductImageManager({ productId, images, invalidateKey, classNam
       toast.success(t("pim.toastCoverUpdated"));
       void queryClient.invalidateQueries({ queryKey: invalidateKey });
     },
-    onError: (e: unknown) => toast.error(describeUploadError(e, t, t("pim.errSetCover"))),
+    onError: (e: unknown) => toast.error(describeUploadError(e, tCommon, t("pim.errSetCover"))),
   });
 
   const removeMutation = useMutation({
@@ -84,7 +86,7 @@ export function ProductImageManager({ productId, images, invalidateKey, classNam
       void queryClient.invalidateQueries({ queryKey: invalidateKey });
       setPendingRemove(null);
     },
-    onError: (e: unknown) => toast.error(describeUploadError(e, t, t("pim.errRemove"))),
+    onError: (e: unknown) => toast.error(describeUploadError(e, tCommon, t("pim.errRemove"))),
   });
 
   const handlePick = () => {
@@ -104,7 +106,7 @@ export function ProductImageManager({ productId, images, invalidateKey, classNam
           }
           await attachMutation.mutateAsync({ fileAssetId: asset.id, url: meta.publicUrl });
         } catch (e) {
-          toast.error(describeUploadError(e, t, t("pim.errUploadNamed", { name: file.name })));
+          toast.error(describeUploadError(e, tCommon, t("pim.errUploadNamed", { name: file.name })));
         }
       }
       reset();

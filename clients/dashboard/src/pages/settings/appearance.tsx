@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ParseKeys } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Monitor, Moon, Palette, Sun } from "lucide-react";
 import {
@@ -34,8 +35,8 @@ import { cn } from "@/lib/cn";
 
 const themeOptions: Array<{
   value: ThemeMode;
-  labelKey: string;
-  descriptionKey: string;
+  labelKey: ParseKeys<"settings">;
+  descriptionKey: ParseKeys<"settings">;
   Icon: React.ComponentType<{ className?: string }>;
 }> = [
   { value: "light", labelKey: "appearance.theme.light", descriptionKey: "appearance.theme.lightBlurb", Icon: Sun },

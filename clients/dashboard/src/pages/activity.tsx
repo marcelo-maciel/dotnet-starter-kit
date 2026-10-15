@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import type { ParseKeys } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -42,14 +43,14 @@ const HISTORY_PAGE_SIZE = 25;
 const MAX_LIVE_EVENTS = 200;
 
 // Audit enum labels resolve against the "audits" ns, same keys as the Audit trail page.
-const EVENT_TYPE_KEY: Record<AuditEventType, string> = {
+const EVENT_TYPE_KEY: Record<AuditEventType, ParseKeys<["activity", "audits"]>> = {
   None: "audits:eventType.none",
   EntityChange: "audits:eventType.entity",
   Security: "audits:eventType.security",
   Activity: "audits:eventType.activity",
   Exception: "audits:eventType.exception",
 };
-const SEVERITY_KEY: Record<AuditSeverity, string> = {
+const SEVERITY_KEY: Record<AuditSeverity, ParseKeys<["activity", "audits"]>> = {
   None: "audits:severity.none",
   Trace: "audits:severity.trace",
   Debug: "audits:severity.debug",

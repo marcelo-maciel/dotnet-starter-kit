@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
+import type { TFunction, ParseKeys } from "i18next";
 import {
   Activity,
   ArrowRight,
@@ -175,7 +175,7 @@ function formatClock(ts: number) {
   }).format(new Date(ts));
 }
 
-function statusLabel(status: string, t: TFunction): string {
+function statusLabel(status: string, t: TFunction<"overview">): string {
   return t(`stat.status.${status}`, { defaultValue: status });
 }
 
@@ -680,8 +680,8 @@ function RecentAuditRow({ row }: { row: AuditSummaryDto }) {
 
 type QuickAction = {
   to: string;
-  titleKey: string;
-  descriptionKey: string;
+  titleKey: ParseKeys<"overview">;
+  descriptionKey: ParseKeys<"overview">;
   icon: React.ComponentType<{ className?: string }>;
   tone: StatTone;
 };
@@ -829,8 +829,8 @@ function writeDismissed(tenantId: string | undefined, value: boolean): void {
 type SetupTileSpec = {
   to: string;
   step: string;
-  titleKey: string;
-  descriptionKey: string;
+  titleKey: ParseKeys<"overview">;
+  descriptionKey: ParseKeys<"overview">;
   icon: React.ComponentType<{ className?: string }>;
   tone: StatTone;
 };

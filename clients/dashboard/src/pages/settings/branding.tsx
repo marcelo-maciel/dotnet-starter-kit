@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
+import type { TFunction, ParseKeys } from "i18next";
 import { toast } from "sonner";
 import { Loader2, Palette, RotateCcw, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -189,7 +189,7 @@ export function BrandingSettings() {
 // Palette editor — color swatches paired with hex inputs
 // ─────────────────────────────────────────────────────────────────────────
 
-const PALETTE_FIELDS: ReadonlyArray<{ key: keyof PaletteDto; labelKey: string }> = [
+const PALETTE_FIELDS: ReadonlyArray<{ key: keyof PaletteDto; labelKey: ParseKeys<"settings"> }> = [
   { key: "primary", labelKey: "branding.field.primary" },
   { key: "secondary", labelKey: "branding.field.secondary" },
   { key: "tertiary", labelKey: "branding.field.tertiary" },
@@ -480,7 +480,7 @@ function ThemePreview({ palette, label }: { palette: PaletteDto; label: string }
   );
 }
 
-function apiErr(err: unknown, t: TFunction): string {
+function apiErr(err: unknown, t: TFunction<"settings">): string {
   if (err instanceof ApiRequestError) {
     return err.problem?.detail ?? err.problem?.title ?? err.message;
   }

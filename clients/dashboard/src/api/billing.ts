@@ -1,3 +1,4 @@
+import type { ParseKeys } from "i18next";
 import { apiFetch, ApiRequestError } from "@/lib/api-client";
 import { env } from "@/env";
 import { tokenStore } from "@/auth/token-store";
@@ -22,6 +23,18 @@ export type UsageSnapshotDto = {
 };
 
 export type InvoiceStatus = "Draft" | "Issued" | "Paid" | "Void" | (string & {});
+
+const INVOICE_STATUS_KEYS: Record<string, ParseKeys<"subscription">> = {
+  Draft: "invoices.status.Draft",
+  Issued: "invoices.status.Issued",
+  Paid: "invoices.status.Paid",
+  Void: "invoices.status.Void",
+};
+
+/** The `subscription` catalog key for a status, or undefined for one the server added after this build. */
+export function invoiceStatusKey(status: InvoiceStatus): ParseKeys<"subscription"> | undefined {
+  return INVOICE_STATUS_KEYS[status];
+}
 
 export type InvoicePurpose = "Subscription" | "Usage" | (string & {});
 

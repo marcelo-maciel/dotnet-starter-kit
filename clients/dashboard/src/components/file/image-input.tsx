@@ -46,6 +46,8 @@ export function ImageInput({
   className,
 }: Props) {
   const { t } = useTranslation("files");
+  // Upload errors carry keys of the common catalog.
+  const { t: tCommon } = useTranslation("common");
   const [mode, setMode] = useState<"upload" | "url">("upload");
   const { upload, progress, isUploading, reset } = useFileUpload({
     ownerType,
@@ -84,7 +86,7 @@ export function ImageInput({
       } catch (e) {
         // describeUploadError resolves the catalog key an UploadError carries; anything else is
         // prose the API already localized.
-        toast.error(describeUploadError(e, t, t("imageInput.uploadFailed")));
+        toast.error(describeUploadError(e, tCommon, t("imageInput.uploadFailed")));
       }
     };
     input.click();

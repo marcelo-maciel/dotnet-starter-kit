@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -9,6 +10,7 @@ import {
   getMyInvoice,
   type InvoiceDto,
   type InvoiceLineItemDto,
+  invoiceStatusKey,
   type InvoiceStatus,
 } from "@/api/billing";
 import { Button } from "@/components/ui/button";
@@ -37,6 +39,11 @@ function statusTone(status: InvoiceStatus): EntityStatusTone {
     default:
       return "default";
   }
+}
+
+function statusLabel(status: InvoiceStatus, t: TFunction<"subscription">): string {
+  const key = invoiceStatusKey(status);
+  return key ? t(key) : status;
 }
 
 function formatPeriod(year: number, month: number) {
@@ -155,7 +162,7 @@ function InvoiceHeader({ invoice }: { invoice: InvoiceDto }) {
                 {invoice.invoiceNumber}
               </h1>
               <EntityStatusBadge tone={statusTone(invoice.status)}>
-                {t(`invoices.status.${invoice.status}`)}
+                {statusLabel(invoice.status, t)}
               </EntityStatusBadge>
               {invoice.purpose && (
                 <EntityStatusBadge tone="default">{invoice.purpose}</EntityStatusBadge>
@@ -301,7 +308,7 @@ function DetailsBody({ invoice }: { invoice: InvoiceDto }) {
     <dl className="space-y-2.5 text-[12.5px]">
       <Row label={t("invoiceDetail.row.status")}>
         <EntityStatusBadge tone={statusTone(invoice.status)}>
-          {t(`invoices.status.${invoice.status}`)}
+          {statusLabel(invoice.status, t)}
         </EntityStatusBadge>
       </Row>
       <Row label={t("invoiceDetail.row.currency")}>{invoice.currency}</Row>

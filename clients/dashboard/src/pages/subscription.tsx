@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
+import type { TFunction, ParseKeys } from "i18next";
 import {
   ArrowUpRight,
   CalendarClock,
@@ -17,6 +17,7 @@ import {
   getUsageSnapshots,
   type InvoiceDto,
   type InvoiceStatus,
+  invoiceStatusKey,
   type SubscriptionDto,
   type TenantExpiryState,
   type TenantStatusDto,
@@ -64,7 +65,7 @@ function toUsageRows(snapshots: UsageSnapshotDto[]): UsageRowVm[] {
 
 function expiryTone(state: TenantExpiryState | undefined): {
   tone: EntityStatusTone;
-  labelKey: string;
+  labelKey: ParseKeys<"subscription">;
 } {
   switch (state) {
     case "InGrace":
@@ -95,11 +96,12 @@ function formatPeriod(year: number, month: number) {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
-function invoiceStatusLabel(status: InvoiceStatus, t: TFunction): string {
-  return t(`invoices.status.${status}`, { defaultValue: status });
+function invoiceStatusLabel(status: InvoiceStatus, t: TFunction<"subscription">): string {
+  const key = invoiceStatusKey(status);
+  return key ? t(key) : status;
 }
 
-function subscriptionStatusLabel(status: string, t: TFunction): string {
+function subscriptionStatusLabel(status: string, t: TFunction<"subscription">): string {
   return t(`plan.status.${status}`, { defaultValue: status });
 }
 

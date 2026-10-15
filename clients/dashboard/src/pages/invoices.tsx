@@ -7,6 +7,7 @@ import { Receipt } from "lucide-react";
 import {
   getMyInvoices,
   type InvoiceDto,
+  invoiceStatusKey,
   type InvoiceStatus,
 } from "@/api/billing";
 import { Button } from "@/components/ui/button";
@@ -215,8 +216,9 @@ export function InvoicesPage() {
 // Subcomponents
 // ────────────────────────────────────────────────────────────────────
 
-function statusLabel(status: InvoiceStatus, t: TFunction): string {
-  return t(`invoices.status.${status}`, { defaultValue: status });
+function statusLabel(status: InvoiceStatus, t: TFunction<"subscription">): string {
+  const key = invoiceStatusKey(status);
+  return key ? t(key) : status;
 }
 
 function MobileCard({ invoice }: { invoice: InvoiceDto }) {

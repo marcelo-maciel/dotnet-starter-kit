@@ -28,7 +28,8 @@ type Catalog = Record<string, string>;
 // en-US JSON file and add one row here — `resources` and the namespace list derive from this
 // single map, so no other wiring changes. Its pt-BR file (optional) is picked up by
 // src/locales/pt-BR.ts; a namespace or key pt-BR lacks renders in English through fallbackChain.
-const catalogs: Record<string, Catalog> = {
+// Its type is also what src/i18next.d.ts checks every t() key against.
+const catalogs = {
   common: enCommon,
   auth: enAuth,
   settings: enSettings,
@@ -45,7 +46,9 @@ const catalogs: Record<string, Catalog> = {
   system: enSystem,
   chat: enChat,
   health: enHealth,
-};
+} satisfies Record<string, Catalog>;
+
+export type Catalogs = typeof catalogs;
 
 export const NAMESPACES = Object.keys(catalogs);
 

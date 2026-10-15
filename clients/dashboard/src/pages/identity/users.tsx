@@ -67,7 +67,7 @@ type EmailFilter = "all" | "confirmed" | "unconfirmed";
 const DESKTOP_COLS =
   "grid-cols-[1fr_140px_24px] lg:grid-cols-[1.6fr_140px_180px_24px]";
 
-function fullName(u: UserDto, t: TFunction): string {
+function fullName(u: UserDto, t: TFunction<"identity">): string {
   const parts = [u.firstName, u.lastName].filter(Boolean);
   if (parts.length > 0) return parts.join(" ");
   return u.userName ?? u.email ?? t("unnamedUser");
