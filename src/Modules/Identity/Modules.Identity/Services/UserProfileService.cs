@@ -7,9 +7,13 @@ using FSH.Framework.Storage.Services;
 using FSH.Modules.Identity.Contracts.DTOs;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Domain;
+using FSH.Modules.Identity.Localization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
 namespace FSH.Modules.Identity.Services;
 
@@ -30,7 +34,11 @@ internal sealed class UserProfileService(
             .Where(u => u.Id == userId)
             .FirstOrDefaultAsync(cancellationToken);
 
-        _ = user ?? throw new NotFoundException("user not found");
+        _ = user ?? throw new NotFoundException("user not found")
+        {
+            MessageKey = "Identity.UserNotFound",
+            ResourceSource = typeof(IdentityResources),
+        };
 
         return new UserDto
         {
@@ -44,7 +52,8 @@ internal sealed class UserProfileService(
             EmailConfirmed = user.EmailConfirmed,
             PhoneNumber = user.PhoneNumber,
             TwoFactorEnabled = user.TwoFactorEnabled,
-            ConcurrencyStamp = user.ConcurrencyStamp,
+            Locale = user.Locale,
+            ProfileVersion = ComputeProfileVersion(user),
         };
     }
 
@@ -72,17 +81,21 @@ internal sealed class UserProfileService(
         return result;
     }
 
-    public async Task UpdateAsync(string userId, string firstName, string lastName, string phoneNumber, FileUploadRequest image, bool deleteCurrentImage, IReadOnlyList<string>? expectedConcurrencyStamps, CancellationToken cancellationToken = default)
+    public async Task UpdateAsync(string userId, string firstName, string lastName, string phoneNumber, FileUploadRequest image, bool deleteCurrentImage, string? locale, IReadOnlyList<string>? expectedConcurrencyStamps, CancellationToken cancellationToken = default)
     {
         var user = await userManager.FindByIdAsync(userId);
 
-        _ = user ?? throw new NotFoundException("user not found");
+        _ = user ?? throw new NotFoundException("user not found")
+        {
+            MessageKey = "Identity.UserNotFound",
+            ResourceSource = typeof(IdentityResources),
+        };
 
         // This is a full-representation update, so a caller working from a stale read would
         // silently blank whatever changed since. The precondition is checked here, before the
         // storage calls below: a rejected update must not leave an orphan upload behind, and on
         // the deleteCurrentImage path it must not remove the avatar with no database change.
-        EnsureConcurrencyStampMatches(user, expectedConcurrencyStamps);
+        EnsureProfileUnchanged(user, expectedConcurrencyStamps);
 
         // The old blob is only deleted once the database write has gone through. UpdateAsync can
         // still lose a race here — the If-Match check above is not the last word, because another
@@ -109,6 +122,17 @@ internal sealed class UserProfileService(
 
         user.FirstName = firstName;
         user.LastName = lastName;
+        // An absent locale means "not provided by this update" — preserve the existing value so a
+        // text-only profile edit never clears a language the user already chose. Blank counts as
+        // absent, matching the validator: its allow-list rule is guarded by
+        // .When(!IsNullOrWhiteSpace), so "" never reaches the allow-list and must not reach the
+        // user either. A form that serialises its untouched locale field as "" would otherwise
+        // wipe the preference on every unrelated save.
+        if (!string.IsNullOrWhiteSpace(locale))
+        {
+            user.Locale = locale;
+        }
+
         string? currentPhoneNumber = await userManager.GetPhoneNumberAsync(user);
         if (phoneNumber != currentPhoneNumber)
         {
@@ -120,15 +144,21 @@ internal sealed class UserProfileService(
         if (!result.Succeeded)
         {
             // Identity's store answers a lost race with ConcurrencyFailure instead of throwing,
-            // so it would otherwise surface as a generic 500. It is the same condition the
-            // If-Match check above reports, just detected one layer down: another writer landed
-            // between our read and our save.
+            // so it would otherwise surface as a generic 500. The store compares its own
+            // ConcurrencyStamp, which every write to the row rotates, so a failed sign-in landing
+            // between our read and our save also ends here, as a 412 with the profile untouched.
+            // Accepted: the window is this request's own, and re-reading and saving again recovers
+            // exactly as it does from a real conflict.
             if (result.Errors.Any(error => string.Equals(error.Code, errorDescriber.ConcurrencyFailure().Code, StringComparison.Ordinal)))
             {
                 throw StaleProfileException();
             }
 
-            throw new CustomException("Update profile failed");
+            throw new CustomException("Update profile failed")
+            {
+                MessageKey = "Identity.UpdateProfileFailed",
+                ResourceSource = typeof(IdentityResources),
+            };
         }
 
         if (replacedBlob is not null)
@@ -139,7 +169,7 @@ internal sealed class UserProfileService(
         await signInManager.RefreshSignInAsync(user);
     }
 
-    private static void EnsureConcurrencyStampMatches(FshUser user, IReadOnlyList<string>? expectedConcurrencyStamps)
+    private static void EnsureProfileUnchanged(FshUser user, IReadOnlyList<string>? expectedConcurrencyStamps)
     {
         // A null list means the caller sent no If-Match and accepts the stored version as-is.
         // ponytail: keep the precondition optional for backward compatibility; a future major can
@@ -149,24 +179,44 @@ internal sealed class UserProfileService(
             return;
         }
 
-        var storedStamp = user.ConcurrencyStamp;
-        if (storedStamp is null || !expectedConcurrencyStamps.Contains(storedStamp, StringComparer.Ordinal))
+        if (!expectedConcurrencyStamps.Contains(ComputeProfileVersion(user), StringComparer.Ordinal))
         {
             throw StaleProfileException();
         }
     }
 
+    // Covers only the fields PUT /profile writes. Identity's ConcurrencyStamp also rotates on
+    // writes that leave the profile alone, such as the failed-sign-in counter, and would turn a
+    // wrong password typed anywhere into a 412 on an untouched form. Keyed with the SecurityStamp,
+    // which never leaves the server, because the tag travels in a header proxies and APM log and a
+    // plain hash of name plus phone is brute-forceable over the small phone-number space.
+    // ponytail: the stamp also rotates on a password or 2FA change, so those move the tag too;
+    // swap for a server-wide HMAC key if that ever needs to stop.
+    private static string ComputeProfileVersion(FshUser user) =>
+        Convert.ToHexStringLower(HMACSHA256.HashData(
+            Encoding.UTF8.GetBytes(user.SecurityStamp ?? string.Empty),
+            JsonSerializer.SerializeToUtf8Bytes(
+                new[] { user.FirstName, user.LastName, user.PhoneNumber, user.ImageUrl?.OriginalString, user.Locale })));
+
     private static CustomException StaleProfileException() =>
         new(
             "The profile changed since you loaded it. Reload it and apply your changes again.",
             errors: null,
-            HttpStatusCode.PreconditionFailed);
+            HttpStatusCode.PreconditionFailed)
+        {
+            MessageKey = "Identity.ProfileChangedSinceLoaded",
+            ResourceSource = typeof(IdentityResources),
+        };
 
     public async Task SetImageUrlAsync(string userId, string? imageUrl, CancellationToken cancellationToken)
     {
         EnsureValidTenant();
         var user = await userManager.FindByIdAsync(userId)
-            ?? throw new NotFoundException("user not found");
+            ?? throw new NotFoundException("user not found")
+            {
+                MessageKey = "Identity.UserNotFound",
+                ResourceSource = typeof(IdentityResources),
+            };
 
         user.ImageUrl = string.IsNullOrWhiteSpace(imageUrl)
             ? null
@@ -175,7 +225,11 @@ internal sealed class UserProfileService(
         var result = await userManager.UpdateAsync(user);
         if (!result.Succeeded)
         {
-            throw new CustomException("Update profile image failed");
+            throw new CustomException("Update profile image failed")
+            {
+                MessageKey = "Identity.UpdateProfileImageFailed",
+                ResourceSource = typeof(IdentityResources),
+            };
         }
 
         await signInManager.RefreshSignInAsync(user);
@@ -203,7 +257,10 @@ internal sealed class UserProfileService(
     {
         if (string.IsNullOrWhiteSpace(multiTenantContextAccessor?.MultiTenantContext?.TenantInfo?.Id))
         {
-            throw new UnauthorizedException("invalid tenant");
+            throw new UnauthorizedException("invalid tenant")
+            {
+                MessageKey = "Error.InvalidTenant",
+            };
         }
     }
 
