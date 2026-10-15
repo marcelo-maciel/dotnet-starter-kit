@@ -3,6 +3,8 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import i18next from 'eslint-plugin-i18next';
+// The plugin exports no defaults object; this is 6.x's internal path, and an upgrade that moves it
+// fails the lint at import rather than silently dropping the defaults.
 import i18nextDefaults from 'eslint-plugin-i18next/lib/options/defaults.js';
 import tseslint from 'typescript-eslint';
 

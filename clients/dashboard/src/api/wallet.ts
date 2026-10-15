@@ -1,6 +1,7 @@
 import { apiFetch } from "@/lib/api-client";
 import type { ParseKeys } from "i18next";
 import type { PagedResult } from "@/api/billing";
+import { statusKey, TOPUP_STATUS_KEYS } from "@/lib/status-keys";
 
 // Wallet transaction kinds. The backend serializes enums as STRINGS
 // (see project_api_string_enums); mirror them as a string union with an
@@ -40,17 +41,9 @@ export type TopupRequestStatus =
   | "Cancelled"
   | (string & {});
 
-const TOPUP_STATUS_KEYS: Record<string, ParseKeys<"subscription">> = {
-  Pending: "wallet.status.Pending",
-  Invoiced: "wallet.status.Invoiced",
-  Completed: "wallet.status.Completed",
-  Rejected: "wallet.status.Rejected",
-  Cancelled: "wallet.status.Cancelled",
-};
-
 /** The `subscription` catalog key for a status, or undefined for one the server added after this build. */
 export function topupStatusKey(status: TopupRequestStatus): ParseKeys<"subscription"> | undefined {
-  return TOPUP_STATUS_KEYS[status];
+  return statusKey(TOPUP_STATUS_KEYS, status);
 }
 
 export type TopupRequestDto = {

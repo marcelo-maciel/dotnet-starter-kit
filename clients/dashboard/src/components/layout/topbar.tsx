@@ -126,14 +126,14 @@ function ThemeMenuItem({
   );
 }
 
-/** Language-pick row — mirrors ThemeMenuItem but keeps the menu open on
- *  select so the section label re-localizes in place instead of the menu
- *  closing before the switch is visible. */
 const LANGUAGE_LABEL_KEYS = {
   "en-US": "language.enUS",
   "pt-BR": "language.ptBR",
 } as const satisfies Record<(typeof SUPPORTED)[number], ParseKeys<"common">>;
 
+/** Language-pick row — mirrors ThemeMenuItem but keeps the menu open on
+ *  select so the section label re-localizes in place instead of the menu
+ *  closing before the switch is visible. */
 function LanguageMenuItem({
   label,
   active,
