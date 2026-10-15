@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { formatDateTime } from "@/lib/format";
 import { useTranslation } from "react-i18next";
-import type { ParseKeys } from "i18next";
+import type { TFunction } from "i18next";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Clock, RefreshCw, ShieldOff, UserCog } from "lucide-react";
 import {
@@ -26,19 +26,19 @@ import { EmptyState } from "@/components/empty-state";
 import { ImpersonateDialog } from "@/components/impersonation/impersonate-dialog";
 import { RevokeGrantDialog } from "@/components/impersonation/revoke-grant-dialog";
 import { IdentityPermissions } from "@/lib/permissions";
+import { IMPERSONATION_STATUS_KEYS, statusKey } from "@/lib/status-keys";
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 
 const REFRESH_INTERVAL_MS = 5_000;
 
-const STATUS_KEYS = {
-  Active: "status.active",
-  Ended: "status.ended",
-  Revoked: "status.revoked",
-  Expired: "status.expired",
-} as const satisfies Record<ImpersonationGrantStatus, ParseKeys<"impersonation">>;
+const STATUS_VALUES: ImpersonationGrantStatus[] = ["Active", "Ended", "Revoked", "Expired"];
 
-const STATUS_VALUES = Object.keys(STATUS_KEYS) as ImpersonationGrantStatus[];
+// A status the server added after this build shows its raw value rather than an empty badge.
+function statusLabel(status: string, t: TFunction<"impersonation">): string {
+  const key = statusKey(IMPERSONATION_STATUS_KEYS, status);
+  return key ? t(key) : status;
+}
 
 export function ImpersonationListPage() {
   const { t } = useTranslation("impersonation");
@@ -80,7 +80,7 @@ export function ImpersonationListPage() {
 
   const statusOptions = STATUS_VALUES.map((value) => ({
     value,
-    label: t(STATUS_KEYS[value]),
+    label: t(IMPERSONATION_STATUS_KEYS[value]),
   }));
 
   return (
@@ -362,7 +362,7 @@ function StatusBadge({ status }: { status: ImpersonationGrantStatus }) {
     "muted";
   return (
     <Badge variant={variant} className="font-mono uppercase tracking-[0.14em]">
-      {t(STATUS_KEYS[status])}
+      {statusLabel(status, t)}
     </Badge>
   );
 }

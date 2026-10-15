@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
+import { IMPERSONATION_STATUS_KEYS, INVOICE_STATUS_KEYS, statusKey } from "../../src/lib/status-keys";
 
 // Several labels build their catalog key from a value the API sends: `status.${status}`. Catalog
 // parity cannot see those — both locales can be missing the same key and still match — so a status
@@ -9,7 +10,9 @@ import { expect, test } from "@playwright/test";
 // "status.invoiced".
 //
 // The member list is read from the backend enum rather than copied here, so adding a member to the
-// C# enum without translating it fails this test instead of reaching a screen.
+// C# enum without translating it fails this test instead of reaching a screen. Where the app maps a
+// status to its key (src/lib/status-keys.ts) the test reads that map, so a member the map lacks fails
+// too; where it still builds the key from the value, the test applies the same transformation.
 
 const repoRoot = path.resolve("../..");
 
@@ -27,11 +30,12 @@ function enumMembers(relativePath: string, enumName: string): string[] {
 const readCatalog = (locale: string, ns: string): Record<string, string> =>
   JSON.parse(readFileSync(path.resolve("src/locales", locale, `${ns}.json`), "utf8"));
 
-/** The transformation the call sites apply: first letter lowered, rest kept. */
+/** The transformation the top-up call sites apply: first letter lowered, rest kept. */
 const camel = (member: string) => `status.${member.charAt(0).toLowerCase()}${member.slice(1)}`;
 
-/** The impersonation list lowercases the whole value instead. */
-const lower = (member: string) => `status.${member.toLowerCase()}`;
+/** Looks a member up in the app's map; a member it lacks has no key. */
+const mapped = (keys: Record<string, string>) => (member: string) =>
+  Object.hasOwn(keys, member) ? keys[member] : `(no entry for ${member} in src/lib/status-keys.ts)`;
 
 const CASES = [
   {
@@ -46,14 +50,14 @@ const CASES = [
     ns: "billing",
     file: "src/Modules/Billing/Modules.Billing.Contracts/BillingEnums.cs",
     enumName: "InvoiceStatus",
-    key: camel,
+    key: mapped(INVOICE_STATUS_KEYS),
   },
   {
     label: "impersonation grants",
     ns: "impersonation",
     file: "src/Modules/Identity/Modules.Identity.Contracts/v1/Impersonation/ImpersonationGrantDto.cs",
     enumName: "ImpersonationGrantStatus",
-    key: lower,
+    key: mapped(IMPERSONATION_STATUS_KEYS),
   },
 ];
 
@@ -71,6 +75,12 @@ test.describe("status keys built from backend enums", () => {
       expect(missing).toEqual([]);
     });
   }
+});
+
+test("a status the server added after this build has no key, so the badge shows the raw value", () => {
+  expect(statusKey(IMPERSONATION_STATUS_KEYS, "Suspended")).toBeUndefined();
+  expect(statusKey(INVOICE_STATUS_KEYS, "constructor")).toBeUndefined();
+  expect(statusKey(IMPERSONATION_STATUS_KEYS, "Active")).toBe("status.active");
 });
 
 // The permission matrix is the other place keys are built at run time, and the largest: eight

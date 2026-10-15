@@ -1,6 +1,7 @@
 import type { ParseKeys } from "i18next";
 import { apiFetch, ApiRequestError } from "@/lib/api-client";
 import type { PagedResponse } from "@/lib/api-types";
+import { INVOICE_STATUS_KEYS, statusKey } from "@/lib/status-keys";
 import { env } from "@/env";
 import { tokenStore } from "@/auth/token-store";
 
@@ -8,16 +9,9 @@ import { tokenStore } from "@/auth/token-store";
 
 export type InvoiceStatus = "Draft" | "Issued" | "Paid" | "Void" | (string & {});
 
-const INVOICE_STATUS_KEYS: Record<string, ParseKeys<"billing">> = {
-  Draft: "status.draft",
-  Issued: "status.issued",
-  Paid: "status.paid",
-  Void: "status.void",
-};
-
 /** The `billing` catalog key for a status, or undefined for one the server added after this build. */
 export function invoiceStatusKey(status: InvoiceStatus): ParseKeys<"billing"> | undefined {
-  return INVOICE_STATUS_KEYS[status];
+  return statusKey(INVOICE_STATUS_KEYS, status);
 }
 
 export type SubscriptionStatus = "Active" | "Suspended" | "Cancelled" | (string & {});
