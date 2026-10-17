@@ -123,7 +123,7 @@ export function GuichePage() {
           <p className="text-sm text-[var(--color-muted-foreground)]">
             {posto.data.unidade}
             {posto.data.guiche && ` · ${posto.data.guiche}`}{" "}
-            {etapa === "operar" && (
+            {etapa !== "unidade" && (
               <Button variant="link" size="xs" onClick={trocarPosto}>
                 Trocar
               </Button>

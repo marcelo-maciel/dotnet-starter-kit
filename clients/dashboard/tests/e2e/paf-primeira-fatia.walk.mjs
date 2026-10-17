@@ -202,6 +202,11 @@ try {
   // appends one button to the real configuration; the emission itself goes to the real API.
   await estacaoCtx.route("**/api/v1/paf/estacao/emissao/configuracao", async (route) => {
     const real = await route.fetch();
+    // Refusals (revoked credential later in the walk) pass through untouched.
+    if (!real.ok()) {
+      await route.fulfill({ response: real });
+      return;
+    }
     const json = await real.json();
     const alheia = { filaId: crypto.randomUUID(), fila: "Fila Alheia", prioridadeId: prioridade.id, prioridade: "Normal", letra: "Z", ordem: 999 };
     await route.fulfill({ response: real, json: { ...json, botoes: [...json.botoes, alheia] } });
@@ -231,6 +236,9 @@ try {
   await pGuiche.locator('button[type="submit"]').click();
   await pGuiche.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: TIMEOUT });
   await pGuiche.goto(`${WEB}/paf/guiche`);
+  // The session already has a unit (GET posto): the screen opens on the guichê step; "Trocar" reaches the unit list.
+  check("guichê: abre na escolha do guichê com a unidade da sessão", await visivel(pGuiche.getByLabel("Guichê")));
+  await pGuiche.getByRole("button", { name: "Trocar" }).click();
   await pGuiche.getByLabel("Unidade").selectOption({ label: "Loja Demo" });
   await pGuiche.getByRole("button", { name: "Usar esta unidade" }).click();
   await pGuiche.getByLabel("Guichê").selectOption({ label: "Guichê 1" });
