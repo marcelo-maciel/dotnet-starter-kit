@@ -38,10 +38,11 @@ public sealed partial class UnidadeCorrenteMiddleware(RequestDelegate next, ILog
 
         var unidadeCorrente = context.RequestServices.GetRequiredService<IUnidadeCorrente>();
         string cabecalho = context.Request.Headers[Cabecalho].ToString();
-        string? claim = principal.FindFirstValue(PafClaims.Unidade);
-        if (claim is not null)
+        // A station token is recognised by its role, like the other PAF middlewares: one missing its unidade
+        // is refused instead of falling through to the person path.
+        if (principal.HasClaim(c => c.Type == PafClaims.Papel))
         {
-            ConferirCabecalhoDaEstacao(claim, cabecalho);
+            ConferirCabecalhoDaEstacao(principal.FindFirstValue(PafClaims.Unidade), cabecalho);
         }
         else if (unidadeCorrente.UnidadeId is null
             && await ResolverPelaPessoaAsync(context, principal, cabecalho).ConfigureAwait(false) is { } unidadeId)
@@ -54,7 +55,7 @@ public sealed partial class UnidadeCorrenteMiddleware(RequestDelegate next, ILog
 
     // A station belongs to one unidade and never switches, so a header naming another one is refused,
     // not silently ignored.
-    private void ConferirCabecalhoDaEstacao(string claim, string cabecalho)
+    private void ConferirCabecalhoDaEstacao(string? claim, string cabecalho)
     {
         if (!Guid.TryParse(claim, out var unidadeId) || unidadeId == Guid.Empty)
         {
