@@ -9,6 +9,7 @@ using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Contracts.v1.Tokens.TokenGeneration;
 using Mediator;
 using Microsoft.Extensions.Logging;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 
 namespace FSH.Modules.Identity.Features.v1.Tokens.TokenGeneration;
@@ -85,29 +86,34 @@ public sealed class GenerateTokenCommandHandler
             userAgent: ua,
             ct: cancellationToken);
 
+        // PAF (ADR 0008, "Claim de sessão"): the access token carries the session id so each request can be
+        // checked against its session. The session must exist before signing, but the refresh token only exists
+        // after it, so the session is created under a provisional hash and re-keyed once the token is issued.
+        // Mandatory, no longer best-effort: a token without a session is refused on every request.
+        var provisionalRefreshHash = "pending-" + Guid.NewGuid().ToString("N");
+        var session = await _sessionService.CreateSessionAsync(
+            subject,
+            provisionalRefreshHash,
+            ip,
+            ua,
+            TimeProvider.System.GetUtcNow().UtcDateTime.AddDays(1),
+            cancellationToken);
+        var sessionClaims = claims.Append(new Claim(JwtRegisteredClaimNames.Sid, session.Id.ToString())).ToList();
+
         // Issue token
-        var token = await _tokenService.IssueAsync(subject, claims, /*extra*/ null, cancellationToken);
+        var token = await _tokenService.IssueAsync(subject, sessionClaims, /*extra*/ null, cancellationToken);
 
         // Persist refresh token (hashed) for this user
         await _identityService.StoreRefreshTokenAsync(subject, token.RefreshToken, token.RefreshTokenExpiresAt, cancellationToken);
 
-        // Create user session for session management (non-blocking, fail gracefully)
-        try
+        await _sessionService.UpdateSessionRefreshTokenAsync(
+            provisionalRefreshHash,
+            Sha256Short(token.RefreshToken),
+            token.RefreshTokenExpiresAt,
+            cancellationToken);
+        if (_logger.IsEnabled(LogLevel.Debug))
         {
-            var refreshTokenHash = Sha256Short(token.RefreshToken);
-            await _sessionService.CreateSessionAsync(
-                subject,
-                refreshTokenHash,
-                ip,
-                ua,
-                token.RefreshTokenExpiresAt,
-                cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            // Session creation is non-critical - don't fail the login
-            // This can happen if migrations haven't been applied yet
-            _logger.LogWarning(ex, "Failed to create user session for user {UserId}. Login will continue without session tracking.", subject);
+            _logger.LogDebug("Session {SessionId} bound to the access token of user {UserId}", session.Id, subject);
         }
 
         // 3) Audit token issuance with a fingerprint (never raw token)

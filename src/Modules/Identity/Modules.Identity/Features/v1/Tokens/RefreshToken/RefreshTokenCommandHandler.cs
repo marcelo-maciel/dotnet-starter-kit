@@ -94,6 +94,14 @@ public sealed class RefreshTokenCommandHandler
         // Audit previous token revocation by rotation (no raw tokens)
         await _securityAudit.TokenRevokedAsync(subject, clientId, "RefreshTokenRotated", cancellationToken);
 
+        // PAF (ADR 0008, "Claim de sessão"): the renewed access token keeps the session claim of the login.
+        // A refresh token with no session row (issued before the claim existed) gets no claim and is refused downstream.
+        var sessionId = await _sessionService.GetSessionIdByRefreshTokenAsync(refreshTokenHash, cancellationToken);
+        if (sessionId is { } id)
+        {
+            claims = claims.Append(new Claim(JwtRegisteredClaimNames.Sid, id.ToString())).ToList();
+        }
+
         // Issue new tokens
         var newToken = await _tokenService.IssueAsync(subject, claims, null, cancellationToken);
 
