@@ -208,7 +208,8 @@ public class ConfigureJwtBearerOptions : IConfigureNamedOptions<JwtBearerOptions
                 // Browser EventSource/SignalR can't send an Authorization header, so they use
                 // ?access_token=. The narrow path allow-list keeps query-string tokens from leaking elsewhere.
                 if (path.StartsWithSegments("/notifications", StringComparison.OrdinalIgnoreCase)
-                    || path.StartsWithSegments("/api/v1/realtime/hub", StringComparison.OrdinalIgnoreCase))
+                    || path.StartsWithSegments("/api/v1/realtime/hub", StringComparison.OrdinalIgnoreCase)
+                    || path.StartsWithSegments("/api/v1/paf/hub", StringComparison.OrdinalIgnoreCase))
                 {
                     context.Token = accessToken;
                 }
