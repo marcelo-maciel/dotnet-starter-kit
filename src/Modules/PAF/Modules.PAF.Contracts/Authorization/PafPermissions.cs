@@ -56,6 +56,13 @@ public static class PafPermissions
         public const string Update = $"Permissions.{Resource}.Update";
     }
 
+    public static class VinculosEstacao
+    {
+        public const string Resource = "PAF.VinculosEstacao";
+        public const string Generate = $"Permissions.{Resource}.Generate";
+        public const string Revoke = $"Permissions.{Resource}.Revoke";
+    }
+
     public static IReadOnlyList<FshPermission> All { get; } =
     [
         new("View PAF units", ActionConstants.View, Unidades.Resource),
@@ -74,5 +81,7 @@ public static class PafPermissions
         new("Manage PAF unit contracts", "Manage", Contratos.Resource, IsRoot: true),
         new("View PAF user units", ActionConstants.View, UsuariosUnidade.Resource),
         new("Update PAF user units", ActionConstants.Update, UsuariosUnidade.Resource),
+        new("Generate PAF station link", "Generate", VinculosEstacao.Resource),
+        new("Revoke PAF station link", "Revoke", VinculosEstacao.Resource),
     ];
 }

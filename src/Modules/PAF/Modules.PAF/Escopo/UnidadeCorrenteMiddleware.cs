@@ -2,7 +2,7 @@ using System.Net;
 using System.Security.Claims;
 using FSH.Framework.Core.Exceptions;
 using FSH.Framework.Shared.Identity.Claims;
-using FSH.Modules.PAF.Contracts;
+using FSH.Modules.PAF.Contracts.Authorization;
 using FSH.Modules.PAF.Data;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;

@@ -2,16 +2,24 @@ using Asp.Versioning;
 using FSH.Framework.Persistence;
 using FSH.Framework.Shared.Constants;
 using FSH.Framework.Web.Modules;
+using FSH.Modules.PAF.Autorizacao;
+using FSH.Modules.PAF.Conferencia;
 using FSH.Modules.PAF.Contracts.Authorization;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Escopo;
+using FSH.Modules.PAF.Estacoes;
 using FSH.Modules.PAF.Features.v1.Contratos.CreateContratoUnidade;
 using FSH.Modules.PAF.Features.v1.Contratos.ListContratosUnidade;
 using FSH.Modules.PAF.Features.v1.Contratos.UpdateContratoUnidade;
 using FSH.Modules.PAF.Features.v1.Estacoes.CreateEstacao;
 using FSH.Modules.PAF.Features.v1.Estacoes.DisableEstacao;
 using FSH.Modules.PAF.Features.v1.Estacoes.EnableEstacao;
+using FSH.Modules.PAF.Features.v1.Estacoes.GerarVinculo;
 using FSH.Modules.PAF.Features.v1.Estacoes.ListEstacoes;
+using FSH.Modules.PAF.Features.v1.Estacoes.ObterConfiguracao;
+using FSH.Modules.PAF.Features.v1.Estacoes.RenovarCredencial;
+using FSH.Modules.PAF.Features.v1.Estacoes.ResgatarVinculo;
+using FSH.Modules.PAF.Features.v1.Estacoes.RevogarVinculo;
 using FSH.Modules.PAF.Features.v1.Estacoes.UpdateEstacao;
 using FSH.Modules.PAF.Features.v1.Filas.AddFilaPrioridade;
 using FSH.Modules.PAF.Features.v1.Filas.CreateFila;
@@ -33,6 +41,7 @@ using FSH.Modules.PAF.Features.v1.Unidades.ListUnidades;
 using FSH.Modules.PAF.Features.v1.Unidades.UpdateUnidade;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.GetUsuarioUnidades;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.SetUsuarioUnidades;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -59,13 +68,17 @@ public sealed class PafModule : IModule
                 name: "db:paf",
                 failureStatus: HealthStatus.Unhealthy);
 
+        PermissionConstants.Register(PafPermissions.All);
         ConfigureCadastroServices(builder.Services);
+        RegistrarCredencialDeEstacao(builder.Services);
     }
 
     public void ConfigureMiddleware(IApplicationBuilder app)
     {
         ArgumentNullException.ThrowIfNull(app);
 
+        // The tenant refusal and the station credential check run first: the station's unit comes from them.
+        app.UseMiddleware<ConferenciaRequisicaoMiddleware>();
         app.UseMiddleware<UnidadeCorrenteMiddleware>();
     }
 
@@ -78,19 +91,24 @@ public sealed class PafModule : IModule
             .ReportApiVersions()
             .Build();
 
-        var group = endpoints
+        var cadastro = endpoints
             .MapGroup("api/v{version:apiVersion}/paf")
             .WithTags("PAF")
             .WithApiVersionSet(versionSet)
             .RequireAuthorization();
+        MapCadastroEndpoints(cadastro);
 
-        MapCadastroEndpoints(group);
+        // No group-wide RequireAuthorization: redeeming a link and renewing a credential are anonymous.
+        var estacao = endpoints
+            .MapGroup("api/v{version:apiVersion}")
+            .WithTags("PAF")
+            .WithApiVersionSet(versionSet);
+        MapearEndpointsDeEstacao(estacao);
     }
 
     // Cadastros and unit scope (feat/paf-cadastro).
     private static void ConfigureCadastroServices(IServiceCollection services)
     {
-        PermissionConstants.Register(PafPermissions.All);
         services.AddScoped<EscopoUsuario>();
         services.AddScoped<PafDemoSeeder>();
     }
@@ -131,5 +149,30 @@ public sealed class PafModule : IModule
 
         group.MapGetUsuarioUnidadesEndpoint();
         group.MapSetUsuarioUnidadesEndpoint();
+    }
+
+    // Station credential (RF04, ADR 0008 "Token da estação"): the per-role policies and the issuer.
+    private static void RegistrarCredencialDeEstacao(IServiceCollection services)
+    {
+        services.AddScoped<EmissorAcessoEstacao>();
+        services.AddScoped<IAuthorizationHandler, EstacaoAuthorizationHandler>();
+        services.AddAuthorizationBuilder()
+            .AddPolicy(PafPolicies.EstacaoEmissao, p => p
+                .RequireAuthenticatedUser()
+                .AddRequirements(new EstacaoRequirement(PafPapeisEstacao.Emissao)))
+            .AddPolicy(PafPolicies.EstacaoPainel, p => p
+                .RequireAuthenticatedUser()
+                .AddRequirements(new EstacaoRequirement(PafPapeisEstacao.Painel)));
+    }
+
+    private static void MapearEndpointsDeEstacao(IEndpointRouteBuilder group)
+    {
+        // Literal "vinculo/resgatar" and "credencial/renovar" never collide with the "{estacaoId:guid}" routes.
+        group.MapGenerateStationLinkEndpoint();
+        group.MapRevokeStationLinkEndpoint();
+        group.MapIssueStationCredentialEndpoint();
+        group.MapRenewStationCredentialEndpoint();
+        group.MapGetStationEmissionSettingsEndpoint();
+        group.MapGetStationPanelSettingsEndpoint();
     }
 }
