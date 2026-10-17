@@ -120,6 +120,9 @@ public sealed class Licencas(PafDbContext db, IUnidadeCorrente unidadeCorrente, 
     public Task<bool> UsuarioDoPafAsync(Guid usuarioId, CancellationToken ct) =>
         db.UsuariosUnidade.AsNoTracking().AnyAsync(u => u.UsuarioId == usuarioId, ct);
 
+    public Task<bool> NoEscopoAsync(Guid usuarioId, Guid unidadeId, CancellationToken ct) =>
+        db.UsuariosUnidade.AsNoTracking().AnyAsync(u => u.UsuarioId == usuarioId && u.UnidadeId == unidadeId, ct);
+
     /// <summary>Renova a marca de sessão viva, no máximo uma escrita por intervalo; verdadeiro quando escreveu.</summary>
     public async Task<bool> RenovarMarcaAsync(string tenantId, Guid sessaoId, CancellationToken ct) =>
         await db.Database.ExecuteSqlAsync($"""

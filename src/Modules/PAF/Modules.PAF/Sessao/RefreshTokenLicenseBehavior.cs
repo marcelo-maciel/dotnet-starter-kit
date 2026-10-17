@@ -61,6 +61,13 @@ internal sealed class RefreshTokenLicenseBehavior(
 
         await using (reserva)
         {
+            // Re-read under the unit lock: a login on another machine may have revoked this session while the
+            // refresh waited for the lock, and confirming now would delete the new session's row (sessão única).
+            if (await sessoes.GetSessionAsync(sessaoId, cancellationToken) is not { IsActive: true })
+            {
+                throw new UnauthorizedException(SessionCheckMiddleware.MensagemSessaoInvalida);
+            }
+
             await reserva.ConfirmarAsync(sessaoId, [], cancellationToken);
         }
 

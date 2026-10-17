@@ -151,6 +151,7 @@ public sealed class PafModule : IModule
         services.AddScoped<SessaoCorrente>();
         services.AddScoped<Licencas>();
         services.AddScoped<EstadoSessao>();
+        services.AddScoped<RevogacaoSessao>();
         services.AddScoped<IPipelineBehavior<GenerateTokenCommand, TokenResponse>, GenerateTokenLicenseBehavior>();
         services.AddScoped<IPipelineBehavior<RefreshTokenCommand, RefreshTokenCommandResponse>, RefreshTokenLicenseBehavior>();
     }

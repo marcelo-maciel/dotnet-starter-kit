@@ -1,8 +1,10 @@
 using System.Security.Claims;
+using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Core.Exceptions;
 using FSH.Framework.Shared.Constants;
 using FSH.Framework.Shared.Multitenancy;
+using FSH.Modules.Identity.Contracts.DTOs;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.PAF.Contracts.Authorization;
 using FSH.Modules.PAF.Escopo;
@@ -29,7 +31,7 @@ internal sealed class SessionCheckMiddleware(RequestDelegate next)
         var usuario = context.User;
         if (usuario.Identity?.IsAuthenticated != true
             || usuario.HasClaim(c => c.Type == ClaimConstants.ActorSubject)
-            || usuario.HasClaim(c => c.Type == PafClaims.Unidade))
+            || usuario.HasClaim(c => c.Type == PafClaims.Papel))
         {
             await next(context);
             return;
@@ -39,16 +41,6 @@ internal sealed class SessionCheckMiddleware(RequestDelegate next)
         var ct = context.RequestAborted;
         var tenantClaim = usuario.FindFirstValue(ClaimConstants.Tenant);
         var raiz = string.Equals(tenantClaim, MultitenancyConstants.Root.Id, StringComparison.Ordinal);
-        var tenantResolvido = servicos.GetRequiredService<IMultiTenantContextAccessor<AppTenantInfo>>()
-            .MultiTenantContext?.TenantInfo?.Id;
-
-        // Root operator scoped to a client tenant by header: the session lives in root, and the Identity
-        // queries below would run under the client tenant filter. Not checked in this slice.
-        if (raiz && !string.Equals(tenantResolvido, MultitenancyConstants.Root.Id, StringComparison.Ordinal))
-        {
-            await next(context);
-            return;
-        }
 
         if (ClaimDeSessao.DasClaims(usuario.Claims) is not { } sessaoId)
         {
@@ -62,7 +54,11 @@ internal sealed class SessionCheckMiddleware(RequestDelegate next)
             throw new UnauthorizedException(MensagemSessaoInvalida);
         }
 
-        var sessao = await servicos.GetRequiredService<ISessionService>().GetSessionAsync(sessaoId, ct);
+        var tenantResolvido = servicos.GetRequiredService<IMultiTenantContextAccessor<AppTenantInfo>>()
+            .MultiTenantContext?.TenantInfo?.Id;
+        var sessao = raiz && !string.Equals(tenantResolvido, MultitenancyConstants.Root.Id, StringComparison.Ordinal)
+            ? await SessaoNoTenantRaizAsync(servicos, sessaoId, ct)
+            : await servicos.GetRequiredService<ISessionService>().GetSessionAsync(sessaoId, ct);
         if (sessao is not { IsActive: true })
         {
             throw new UnauthorizedException(MensagemSessaoInvalida);
@@ -78,6 +74,20 @@ internal sealed class SessionCheckMiddleware(RequestDelegate next)
         }
 
         await ConferirLicencaAsync(context, tenantClaim!, sessaoId, Guid.Parse(sessao.UserId!), ct);
+    }
+
+    // Root operator scoped to a client tenant by header: the session lives in root, and the request's Identity
+    // context runs under the client tenant filter, so it is read in a scope set to the root tenant (the kit's
+    // UserPermissionService does the same for a home tenant).
+    private static async Task<UserSessionDto?> SessaoNoTenantRaizAsync(IServiceProvider servicos, Guid sessaoId, CancellationToken ct)
+    {
+        await using var escopo = servicos.GetRequiredService<IServiceScopeFactory>().CreateAsyncScope();
+        var raiz = await escopo.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>()
+            .GetAsync(MultitenancyConstants.Root.Id)
+            ?? throw new UnauthorizedException(MensagemSessaoInvalida);
+        escopo.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>().MultiTenantContext =
+            new MultiTenantContext<AppTenantInfo>(raiz);
+        return await escopo.ServiceProvider.GetRequiredService<ISessionService>().GetSessionAsync(sessaoId, ct);
     }
 
     private async Task ConferirLicencaAsync(HttpContext context, string tenantId, Guid sessaoId, Guid usuarioId, CancellationToken ct)
@@ -98,14 +108,33 @@ internal sealed class SessionCheckMiddleware(RequestDelegate next)
             throw new UnauthorizedException(MensagemLicencaExpirada);
         }
 
-        servicos.GetRequiredService<SessaoCorrente>().Definir(tenantId, sessaoId, usuarioId, unidadeLicencaId);
-
         var estado = servicos.GetRequiredService<EstadoSessao>();
         var unidadeCorrente = await estado.LerUnidadeAsync(tenantId, sessaoId, ct) ?? unidadeLicencaId;
+
+        // RF08: taking the current unit out of the scope revokes the session. The scope edit revokes in the same
+        // act; this check covers a revocation that failed half-way. A disabled unit is not checked here: sessions
+        // already open in it run until they end (RF08, RF22).
+        var revogacao = servicos.GetRequiredService<RevogacaoSessao>();
+        if (!await licencas.NoEscopoAsync(usuarioId, unidadeCorrente, ct))
+        {
+            await revogacao.RevogarAsync(tenantId, sessaoId, usuarioId, RevogacaoSessao.MotivoUnidadeRetirada, ct);
+            throw new UnauthorizedException(RevogacaoSessao.MensagemUnidadeRetirada);
+        }
+
+        servicos.GetRequiredService<SessaoCorrente>().Definir(tenantId, sessaoId, usuarioId, unidadeLicencaId);
         servicos.GetRequiredService<IUnidadeCorrente>().Definir(unidadeCorrente);
 
         if (await licencas.RenovarMarcaAsync(tenantId, sessaoId, ct))
         {
+            // Deactivation in a kit screen revokes nothing; the renewal is where the PAF notices it, at most one
+            // renewal cycle later (seção 9, ADR 0008).
+            var perfil = await servicos.GetRequiredService<IUserProfileService>().GetAsync(usuarioId.ToString(), ct);
+            if (!perfil.IsActive)
+            {
+                await revogacao.RevogarAsync(tenantId, sessaoId, usuarioId, RevogacaoSessao.MotivoUsuarioInativo, ct);
+                throw new UnauthorizedException(MensagemSessaoInvalida);
+            }
+
             await estado.RenovarAsync(tenantId, sessaoId, ct);
         }
 
