@@ -108,6 +108,16 @@ public sealed class PafHubTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Conectar_TokenDePessoaDoKit_FicaConectado()
+    {
+        var token = await new AuthHelper(_factory).GetRootAdminTokenAsync();
+
+        var conexao = await ConectarAsync(token.AccessToken, TestConstants.RootTenantId);
+
+        conexao.State.ShouldBe(HubConnectionState.Connected);
+    }
+
+    [Fact]
     public async Task EnvioDireto_ChegaSoAoGrupoCerto_NuncaAOutraUnidadeOuOutroTenant()
     {
         var outroTenant = await CriarOutroTenantAsync();
