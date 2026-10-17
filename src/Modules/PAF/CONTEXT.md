@@ -49,6 +49,9 @@ Concurrency and fail-closed tests: `src/Tests/Integration.Tests/Tests/PAF/`.
 ## Realtime (`TempoReal/`)
 
 - `PafHub` at `/api/v1/paf/hub` (`PafHubRota.Caminho`), policy `PafHub`, groups `PafGrupos` (`paf:{tenant}:unidade:{guid}` and siblings). Writes go through `AvisosTempoReal.GravarAsync` inside the transaction and `EnviarAsync` after commit; the outbox stores the full type name of the `*Paf` events, so renaming one orphans stored rows.
+- `PafHubFilter` revalidates on connect and on every client call (live `VinculoEstacao` through `Conferencia/CredencialEstacao`, active kit session through `ISessionService`), aborts on refusal, and installs the token's tenant in the hub scope: resolve `PafDbContext` lazily inside the hub, never by constructor.
+- `ConexoesPaf` is the connection registry (in-memory, ponytail: one instance). A person connection joins the guichê group of its session's active `SessaoEstacao` on connect; the guichê screen invokes `EntrarNoGuiche` (`PafHubChamadas`) after selecting and after every reconnect. Hooks for other handlers, after their commit: `MoverSessaoParaGuicheAsync` (guichê selected, changed or released), `EncerrarEstacao` (link revoked, station deactivated), `EncerrarSessao` (session revoked).
+- Every front client connects WebSockets-only with `skipNegotiation: true` (seção 11, 17/10/2026) and invokes nothing while not Connected. The .NET test clients stay on long polling (TestServer closes a WebSocket before the handshake).
 
 ## Session and licence (`Sessao/`)
 

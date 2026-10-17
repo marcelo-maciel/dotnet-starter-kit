@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -12,9 +12,15 @@ import {
   operarAtendimento,
   type OperacaoAtendimento,
 } from "@/features/paf/guiche/guiche-api";
+import { conectarHubGuiche, type HubGuiche } from "@/features/paf/guiche/hub-guiche";
+import type { EstadoConexao } from "@/features/paf/paf-hub";
 
 type Selecionado = { id: string; nome: string };
-type AtendimentoAtual = { atendimentoId: string; senha: string; estado: string };
+/** versao: the atendimento's Versao last applied; a notice with a lower or equal one is stale (seção 7). */
+type AtendimentoAtual = { atendimentoId: string; senha: string; estado: string; versao: number };
+
+/** What SenhaChamada, SenhaRechamada and AtendimentoAtualizado share, as PafHub sends them (camelCase). */
+type AvisoAtendimento = { atendimentoId: string; versao: number };
 
 type Posto = {
   unidade: Selecionado | null;
@@ -32,7 +38,10 @@ function lerPosto(): Posto {
   const bruto = sessionStorage.getItem(CHAVE_POSTO);
   if (bruto === null) return POSTO_VAZIO;
   try {
-    return { ...POSTO_VAZIO, ...(JSON.parse(bruto) as Partial<Posto>) };
+    const posto = { ...POSTO_VAZIO, ...(JSON.parse(bruto) as Partial<Posto>) };
+    // Entries saved before versao existed: 0 lets the next notice through, the server state wins.
+    if (posto.atendimento) posto.atendimento = { ...posto.atendimento, versao: posto.atendimento.versao ?? 0 };
+    return posto;
   } catch {
     // Corrupted entry: start from the selection, the server still holds the truth.
     return POSTO_VAZIO;
@@ -48,6 +57,26 @@ const ROTULO_ESTADO: Record<string, string> = {
 
 const ESTADOS_FINAIS = new Set(["Encerrado", "Cancelado"]);
 
+const ROTULO_CONEXAO: Record<EstadoConexao, string> = {
+  conectando: "Conectando ao tempo real…",
+  conectado: "",
+  reconectando: "Tempo real reconectando…",
+  desconectado: "Tempo real desconectado.",
+};
+
+function comEstado(posto: Posto, atual: AtendimentoAtual, estado: string, versao: number): Posto {
+  const novo = { ...atual, estado, versao };
+  return ESTADOS_FINAIS.has(estado) ? { ...posto, atendimento: null, ultimo: novo } : { ...posto, atendimento: novo };
+}
+
+// Only the atendimento on screen is touched: a change made elsewhere (manager cancel, another window) reaches
+// it, and a duplicate or late notice, with a version already applied, is dropped.
+function aplicarAviso(posto: Posto, aviso: AvisoAtendimento, estado: string): Posto {
+  const atual = posto.atendimento;
+  if (atual?.atendimentoId !== aviso.atendimentoId || aviso.versao <= atual.versao) return posto;
+  return comEstado(posto, atual, estado, aviso.versao);
+}
+
 const SELECT_CLASSES =
   "h-9 w-full rounded-md border border-[var(--color-input)] bg-[var(--color-card)] px-3 text-sm";
 
@@ -57,12 +86,33 @@ export function GuichePage() {
   const [guicheEscolhido, setGuicheEscolhido] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [conexao, setConexao] = useState<EstadoConexao>("conectando");
+  const hub = useRef<HubGuiche | null>(null);
   const idUnidade = useId();
   const idGuiche = useId();
 
   useEffect(() => {
     sessionStorage.setItem(CHAVE_POSTO, JSON.stringify(posto));
   }, [posto]);
+
+  useEffect(() => {
+    const atual = conectarHubGuiche({
+      handlers: {
+        SenhaChamada: (p) => setPosto((s) => aplicarAviso(s, p as AvisoAtendimento, "Chamado")),
+        SenhaRechamada: (p) => setPosto((s) => aplicarAviso(s, p as AvisoAtendimento, "Chamado")),
+        AtendimentoAtualizado: (p) => {
+          const aviso = p as AvisoAtendimento & { estado: string };
+          setPosto((s) => aplicarAviso(s, aviso, aviso.estado));
+        },
+      },
+      aoMudarEstado: setConexao,
+    });
+    hub.current = atual;
+    return () => {
+      hub.current = null;
+      atual.parar();
+    };
+  }, []);
 
   const unidades = useQuery({ queryKey: ["paf", "guiche", "unidades"], queryFn: listarUnidades, enabled: posto.unidade === null });
   const guiches = useQuery({
@@ -96,6 +146,7 @@ export function GuichePage() {
       const guiche = guiches.data?.find((g) => g.id === guicheEscolhido);
       if (!guiche) return;
       await definirGuiche(guiche.id);
+      hub.current?.entrarNoGuiche();
       setPosto((p) => ({ ...p, guiche: { id: guiche.id, nome: guiche.nome }, atendimento: null }));
     });
 
@@ -104,7 +155,7 @@ export function GuichePage() {
       const chamada = await chamarProxima();
       setPosto((p) => ({
         ...p,
-        atendimento: { atendimentoId: chamada.atendimentoId, senha: chamada.senha, estado: "Chamado" },
+        atendimento: { atendimentoId: chamada.atendimentoId, senha: chamada.senha, estado: "Chamado", versao: chamada.versao },
       }));
     });
 
@@ -113,10 +164,7 @@ export function GuichePage() {
       const atual = posto.atendimento;
       if (!atual) return;
       const alterado = await operarAtendimento(atual.atendimentoId, operacao);
-      const novo = { ...atual, estado: alterado.estado };
-      setPosto((p) =>
-        ESTADOS_FINAIS.has(alterado.estado) ? { ...p, atendimento: null, ultimo: novo } : { ...p, atendimento: novo },
-      );
+      setPosto((p) => comEstado(p, atual, alterado.estado, alterado.versao));
     });
 
   const trocarPosto = () => {
@@ -142,6 +190,12 @@ export function GuichePage() {
           </p>
         )}
       </header>
+
+      {ROTULO_CONEXAO[conexao] && (
+        <p role="status" className="text-sm text-[var(--color-muted-foreground)]">
+          {ROTULO_CONEXAO[conexao]}
+        </p>
+      )}
 
       {erro && (
         <p role="alert" className="rounded-md border border-[var(--color-destructive)] px-4 py-3 text-[var(--color-destructive)]">
