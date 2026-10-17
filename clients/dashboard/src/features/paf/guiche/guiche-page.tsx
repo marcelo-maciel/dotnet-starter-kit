@@ -200,13 +200,11 @@ export function GuichePage() {
             onChange={(e) => setUnidadeEscolhida(e.target.value)}
           >
             <option value="">{unidades.isPending ? "Carregando…" : "Selecione a unidade"}</option>
-            {(unidades.data ?? [])
-              .filter((u) => u.ativa)
-              .map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.nome}
-                </option>
-              ))}
+            {(unidades.data ?? []).map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.nome}
+              </option>
+            ))}
           </select>
           <Button disabled={ocupado || unidadeEscolhida === ""} onClick={() => void escolherUnidade()}>
             Usar esta unidade

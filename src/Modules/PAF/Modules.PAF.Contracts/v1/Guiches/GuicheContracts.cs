@@ -4,6 +4,9 @@ namespace FSH.Modules.PAF.Contracts.v1.Guiches;
 
 // Reads of the guichê screen for the ordinary attendant, who holds no cadastro permission (seção 5).
 
+/// <summary>An active unidade of the caller's scope, as the guichê screen offers it: nothing beyond what the choice needs.</summary>
+public sealed record UnidadeDoGuicheDto(Guid Id, string Nome);
+
 /// <summary>Active guichês of the current unit, with who holds each one.</summary>
 public sealed record ListGuichesDaUnidadeQuery : IQuery<IReadOnlyList<GuicheDaUnidadeDto>>;
 

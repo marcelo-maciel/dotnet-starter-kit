@@ -2,7 +2,8 @@ import { apiFetch } from "@/lib/api-client";
 
 // The guichê is a person screen (arquitetura seção 3): kit HTTP client, kit user token.
 
-export type UnidadeDto = { id: string; nome: string; documentoFiscal: string | null; ativa: boolean };
+/** Only active unidades of the caller's scope come back. */
+export type UnidadeDto = { id: string; nome: string };
 
 /** `ocupante` is another session's user name; null when free or when `meu`. */
 export type GuicheDto = { id: string; nome: string; tipo: string; ocupante: string | null; meu: boolean };

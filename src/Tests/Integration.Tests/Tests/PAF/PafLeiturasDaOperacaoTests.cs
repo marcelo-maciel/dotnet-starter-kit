@@ -1,6 +1,5 @@
 using FSH.Modules.PAF.Contracts.v1.Estacoes;
 using FSH.Modules.PAF.Contracts.v1.Guiches;
-using FSH.Modules.PAF.Contracts.v1.Unidades;
 using Integration.Tests.Infrastructure;
 
 namespace Integration.Tests.Tests.PAF;
@@ -88,7 +87,7 @@ public sealed class PafLeiturasDaOperacaoTests(FshWebApplicationFactory factory)
             estacoes.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
 
-        var unidades = await LerOkAsync<List<UnidadeDto>>(atendente, RotaUnidades);
+        var unidades = await LerOkAsync<List<UnidadeDoGuicheDto>>(atendente, RotaUnidades);
         unidades.Select(u => u.Id).ShouldBe([c.UnidadeId]);
 
         var posto = await LerOkAsync<PostoGuicheDto>(atendente, RotaPosto);
@@ -158,6 +157,25 @@ public sealed class PafLeiturasDaOperacaoTests(FshWebApplicationFactory factory)
         a.Meu.ShouldBeFalse();
         b.Ocupante.ShouldBeNull();
         b.Meu.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task UnidadesDoGuiche_SoAtivasDoEscopo_SoIdENome()
+    {
+        var ativa = await _tenant.CriarUnidadeAsync(limiteSessoes: 5);
+        var inativa = await _tenant.CriarUnidadeAsync(limiteSessoes: 5);
+        await _tenant.CriarUnidadeAsync(limiteSessoes: 5); // active, outside the user's scope
+        var usuario = await _tenant.CriarUsuarioAsync(ativa.UnidadeId, inativa.UnidadeId);
+        using var atendente = _tenant.Cliente((await _tenant.EntrarAsync(usuario)).AccessToken);
+        await _tenant.ExecutarAsync($"""UPDATE paf."Unidades" SET "Ativa" = false WHERE "Id" = {inativa.UnidadeId}""");
+
+        using var resposta = await atendente.GetAsync(RotaUnidades);
+        resposta.StatusCode.ShouldBe(HttpStatusCode.OK, await resposta.Content.ReadAsStringAsync());
+        using var json = System.Text.Json.JsonDocument.Parse(await resposta.Content.ReadAsStringAsync());
+
+        var itens = json.RootElement.EnumerateArray().ToList();
+        itens.Select(i => i.GetProperty("id").GetGuid()).ShouldBe([ativa.UnidadeId]);
+        itens.Single().EnumerateObject().Select(p => p.Name).ShouldBe(["id", "nome"], ignoreOrder: true);
     }
 
     private static async Task<T> LerOkAsync<T>(HttpClient cliente, string rota)
