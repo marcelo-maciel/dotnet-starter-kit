@@ -6,6 +6,7 @@ using FSH.Modules.PAF.Contracts.v1.Estacoes;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Estacoes;
+using FSH.Modules.PAF.TempoReal;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,6 +14,7 @@ namespace FSH.Modules.PAF.Features.v1.Estacoes.GerarVinculo;
 
 public sealed class GerarVinculoEstacaoCommandHandler(
     PafDbContext db,
+    ConexoesPaf conexoes,
     IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor)
     : ICommandHandler<GerarVinculoEstacaoCommand, VinculoEstacaoGeradoDto>
 {
@@ -60,6 +62,8 @@ public sealed class GerarVinculoEstacaoCommandHandler(
             await tx.CommitAsync(ct).ConfigureAwait(false);
         }, cancellationToken).ConfigureAwait(false);
 
+        // The replaced device loses its connections; the new one has none yet.
+        conexoes.EncerrarEstacao(tenant, command.EstacaoId);
         return new VinculoEstacaoGeradoDto(vinculo!.Id, tenant, token);
     }
 }

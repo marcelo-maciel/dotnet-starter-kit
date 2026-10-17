@@ -3,6 +3,7 @@ using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.PAF.Contracts.Authorization;
 using FSH.Modules.PAF.Contracts.v1.Estacoes;
 using FSH.Modules.PAF.Contracts.v1.TempoReal;
+using FSH.Modules.PAF.Sessao;
 using FSH.Modules.PAF.TempoReal;
 using Integration.Tests.Infrastructure;
 using Mediator;
@@ -120,13 +121,45 @@ public sealed class PafHubConexoesTests(FshWebApplicationFactory factory) : IAsy
             await scope.ServiceProvider.GetRequiredService<IMediator>().Send(new RevogarVinculoEstacaoCommand(c.Painel));
         }
 
-        // What the revoke handler calls after its commit.
-        factory.Services.GetRequiredService<ConexoesPaf>().EncerrarEstacao(_tenant.TenantId, c.Painel).ShouldBe(1);
-
         (await Task.WhenAny(fechou.Task, Task.Delay(Espera))).ShouldBe(fechou.Task, "a conexão da estação revogada é encerrada pelo servidor");
         revogado.State.ShouldBe(HubConnectionState.Disconnected);
         controle.State.ShouldBe(HubConnectionState.Connected, "outra estação da unidade continua conectada");
         await Should.ThrowAsync<HttpRequestException>(() => ConectarAsync(tokenRevogado));
+    }
+
+    [Fact]
+    public async Task RevogacaoSessao_EncerraAsConexoesDaSessao()
+    {
+        var c = await _op.CriarAsync();
+        var usuario = await _tenant.CriarUsuarioAsync(c.UnidadeId);
+        var token = (await _tenant.EntrarAsync(usuario)).AccessToken;
+        var fechou = Fechamento(await ConectarAsync(token));
+
+        // Called from a scope, not from a request of the revoked session: over long polling that request would
+        // be refused and close the client by itself, hiding a missing close on the server.
+        using (var scope = factory.Services.CreateScope())
+        {
+            _tenant.Contexto(scope, unidadeCorrente: null);
+            await scope.ServiceProvider.GetRequiredService<RevogacaoSessao>().RevogarAsync(
+                _tenant.TenantId, PafTenantCliente.SessaoDoToken(token), Guid.Parse(usuario.UserId), RevogacaoSessao.MotivoUnidadeRetirada, CancellationToken.None);
+        }
+
+        (await Task.WhenAny(fechou, Task.Delay(Espera))).ShouldBe(fechou, "a revogação da sessão encerra a conexão dela no hub");
+    }
+
+    [Fact]
+    public async Task LoginEmOutraMaquina_EncerraAsConexoesDaSessaoAnterior()
+    {
+        var c = await _op.CriarAsync();
+        var usuario = await _tenant.CriarUsuarioAsync(c.UnidadeId);
+        var anterior = await ConectarAsync((await _tenant.EntrarAsync(usuario)).AccessToken);
+        var fechou = Fechamento(anterior);
+        var controle = await ConectarAsync(await _op.CredencialAsync(c.UnidadeId, c.Painel, PafPapeisEstacao.Painel));
+
+        await _tenant.EntrarAsync(usuario);
+
+        (await Task.WhenAny(fechou, Task.Delay(Espera))).ShouldBe(fechou, "a sessão única encerra a conexão da sessão anterior");
+        controle.State.ShouldBe(HubConnectionState.Connected, "conexões de outras credenciais seguem abertas");
     }
 
     [Fact]
@@ -172,6 +205,17 @@ public sealed class PafHubConexoesTests(FshWebApplicationFactory factory) : IAsy
     }
 
     // ─── helpers ─────────────────────────────────────────────────────
+
+    private static Task Fechamento(HubConnection conexao)
+    {
+        var fechou = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        conexao.Closed += _ =>
+        {
+            fechou.TrySetResult();
+            return Task.CompletedTask;
+        };
+        return fechou.Task;
+    }
 
     private static string Token(HttpClient cliente) => cliente.DefaultRequestHeaders.Authorization!.Parameter!;
 

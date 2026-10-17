@@ -3,6 +3,7 @@ using FSH.Framework.Core.Exceptions;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Contracts.v1.Tokens.RefreshToken;
+using FSH.Modules.PAF.TempoReal;
 using Mediator;
 
 namespace FSH.Modules.PAF.Sessao;
@@ -16,6 +17,7 @@ namespace FSH.Modules.PAF.Sessao;
 internal sealed class RefreshTokenLicenseBehavior(
     ISessionService sessoes,
     Licencas licencas,
+    ConexoesPaf conexoes,
     IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor)
     : IPipelineBehavior<RefreshTokenCommand, RefreshTokenCommandResponse>
 {
@@ -51,6 +53,7 @@ internal sealed class RefreshTokenLicenseBehavior(
         catch (ForbiddenException)
         {
             await sessoes.RevokeSessionForAdminAsync(sessaoId, usuarioId.ToString(), MotivoSemLicenca, cancellationToken);
+            conexoes.EncerrarSessao(tenantId, sessaoId);
             throw;
         }
 

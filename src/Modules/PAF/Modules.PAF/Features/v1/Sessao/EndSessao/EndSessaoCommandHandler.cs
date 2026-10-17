@@ -4,6 +4,7 @@ using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.PAF.Contracts.v1.Sessao;
 using FSH.Modules.PAF.Sessao;
+using FSH.Modules.PAF.TempoReal;
 using Mediator;
 
 namespace FSH.Modules.PAF.Features.v1.Sessao.EndSessao;
@@ -17,7 +18,8 @@ public sealed class EndSessaoCommandHandler(
     ICurrentUser usuarioAtual,
     Licencas licencas,
     EstadoSessao estado,
-    ISessionService sessoes) : ICommandHandler<EndSessaoCommand>
+    ISessionService sessoes,
+    ConexoesPaf conexoes) : ICommandHandler<EndSessaoCommand>
 {
     public const string Motivo = "PAF: logout";
 
@@ -35,6 +37,11 @@ public sealed class EndSessaoCommandHandler(
         }
 
         await sessoes.RevokeSessionAsync(sessaoId, usuarioAtual.GetUserId().ToString(), Motivo, cancellationToken);
+        if (usuarioAtual.GetTenant() is { Length: > 0 } tenant)
+        {
+            conexoes.EncerrarSessao(tenant, sessaoId);
+        }
+
         return Unit.Value;
     }
 }

@@ -4,6 +4,7 @@ using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Contracts.DTOs;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Contracts.v1.Tokens.TokenGeneration;
+using FSH.Modules.PAF.TempoReal;
 using Mediator;
 
 namespace FSH.Modules.PAF.Sessao;
@@ -18,6 +19,7 @@ internal sealed class GenerateTokenLicenseBehavior(
     ISessionService sessoes,
     Licencas licencas,
     EstadoSessao estado,
+    ConexoesPaf conexoes,
     IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor)
     : IPipelineBehavior<GenerateTokenCommand, TokenResponse>
 {
@@ -70,6 +72,11 @@ internal sealed class GenerateTokenLicenseBehavior(
         }
 
         await reserva.ConfirmarAsync(sessaoId, anteriores, cancellationToken);
+        foreach (var anterior in anteriores)
+        {
+            conexoes.EncerrarSessao(tenantId, anterior);
+        }
+
         return token;
     }
 }
