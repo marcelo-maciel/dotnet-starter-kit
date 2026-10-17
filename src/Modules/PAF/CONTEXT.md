@@ -30,9 +30,13 @@ Concurrency and fail-closed tests: `src/Tests/Integration.Tests/Tests/PAF/`.
 - `PafDbContext` follows the kit pattern: `base.OnModelCreating` runs LAST, so tenant isolation stays default-ON.
 - Migrations live in `src/Host/FSH.Starter.Migrations.PostgreSQL/PAF/`, not in this module. Critical rules are enforced in PostgreSQL and carried by those migrations. See ADR 0005.
 
-## Pending registration
+## Session and licence (`Sessao/`)
 
-`typeof(FSH.Modules.PAF.Contracts.PafContractsMarker)` is NOT yet in the Mediator `o.Assemblies` list of either host: Mediator's generator fails with MSG0007 on an assembly with no messages. The change that adds the first command or query to `Modules.PAF.Contracts` must add it, right before `typeof(FSH.Modules.PAF.PafModule)`, in both `src/Host/FSH.Starter.Api/Program.cs` and `src/Host/FSH.Starter.DbMigrator/Program.cs`.
+- The access token carries the kit session id in claim `sid` (edit in the Identity token handlers, ADR 0008). The JwtBearer inbound map keeps it as `sid`.
+- `GenerateTokenLicenseBehavior` / `RefreshTokenLicenseBehavior` are closed Mediator behaviors (confirmed applied by `PafSessaoLicencaTests`). Root tenant and users with no `UsuarioUnidade` pass straight through: no licence, no single session.
+- First slice: no cascade, the principal unit (lowest `Ordem`) pays; the licence does not migrate on unit switch. The seat count is always `AtividadeSessao` rows fresher than 10 min, under `pg_advisory_xact_lock` of the unit.
+- `SessionCheckMiddleware` (module middleware) checks `sid` → active `UserSession` → fresh `AtividadeSessao`, fills `SessaoCorrente` and `IUnidadeCorrente` (Valkey state via `EstadoSessao`, else the licence unit), and renews the mark at most once a minute. Tokens with `act_sub` or `paf_unidade` are not handled here.
+- Routes under `api/v1/paf/sessao`: `unidade-corrente`, `guiche` (`Permissions.PAF.Guiches.Selecionar`), `logout`.
 
 ## Touching the kit
 
