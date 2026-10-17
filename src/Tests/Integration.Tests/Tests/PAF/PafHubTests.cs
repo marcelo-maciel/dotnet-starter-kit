@@ -1,11 +1,20 @@
 using System.Collections.Concurrent;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using Finbuckle.MultiTenant;
+using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Shared.Constants;
+using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.PAF.Contracts.Authorization;
+using FSH.Modules.PAF.Contracts.v1.Estacoes;
+using FSH.Modules.PAF.Data;
+using FSH.Modules.PAF.Domain;
+using FSH.Modules.PAF.Escopo;
 using FSH.Modules.PAF.Contracts.v1.TempoReal;
 using FSH.Modules.PAF.TempoReal;
 using Integration.Tests.Infrastructure;
+using Mediator;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
@@ -55,7 +64,8 @@ public sealed class PafHubTests : IAsyncLifetime
     [Fact]
     public async Task Negociar_TokenDeEstacaoNaQuery_Aceita()
     {
-        var token = await TokenEstacaoAsync(TestConstants.RootTenantId, PafPapeisEstacao.Painel, Guid.NewGuid(), Guid.NewGuid(), TimeSpan.FromMinutes(5));
+        var unidade = await CriarUnidadeAsync(TestConstants.RootTenantId);
+        var (_, token) = await VincularEstacaoAsync(TestConstants.RootTenantId, unidade, PafPapeisEstacao.Painel, TimeSpan.FromMinutes(5));
         using var client = _factory.CreateClient();
         using var resposta = await client.PostAsync(
             $"{PafHubRota.Caminho}/negotiate?negotiateVersion=1&tenant={TestConstants.RootTenantId}&access_token={token}", content: null);
@@ -66,7 +76,8 @@ public sealed class PafHubTests : IAsyncLifetime
     public async Task TokenNaQuery_ForaDaListaDoKit_ContinuaRecusado()
     {
         // The kit edit must stay as narrow as ADR 0008 says: the query token only counts on the hub routes.
-        var token = await TokenEstacaoAsync(TestConstants.RootTenantId, PafPapeisEstacao.Painel, Guid.NewGuid(), Guid.NewGuid(), TimeSpan.FromMinutes(5));
+        var unidade = await CriarUnidadeAsync(TestConstants.RootTenantId);
+        var (_, token) = await VincularEstacaoAsync(TestConstants.RootTenantId, unidade, PafPapeisEstacao.Painel, TimeSpan.FromMinutes(5));
         using var client = _factory.CreateClient();
         using var resposta = await client.GetAsync($"/api/v1/realtime/presence?userIds=x&access_token={token}");
         resposta.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
@@ -77,8 +88,10 @@ public sealed class PafHubTests : IAsyncLifetime
     [InlineData("", true, true)]
     [InlineData(PafPapeisEstacao.Painel, false, true)]
     [InlineData(PafPapeisEstacao.Emissao, true, false)]
-    public async Task Negociar_CredencialDeEstacaoMalFormada_Recusa403(string papel, bool comEstacao, bool comUnidade)
+    public async Task Negociar_CredencialDeEstacaoMalFormada_Recusa401(string papel, bool comEstacao, bool comUnidade)
     {
+        // ConferenciaRequisicaoMiddleware refuses a station credential it cannot check against a live
+        // VinculoEstacao before authorization runs, so the hub policy's 403 is never reached by these.
         var claims = new List<Claim> { new(ClaimConstants.Tenant, TestConstants.RootTenantId), new(PafClaims.Papel, papel) };
         if (comEstacao)
         {
@@ -94,13 +107,14 @@ public sealed class PafHubTests : IAsyncLifetime
         using var client = _factory.CreateClient();
         using var resposta = await client.PostAsync(
             $"{PafHubRota.Caminho}/negotiate?negotiateVersion=1&access_token={token}", content: null);
-        resposta.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        resposta.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
     public async Task Conectar_ComTokenSoNaQuery_FicaConectado()
     {
-        var token = await TokenEstacaoAsync(TestConstants.RootTenantId, PafPapeisEstacao.Painel, Guid.NewGuid(), Guid.NewGuid(), TimeSpan.FromMinutes(5));
+        var unidade = await CriarUnidadeAsync(TestConstants.RootTenantId);
+        var (_, token) = await VincularEstacaoAsync(TestConstants.RootTenantId, unidade, PafPapeisEstacao.Painel, TimeSpan.FromMinutes(5));
 
         var conexao = await ConectarAsync(token, TestConstants.RootTenantId);
 
@@ -121,33 +135,39 @@ public sealed class PafHubTests : IAsyncLifetime
     public async Task EnvioDireto_ChegaSoAoGrupoCerto_NuncaAOutraUnidadeOuOutroTenant()
     {
         var outroTenant = await CriarOutroTenantAsync();
-        var unidadeA = Guid.NewGuid();
-        var unidadeB = Guid.NewGuid();
-        var painelA = Guid.NewGuid();
+        var unidadeA = await CriarUnidadeAsync(TestConstants.RootTenantId);
+        var unidadeB = await CriarUnidadeAsync(TestConstants.RootTenantId);
+        var unidadeDoOutroTenant = await CriarUnidadeAsync(outroTenant);
         var guicheA = Guid.NewGuid();
 
-        var painelDaUnidadeA = await ConectarEstacaoAsync(TestConstants.RootTenantId, PafPapeisEstacao.Painel, painelA, unidadeA);
-        var totemDaUnidadeA = await ConectarEstacaoAsync(TestConstants.RootTenantId, PafPapeisEstacao.Emissao, Guid.NewGuid(), unidadeA);
-        var painelDaUnidadeB = await ConectarEstacaoAsync(TestConstants.RootTenantId, PafPapeisEstacao.Painel, Guid.NewGuid(), unidadeB);
-        // Same unit id AND same station id, other tenant: only the tenant in the group key keeps them apart.
-        var gemeoNoOutroTenant = await ConectarEstacaoAsync(outroTenant, PafPapeisEstacao.Painel, painelA, unidadeA);
+        var (painelA, painelDaUnidadeA) = await ConectarEstacaoAsync(TestConstants.RootTenantId, unidadeA, PafPapeisEstacao.Painel);
+        var (_, totemDaUnidadeA) = await ConectarEstacaoAsync(TestConstants.RootTenantId, unidadeA, PafPapeisEstacao.Emissao);
+        var (_, painelDaUnidadeB) = await ConectarEstacaoAsync(TestConstants.RootTenantId, unidadeB, PafPapeisEstacao.Painel);
+        var (painelDoOutroTenant, conexaoDoOutroTenant) = await ConectarEstacaoAsync(outroTenant, unidadeDoOutroTenant, PafPapeisEstacao.Painel);
 
         using var chamadaNoPainelA = new Caixa<SenhaChamada>(painelDaUnidadeA, PafHubMetodos.SenhaChamada);
         using var chamadaNoTotemA = new Caixa<SenhaChamada>(totemDaUnidadeA, PafHubMetodos.SenhaChamada);
         using var chamadaNoPainelB = new Caixa<SenhaChamada>(painelDaUnidadeB, PafHubMetodos.SenhaChamada);
-        using var chamadaNoGemeo = new Caixa<SenhaChamada>(gemeoNoOutroTenant, PafHubMetodos.SenhaChamada);
+        using var chamadaNoOutroTenant = new Caixa<SenhaChamada>(conexaoDoOutroTenant, PafHubMetodos.SenhaChamada);
         using var filaNoPainelA = new Caixa<FilaAtualizada>(painelDaUnidadeA, PafHubMetodos.FilaAtualizada);
         using var filaNoTotemA = new Caixa<FilaAtualizada>(totemDaUnidadeA, PafHubMetodos.FilaAtualizada);
         using var filaNoPainelB = new Caixa<FilaAtualizada>(painelDaUnidadeB, PafHubMetodos.FilaAtualizada);
-        using var filaNoGemeo = new Caixa<FilaAtualizada>(gemeoNoOutroTenant, PafHubMetodos.FilaAtualizada);
+        using var filaNoOutroTenant = new Caixa<FilaAtualizada>(conexaoDoOutroTenant, PafHubMetodos.FilaAtualizada);
 
         var chamada = new SenhaChamada(Guid.NewGuid(), unidadeA, Guid.NewGuid(), Guid.NewGuid(), 1, "A001", guicheA, "Guichê 1");
         var fila = new FilaAtualizada(Guid.NewGuid(), unidadeA, Guid.NewGuid());
+        // Station and unit ids are global primary keys, so two tenants never share them in the database. The
+        // twin events below still address unit A and panel A under the other tenant's key: only the tenant in
+        // the group name keeps them away from the root tenant's connections.
+        var chamadaGemea = chamada with { EventoId = Guid.NewGuid(), Senha = "Z999" };
+        var filaGemea = fila with { EventoId = Guid.NewGuid() };
         using (var scope = _factory.Services.CreateScope())
         {
             var avisos = scope.ServiceProvider.GetRequiredService<AvisosTempoReal>();
             await avisos.EnviarAsync(SenhaChamadaPaf.Criar(TestConstants.RootTenantId, "teste", chamada, [painelA]), CancellationToken.None);
             await avisos.EnviarAsync(FilaAtualizadaPaf.Criar(TestConstants.RootTenantId, "teste", fila), CancellationToken.None);
+            await avisos.EnviarAsync(SenhaChamadaPaf.Criar(outroTenant, "teste", chamadaGemea, [painelA, painelDoOutroTenant]), CancellationToken.None);
+            await avisos.EnviarAsync(FilaAtualizadaPaf.Criar(outroTenant, "teste", filaGemea), CancellationToken.None);
         }
 
         var recebida = await chamadaNoPainelA.EsperarAsync(c => c.EventoId == chamada.EventoId, Espera);
@@ -156,13 +176,18 @@ public sealed class PafHubTests : IAsyncLifetime
         recebida.Senha.ShouldBe("A001");
         (await filaNoPainelA.EsperarAsync(f => f.EventoId == fila.EventoId, Espera)).ShouldNotBeNull();
         (await filaNoTotemA.EsperarAsync(f => f.EventoId == fila.EventoId, Espera)).ShouldNotBeNull("toda conexão da unidade recebe a mudança de fila");
+        (await chamadaNoOutroTenant.EsperarAsync(c => c.EventoId == chamadaGemea.EventoId, Espera))
+            .ShouldNotBeNull("o painel do outro tenant recebe a chamada dirigida a ele");
 
         await Task.Delay(SilencioEsperado);
         chamadaNoTotemA.Recebidos.ShouldBeEmpty("o totem não está no grupo do painel");
         chamadaNoPainelB.Recebidos.ShouldBeEmpty("outra unidade não recebe a chamada");
         filaNoPainelB.Recebidos.ShouldBeEmpty("outra unidade não recebe a mudança de fila");
-        chamadaNoGemeo.Recebidos.ShouldBeEmpty("outro tenant com os mesmos ids não recebe a chamada");
-        filaNoGemeo.Recebidos.ShouldBeEmpty("outro tenant com os mesmos ids não recebe a mudança de fila");
+        chamadaNoPainelA.Recebidos.ShouldNotContain(c => c.EventoId == chamadaGemea.EventoId, "outro tenant com os mesmos ids não chega ao painel A");
+        filaNoPainelA.Recebidos.ShouldNotContain(f => f.EventoId == filaGemea.EventoId, "outro tenant com os mesmos ids não chega à unidade A");
+        filaNoTotemA.Recebidos.ShouldNotContain(f => f.EventoId == filaGemea.EventoId, "outro tenant com os mesmos ids não chega à unidade A");
+        chamadaNoOutroTenant.Recebidos.ShouldNotContain(c => c.EventoId == chamada.EventoId, "a chamada do tenant raiz não chega ao outro tenant");
+        filaNoOutroTenant.Recebidos.ShouldBeEmpty("a unidade do outro tenant não é a unidade A");
     }
 
     [Fact]
@@ -179,8 +204,7 @@ public sealed class PafHubTests : IAsyncLifetime
             (await PafBanco.EncerrarAsync(db, encerrado.Id)).ShouldBe(1);
         }
 
-        var painel = Guid.NewGuid();
-        var conexao = await ConectarEstacaoAsync(TestConstants.RootTenantId, PafPapeisEstacao.Painel, painel, c.UnidadeId);
+        var (painel, conexao) = await ConectarEstacaoAsync(TestConstants.RootTenantId, c.UnidadeId, PafPapeisEstacao.Painel);
         using var chamadas = new Caixa<SenhaChamada>(conexao, PafHubMetodos.SenhaChamada);
         using var atualizacoes = new Caixa<AtendimentoAtualizado>(conexao, PafHubMetodos.AtendimentoAtualizado);
 
@@ -222,8 +246,9 @@ public sealed class PafHubTests : IAsyncLifetime
     [Fact]
     public async Task Conexao_CaiQuandoOTokenVence()
     {
-        var curto = await TokenEstacaoAsync(TestConstants.RootTenantId, PafPapeisEstacao.Painel, Guid.NewGuid(), Guid.NewGuid(), TimeSpan.FromSeconds(4));
-        var longo = await TokenEstacaoAsync(TestConstants.RootTenantId, PafPapeisEstacao.Painel, Guid.NewGuid(), Guid.NewGuid(), TimeSpan.FromMinutes(5));
+        var unidade = await CriarUnidadeAsync(TestConstants.RootTenantId);
+        var (_, curto) = await VincularEstacaoAsync(TestConstants.RootTenantId, unidade, PafPapeisEstacao.Painel, TimeSpan.FromSeconds(4));
+        var (_, longo) = await VincularEstacaoAsync(TestConstants.RootTenantId, unidade, PafPapeisEstacao.Painel, TimeSpan.FromMinutes(5));
         var vence = await ConectarAsync(curto, TestConstants.RootTenantId);
         var controle = await ConectarAsync(longo, TestConstants.RootTenantId);
         var fechou = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -241,15 +266,73 @@ public sealed class PafHubTests : IAsyncLifetime
 
     // ─── helpers ─────────────────────────────────────────────────────
 
-    private Task<string> TokenEstacaoAsync(string tenantId, string papel, Guid estacaoId, Guid unidadeId, TimeSpan validade) =>
-        EmitirAsync(
+    // ConferenciaRequisicaoMiddleware checks every station credential against a live VinculoEstacao, so each
+    // station token here is backed by real rows: a station of the tenant's unit and a link redeemed through the
+    // real endpoint. The token then carries that credential's claims with the lifetime the test needs.
+    private async Task<(Guid EstacaoId, string Token)> VincularEstacaoAsync(string tenantId, Guid unidadeId, string papel, TimeSpan validade)
+    {
+        var tenant = await TenantAsync(tenantId);
+        var tipo = papel == PafPapeisEstacao.Emissao ? TipoEstacao.Emissao : TipoEstacao.Painel;
+        Guid estacaoId;
+        VinculoEstacaoGeradoDto link;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = ContextoDoTenant(scope, tenant);
+            scope.ServiceProvider.GetRequiredService<IUnidadeCorrente>().Definir(unidadeId);
+            var estacao = Estacao.Criar(unidadeId, $"Estação {papel}", tipo);
+            db.Estacoes.Add(estacao);
+            await db.SaveChangesAsync();
+            estacaoId = estacao.Id;
+            link = await scope.ServiceProvider.GetRequiredService<IMediator>().Send(new GerarVinculoEstacaoCommand(estacaoId));
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(MultitenancyConstants.Identifier, tenantId);
+        using var resgate = await client.PostAsJsonAsync("/api/v1/paf/estacoes/vinculo/resgatar", new { token = link.Token });
+        resgate.StatusCode.ShouldBe(HttpStatusCode.OK, await resgate.Content.ReadAsStringAsync());
+
+        var token = await EmitirAsync(
             [
+                new Claim(JwtRegisteredClaimNames.Sub, estacaoId.ToString()),
+                new Claim(ClaimTypes.NameIdentifier, estacaoId.ToString()),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
                 new Claim(ClaimConstants.Tenant, tenantId),
                 new Claim(PafClaims.Papel, papel),
                 new Claim(PafClaims.Estacao, estacaoId.ToString()),
                 new Claim(PafClaims.Unidade, unidadeId.ToString()),
+                new Claim(PafClaims.Vinculo, link.VinculoId.ToString()),
             ],
             validade);
+        return (estacaoId, token);
+    }
+
+    private async Task<Guid> CriarUnidadeAsync(string tenantId)
+    {
+        var tenant = await TenantAsync(tenantId);
+        using var scope = _factory.Services.CreateScope();
+        var db = ContextoDoTenant(scope, tenant);
+        var unidade = Unidade.Criar($"Loja {Guid.NewGuid():N}", documentoFiscal: null);
+        db.Unidades.Add(unidade);
+        await db.SaveChangesAsync();
+        return unidade.Id;
+    }
+
+    private async Task<AppTenantInfo> TenantAsync(string tenantId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var tenant = await scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>().GetAsync(tenantId);
+        tenant.ShouldNotBeNull();
+        return tenant;
+    }
+
+    // Synchronous on purpose, like PafBanco.Contexto: the Finbuckle context is an AsyncLocal that flows back
+    // to the caller only when set in a sync method.
+    private static PafDbContext ContextoDoTenant(IServiceScope scope, AppTenantInfo tenant)
+    {
+        scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>().MultiTenantContext =
+            new MultiTenantContext<AppTenantInfo>(tenant);
+        return scope.ServiceProvider.GetRequiredService<PafDbContext>();
+    }
 
     private async Task<string> EmitirAsync(IReadOnlyList<Claim> claims, TimeSpan validade)
     {
@@ -259,10 +342,10 @@ public sealed class PafHubTests : IAsyncLifetime
         return accessToken;
     }
 
-    private async Task<HubConnection> ConectarEstacaoAsync(string tenantId, string papel, Guid estacaoId, Guid unidadeId)
+    private async Task<(Guid EstacaoId, HubConnection Conexao)> ConectarEstacaoAsync(string tenantId, Guid unidadeId, string papel)
     {
-        var token = await TokenEstacaoAsync(tenantId, papel, estacaoId, unidadeId, TimeSpan.FromMinutes(5));
-        return await ConectarAsync(token, tenantId);
+        var (estacaoId, token) = await VincularEstacaoAsync(tenantId, unidadeId, papel, TimeSpan.FromMinutes(5));
+        return (estacaoId, await ConectarAsync(token, tenantId));
     }
 
     private async Task<HubConnection> ConectarAsync(string token, string tenantId)
