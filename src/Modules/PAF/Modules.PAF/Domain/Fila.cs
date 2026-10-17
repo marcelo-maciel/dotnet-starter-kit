@@ -38,4 +38,33 @@ public sealed class Fila : BaseEntity<Guid>, IEscopoUnidade
             Ativa = true,
         };
     }
+
+    public void Atualizar(string nome, string nomeExibicao)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nome);
+        ArgumentException.ThrowIfNullOrWhiteSpace(nomeExibicao);
+        Nome = nome;
+        NomeExibicao = nomeExibicao;
+    }
+
+    /// <summary>Both null = no restriction. The final hour is after the initial one: no window crosses midnight (RF02).</summary>
+    public void DefinirJanela(TimeOnly? horaInicial, TimeOnly? horaFinal)
+    {
+        if (horaInicial.HasValue != horaFinal.HasValue)
+        {
+            throw new ArgumentException("A janela de horário precisa das duas horas, ou de nenhuma.", nameof(horaFinal));
+        }
+
+        if (horaInicial >= horaFinal)
+        {
+            throw new ArgumentException("A hora final precisa ser posterior à inicial.", nameof(horaFinal));
+        }
+
+        HoraInicial = horaInicial;
+        HoraFinal = horaFinal;
+    }
+
+    public void Ativar() => Ativa = true;
+
+    public void Desativar() => Ativa = false;
 }

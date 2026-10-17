@@ -27,4 +27,15 @@ public sealed class Unidade : BaseEntity<Guid>
             Ativa = true,
         };
     }
+
+    public void Atualizar(string nome, string? documentoFiscal)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nome);
+        Nome = nome;
+        DocumentoFiscal = documentoFiscal;
+    }
+
+    public void Ativar() => Ativa = true;
+
+    public void Desativar() => Ativa = false;
 }

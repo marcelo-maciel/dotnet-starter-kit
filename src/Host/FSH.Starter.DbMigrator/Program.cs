@@ -103,6 +103,7 @@ builder.Services.AddMediator(o =>
         typeof(FSH.Modules.Chat.ChatModule),
         typeof(FSH.Modules.Notifications.Contracts.v1.Commands.MarkNotificationReadCommand),
         typeof(FSH.Modules.Notifications.NotificationsModule),
+        typeof(FSH.Modules.PAF.Contracts.PafContractsMarker),
         typeof(FSH.Modules.PAF.PafModule),
     ];
 });
@@ -310,6 +311,22 @@ try
         using var scope = host.Services.CreateScope();
         var seeder = scope.ServiceProvider.GetRequiredService<DemoSeeder>();
         await seeder.RunAsync(CancellationToken.None).ConfigureAwait(false);
+        // PAF (ADR 0008, module registration): its demo data needs the demo tenants and their admins above.
+        var pafSeeder = scope.ServiceProvider.GetRequiredService<FSH.Modules.PAF.Data.PafDemoSeeder>();
+        foreach (var demo in new[] { DemoSeeder.Acme, DemoSeeder.Globex })
+        {
+            using var pafScope = host.Services.CreateScope();
+            var demoTenant = await pafScope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>()
+                .GetAsync(demo.Id).ConfigureAwait(false)
+                ?? throw new InvalidOperationException($"Demo tenant '{demo.Id}' missing.");
+            pafScope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>().MultiTenantContext =
+                new MultiTenantContext<AppTenantInfo>(demoTenant);
+            var demoAdmin = await pafScope.ServiceProvider
+                .GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<FSH.Modules.Identity.Domain.FshUser>>()
+                .FindByEmailAsync(demo.AdminEmail).ConfigureAwait(false)
+                ?? throw new InvalidOperationException($"Demo admin of '{demo.Id}' missing.");
+            await pafSeeder.SemearAsync(demo.Id, Guid.Parse(demoAdmin.Id), CancellationToken.None).ConfigureAwait(false);
+        }
         await Console.Out.WriteLineAsync("[demo-seed] done").ConfigureAwait(false);
     }
 
