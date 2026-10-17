@@ -14,7 +14,7 @@ public static class UnidadeCorrenteExtensions
         ArgumentNullException.ThrowIfNull(unidadeCorrente);
         return unidadeCorrente.UnidadeId
             ?? throw new CustomException(
-                $"Unidade corrente não definida: informe o cabeçalho {UnidadeCorrenteMiddleware.Cabecalho}.",
+                $"Unidade corrente não definida: selecione a unidade da sessão ou, sem sessão do PAF, informe o cabeçalho {UnidadeCorrenteMiddleware.Cabecalho}.",
                 (IEnumerable<string>?)null,
                 HttpStatusCode.BadRequest);
     }
