@@ -124,6 +124,25 @@ public sealed class PafGuicheSessaoTests(FshWebApplicationFactory factory) : IAs
         (await Selecionar(clienteBia, unidade.GuicheA)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
     }
 
+    [Fact]
+    public async Task Logout_ComMarcaVencida_AindaRevogaASessaoNoServidor()
+    {
+        var unidade = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);
+        var ana = await _tenant.CriarUsuarioAsync(unidade.UnidadeId);
+        var tokenAna = await _tenant.EntrarAsync(ana);
+        var sessaoAna = PafTenantCliente.SessaoDoToken(tokenAna.AccessToken);
+        await _tenant.ExecutarAsync($"""
+            UPDATE paf."AtividadesSessao" SET "UltimaAtividadeEm" = now() - interval '11 minutes' WHERE "SessaoId" = {sessaoAna}
+            """);
+        using var clienteAna = _tenant.Cliente(tokenAna.AccessToken);
+
+        (await clienteAna.PostAsync(RotaLogout, content: null)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        // Revoked in the kit: the refresh token can no longer revive the session.
+        (await _tenant.RenovarAsync(tokenAna)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await _tenant.AtividadesAsync(Guid.Parse(ana.UserId))).ShouldBeEmpty();
+    }
+
     private async Task<(Integration.Tests.Tests.Sessions.SeededUser Usuario, HttpClient Cliente)> EntrarAsync(UnidadeTeste unidade)
     {
         var usuario = await _tenant.CriarUsuarioAsync(unidade.UnidadeId);

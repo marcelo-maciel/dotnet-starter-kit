@@ -96,7 +96,7 @@ public sealed class SelecionarGuicheCommandHandler(
             && await licencas.UnidadeDaMarcaVivaAsync(tenantId, dono, ct) is not null;
         if (viva)
         {
-            var nome = sessaoDona!.UserName ?? sessaoDona.UserEmail ?? "outro usuário";
+            var nome = sessaoDona!.UserName ?? "outro usuário";
             throw new CustomException(MensagemEmUso(estacao.Nome, nome), [], HttpStatusCode.Conflict);
         }
 

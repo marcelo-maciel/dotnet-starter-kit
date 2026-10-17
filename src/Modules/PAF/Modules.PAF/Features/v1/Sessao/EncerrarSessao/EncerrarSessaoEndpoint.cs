@@ -8,6 +8,9 @@ namespace FSH.Modules.PAF.Features.v1.Sessao.EncerrarSessao;
 
 public static class EncerrarSessaoEndpoint
 {
+    /// <summary>Lido pelo SessionCheckMiddleware: o logout exige só a sessão ativa, sem marca de sessão viva.</summary>
+    public const string NomeEndpoint = "PafEncerrarSessao";
+
     internal static RouteHandlerBuilder MapEncerrarSessaoEndpoint(this IEndpointRouteBuilder endpoints)
     {
         return endpoints.MapPost("/logout",
@@ -16,7 +19,7 @@ public static class EncerrarSessaoEndpoint
                     await mediator.Send(new EncerrarSessaoCommand(), ct);
                     return Results.NoContent();
                 })
-            .WithName("PafEncerrarSessao")
+            .WithName(NomeEndpoint)
             .WithSummary("Logout pelo servidor: revoga a sessão e solta licença e guichê");
     }
 }
