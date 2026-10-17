@@ -139,7 +139,7 @@ public sealed class TenantHeaderOverrideTests : IAsyncLifetime
     public async Task TenantAdmin_HeaderOverride_Should_BeIgnored()
     {
         // Arrange — tenant A's admin sends a `tenant: B` header; the override is gated by claim==root,
-        // so it must fail closed and the query stays in tenant A.
+        // and the PAF module's tenant check (ADR 0008) refuses the mismatch outright instead of ignoring it.
         var tenantAToken = await GetTokenWithRetryAsync(_tenantAAdminEmail, TestConstants.DefaultPassword, _tenantA);
         using var client = _factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new("Bearer", tenantAToken.AccessToken);
@@ -148,10 +148,15 @@ public sealed class TenantHeaderOverrideTests : IAsyncLifetime
         // Act
         var response = await client.GetAsync($"{TestConstants.IdentityBasePath}/users/search?PageNumber=1&PageSize=50");
 
-        // Assert — still resolves to tenant A (claim wins): A's admin present, B's absent. This flips
-        // if the override ever leaked to non-root callers.
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var page = await response.Content.ReadFromJsonAsync<PagedResult<SearchUserDto>>(Json);
+        // Assert — refused, never served from tenant B.
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        // Without the spoofed header the same token still resolves to tenant A only: A's admin present,
+        // B's absent. This flips if the override ever leaked to non-root callers.
+        client.DefaultRequestHeaders.Remove("tenant");
+        var own = await client.GetAsync($"{TestConstants.IdentityBasePath}/users/search?PageNumber=1&PageSize=50");
+        own.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var page = await own.Content.ReadFromJsonAsync<PagedResult<SearchUserDto>>(Json);
         page.ShouldNotBeNull();
         page.Items.ShouldContain(u => u.Email == _tenantAAdminEmail);
         page.Items.ShouldNotContain(u => u.Email == _tenantBAdminEmail);

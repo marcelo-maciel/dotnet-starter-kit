@@ -274,15 +274,19 @@ public sealed class TenantThemeTests : IAsyncLifetime
         var tokenB = await GetTokenWithRetryAsync(_tenantBAdminEmail, TestConstants.DefaultPassword, _tenantB);
         using var clientB = _factory.CreateClient();
         clientB.DefaultRequestHeaders.Authorization = new("Bearer", tokenB.AccessToken);
-        clientB.DefaultRequestHeaders.Add("tenant", _tenantA); // spoof attempt — must be ignored
+        clientB.DefaultRequestHeaders.Add("tenant", _tenantA); // spoof attempt — must be refused
 
         // Act
         var response = await clientB.GetAsync(ThemePath);
 
-        // Assert — the override is gated to root, so B stays in B and sees defaults,
-        // never tenant A's marker color.
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var theme = await response.Content.ReadFromJsonAsync<TenantThemeDto>(Json);
+        // Assert — the PAF tenant check (ADR 0008) refuses the mismatched header instead of ignoring it.
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        // Without the header B stays in B and sees defaults, never tenant A's marker color.
+        clientB.DefaultRequestHeaders.Remove("tenant");
+        var own = await clientB.GetAsync(ThemePath);
+        own.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var theme = await own.Content.ReadFromJsonAsync<TenantThemeDto>(Json);
         theme.ShouldNotBeNull();
         theme.LightPalette.Primary.ShouldNotBe(marker);
         theme.LightPalette.Primary.ShouldBe("#2563EB");
@@ -307,8 +311,8 @@ public sealed class TenantThemeTests : IAsyncLifetime
             clientB.DefaultRequestHeaders.Authorization = new("Bearer", tokenB.AccessToken);
             clientB.DefaultRequestHeaders.Add("tenant", _tenantA); // spoof attempt
             var attack = await clientB.PutAsJsonAsync(ThemePath, ValidTheme(primary: "#000000"));
-            // The write is accepted but applies to tenant B (where B is pinned), not A.
-            attack.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+            // The PAF tenant check (ADR 0008) refuses the mismatched header before the write.
+            attack.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
 
         // Act — re-read tenant A's theme as A's own admin.
