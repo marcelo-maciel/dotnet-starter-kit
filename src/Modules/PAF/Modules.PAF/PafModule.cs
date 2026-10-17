@@ -3,6 +3,9 @@ using FSH.Framework.Eventing;
 using FSH.Framework.Persistence;
 using FSH.Framework.Shared.Constants;
 using FSH.Framework.Web.Modules;
+using FSH.Modules.Identity.Contracts.DTOs;
+using FSH.Modules.Identity.Contracts.v1.Tokens.RefreshToken;
+using FSH.Modules.Identity.Contracts.v1.Tokens.TokenGeneration;
 using FSH.Modules.PAF.Autorizacao;
 using FSH.Modules.PAF.Conferencia;
 using FSH.Modules.PAF.Contracts.Authorization;
@@ -36,6 +39,9 @@ using FSH.Modules.PAF.Features.v1.Prioridades.DisablePrioridade;
 using FSH.Modules.PAF.Features.v1.Prioridades.EnablePrioridade;
 using FSH.Modules.PAF.Features.v1.Prioridades.ListPrioridades;
 using FSH.Modules.PAF.Features.v1.Prioridades.UpdatePrioridade;
+using FSH.Modules.PAF.Features.v1.Sessao.EndSessao;
+using FSH.Modules.PAF.Features.v1.Sessao.SetGuiche;
+using FSH.Modules.PAF.Features.v1.Sessao.SetUnidadeCorrente;
 using FSH.Modules.PAF.Features.v1.Unidades.CreateUnidade;
 using FSH.Modules.PAF.Features.v1.Unidades.DisableUnidade;
 using FSH.Modules.PAF.Features.v1.Unidades.EnableUnidade;
@@ -43,7 +49,9 @@ using FSH.Modules.PAF.Features.v1.Unidades.ListUnidades;
 using FSH.Modules.PAF.Features.v1.Unidades.UpdateUnidade;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.GetUsuarioUnidades;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.SetUsuarioUnidades;
+using FSH.Modules.PAF.Sessao;
 using FSH.Modules.PAF.TempoReal;
+using Mediator;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -75,14 +83,17 @@ public sealed class PafModule : IModule
         ConfigureCadastroServices(builder.Services);
         RegistrarCredencialDeEstacao(builder.Services);
         AddTempoReal(builder.Services);
+        ConfigurarSessao(builder.Services);
     }
 
     public void ConfigureMiddleware(IApplicationBuilder app)
     {
         ArgumentNullException.ThrowIfNull(app);
 
-        // The tenant refusal and the station credential check run first: the station's unit comes from them.
+        // Order decides who sets the current unit: the station credential (Conferencia), then the person's
+        // session (SessionCheck); the unit header only fills what neither of them set.
         app.UseMiddleware<ConferenciaRequisicaoMiddleware>();
+        app.UseMiddleware<SessionCheckMiddleware>();
         app.UseMiddleware<UnidadeCorrenteMiddleware>();
     }
 
@@ -109,17 +120,41 @@ public sealed class PafModule : IModule
             .WithApiVersionSet(versionSet);
         MapearEndpointsDeEstacao(estacao);
 
+        var sessao = endpoints
+            .MapGroup("api/v{version:apiVersion}/paf/sessao")
+            .WithTags("PAF Sessão")
+            .WithApiVersionSet(versionSet)
+            .RequireAuthorization();
+        MapearSessao(sessao);
+
         MapTempoReal(endpoints);
     }
 
-    // Cadastros and unit scope (feat/paf-cadastro).
+    // Licença, sessão única, unidade corrente e guichê (RF22, ADR 0006, ADR 0008).
+    private static void ConfigurarSessao(IServiceCollection services)
+    {
+        services.AddScoped<SessaoCorrente>();
+        services.AddScoped<Licencas>();
+        services.AddScoped<EstadoSessao>();
+        services.AddScoped<IPipelineBehavior<GenerateTokenCommand, TokenResponse>, GenerateTokenLicenseBehavior>();
+        services.AddScoped<IPipelineBehavior<RefreshTokenCommand, RefreshTokenCommandResponse>, RefreshTokenLicenseBehavior>();
+    }
+
+    private static void MapearSessao(IEndpointRouteBuilder sessao)
+    {
+        sessao.MapSetUnidadeCorrenteEndpoint();
+        sessao.MapSetGuicheEndpoint();
+        sessao.MapEndSessaoEndpoint();
+    }
+
+    // Cadastros and unit scope.
     private static void ConfigureCadastroServices(IServiceCollection services)
     {
         services.AddScoped<EscopoUsuario>();
         services.AddScoped<PafDemoSeeder>();
     }
 
-    // Cadastros and unit scope (feat/paf-cadastro).
+    // Cadastros and unit scope.
     private static void MapCadastroEndpoints(IEndpointRouteBuilder group)
     {
         group.MapCreateUnidadeEndpoint();
@@ -183,7 +218,6 @@ public sealed class PafModule : IModule
     }
 
     // --- Tempo real (seção 7) -------------------------------------------------------------------
-    // Own methods so the parallel PAF branches touching this file merge line by line.
 
     private static void AddTempoReal(IServiceCollection services)
     {

@@ -12,15 +12,17 @@ using Microsoft.Extensions.Logging;
 namespace FSH.Modules.PAF.Escopo;
 
 /// <summary>
-/// Fills <see cref="IUnidadeCorrente"/> for the request (ADR 0003, ADR 0006). A station credential
-/// brings its unidade in the <see cref="PafClaims.Unidade"/> claim. A person sends
-/// <see cref="Cabecalho"/>, accepted only when the unidade is in the person's <c>UsuarioUnidade</c> scope.
-/// Without either, nothing is set and the unit filter returns no rows.
+/// Last source of <see cref="IUnidadeCorrente"/> for the request (ADR 0003, ADR 0006). A station credential's
+/// unidade is set by <c>ConferenciaRequisicaoMiddleware</c>; here a <see cref="Cabecalho"/> naming another
+/// unidade is refused. A person with a PAF session has the unidade set by <c>SessionCheckMiddleware</c>, and
+/// the header is ignored. Only a person without one (root tenant, root operator in a client tenant) uses the
+/// header, accepted when the unidade is in the person's <c>UsuarioUnidade</c> scope. Without any source,
+/// nothing is set and the unit filter returns no rows.
 /// </summary>
 public sealed partial class UnidadeCorrenteMiddleware(RequestDelegate next, ILogger<UnidadeCorrenteMiddleware> logger)
 {
-    // ponytail: the person's current unidade comes from this header for now; the session state in Valkey
-    // (ADR 0006, arquitetura seção 9) replaces it and the header goes away.
+    // ponytail: the header serves only callers the session does not cover (root tenant, root operator in a
+    // client tenant); it goes away when the session state of ADR 0006 covers them too.
     public const string Cabecalho = "X-Paf-Unidade";
 
     public async Task InvokeAsync(HttpContext context)
@@ -34,15 +36,17 @@ public sealed partial class UnidadeCorrenteMiddleware(RequestDelegate next, ILog
             return;
         }
 
+        var unidadeCorrente = context.RequestServices.GetRequiredService<IUnidadeCorrente>();
         string cabecalho = context.Request.Headers[Cabecalho].ToString();
         string? claim = principal.FindFirstValue(PafClaims.Unidade);
-        Guid? unidadeId = claim is null
-            ? await ResolverPelaPessoaAsync(context, principal, cabecalho).ConfigureAwait(false)
-            : ResolverPelaEstacao(claim, cabecalho);
-
-        if (unidadeId is { } id)
+        if (claim is not null)
         {
-            context.RequestServices.GetRequiredService<IUnidadeCorrente>().Definir(id);
+            ConferirCabecalhoDaEstacao(claim, cabecalho);
+        }
+        else if (unidadeCorrente.UnidadeId is null
+            && await ResolverPelaPessoaAsync(context, principal, cabecalho).ConfigureAwait(false) is { } unidadeId)
+        {
+            unidadeCorrente.Definir(unidadeId);
         }
 
         await next(context).ConfigureAwait(false);
@@ -50,7 +54,7 @@ public sealed partial class UnidadeCorrenteMiddleware(RequestDelegate next, ILog
 
     // A station belongs to one unidade and never switches, so a header naming another one is refused,
     // not silently ignored.
-    private Guid ResolverPelaEstacao(string claim, string cabecalho)
+    private void ConferirCabecalhoDaEstacao(string claim, string cabecalho)
     {
         if (!Guid.TryParse(claim, out var unidadeId) || unidadeId == Guid.Empty)
         {
@@ -62,8 +66,6 @@ public sealed partial class UnidadeCorrenteMiddleware(RequestDelegate next, ILog
             LogEstacaoFora(logger, unidadeId);
             throw new ForbiddenException("A estação não opera outra unidade.");
         }
-
-        return unidadeId;
     }
 
     private async Task<Guid?> ResolverPelaPessoaAsync(HttpContext context, ClaimsPrincipal principal, string cabecalho)

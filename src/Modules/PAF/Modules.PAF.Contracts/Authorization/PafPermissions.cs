@@ -63,6 +63,13 @@ public static class PafPermissions
         public const string Revoke = $"Permissions.{Resource}.Revoke";
     }
 
+    public static class Guiches
+    {
+        public const string Resource = "PAF.Guiches";
+        public const string Selecionar = $"Permissions.{Resource}.Selecionar";
+    }
+
+    // Guiches.Selecionar is basic: the ordinary attendant operates a guichê, and the kit's basic role is their starting point.
     public static IReadOnlyList<FshPermission> All { get; } =
     [
         new("View PAF units", ActionConstants.View, Unidades.Resource),
@@ -83,5 +90,6 @@ public static class PafPermissions
         new("Update PAF user units", ActionConstants.Update, UsuariosUnidade.Resource),
         new("Generate PAF station link", "Generate", VinculosEstacao.Resource),
         new("Revoke PAF station link", "Revoke", VinculosEstacao.Resource),
+        new("Selecionar guichê", "Selecionar", Guiches.Resource, IsBasic: true),
     ];
 }

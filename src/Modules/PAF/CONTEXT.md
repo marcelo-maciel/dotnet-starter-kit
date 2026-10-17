@@ -36,10 +36,27 @@ Concurrency and fail-closed tests: `src/Tests/Integration.Tests/Tests/PAF/`.
 
 ## Unit scope in requests
 
-- `Escopo/UnidadeCorrenteMiddleware` fills `IUnidadeCorrente`: station credential from claim `paf_unidade` (`PafClaims`); person from header `X-Paf-Unidade`, 403 when outside the person's `UsuarioUnidade`. The header is temporary (ponytail): the session state of ADR 0006 replaces it.
+- `IUnidadeCorrente` sources, in middleware order: `Conferencia/ConferenciaRequisicaoMiddleware` (station credential, claim `PafClaims.Unidade` = `paf_unidade`, checked against `VinculoEstacao`), `Sessao/SessionCheckMiddleware` (person with a PAF session), then `Escopo/UnidadeCorrenteMiddleware`: header `X-Paf-Unidade` only when neither set the unit (root tenant, root operator in a client tenant), 403 outside the person's `UsuarioUnidade`; a station sending another unit in the header gets 403. Ponytail: the header goes away when the session covers root.
 - Unit-scoped writes take the unidade from `IUnidadeCorrente.Exigir()`, never from the body.
 - Explicit cross-unit paths (only `IgnoreQueryFilters([PafQueryFilters.Unidade])`): `ListFilasConsolidadas` (caller's scope) and `UpdateContratoUnidade` (Codefi operator). `Architecture.Tests/PafQueryFilterTests` scans the PAF IL and fails on the bare form or on a specification overriding `IgnoreQueryFilters`.
 - Demo data: `Data/PafDemoSeeder`, called by the DbMigrator `seed-demo` verb only, never by tenant provisioning.
+
+## Station credential (`Estacoes/`, `Conferencia/`, `Autorizacao/`)
+
+- Claims in `Contracts/Authorization/PafClaims` (`paf_papel`, `paf_estacao`, `paf_unidade`, `paf_vinculo`, plus the kit's `tenant`, `sub`, `jti`); role values in `PafPapeisEstacao` (`Emissao`, `Painel`). Single definition: never redeclare claim names elsewhere.
+- `ConferenciaRequisicaoMiddleware` runs for every authenticated request of the host: 403 when the `tenant` header or `?tenant=` differs from the token's tenant claim (root operators exempt, stations never); for a station token it checks the live `VinculoEstacao` and the active `Estacao`, sets the unit, and marks `HttpContext.Items["paf:estacao-conferida"]`, which `EstacaoAuthorizationHandler` reads for policies `PafEstacaoEmissao` / `PafEstacaoPainel`.
+
+## Realtime (`TempoReal/`)
+
+- `PafHub` at `/api/v1/paf/hub` (`PafHubRota.Caminho`), policy `PafHub`, groups `PafGrupos` (`paf:{tenant}:unidade:{guid}` and siblings). Writes go through `AvisosTempoReal.GravarAsync` inside the transaction and `EnviarAsync` after commit; the outbox stores the full type name of the `*Paf` events, so renaming one orphans stored rows.
+
+## Session and licence (`Sessao/`)
+
+- The access token carries the kit session id in claim `sid` (edit in the Identity token handlers, ADR 0008). The JwtBearer inbound map keeps it as `sid`.
+- `GenerateTokenLicenseBehavior` / `RefreshTokenLicenseBehavior` are closed Mediator behaviors (confirmed applied by `PafSessaoLicencaTests`). Root tenant and users with no `UsuarioUnidade` pass straight through: no licence, no single session.
+- First slice: no cascade, the principal unit (lowest `Ordem`) pays; the licence does not migrate on unit switch. The seat count is always `AtividadeSessao` rows fresher than 10 min, under `pg_advisory_xact_lock` of the unit.
+- `SessionCheckMiddleware` (module middleware) checks `sid` → active `UserSession` → fresh `AtividadeSessao`, fills `SessaoCorrente` and `IUnidadeCorrente` (Valkey state via `EstadoSessao`, else the licence unit), and renews the mark at most once a minute. Tokens with `act_sub` or `paf_unidade` are not handled here.
+- Routes under `api/v1/paf/sessao`: `unidade-corrente`, `guiche` (`Permissions.PAF.Guiches.Selecionar`), `logout`.
 
 ## Touching the kit
 
