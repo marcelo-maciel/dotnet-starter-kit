@@ -30,6 +30,7 @@ public sealed class EncerrarAtendimentoCommandHandler(PafDbContext db, SessaoCor
             RETURNING "Versao" AS "Value"
             """, cancellationToken);
         await OperacaoGuiche.LiberarPendentesAsync(db, guiche, atendimento, cancellationToken);
+        await OperacaoGuiche.SoltarVinculoDeEstacaoInativaAsync(db, guiche.TenantId, guiche.Estacao.Id, cancellationToken);
 
         var aviso = OperacaoGuiche.AvisoDeEstado(guiche, atendimento, versao, EstadoAtendimento.Encerrado);
         await OperacaoGuiche.ConfirmarEAvisarAsync(transacao, avisos, aviso, cancellationToken);

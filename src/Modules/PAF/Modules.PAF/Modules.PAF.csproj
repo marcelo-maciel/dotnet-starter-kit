@@ -8,6 +8,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="System.IdentityModel.Tokens.Jwt" />
+		<InternalsVisibleTo Include="Integration.Tests" />
 	</ItemGroup>
 
 	<ItemGroup>
