@@ -39,14 +39,17 @@ public sealed class PafDemoSeederTests(FshWebApplicationFactory factory)
         var seeder = scope.ServiceProvider.GetRequiredService<PafDemoSeeder>();
 
         await Should.ThrowAsync<InvalidOperationException>(() =>
-            seeder.SemearAsync($"nao-existe-{Guid.NewGuid():N}"[..20], TestConstants.RootAdminEmail, CancellationToken.None));
+            seeder.SemearAsync($"nao-existe-{Guid.NewGuid():N}"[..20], Guid.NewGuid(), CancellationToken.None));
+        await Should.ThrowAsync<ArgumentException>(() =>
+            seeder.SemearAsync(TestConstants.RootTenantId, Guid.Empty, CancellationToken.None));
     }
 
     private async Task SemearAsync()
     {
+        var adminId = await new PafApi(factory).RootAdminIdAsync();
         using var scope = factory.Services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<PafDemoSeeder>()
-            .SemearAsync(TestConstants.RootTenantId, TestConstants.RootAdminEmail, CancellationToken.None);
+            .SemearAsync(TestConstants.RootTenantId, adminId, CancellationToken.None);
     }
 
     private sealed record Fotografia(

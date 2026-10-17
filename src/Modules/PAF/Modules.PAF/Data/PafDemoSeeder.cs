@@ -1,7 +1,6 @@
 using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Shared.Multitenancy;
-using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Escopo;
 using Microsoft.EntityFrameworkCore;
@@ -29,10 +28,15 @@ public sealed partial class PafDemoSeeder(IServiceScopeFactory scopeFactory, ILo
     // A fixed past date keeps reruns identical; the contract is open-ended.
     private static readonly DateOnly InicioVigencia = new(2026, 1, 1);
 
-    public async Task SemearAsync(string tenantId, string adminEmail, CancellationToken cancellationToken)
+    // The caller resolves the tenant admin: the migrator host has no mail nor web environment, so the
+    // Identity contract services cannot be built there.
+    public async Task SemearAsync(string tenantId, Guid adminId, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(adminEmail);
+        if (adminId == Guid.Empty)
+        {
+            throw new ArgumentException("Administrador do tenant não informado.", nameof(adminId));
+        }
 
         using var scope = scopeFactory.CreateScope();
         var services = scope.ServiceProvider;
@@ -41,11 +45,6 @@ public sealed partial class PafDemoSeeder(IServiceScopeFactory scopeFactory, ILo
 
         // Set before resolving any DbContext of the scope: the tenant filter and connection come from it.
         services.GetRequiredService<IMultiTenantContextSetter>().MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenant);
-
-        var usuarios = await services.GetRequiredService<IUserService>().GetListAsync(cancellationToken).ConfigureAwait(false);
-        var admin = usuarios.FirstOrDefault(u => string.Equals(u.Email, adminEmail, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException($"Administrador do tenant '{tenantId}' não encontrado.");
-        var adminId = Guid.Parse(admin.Id!);
 
         var db = services.GetRequiredService<PafDbContext>();
         var unidade = await db.Unidades.FirstOrDefaultAsync(u => u.Nome == NomeUnidade, cancellationToken).ConfigureAwait(false);

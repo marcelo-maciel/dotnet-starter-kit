@@ -25,7 +25,7 @@ internal sealed class PafApi(FshWebApplicationFactory factory)
             .GetAsync(TestConstants.RootTenantId);
         scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>().MultiTenantContext =
             new MultiTenantContext<AppTenantInfo>(root!);
-        var usuarios = await scope.ServiceProvider.GetRequiredService<IUserService>().GetListAsync(CancellationToken.None);
+        var usuarios = await scope.ServiceProvider.GetRequiredService<IUserProfileService>().GetListAsync(CancellationToken.None);
         return Guid.Parse(usuarios.Single(u => u.Email == TestConstants.RootAdminEmail).Id!);
     }
 

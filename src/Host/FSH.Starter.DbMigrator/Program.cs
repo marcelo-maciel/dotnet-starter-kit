@@ -315,7 +315,17 @@ try
         var pafSeeder = scope.ServiceProvider.GetRequiredService<FSH.Modules.PAF.Data.PafDemoSeeder>();
         foreach (var demo in new[] { DemoSeeder.Acme, DemoSeeder.Globex })
         {
-            await pafSeeder.SemearAsync(demo.Id, demo.AdminEmail, CancellationToken.None).ConfigureAwait(false);
+            using var pafScope = host.Services.CreateScope();
+            var demoTenant = await pafScope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>()
+                .GetAsync(demo.Id).ConfigureAwait(false)
+                ?? throw new InvalidOperationException($"Demo tenant '{demo.Id}' missing.");
+            pafScope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>().MultiTenantContext =
+                new MultiTenantContext<AppTenantInfo>(demoTenant);
+            var demoAdmin = await pafScope.ServiceProvider
+                .GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<FSH.Modules.Identity.Domain.FshUser>>()
+                .FindByEmailAsync(demo.AdminEmail).ConfigureAwait(false)
+                ?? throw new InvalidOperationException($"Demo admin of '{demo.Id}' missing.");
+            await pafSeeder.SemearAsync(demo.Id, Guid.Parse(demoAdmin.Id), CancellationToken.None).ConfigureAwait(false);
         }
         await Console.Out.WriteLineAsync("[demo-seed] done").ConfigureAwait(false);
     }

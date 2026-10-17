@@ -13,7 +13,7 @@ namespace FSH.Modules.PAF.Features.v1.UsuariosUnidade.SetUsuarioUnidades;
 /// Scope is the boundary of granting and of editing (arquitetura seção 5): the caller only grants
 /// unidades inside its own scope, and only edits a user whose whole current scope is inside it.
 /// </summary>
-public sealed class SetUsuarioUnidadesCommandHandler(PafDbContext db, EscopoUsuario escopo, IUserService userService)
+public sealed class SetUsuarioUnidadesCommandHandler(PafDbContext db, EscopoUsuario escopo, IUserProfileService userService)
     : ICommandHandler<SetUsuarioUnidadesCommand, Guid>
 {
     public async ValueTask<Guid> Handle(SetUsuarioUnidadesCommand command, CancellationToken cancellationToken)
