@@ -98,7 +98,7 @@ public sealed class PafEstacaoTests : IAsyncLifetime
 
         using var client = _factory.CreateClient();
         using var resposta = await client.PostAsJsonAsync(Resgatar, new { token = link.Token });
-        resposta.StatusCode.ShouldNotBe(HttpStatusCode.OK);
+        resposta.StatusCode.ShouldBe(HttpStatusCode.Unauthorized, await resposta.Content.ReadAsStringAsync());
 
         // The refused attempt must not have consumed the link.
         using var valido = await ResgatarAsync(link.Token);
@@ -153,13 +153,13 @@ public sealed class PafEstacaoTests : IAsyncLifetime
 
         using (var kit = await GetAsync($"{TestConstants.IdentityBasePath}/users/search?PageNumber=1&PageSize=5", token))
         {
-            // The kit permission check looks the station id up as a user and refuses (401 when the lookup fails).
-            kit.StatusCode.ShouldBeOneOf(HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden);
+            // The kit permission check looks the station id up as a user; the lookup fails and the kit answers 401.
+            kit.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         }
 
         using var client = ClienteComToken(token);
         using var admin = await client.PostAsync($"/api/v1/paf/estacoes/{estacaoId}/vinculo", content: null);
-        admin.StatusCode.ShouldBeOneOf(HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden);
+        admin.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
