@@ -7,6 +7,7 @@ using FSH.Modules.PAF.Domain;
 using Integration.Tests.Infrastructure;
 using Mediator;
 using Microsoft.AspNetCore.Http.Connections;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
 
 namespace Integration.Tests.Tests.PAF;
@@ -206,6 +207,21 @@ internal sealed class PafOperacao(FshWebApplicationFactory factory, PafTenantCli
                 })
             .Build();
         await conexao.StartAsync();
+        await ProntaAsync(conexao);
         return conexao;
+    }
+
+    /// <summary>
+    /// StartAsync returns at the handshake, before PafHubFilter and PafHub.OnConnectedAsync have joined the groups;
+    /// the server reads invocations only after that, so one round trip means the groups are in place. A station's
+    /// EntrarNoGuiche answers with a HubException, which is the round trip too.
+    /// </summary>
+    public static async Task ProntaAsync(HubConnection conexao)
+    {
+        var erro = await Record.ExceptionAsync(() => conexao.InvokeAsync<Guid?>(PafHubChamadas.EntrarNoGuiche));
+        if (erro is not null and not HubException)
+        {
+            throw erro;
+        }
     }
 }

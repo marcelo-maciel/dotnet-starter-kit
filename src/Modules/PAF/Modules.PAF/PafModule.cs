@@ -263,7 +263,9 @@ public sealed class PafModule : IModule
         services.AddScoped<AvisosTempoReal>();
         services.AddSingleton<ConexoesPaf>();
         services.AddSingleton<PafHubFilter>();
-        services.Configure<HubOptions<PafHub>>(options => options.AddFilter<PafHubFilter>());
+        // AddHubOptions, not Configure<HubOptions<PafHub>>: only it registers HubOptionsSetup<PafHub>, which marks the
+        // per-hub options as set; without that mark SignalR falls back to the global options and the filter never runs.
+        services.AddSignalR().AddHubOptions<PafHub>(options => options.AddFilter<PafHubFilter>());
         services.AddIntegrationEventHandlers(typeof(PafModule).Assembly);
     }
 

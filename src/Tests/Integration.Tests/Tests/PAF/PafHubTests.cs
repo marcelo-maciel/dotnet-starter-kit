@@ -364,6 +364,7 @@ public sealed class PafHubTests : IAsyncLifetime
             .Build();
         _conexoes.Add(conexao);
         await conexao.StartAsync();
+        await PafOperacao.ProntaAsync(conexao);
         return conexao;
     }
 
