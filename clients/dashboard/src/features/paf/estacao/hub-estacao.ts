@@ -2,6 +2,7 @@ import type { HubConnection } from "@microsoft/signalr";
 import { env } from "@/env";
 import {
   CredencialEstacaoInvalidaError,
+  forcarRenovacao,
   obterTokenValido,
   tenantDaEstacao,
 } from "@/features/paf/estacao/estacao-http";
@@ -31,6 +32,7 @@ export function conectarHubEstacao(opcoes: OpcoesHubEstacao): () => void {
   let parado = false;
   let conexao: HubConnection | null = null;
   let falhas = 0;
+  let renovouNestaSequencia = false;
   let timer: number | undefined;
 
   const agendarNovaTentativa = () => {
@@ -82,19 +84,35 @@ export function conectarHubEstacao(opcoes: OpcoesHubEstacao): () => void {
         return;
       }
       falhas = 0;
+      renovouNestaSequencia = false;
       opcoes.aoMudarEstado("conectado");
       opcoes.aoConectar();
     } catch (erro) {
-      if (erro instanceof CredencialEstacaoInvalidaError) {
-        parado = true;
-        opcoes.aoMudarEstado("desconectado");
-        opcoes.aoPerderCredencial();
-        return;
-      }
+      if (perdeuCredencial(erro)) return;
       console.warn("[paf-hub] falha ao conectar", erro);
       conexao = null;
+      // The negotiate 401 comes wrapped (FailedToNegotiateWithServerError), so instead of reading it,
+      // a failure streak renews once: a token the client thinks valid but the server refused (drifted
+      // clock) would otherwise be retried forever. Once per streak keeps the `auth` rate limit safe.
+      if (!renovouNestaSequencia) {
+        renovouNestaSequencia = true;
+        try {
+          await forcarRenovacao(opcoes.papel);
+        } catch (erroRenovacao) {
+          if (perdeuCredencial(erroRenovacao)) return;
+          console.warn("[paf-hub] falha ao renovar a credencial", erroRenovacao);
+        }
+      }
       agendarNovaTentativa();
     }
+  };
+
+  const perdeuCredencial = (erro: unknown): boolean => {
+    if (!(erro instanceof CredencialEstacaoInvalidaError)) return false;
+    parado = true;
+    opcoes.aoMudarEstado("desconectado");
+    opcoes.aoPerderCredencial();
+    return true;
   };
 
   void iniciar();

@@ -92,6 +92,11 @@ export async function obterTokenValido(papel: PapelEstacao): Promise<string> {
   return (await renovarUmaVez(credencial)).accessToken;
 }
 
+/** Renews even when the stored token looks valid: the server refused it (drifted clock, rotated key). */
+export async function forcarRenovacao(papel: PapelEstacao): Promise<void> {
+  await renovarUmaVez(exigirCredencial(papel));
+}
+
 export function tenantDaEstacao(papel: PapelEstacao): string {
   return exigirCredencial(papel).tenant;
 }

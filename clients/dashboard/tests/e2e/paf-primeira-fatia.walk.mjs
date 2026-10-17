@@ -293,6 +293,20 @@ try {
   await chamar.click();
   check("guichê: fila vazia mostra a mensagem do servidor", await visivel(pGuiche.getByText("Não existem fichas na fila.")));
 
+  // Renewal success path: a token the client believes valid but the server refuses (drifted clock)
+  // must be renewed through the secret, on HTTP (totem) and on the hub negotiate (painel).
+  const estragar = (papel) => {
+    const chave = `paf.estacao.${papel}`;
+    const c = JSON.parse(localStorage.getItem(chave));
+    localStorage.setItem(chave, JSON.stringify({ ...c, accessToken: "token-recusado", accessTokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString() }));
+  };
+  await pTotem.evaluate(estragar, "emissao");
+  await pTotem.reload();
+  check("totem: token recusado é renovado pelo segredo", await visivel(pTotem.getByRole("button", { name: new RegExp(fila.nome) })));
+  await pPainel.evaluate(estragar, "painel");
+  await pPainel.reload();
+  check("painel: hub renova o token recusado e conecta", await visivel(pPainel.locator('[data-conexao="conectado"]')));
+
   // Revoked link: the totem drops to the "not linked" screen.
   await api("POST", `/api/v1/paf/estacoes/${totem.id}/vinculo/revogar`, (await api("POST", "/api/v1/identity/token/issue", null, { email: EMAIL, password: SENHA_DEMO })).accessToken, {});
   await pTotem.reload();
