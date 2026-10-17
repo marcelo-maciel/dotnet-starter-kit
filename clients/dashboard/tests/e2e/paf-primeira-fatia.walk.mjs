@@ -1,4 +1,4 @@
-// PAF first slice walk against a REAL API (no route mocks except the one marked GAP below):
+// PAF first slice walk against a REAL API (no route mocks except the one marked NEGATIVE below):
 // station link → totem emission + print → guichê call/recall/start/finish/cancel → painel live + reconnect.
 //
 // Run (API and Vite dev server already up, fresh `seed-demo` database):
@@ -98,7 +98,7 @@ const STUBS = () => {
 
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 try {
-  // ── Setup through the admin API: ids for the GAP route and a fresh station link ──
+  // ── Setup through the admin API: ids for the checks and a fresh station link ──
   const admin = await api("POST", "/api/v1/identity/token/issue", null, { email: EMAIL, password: SENHA_DEMO });
   const estacoes = await api("GET", "/api/v1/paf/estacoes", admin.accessToken);
   const totem = estacoes.find((e) => e.tipo === "EmissaoPainel");
@@ -134,24 +134,13 @@ try {
   check("vinculo: link de uso único recusado na segunda vez", await visivel(pReuso.getByText("Link inválido")));
   await pReuso.close();
 
-  // ── Totem against the real configuration: the API has no buttons yet (GAP) ──
+  // ── Totem against the real configuration: buttons come from the station's emission filas ──
   const pTotem = await estacaoCtx.newPage();
   await pTotem.goto(`${WEB}/paf/totem`);
   check(
-    "totem: configuração real sem filas mostra aviso",
-    await visivel(pTotem.getByText("não tem filas de emissão configuradas")),
+    "totem: botões vêm da configuração real",
+    await visivel(pTotem.getByRole("button", { name: new RegExp(fila.nome) })),
   );
-
-  // GAP: ConfiguracaoEstacaoDto has no buttons. Only this GET is patched, adding the requested
-  // `botoes` field with the station's REAL fila/prioridade ids; emission goes to the real API.
-  let botoes = [
-    { filaId, fila: fila.nome, prioridadeId: prioridade.id, prioridade: prioridade.nome, letra: "A", ordem: 0 },
-  ];
-  await estacaoCtx.route("**/api/v1/paf/estacao/emissao/configuracao", async (route) => {
-    const real = await route.fetch();
-    const json = await real.json();
-    await route.fulfill({ response: real, json: { ...json, botoes } });
-  });
 
   // Idempotency: the first emission reaches the server but the answer is dropped (network error on
   // the totem); the second tap must reuse the key and get the SAME ficha back.
@@ -169,7 +158,7 @@ try {
   });
 
   await pTotem.reload();
-  const botao = pTotem.getByRole("button", { name: new RegExp(fila.nome) });
+  const botao = pTotem.getByRole("button", { name: new RegExp(fila.nome) }).first();
   await botao.click();
   check("totem: falha de rede pede novo toque", await visivel(pTotem.getByText("Toque de novo")));
   await botao.click();
@@ -185,7 +174,8 @@ try {
   check("totem: imprimiu uma via", impressoes.length === 1, JSON.stringify(impressoes));
   check("totem: @page com largura e altura explícitas", /@page \{ size: 80mm \d+mm; margin: 0 \}/.test(imp?.pagina ?? ""), imp?.pagina);
   check("totem: ficha com 80 mm", Math.abs((imp?.larguraPx ?? 0) - (80 * 96) / 25.4) < 1, imp?.larguraPx);
-  check("totem: senha cabe e QR presente", imp?.senhaCabe === true && imp?.temQr === true && imp?.senha === senha1, JSON.stringify(imp));
+  // RF11 and requisitos 7.1: no QR while the public ficha page does not exist.
+  check("totem: senha cabe e sem QR", imp?.senhaCabe === true && imp?.temQr === false && imp?.senha === senha1, JSON.stringify(imp));
 
   // Second ficha: a new cycle must get a new key and the next number.
   await pTotem.locator("[data-senha-emitida]").waitFor({ state: "detached", timeout: TIMEOUT });
@@ -208,8 +198,14 @@ try {
   });
   check("totem: WWWWW9999 cabe em 80 mm reduzindo a fonte", larga.cabe && larga.px < 55 && larga.px >= 30, JSON.stringify(larga));
 
-  // Definitive 4xx: a fila outside the station ends the cycle with the server message.
-  botoes = [...botoes, { filaId: crypto.randomUUID(), fila: "Fila Alheia", prioridadeId: prioridade.id, prioridade: "Normal", letra: "Z", ordem: 1 }];
+  // NEGATIVE: definitive 4xx. The server never offers a fila outside the station, so only this case
+  // appends one button to the real configuration; the emission itself goes to the real API.
+  await estacaoCtx.route("**/api/v1/paf/estacao/emissao/configuracao", async (route) => {
+    const real = await route.fetch();
+    const json = await real.json();
+    const alheia = { filaId: crypto.randomUUID(), fila: "Fila Alheia", prioridadeId: prioridade.id, prioridade: "Normal", letra: "Z", ordem: 999 };
+    await route.fulfill({ response: real, json: { ...json, botoes: [...json.botoes, alheia] } });
+  });
   await pTotem.waitForTimeout(4_500);
   await pTotem.reload();
   await pTotem.getByRole("button", { name: /Fila Alheia/ }).click();
@@ -254,6 +250,12 @@ try {
   await pPainel.waitForFunction((s) => window.__falas.some((f) => f.texto === s), `senha ${chamada.replace(/^([A-Z]+)(\d+)$/, "$1 $2")}`, { timeout: TIMEOUT });
   const falas = await pPainel.evaluate(() => window.__falas);
   check("painel: fala 'senha X N' com a voz pt-BR local", falas.at(-1).voz === "Stub pt-BR", JSON.stringify(falas));
+
+  // Reload: unit, guichê and the called atendimento come back from GET posto, not from the tab.
+  await pGuiche.reload();
+  await pGuiche.locator("[data-senha-guiche]").waitFor({ timeout: TIMEOUT });
+  check("guichê: recarregar a página traz o atendimento do servidor", (await pGuiche.locator("[data-senha-guiche]").textContent()) === chamada);
+  check("guichê: sem estado do posto no sessionStorage", (await pGuiche.evaluate(() => sessionStorage.getItem("paf.guiche.posto"))) === null);
 
   // Recall: spoken again, the list never duplicates the entry.
   await pGuiche.getByRole("button", { name: "Chamar novamente" }).click();

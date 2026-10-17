@@ -17,16 +17,15 @@ const formatoData = new Intl.DateTimeFormat("pt-BR", {
 // only the ticket: hiding by visibility would keep the screen layout and print blank extra pages.
 const ESTILO_IMPRESSAO = `
 .paf-ficha-impressao { position: fixed; left: -10000px; top: 0; }
-.paf-ficha-impressao svg { display: block; width: 100%; height: 100%; }
 @media print {
   #root { display: none !important; }
   .paf-ficha-impressao { position: static; left: auto; }
   html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
 }`;
 
-type Props = { ficha: FichaEmitidaDto; qrSvg: string };
+type Props = { ficha: FichaEmitidaDto };
 
-export const FichaImpressa = forwardRef<HTMLDivElement, Props>(function FichaImpressa({ ficha, qrSvg }, ref) {
+export const FichaImpressa = forwardRef<HTMLDivElement, Props>(function FichaImpressa({ ficha }, ref) {
   return createPortal(
     <div className="paf-ficha-impressao" aria-hidden="true">
       <style>{ESTILO_IMPRESSAO}</style>
@@ -51,11 +50,9 @@ export const FichaImpressa = forwardRef<HTMLDivElement, Props>(function FichaImp
         >
           {ficha.senha}
         </div>
-        <div
-          style={{ width: "32mm", height: "32mm", margin: "2mm auto" }}
-          // SVG produced by the qrcode library from our own URL, never from user text.
-          dangerouslySetInnerHTML={{ __html: qrSvg }}
-        />
+        {/* ponytail: no QR until the public ficha page exists (requisitos RF11 and 7.1: the QR stays off by
+            parameter while the page does not exist). Then print the QR of identificadorPublico behind the
+            RF06 "impressão do QR da ficha" parameter. */}
         <div style={{ fontSize: 18, fontWeight: "bold" }}>{ficha.fila}</div>
         <div style={{ fontSize: 15 }}>{ficha.prioridade}</div>
         <div style={{ fontSize: 13, marginTop: "1mm" }}>{formatoData.format(new Date(ficha.emitidaEm))}</div>

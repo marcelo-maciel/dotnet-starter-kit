@@ -1,5 +1,5 @@
-import { useEffect, useId, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useId, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { mensagemAmigavel } from "@/features/paf/paf-erros";
@@ -9,35 +9,19 @@ import {
   definirUnidadeCorrente,
   listarGuiches,
   listarUnidades,
+  obterPosto,
   operarAtendimento,
+  type GuicheDto,
   type OperacaoAtendimento,
 } from "@/features/paf/guiche/guiche-api";
 
-type Selecionado = { id: string; nome: string };
-type AtendimentoAtual = { atendimentoId: string; senha: string; estado: string };
+type Ultimo = { senha: string; estado: string };
 
-type Posto = {
-  unidade: Selecionado | null;
-  guiche: Selecionado | null;
-  atendimento: AtendimentoAtual | null;
-  ultimo: AtendimentoAtual | null;
-};
+// The server holds unit, guichê and atendimento (GET posto): a reload asks it again. Only the step of a
+// "Trocar" in progress lives here, because until the new choice is made the server still has the old one.
+type Etapa = "unidade" | "guiche" | "operar";
 
-// ponytail: the server has no read of the session's unit, guichê or atendimento em curso yet, so a
-// reload restores them from this tab's sessionStorage. Upgrade: a GET of the session state replaces it.
-const CHAVE_POSTO = "paf.guiche.posto";
-const POSTO_VAZIO: Posto = { unidade: null, guiche: null, atendimento: null, ultimo: null };
-
-function lerPosto(): Posto {
-  const bruto = sessionStorage.getItem(CHAVE_POSTO);
-  if (bruto === null) return POSTO_VAZIO;
-  try {
-    return { ...POSTO_VAZIO, ...(JSON.parse(bruto) as Partial<Posto>) };
-  } catch {
-    // Corrupted entry: start from the selection, the server still holds the truth.
-    return POSTO_VAZIO;
-  }
-}
+const CHAVE_POSTO = ["paf", "guiche", "posto"] as const;
 
 const ROTULO_ESTADO: Record<string, string> = {
   Chamado: "Chamada",
@@ -51,8 +35,15 @@ const ESTADOS_FINAIS = new Set(["Encerrado", "Cancelado"]);
 const SELECT_CLASSES =
   "h-9 w-full rounded-md border border-[var(--color-input)] bg-[var(--color-card)] px-3 text-sm";
 
+function rotuloGuiche(g: GuicheDto): string {
+  if (g.meu) return `${g.nome} (seu)`;
+  return g.ocupante ? `${g.nome} (em uso por ${g.ocupante})` : g.nome;
+}
+
 export function GuichePage() {
-  const [posto, setPosto] = useState<Posto>(lerPosto);
+  const queryClient = useQueryClient();
+  const [troca, setTroca] = useState<Etapa | null>(null);
+  const [ultimo, setUltimo] = useState<Ultimo | null>(null);
   const [unidadeEscolhida, setUnidadeEscolhida] = useState("");
   const [guicheEscolhido, setGuicheEscolhido] = useState("");
   const [ocupado, setOcupado] = useState(false);
@@ -60,15 +51,16 @@ export function GuichePage() {
   const idUnidade = useId();
   const idGuiche = useId();
 
-  useEffect(() => {
-    sessionStorage.setItem(CHAVE_POSTO, JSON.stringify(posto));
-  }, [posto]);
+  const posto = useQuery({ queryKey: CHAVE_POSTO, queryFn: obterPosto });
+  const etapa: Etapa | null = posto.data
+    ? (troca ?? (posto.data.unidadeId === null ? "unidade" : posto.data.estacaoId === null ? "guiche" : "operar"))
+    : null;
 
-  const unidades = useQuery({ queryKey: ["paf", "guiche", "unidades"], queryFn: listarUnidades, enabled: posto.unidade === null });
+  const unidades = useQuery({ queryKey: ["paf", "guiche", "unidades"], queryFn: listarUnidades, enabled: etapa === "unidade" });
   const guiches = useQuery({
-    queryKey: ["paf", "guiche", "guiches", posto.unidade?.id],
+    queryKey: ["paf", "guiche", "guiches", posto.data?.unidadeId],
     queryFn: listarGuiches,
-    enabled: posto.unidade !== null && posto.guiche === null,
+    enabled: etapa === "guiche",
   });
 
   const executar = async (acao: () => Promise<void>) => {
@@ -79,69 +71,69 @@ export function GuichePage() {
     } catch (e) {
       setErro(mensagemAmigavel(e));
     } finally {
+      // Success or refusal, the server's post is the truth: a guichê released elsewhere sends the screen
+      // back to the selection on its own.
+      await queryClient.invalidateQueries({ queryKey: CHAVE_POSTO });
       setOcupado(false);
     }
   };
 
   const escolherUnidade = () =>
     executar(async () => {
-      const unidade = unidades.data?.find((u) => u.id === unidadeEscolhida);
-      if (!unidade) return;
-      await definirUnidadeCorrente(unidade.id);
-      setPosto({ ...POSTO_VAZIO, unidade: { id: unidade.id, nome: unidade.nome } });
+      if (unidadeEscolhida === "") return;
+      await definirUnidadeCorrente(unidadeEscolhida);
+      setUltimo(null);
+      setTroca("guiche");
     });
 
   const escolherGuiche = () =>
     executar(async () => {
-      const guiche = guiches.data?.find((g) => g.id === guicheEscolhido);
-      if (!guiche) return;
-      await definirGuiche(guiche.id);
-      setPosto((p) => ({ ...p, guiche: { id: guiche.id, nome: guiche.nome }, atendimento: null }));
+      if (guicheEscolhido === "") return;
+      await definirGuiche(guicheEscolhido);
+      setTroca(null);
     });
 
   const chamar = () =>
     executar(async () => {
-      const chamada = await chamarProxima();
-      setPosto((p) => ({
-        ...p,
-        atendimento: { atendimentoId: chamada.atendimentoId, senha: chamada.senha, estado: "Chamado" },
-      }));
+      await chamarProxima();
     });
 
   const operar = (operacao: OperacaoAtendimento) =>
     executar(async () => {
-      const atual = posto.atendimento;
+      const atual = posto.data?.atendimento;
       if (!atual) return;
       const alterado = await operarAtendimento(atual.atendimentoId, operacao);
-      const novo = { ...atual, estado: alterado.estado };
-      setPosto((p) =>
-        ESTADOS_FINAIS.has(alterado.estado) ? { ...p, atendimento: null, ultimo: novo } : { ...p, atendimento: novo },
-      );
+      if (ESTADOS_FINAIS.has(alterado.estado)) setUltimo({ senha: atual.senha, estado: alterado.estado });
     });
 
   const trocarPosto = () => {
     setErro(null);
     setUnidadeEscolhida("");
     setGuicheEscolhido("");
-    setPosto(POSTO_VAZIO);
+    setTroca("unidade");
   };
 
-  const atendimento = posto.atendimento;
+  const atendimento = posto.data?.atendimento ?? null;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Guichê</h1>
-        {posto.unidade && (
+        {posto.data?.unidade && (
           <p className="text-sm text-[var(--color-muted-foreground)]">
-            {posto.unidade.nome}
-            {posto.guiche && ` · ${posto.guiche.nome}`}{" "}
-            <Button variant="link" size="xs" onClick={trocarPosto}>
-              Trocar
-            </Button>
+            {posto.data.unidade}
+            {posto.data.guiche && ` · ${posto.data.guiche}`}{" "}
+            {etapa === "operar" && (
+              <Button variant="link" size="xs" onClick={trocarPosto}>
+                Trocar
+              </Button>
+            )}
           </p>
         )}
       </header>
+
+      {posto.isPending && <p className="text-[var(--color-muted-foreground)]">Carregando…</p>}
+      {posto.isError && <p role="alert">{mensagemAmigavel(posto.error)}</p>}
 
       {erro && (
         <p role="alert" className="rounded-md border border-[var(--color-destructive)] px-4 py-3 text-[var(--color-destructive)]">
@@ -149,7 +141,7 @@ export function GuichePage() {
         </p>
       )}
 
-      {posto.unidade === null && (
+      {etapa === "unidade" && (
         <section className="space-y-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5">
           <Label htmlFor={idUnidade}>Unidade</Label>
           {unidades.isError && <p role="alert">{mensagemAmigavel(unidades.error)}</p>}
@@ -174,7 +166,7 @@ export function GuichePage() {
         </section>
       )}
 
-      {posto.unidade !== null && posto.guiche === null && (
+      {etapa === "guiche" && (
         <section className="space-y-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5">
           <Label htmlFor={idGuiche}>Guichê</Label>
           {guiches.isError && <p role="alert">{mensagemAmigavel(guiches.error)}</p>}
@@ -188,7 +180,7 @@ export function GuichePage() {
             <option value="">{guiches.isPending ? "Carregando…" : "Selecione o guichê"}</option>
             {(guiches.data ?? []).map((g) => (
               <option key={g.id} value={g.id}>
-                {g.nome}
+                {rotuloGuiche(g)}
               </option>
             ))}
           </select>
@@ -198,7 +190,7 @@ export function GuichePage() {
         </section>
       )}
 
-      {posto.guiche !== null && (
+      {etapa === "operar" && (
         <section className="space-y-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5">
           <div aria-live="polite" className="text-center">
             {atendimento ? (
@@ -212,7 +204,7 @@ export function GuichePage() {
             ) : (
               <p className="text-[var(--color-muted-foreground)]">
                 Nenhum atendimento em curso.
-                {posto.ultimo && ` Último: ${posto.ultimo.senha} (${ROTULO_ESTADO[posto.ultimo.estado] ?? posto.ultimo.estado}).`}
+                {ultimo && ` Último: ${ultimo.senha} (${ROTULO_ESTADO[ultimo.estado] ?? ultimo.estado}).`}
               </p>
             )}
           </div>
