@@ -12,9 +12,10 @@ public sealed record ListGuichesDaUnidadeQuery : IQuery<IReadOnlyList<GuicheDaUn
 
 /// <summary>
 /// <paramref name="Ocupante"/> is the user name of another session holding it ("a tela informa quem está no guichê"),
-/// null when free or when <paramref name="Meu"/>, held by the caller's own session.
+/// null when free or when <paramref name="Meu"/>, held by the caller's own session. <paramref name="Pendencia"/> is the
+/// senha of another user's atendimento still Chamado or EmAtendimento on it: selecting it requires releasing that.
 /// </summary>
-public sealed record GuicheDaUnidadeDto(Guid Id, string Nome, string Tipo, string? Ocupante, bool Meu);
+public sealed record GuicheDaUnidadeDto(Guid Id, string Nome, string Tipo, string? Ocupante, bool Meu, string? Pendencia);
 
 /// <summary>Where the session stands: current unit, selected guichê and the atendimento in progress on it, so a reload resumes.</summary>
 public sealed record ObterPostoGuicheQuery : IQuery<PostoGuicheDto>;

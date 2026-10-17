@@ -5,8 +5,18 @@ import { apiFetch } from "@/lib/api-client";
 /** Only active unidades of the caller's scope come back. */
 export type UnidadeDto = { id: string; nome: string };
 
-/** `ocupante` is another session's user name; null when free or when `meu`. */
-export type GuicheDto = { id: string; nome: string; tipo: string; ocupante: string | null; meu: boolean };
+/**
+ * `ocupante` is another session's user name; null when free or when `meu`. `pendencia` is the senha another
+ * user left called or in progress on it: selecting it means releasing (cancelling) that atendimento.
+ */
+export type GuicheDto = {
+  id: string;
+  nome: string;
+  tipo: string;
+  ocupante: string | null;
+  meu: boolean;
+  pendencia: string | null;
+};
 
 export type AtendimentoEmCursoDto = {
   atendimentoId: string;
@@ -58,10 +68,10 @@ export function definirUnidadeCorrente(unidadeId: string) {
   });
 }
 
-export function definirGuiche(estacaoId: string) {
+export function definirGuiche(estacaoId: string, liberarPendencia: boolean) {
   return apiFetch<void>("/api/v1/paf/sessao/guiche", {
     method: "POST",
-    body: JSON.stringify({ estacaoId }),
+    body: JSON.stringify({ estacaoId, liberarPendencia }),
   });
 }
 

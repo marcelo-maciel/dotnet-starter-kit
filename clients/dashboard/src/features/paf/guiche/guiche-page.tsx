@@ -50,7 +50,8 @@ const SELECT_CLASSES =
 
 function rotuloGuiche(g: GuicheDto): string {
   if (g.meu) return `${g.nome} (seu)`;
-  return g.ocupante ? `${g.nome} (em uso por ${g.ocupante})` : g.nome;
+  if (g.ocupante) return `${g.nome} (em uso por ${g.ocupante})`;
+  return g.pendencia ? `${g.nome} (senha ${g.pendencia} pendente de outro atendente)` : g.nome;
 }
 
 export function GuichePage() {
@@ -128,10 +129,13 @@ export function GuichePage() {
       setTroca("guiche");
     });
 
+  // Another user's pendência on the chosen guichê is released only by an explicit choice (RF04): the button says so.
+  const pendenciaEscolhida = guiches.data?.find((g) => g.id === guicheEscolhido)?.pendencia ?? null;
+
   const escolherGuiche = () =>
     executar(async () => {
       if (guicheEscolhido === "") return;
-      await definirGuiche(guicheEscolhido);
+      await definirGuiche(guicheEscolhido, pendenciaEscolhida !== null);
       hub.current?.entrarNoGuiche();
       setTroca(null);
     });
@@ -230,8 +234,18 @@ export function GuichePage() {
               </option>
             ))}
           </select>
-          <Button disabled={ocupado || guicheEscolhido === ""} onClick={() => void escolherGuiche()}>
-            Usar este guichê
+          {pendenciaEscolhida && (
+            <p className="text-sm text-[var(--color-muted-foreground)]">
+              A senha {pendenciaEscolhida} ficou chamada ou em atendimento neste guichê por outro atendente. Usar o
+              guichê cancela esse atendimento.
+            </p>
+          )}
+          <Button
+            variant={pendenciaEscolhida ? "destructive" : "default"}
+            disabled={ocupado || guicheEscolhido === ""}
+            onClick={() => void escolherGuiche()}
+          >
+            {pendenciaEscolhida ? `Liberar a senha ${pendenciaEscolhida} e usar este guichê` : "Usar este guichê"}
           </Button>
         </section>
       )}

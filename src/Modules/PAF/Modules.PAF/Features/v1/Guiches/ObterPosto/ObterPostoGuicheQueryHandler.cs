@@ -11,14 +11,15 @@ namespace FSH.Modules.PAF.Features.v1.Guiches.ObterPosto;
 
 /// <summary>
 /// The server's view of the session's post, so the guichê screen never trusts its own memory after a reload.
-/// The guichê is read with the unit filter: a link to another unit's station is not this unit's post.
+/// The guichê is read with the unit filter: a link to another unit's station is not this unit's post. Only the
+/// caller's own atendimento is "em curso" here: another user's pendência is never shown as his (seção 5).
 /// </summary>
 public sealed class ObterPostoGuicheQueryHandler(PafDbContext db, SessaoCorrente sessao, IUnidadeCorrente unidadeCorrente)
     : IQueryHandler<ObterPostoGuicheQuery, PostoGuicheDto>
 {
     public async ValueTask<PostoGuicheDto> Handle(ObterPostoGuicheQuery query, CancellationToken cancellationToken)
     {
-        var (_, sessaoId, _) = sessao.Exigir();
+        var (_, sessaoId, usuarioId) = sessao.Exigir();
         if (unidadeCorrente.UnidadeId is not { } unidadeId)
         {
             return new PostoGuicheDto(null, null, null, null, null);
@@ -43,6 +44,7 @@ public sealed class ObterPostoGuicheQueryHandler(PafDbContext db, SessaoCorrente
                 from a in db.Atendimentos.AsNoTracking()
                 join f in db.Fichas.AsNoTracking() on a.FichaId equals f.Id
                 where a.EstacaoId == guiche.Id
+                    && a.UsuarioId == usuarioId
                     && (a.Estado == EstadoAtendimento.Chamado || a.Estado == EstadoAtendimento.EmAtendimento)
                 select new { a.Id, a.FichaId, f.Letra, f.Numero, a.Estado, a.Versao })
             .FirstOrDefaultAsync(cancellationToken);
