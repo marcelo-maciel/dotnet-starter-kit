@@ -114,6 +114,14 @@ const GroupDetailPage = lazyNamed(
 );
 const MyFilesPage = lazyNamed(() => import("@/pages/files/my-files"), "MyFilesPage");
 const ChatPage = lazyNamed(() => import("@/pages/chat/chat-page"), "ChatPage");
+// PAF (ADR 0008, module registration: PAF screens in the dashboard routes).
+const PafResgateVinculoPage = lazyNamed(
+  () => import("@/features/paf/estacao/resgate-vinculo-page"),
+  "ResgateVinculoPage",
+);
+const PafTotemPage = lazyNamed(() => import("@/features/paf/totem/totem-page"), "TotemPage");
+const PafPainelPage = lazyNamed(() => import("@/features/paf/painel/painel-page"), "PainelPage");
+const PafGuichePage = lazyNamed(() => import("@/features/paf/guiche/guiche-page"), "GuichePage");
 
 /**
  * RouteFallback — what shows while a lazy chunk is downloading. Mirrors
@@ -190,6 +198,23 @@ export const router = createBrowserRouter([
     element: withSuspense(<ImpersonationEndedPage />),
     errorElement: <RouteError />,
   },
+  // PAF stations (totem, painel) run on the station credential, outside the user's route guard and
+  // inactivity sign-out: the panel on the wall must not go dark because nobody touched it.
+  {
+    path: "/paf/estacao/vinculo",
+    element: withSuspense(<PafResgateVinculoPage />),
+    errorElement: <RouteError />,
+  },
+  {
+    path: "/paf/totem",
+    element: withSuspense(<PafTotemPage />),
+    errorElement: <RouteError />,
+  },
+  {
+    path: "/paf/painel",
+    element: withSuspense(<PafPainelPage />),
+    errorElement: <RouteError />,
+  },
   {
     element: <ProtectedRoute />,
     errorElement: <RouteError />,
@@ -211,6 +236,7 @@ export const router = createBrowserRouter([
           { path: "files", element: withSuspense(<MyFilesPage />) },
           { path: "chat", element: withSuspense(<ChatPage />) },
           { path: "chat/:channelId", element: withSuspense(<ChatPage />) },
+          { path: "paf/guiche", element: withSuspense(<PafGuichePage />) },
           { path: "tickets", element: withSuspense(<TicketsPage />) },
           { path: "tickets/:ticketId", element: withSuspense(<TicketDetailPage />) },
           { path: "identity", element: <Navigate to="/identity/users" replace /> },

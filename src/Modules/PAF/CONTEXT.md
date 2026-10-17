@@ -69,3 +69,10 @@ Concurrency and fail-closed tests: `src/Tests/Integration.Tests/Tests/PAF/`.
 ## Touching the kit
 
 The kit is touched only at module registration points (both host `Program.cs` and `.csproj`, `src/FSH.Starter.slnx`, the migrations project) and at the other items of the closed list in ADR 0008. Any other kit edit requires amending ADR 0008 first.
+
+## Front (`clients/dashboard/src/features/paf`)
+
+- Routes (only `routes.tsx` is touched, ADR 0008): `/paf/estacao/vinculo#tenant=<t>&token=<t>` (link redemption, token in the fragment, wiped after read), `/paf/totem`, `/paf/painel` (top-level, outside `ProtectedRoute` and the inactivity guard), `/paf/guiche` (inside `AppShell`, kit auth). No sidebar entry: `nav-data.ts` is not in ADR 0008.
+- Totem and painel never use `lib/api-client.ts` nor `realtime/realtime-context.tsx`: `estacao/estacao-http.ts` and `estacao/hub-estacao.ts` read the station credential from `localStorage` keys `paf.estacao.emissao` / `paf.estacao.painel` (outside `fsh.dashboard.`), send `tenant` = the credential's tenant, renew through the secret on 401 or 60 s before expiry.
+- Panel rules live in the pure reducer `painel/painel-estado.ts` (EventoId dedupe, Versao ordering, recall moves to top, cancel drops the pending announcement).
+- Real-API walk: `clients/dashboard/tests/e2e/paf-primeira-fatia.walk.mjs` (fresh `seed-demo` database; speech and print stubbed).
