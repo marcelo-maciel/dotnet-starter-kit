@@ -1,10 +1,12 @@
 using Asp.Versioning;
+using FSH.Framework.Eventing;
 using FSH.Framework.Persistence;
 using FSH.Framework.Shared.Constants;
 using FSH.Framework.Web.Modules;
 using FSH.Modules.PAF.Autorizacao;
 using FSH.Modules.PAF.Conferencia;
 using FSH.Modules.PAF.Contracts.Authorization;
+using FSH.Modules.PAF.Contracts.v1.TempoReal;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Escopo;
 using FSH.Modules.PAF.Estacoes;
@@ -41,6 +43,7 @@ using FSH.Modules.PAF.Features.v1.Unidades.ListUnidades;
 using FSH.Modules.PAF.Features.v1.Unidades.UpdateUnidade;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.GetUsuarioUnidades;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.SetUsuarioUnidades;
+using FSH.Modules.PAF.TempoReal;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -71,6 +74,7 @@ public sealed class PafModule : IModule
         PermissionConstants.Register(PafPermissions.All);
         ConfigureCadastroServices(builder.Services);
         RegistrarCredencialDeEstacao(builder.Services);
+        AddTempoReal(builder.Services);
     }
 
     public void ConfigureMiddleware(IApplicationBuilder app)
@@ -104,6 +108,8 @@ public sealed class PafModule : IModule
             .WithTags("PAF")
             .WithApiVersionSet(versionSet);
         MapearEndpointsDeEstacao(estacao);
+
+        MapTempoReal(endpoints);
     }
 
     // Cadastros and unit scope (feat/paf-cadastro).
@@ -174,5 +180,26 @@ public sealed class PafModule : IModule
         group.MapRenewStationCredentialEndpoint();
         group.MapGetStationEmissionSettingsEndpoint();
         group.MapGetStationPanelSettingsEndpoint();
+    }
+
+    // --- Tempo real (seção 7) -------------------------------------------------------------------
+    // Own methods so the parallel PAF branches touching this file merge line by line.
+
+    private static void AddTempoReal(IServiceCollection services)
+    {
+        // SignalR and the Redis backplane come from the kit (AddHeroRealtime); PafHub shares them.
+        services.AddAuthorizationBuilder()
+            .AddPolicy(PafHub.Politica, policy => policy
+                .RequireAuthenticatedUser()
+                .RequireAssertion(context => ConexaoPaf.Ler(context.User) is not null));
+        services.AddScoped<AvisosTempoReal>();
+        services.AddIntegrationEventHandlers(typeof(PafModule).Assembly);
+    }
+
+    private static void MapTempoReal(IEndpointRouteBuilder endpoints)
+    {
+        // The kit enables this on no hub: a connection would outlive the token that opened it, and an
+        // expired impersonation grant, which raises no event, would keep receiving the unit's events.
+        endpoints.MapHub<PafHub>(PafHubRota.Caminho, options => options.CloseOnAuthenticationExpiration = true);
     }
 }
