@@ -1,8 +1,20 @@
+using Asp.Versioning;
 using FSH.Framework.Persistence;
+using FSH.Framework.Shared.Constants;
 using FSH.Framework.Web.Modules;
+using FSH.Modules.Identity.Contracts.DTOs;
+using FSH.Modules.Identity.Contracts.v1.Tokens.RefreshToken;
+using FSH.Modules.Identity.Contracts.v1.Tokens.TokenGeneration;
+using FSH.Modules.PAF.Contracts.Authorization;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Escopo;
+using FSH.Modules.PAF.Features.v1.Sessao.EncerrarSessao;
+using FSH.Modules.PAF.Features.v1.Sessao.SelecionarGuiche;
+using FSH.Modules.PAF.Features.v1.Sessao.SelecionarUnidade;
+using FSH.Modules.PAF.Sessao;
+using Mediator;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -26,15 +38,49 @@ public sealed class PafModule : IModule
             .AddDbContextCheck<PafDbContext>(
                 name: "db:paf",
                 failureStatus: HealthStatus.Unhealthy);
+
+        ConfigurarSessao(builder.Services);
+    }
+
+    // Licença, sessão única, unidade corrente e guichê (RF22, ADR 0006, ADR 0008).
+    private static void ConfigurarSessao(IServiceCollection services)
+    {
+        PermissionConstants.Register(PafSessaoPermissions.All);
+        services.AddScoped<SessaoCorrente>();
+        services.AddScoped<Licencas>();
+        services.AddScoped<EstadoSessao>();
+        services.AddScoped<IPipelineBehavior<GenerateTokenCommand, TokenResponse>, GenerateTokenLicenseBehavior>();
+        services.AddScoped<IPipelineBehavior<RefreshTokenCommand, RefreshTokenCommandResponse>, RefreshTokenLicenseBehavior>();
     }
 
     public void ConfigureMiddleware(IApplicationBuilder app)
     {
-        // No custom middleware needed
+        ArgumentNullException.ThrowIfNull(app);
+        app.UseMiddleware<SessionCheckMiddleware>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
+
+        MapearSessao(endpoints);
+    }
+
+    private static void MapearSessao(IEndpointRouteBuilder endpoints)
+    {
+        var versionSet = endpoints.NewApiVersionSet()
+            .HasApiVersion(new ApiVersion(1))
+            .ReportApiVersions()
+            .Build();
+
+        var sessao = endpoints
+            .MapGroup("api/v{version:apiVersion}/paf/sessao")
+            .WithTags("PAF Sessão")
+            .WithApiVersionSet(versionSet)
+            .RequireAuthorization();
+
+        sessao.MapSelecionarUnidadeEndpoint();
+        sessao.MapSelecionarGuicheEndpoint();
+        sessao.MapEncerrarSessaoEndpoint();
     }
 }
