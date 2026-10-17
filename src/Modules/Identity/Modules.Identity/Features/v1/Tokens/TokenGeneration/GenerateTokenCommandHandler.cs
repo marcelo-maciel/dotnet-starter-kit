@@ -100,17 +100,27 @@ public sealed class GenerateTokenCommandHandler
             cancellationToken);
         var sessionClaims = claims.Append(new Claim(JwtRegisteredClaimNames.Sid, session.Id.ToString())).ToList();
 
-        // Issue token
-        var token = await _tokenService.IssueAsync(subject, sessionClaims, /*extra*/ null, cancellationToken);
+        TokenResponse token;
+        try
+        {
+            // Issue token
+            token = await _tokenService.IssueAsync(subject, sessionClaims, /*extra*/ null, cancellationToken);
 
-        // Persist refresh token (hashed) for this user
-        await _identityService.StoreRefreshTokenAsync(subject, token.RefreshToken, token.RefreshTokenExpiresAt, cancellationToken);
+            // Persist refresh token (hashed) for this user
+            await _identityService.StoreRefreshTokenAsync(subject, token.RefreshToken, token.RefreshTokenExpiresAt, cancellationToken);
 
-        await _sessionService.UpdateSessionRefreshTokenAsync(
-            provisionalRefreshHash,
-            Sha256Short(token.RefreshToken),
-            token.RefreshTokenExpiresAt,
-            cancellationToken);
+            await _sessionService.UpdateSessionRefreshTokenAsync(
+                provisionalRefreshHash,
+                Sha256Short(token.RefreshToken),
+                token.RefreshTokenExpiresAt,
+                cancellationToken);
+        }
+        catch
+        {
+            // PAF: the pending session would otherwise stay active with no token behind it, listed and counted.
+            await _sessionService.RevokeSessionForAdminAsync(session.Id, subject, "Token issuance failed", CancellationToken.None);
+            throw;
+        }
         if (_logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug("Session {SessionId} bound to the access token of user {UserId}", session.Id, subject);
