@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { mensagemAmigavel } from "@/features/paf/paf-erros";
 import {
-  chamarProxima,
+  chamarProxima as chamarProximaApi,
   definirGuiche,
   definirUnidadeCorrente,
   listarGuiches,
@@ -16,6 +16,13 @@ import {
   type PostoDto,
 } from "@/features/paf/guiche/guiche-api";
 import { conectarHubGuiche, type HubGuiche } from "@/features/paf/guiche/hub-guiche";
+import {
+  chamarProxima,
+  encerrarEChamar,
+  RecusaGuiche,
+  type AtendimentoNaTela,
+  type PassosGuiche,
+} from "@/features/paf/guiche/guiche-fluxo";
 import type { EstadoConexao } from "@/features/paf/paf-hub";
 
 type Ultimo = { senha: string; estado: string };
@@ -112,7 +119,7 @@ export function GuichePage() {
     try {
       await acao();
     } catch (e) {
-      setErro(mensagemAmigavel(e));
+      setErro(e instanceof RecusaGuiche ? e.message : mensagemAmigavel(e));
     } finally {
       // Success or refusal, the server's post is the truth: a guichê released elsewhere sends the screen
       // back to the selection on its own.
@@ -140,17 +147,32 @@ export function GuichePage() {
       setTroca(null);
     });
 
+  const operarNaTela = async (atual: AtendimentoNaTela, operacao: OperacaoAtendimento) => {
+    const alterado = await operarAtendimento(atual.atendimentoId, operacao);
+    if (ESTADOS_FINAIS.has(alterado.estado)) setUltimo({ senha: atual.senha, estado: alterado.estado });
+  };
+
+  // The first step records its outcome before the call, so an empty queue on the second step still shows it.
+  const passos: PassosGuiche = {
+    confirmar: (pergunta) => window.confirm(pergunta),
+    operar: operarNaTela,
+    chamar: chamarProximaApi,
+  };
+
   const chamar = () =>
     executar(async () => {
-      await chamarProxima();
+      await chamarProxima(posto.data?.atendimento ?? null, passos);
+    });
+
+  const encerrarEChamarProxima = () =>
+    executar(async () => {
+      await encerrarEChamar(posto.data?.atendimento ?? null, passos);
     });
 
   const operar = (operacao: OperacaoAtendimento) =>
     executar(async () => {
       const atual = posto.data?.atendimento;
-      if (!atual) return;
-      const alterado = await operarAtendimento(atual.atendimentoId, operacao);
-      if (ESTADOS_FINAIS.has(alterado.estado)) setUltimo({ senha: atual.senha, estado: alterado.estado });
+      if (atual) await operarNaTela(atual, operacao);
     });
 
   const trocarPosto = () => {
@@ -270,7 +292,7 @@ export function GuichePage() {
           </div>
 
           <div className="flex flex-wrap justify-center gap-3">
-            <Button size="lg" disabled={ocupado || atendimento !== null} onClick={() => void chamar()}>
+            <Button size="lg" disabled={ocupado} onClick={() => void chamar()}>
               Chamar próxima
             </Button>
             <Button
@@ -296,6 +318,9 @@ export function GuichePage() {
               onClick={() => void operar("encerrar")}
             >
               Encerrar atendimento
+            </Button>
+            <Button size="lg" variant="secondary" disabled={ocupado} onClick={() => void encerrarEChamarProxima()}>
+              Encerrar e chamar
             </Button>
             <Button
               size="lg"
