@@ -10,6 +10,7 @@ using FSH.Modules.Multitenancy.Contracts.v1.GetTenantStatus;
 using FSH.Modules.Webhooks;
 using FSH.Modules.Billing;
 using FSH.Modules.Catalog;
+using FSH.Modules.PAF;
 using FSH.Modules.Tickets;
 using FSH.Modules.Multitenancy.Features.v1.GetTenantStatus;
 using System.Reflection;
@@ -72,7 +73,8 @@ builder.Services.AddMediator(o =>
         typeof(FSH.Modules.Chat.Contracts.v1.Commands.CreateChannelCommand),
         typeof(FSH.Modules.Chat.ChatModule),
         typeof(FSH.Modules.Notifications.Contracts.v1.Commands.MarkNotificationReadCommand),
-        typeof(FSH.Modules.Notifications.NotificationsModule)];
+        typeof(FSH.Modules.Notifications.NotificationsModule),
+        typeof(FSH.Modules.PAF.PafModule)];
 });
 
 var moduleAssemblies = new Assembly[]
@@ -87,6 +89,7 @@ var moduleAssemblies = new Assembly[]
     typeof(TicketsModule).Assembly,
     typeof(FSH.Modules.Chat.ChatModule).Assembly,
     typeof(FSH.Modules.Notifications.NotificationsModule).Assembly,
+    typeof(PafModule).Assembly,
 };
 
 builder.AddHeroPlatform(o =>
