@@ -1,6 +1,7 @@
 using FSH.Framework.Persistence;
 using FSH.Framework.Web.Modules;
 using FSH.Modules.PAF.Data;
+using FSH.Modules.PAF.Escopo;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,6 +20,7 @@ public sealed class PafModule : IModule
 
         builder.Services.AddHeroDbContext<PafDbContext>();
         builder.Services.AddScoped<IDbInitializer, PafDbInitializer>();
+        builder.Services.AddScoped<IUnidadeCorrente, UnidadeCorrente>();
 
         builder.Services.AddHealthChecks()
             .AddDbContextCheck<PafDbContext>(
