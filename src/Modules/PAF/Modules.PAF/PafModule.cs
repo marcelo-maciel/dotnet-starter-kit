@@ -63,6 +63,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
@@ -253,6 +254,9 @@ public sealed class PafModule : IModule
                 .RequireAuthenticatedUser()
                 .RequireAssertion(context => ConexaoPaf.Ler(context.User) is not null));
         services.AddScoped<AvisosTempoReal>();
+        services.AddSingleton<ConexoesPaf>();
+        services.AddSingleton<PafHubFilter>();
+        services.Configure<HubOptions<PafHub>>(options => options.AddFilter<PafHubFilter>());
         services.AddIntegrationEventHandlers(typeof(PafModule).Assembly);
     }
 

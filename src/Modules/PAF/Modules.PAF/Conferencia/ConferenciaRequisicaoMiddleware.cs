@@ -85,12 +85,7 @@ internal sealed partial class ConferenciaRequisicaoMiddleware(RequestDelegate ne
         // because the unit filter is fail-closed.
         unidadeCorrente.Definir(unidadeId);
 
-        var emissao = papel == PafPapeisEstacao.Emissao;
-        var vigente = await db.VinculosEstacao
-            .AsNoTracking()
-            .Where(v => v.Id == vinculoId && v.EstacaoId == estacaoId && v.RevogadoEm == null)
-            .Where(v => emissao ? v.CredencialEmissaoHash != null : v.CredencialPainelHash != null)
-            .AnyAsync(v => db.Estacoes.Any(e => e.Id == v.EstacaoId && e.Ativa), context.RequestAborted)
+        var vigente = await CredencialEstacao.VigenteAsync(db, estacaoId, vinculoId, papel, context.RequestAborted)
             .ConfigureAwait(false);
 
         if (!vigente)

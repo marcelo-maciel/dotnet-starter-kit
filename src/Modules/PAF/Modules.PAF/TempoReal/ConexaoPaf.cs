@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using FSH.Framework.Shared.Constants;
 using FSH.Modules.PAF.Contracts.Authorization;
+using FSH.Modules.PAF.Sessao;
 
 namespace FSH.Modules.PAF.TempoReal;
 
@@ -39,7 +40,7 @@ public abstract record ConexaoPaf(string TenantId)
         }
 
         var impersonacao = !string.IsNullOrEmpty(principal.FindFirstValue(ClaimConstants.ActorSubject));
-        return new ConexaoPessoa(tenantId, usuarioId, impersonacao);
+        return new ConexaoPessoa(tenantId, usuarioId, impersonacao, ClaimDeSessao.DasClaims(principal.Claims));
     }
 
     private static ConexaoEstacao? LerEstacao(ClaimsPrincipal principal, string tenantId, string papel)
@@ -59,11 +60,20 @@ public abstract record ConexaoPaf(string TenantId)
             return null;
         }
 
-        return new ConexaoEstacao(tenantId, papel, estacaoId, unidadeId);
+        if (!Guid.TryParse(principal.FindFirstValue(PafClaims.Vinculo), out var vinculoId) || vinculoId == Guid.Empty)
+        {
+            return null;
+        }
+
+        return new ConexaoEstacao(tenantId, papel, estacaoId, unidadeId, vinculoId);
     }
 }
 
-public sealed record ConexaoEstacao(string TenantId, string Papel, Guid EstacaoId, Guid UnidadeId) : ConexaoPaf(TenantId);
+public sealed record ConexaoEstacao(string TenantId, string Papel, Guid EstacaoId, Guid UnidadeId, Guid VinculoId) : ConexaoPaf(TenantId);
 
-/// <summary><paramref name="Impersonacao"/>: the token carries <c>act_sub</c> (support acting as the user).</summary>
-public sealed record ConexaoPessoa(string TenantId, string UsuarioId, bool Impersonacao) : ConexaoPaf(TenantId);
+/// <summary>
+/// <paramref name="Impersonacao"/>: the token carries <c>act_sub</c> (support acting as the user).
+/// <paramref name="SessaoId"/>: the kit session (<c>sid</c>); absent on impersonation and on the root tokens of the
+/// kit's end-impersonation path, which SessionCheckMiddleware also lets through.
+/// </summary>
+public sealed record ConexaoPessoa(string TenantId, string UsuarioId, bool Impersonacao, Guid? SessaoId) : ConexaoPaf(TenantId);

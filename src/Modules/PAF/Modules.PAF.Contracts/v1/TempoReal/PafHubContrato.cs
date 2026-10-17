@@ -18,6 +18,13 @@ public static class PafHubMetodos
     public const string FilaAtualizada = "FilaAtualizada";
 }
 
+/// <summary>Client-to-server method names of the PAF hub; invoke only while the connection is Connected.</summary>
+public static class PafHubChamadas
+{
+    /// <summary>Guichê screen, after selecting a guichê and after every reconnect; returns the guichê id or null.</summary>
+    public const string EntrarNoGuiche = "EntrarNoGuiche";
+}
+
 /// <summary>
 /// A ficha was called by a guichê. <paramref name="Versao"/> is the atendimento version after the
 /// call; a screen ignores any event whose version is lower than the one it already applied (seção 7).
