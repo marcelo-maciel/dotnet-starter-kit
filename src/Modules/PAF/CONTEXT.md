@@ -58,6 +58,14 @@ Concurrency and fail-closed tests: `src/Tests/Integration.Tests/Tests/PAF/`.
 - `SessionCheckMiddleware` (module middleware) checks `sid` → active `UserSession` → fresh `AtividadeSessao`, fills `SessaoCorrente` and `IUnidadeCorrente` (Valkey state via `EstadoSessao`, else the licence unit), and renews the mark at most once a minute. Tokens with `act_sub` or `paf_unidade` are not handled here.
 - Routes under `api/v1/paf/sessao`: `unidade-corrente`, `guiche` (`Permissions.PAF.Guiches.Selecionar`), `logout`.
 
+## Operational flow (`Features/v1/Fichas`, `Features/v1/Atendimentos`, `Features/v1/Painel`)
+
+- Emission: `POST api/v1/paf/estacao/emissao/fichas` (policy `PafEstacaoEmissao`, header `Idempotency-Key` required, kit `WithIdempotency` in front). Number = day max + 1 (or `NumeroInicial`), day and window from the PostgreSQL clock; `UX_Fichas_Numeracao` retries in a new transaction (max 10, logged); `UX_Fichas_ChaveIdempotencia` returns the stored ficha.
+- Guichê (`Permissions.PAF.Atendimentos.Operar`, basic; guichê from the session's `SessaoEstacao`): `POST api/v1/paf/guiche/chamar-proximo`, `POST api/v1/paf/guiche/atendimentos/{id}/{rechamar|iniciar|encerrar|cancelar}`. Call = candidate `FOR UPDATE OF a SKIP LOCKED`, then all rows of the ficha `FOR UPDATE SKIP LOCKED` in id order (savepoint rollback on skip); other operations lock the ficha rows waiting, in id order, and re-validate. Every state UPDATE stamps `now()` and increments `Versao`. Option "respeitar ordem das filas" = key `respeitarOrdemFilas` in `Estacao.Configuracao` (ponytail).
+- Painel state: `GET api/v1/paf/estacao/painel/estado` (policy `PafEstacaoPainel`): today's calls of the painel's filas, latest call or recall first, with `Versao`.
+- Notices: emission → `FilaAtualizadaPaf`; call → `SenhaChamadaPaf` (guichê + active painéis listing the fila) and `FilaAtualizadaPaf`; recall → `SenhaRechamadaPaf`; start/close/cancel → `AtendimentoAtualizadoPaf`. Always `GravarAsync` before commit, `EnviarAsync` after.
+- Raw SQL skips global filters: every raw statement carries `"TenantId"` (and `"UnidadeId"` where it selects).
+
 ## Touching the kit
 
 The kit is touched only at module registration points (both host `Program.cs` and `.csproj`, `src/FSH.Starter.slnx`, the migrations project) and at the other items of the closed list in ADR 0008. Any other kit edit requires amending ADR 0008 first.

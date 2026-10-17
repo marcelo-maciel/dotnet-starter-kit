@@ -13,6 +13,11 @@ using FSH.Modules.PAF.Contracts.v1.TempoReal;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Escopo;
 using FSH.Modules.PAF.Estacoes;
+using FSH.Modules.PAF.Features.v1.Atendimentos.CancelarAtendimento;
+using FSH.Modules.PAF.Features.v1.Atendimentos.ChamarProximaFicha;
+using FSH.Modules.PAF.Features.v1.Atendimentos.EncerrarAtendimento;
+using FSH.Modules.PAF.Features.v1.Atendimentos.IniciarAtendimento;
+using FSH.Modules.PAF.Features.v1.Atendimentos.RechamarAtendimento;
 using FSH.Modules.PAF.Features.v1.Contratos.CreateContratoUnidade;
 using FSH.Modules.PAF.Features.v1.Contratos.ListContratosUnidade;
 using FSH.Modules.PAF.Features.v1.Contratos.UpdateContratoUnidade;
@@ -26,6 +31,7 @@ using FSH.Modules.PAF.Features.v1.Estacoes.RenovarCredencial;
 using FSH.Modules.PAF.Features.v1.Estacoes.ResgatarVinculo;
 using FSH.Modules.PAF.Features.v1.Estacoes.RevogarVinculo;
 using FSH.Modules.PAF.Features.v1.Estacoes.UpdateEstacao;
+using FSH.Modules.PAF.Features.v1.Fichas.EmitirFicha;
 using FSH.Modules.PAF.Features.v1.Filas.AddFilaPrioridade;
 using FSH.Modules.PAF.Features.v1.Filas.CreateFila;
 using FSH.Modules.PAF.Features.v1.Filas.DisableFila;
@@ -34,6 +40,7 @@ using FSH.Modules.PAF.Features.v1.Filas.ListFilas;
 using FSH.Modules.PAF.Features.v1.Filas.ListFilasConsolidadas;
 using FSH.Modules.PAF.Features.v1.Filas.UpdateFila;
 using FSH.Modules.PAF.Features.v1.Filas.UpdateFilaPrioridade;
+using FSH.Modules.PAF.Features.v1.Painel.ObterEstadoPainel;
 using FSH.Modules.PAF.Features.v1.Prioridades.CreatePrioridade;
 using FSH.Modules.PAF.Features.v1.Prioridades.DisablePrioridade;
 using FSH.Modules.PAF.Features.v1.Prioridades.EnablePrioridade;
@@ -127,6 +134,14 @@ public sealed class PafModule : IModule
             .RequireAuthorization();
         MapearSessao(sessao);
 
+        // Person operations on the guichê selected by the session (RF15, RF16, RF21, seção 8).
+        var guiche = endpoints
+            .MapGroup("api/v{version:apiVersion}/paf/guiche")
+            .WithTags("PAF Guichê")
+            .WithApiVersionSet(versionSet)
+            .RequireAuthorization();
+        MapearGuiche(guiche);
+
         MapTempoReal(endpoints);
     }
 
@@ -145,6 +160,15 @@ public sealed class PafModule : IModule
         sessao.MapSetUnidadeCorrenteEndpoint();
         sessao.MapSetGuicheEndpoint();
         sessao.MapEndSessaoEndpoint();
+    }
+
+    private static void MapearGuiche(IEndpointRouteBuilder guiche)
+    {
+        guiche.MapRequestNextFichaEndpoint();
+        guiche.MapResendCallEndpoint();
+        guiche.MapStartAtendimentoEndpoint();
+        guiche.MapEndAtendimentoEndpoint();
+        guiche.MapVoidAtendimentoEndpoint();
     }
 
     // Cadastros and unit scope.
@@ -215,6 +239,8 @@ public sealed class PafModule : IModule
         group.MapRenewStationCredentialEndpoint();
         group.MapGetStationEmissionSettingsEndpoint();
         group.MapGetStationPanelSettingsEndpoint();
+        group.MapIssueFichaEndpoint();
+        group.MapGetPanelStateEndpoint();
     }
 
     // --- Tempo real (seção 7) -------------------------------------------------------------------

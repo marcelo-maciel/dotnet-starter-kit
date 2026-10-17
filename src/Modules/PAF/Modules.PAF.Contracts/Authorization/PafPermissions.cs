@@ -69,7 +69,14 @@ public static class PafPermissions
         public const string Selecionar = $"Permissions.{Resource}.Selecionar";
     }
 
-    // Guiches.Selecionar is basic: the ordinary attendant operates a guichê, and the kit's basic role is their starting point.
+    /// <summary>Call, recall, start, close and cancel on the guichê selected by the session (RF15, RF16, RF21).</summary>
+    public static class Atendimentos
+    {
+        public const string Resource = "PAF.Atendimentos";
+        public const string Operar = $"Permissions.{Resource}.Operar";
+    }
+
+    // Guiches.Selecionar and Atendimentos.Operar are basic: the ordinary attendant operates a guichê, and the kit's basic role is their starting point.
     public static IReadOnlyList<FshPermission> All { get; } =
     [
         new("View PAF units", ActionConstants.View, Unidades.Resource),
@@ -91,5 +98,6 @@ public static class PafPermissions
         new("Generate PAF station link", "Generate", VinculosEstacao.Resource),
         new("Revoke PAF station link", "Revoke", VinculosEstacao.Resource),
         new("Selecionar guichê", "Selecionar", Guiches.Resource, IsBasic: true),
+        new("Operar atendimento no guichê", "Operar", Atendimentos.Resource, IsBasic: true),
     ];
 }
