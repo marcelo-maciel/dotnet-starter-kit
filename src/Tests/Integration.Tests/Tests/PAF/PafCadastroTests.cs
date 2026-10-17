@@ -226,9 +226,11 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
         depois[0].ShouldBe(new UsuarioUnidadeDto(u2, 0));
         depois.ShouldContain(new UsuarioUnidadeDto(u1, reordenada.IndexOf(u1)));
 
+        // Root holds Unidades.Create, so it grants any active unidade of the tenant; one that does not exist is
+        // refused. The subset rule for callers without it is in PafEscopoConcessaoTests.
         using var foraDoEscopo = await PafApi.EnviarAsync(root, HttpMethod.Put, $"/usuarios/{adminId}/unidades", null,
             new SetUsuarioUnidadesCommand(adminId, [.. reordenada, Guid.NewGuid()]));
-        foraDoEscopo.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        foraDoEscopo.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
         using var vazia = await PafApi.EnviarAsync(root, HttpMethod.Put, $"/usuarios/{adminId}/unidades", null,
             new SetUsuarioUnidadesCommand(adminId, []));

@@ -14,7 +14,8 @@ namespace FSH.Modules.PAF.Features.v1.UsuariosUnidade.SetUsuarioUnidades;
 
 /// <summary>
 /// Scope is the boundary of granting and of editing (arquitetura seção 5): the caller only grants
-/// unidades inside its own scope, and only edits a user whose whole current scope is inside it.
+/// unidades inside its own scope, and only edits a user whose whole current scope is inside it (RF08). The tenant
+/// admin, who holds Unidades.Create, grants any active unidade of the tenant and edits any user.
 /// Taking out the unidade a live session is operating revokes that session in the same act (RF08).
 /// </summary>
 public sealed class SetUsuarioUnidadesCommandHandler(
@@ -26,6 +27,8 @@ public sealed class SetUsuarioUnidadesCommandHandler(
     IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor)
     : ICommandHandler<SetUsuarioUnidadesCommand, Guid>
 {
+    public const string MensagemUnidadeInvalida = "Unidade inexistente ou inativa.";
+
     public async ValueTask<Guid> Handle(SetUsuarioUnidadesCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -33,15 +36,22 @@ public sealed class SetUsuarioUnidadesCommandHandler(
         // Throws NotFound for a user outside the request's tenant.
         await userService.GetAsync(command.UsuarioId.ToString(), cancellationToken).ConfigureAwait(false);
 
-        var doChamador = (await escopo.UnidadesAsync(cancellationToken).ConfigureAwait(false)).ToHashSet();
         var atuais = await db.UsuariosUnidade
             .Where(u => u.UsuarioId == command.UsuarioId)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        if (!atuais.All(a => doChamador.Contains(a.UnidadeId)) || !command.Unidades.All(doChamador.Contains))
+        if (await escopo.AdministraTenantAsync(cancellationToken).ConfigureAwait(false))
         {
-            throw new ForbiddenException("Unidade fora do escopo de quem concede.");
+            await ExigirUnidadesAtivasAsync(command.Unidades, cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            var doChamador = (await escopo.UnidadesAsync(cancellationToken).ConfigureAwait(false)).ToHashSet();
+            if (!atuais.All(a => doChamador.Contains(a.UnidadeId)) || !command.Unidades.All(doChamador.Contains))
+            {
+                throw new ForbiddenException("Unidade fora do escopo de quem concede.");
+            }
         }
 
         var ordemDesejada = command.Unidades.Select((unidadeId, ordem) => (unidadeId, ordem)).ToDictionary(x => x.unidadeId, x => x.ordem);
@@ -68,6 +78,18 @@ public sealed class SetUsuarioUnidadesCommandHandler(
         }
 
         return command.UsuarioId;
+    }
+
+    // Unidade carries only the tenant filter: an id of another tenant counts as missing.
+    private async Task ExigirUnidadesAtivasAsync(IReadOnlyCollection<Guid> unidades, CancellationToken ct)
+    {
+        var ativas = await db.Unidades.AsNoTracking()
+            .CountAsync(u => unidades.Contains(u.Id) && u.Ativa, ct)
+            .ConfigureAwait(false);
+        if (ativas != unidades.Distinct().Count())
+        {
+            throw new CustomException(MensagemUnidadeInvalida, (IEnumerable<string>?)null, System.Net.HttpStatusCode.BadRequest);
+        }
     }
 
     // Only sessions holding a licence row can be operating; one whose mark expired is refused anyway and comes

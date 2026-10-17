@@ -7,7 +7,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FSH.Modules.PAF.Features.v1.UsuariosUnidade.GetUsuarioUnidades;
 
-/// <summary>Who cannot see the whole list of a user does not get to read nor edit it (arquitetura seção 5).</summary>
+/// <summary>
+/// Who cannot see the whole list of a user does not get to read nor edit it (arquitetura seção 5); the tenant
+/// admin reads any user's list (<see cref="EscopoUsuario.AdministraTenantAsync"/>).
+/// </summary>
 public sealed class GetUsuarioUnidadesQueryHandler(PafDbContext db, EscopoUsuario escopo)
     : IQueryHandler<GetUsuarioUnidadesQuery, IReadOnlyList<UsuarioUnidadeDto>>
 {
@@ -15,7 +18,6 @@ public sealed class GetUsuarioUnidadesQueryHandler(PafDbContext db, EscopoUsuari
     {
         ArgumentNullException.ThrowIfNull(query);
 
-        var doChamador = (await escopo.UnidadesAsync(cancellationToken).ConfigureAwait(false)).ToHashSet();
         var lista = await db.UsuariosUnidade.AsNoTracking()
             .Where(u => u.UsuarioId == query.UsuarioId)
             .OrderBy(u => u.Ordem)
@@ -23,6 +25,12 @@ public sealed class GetUsuarioUnidadesQueryHandler(PafDbContext db, EscopoUsuari
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        if (await escopo.AdministraTenantAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return lista;
+        }
+
+        var doChamador = (await escopo.UnidadesAsync(cancellationToken).ConfigureAwait(false)).ToHashSet();
         if (!lista.All(u => doChamador.Contains(u.UnidadeId)))
         {
             throw new ForbiddenException("Usuário com unidade fora do escopo de quem consulta.");
