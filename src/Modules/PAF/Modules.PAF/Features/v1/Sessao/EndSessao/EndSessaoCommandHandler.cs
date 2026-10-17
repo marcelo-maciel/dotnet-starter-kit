@@ -6,22 +6,22 @@ using FSH.Modules.PAF.Contracts.v1.Sessao;
 using FSH.Modules.PAF.Sessao;
 using Mediator;
 
-namespace FSH.Modules.PAF.Features.v1.Sessao.EncerrarSessao;
+namespace FSH.Modules.PAF.Features.v1.Sessao.EndSessao;
 
 /// <summary>
 /// Logout pelo servidor (seção 5): solta licença e guichê e revoga a sessão do kit. Soltar vem antes de revogar
 /// porque, se a revogação falhar, a sessão sem marca viva já é recusada na requisição seguinte. Vale também com
 /// a marca vencida: o middleware dispensa a marca nesta rota, para a sessão ser revogada no servidor.
 /// </summary>
-public sealed class EncerrarSessaoCommandHandler(
+public sealed class EndSessaoCommandHandler(
     ICurrentUser usuarioAtual,
     Licencas licencas,
     EstadoSessao estado,
-    ISessionService sessoes) : ICommandHandler<EncerrarSessaoCommand>
+    ISessionService sessoes) : ICommandHandler<EndSessaoCommand>
 {
     public const string Motivo = "PAF: logout";
 
-    public async ValueTask<Unit> Handle(EncerrarSessaoCommand command, CancellationToken cancellationToken)
+    public async ValueTask<Unit> Handle(EndSessaoCommand command, CancellationToken cancellationToken)
     {
         var sessaoId = ClaimDeSessao.DasClaims(usuarioAtual.GetUserClaims() ?? [])
             ?? throw new UnauthorizedException(SessionCheckMiddleware.MensagemSessaoInvalida);

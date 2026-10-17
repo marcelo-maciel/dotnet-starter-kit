@@ -4,19 +4,19 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
-namespace FSH.Modules.PAF.Features.v1.Sessao.SelecionarUnidade;
+namespace FSH.Modules.PAF.Features.v1.Sessao.SetUnidadeCorrente;
 
-public static class SelecionarUnidadeEndpoint
+public static class SetUnidadeCorrenteEndpoint
 {
-    internal static RouteHandlerBuilder MapSelecionarUnidadeEndpoint(this IEndpointRouteBuilder endpoints)
+    internal static RouteHandlerBuilder MapSetUnidadeCorrenteEndpoint(this IEndpointRouteBuilder endpoints)
     {
         return endpoints.MapPost("/unidade-corrente",
-                async (SelecionarUnidadeCommand command, IMediator mediator, CancellationToken ct) =>
+                async (SetUnidadeCorrenteCommand command, IMediator mediator, CancellationToken ct) =>
                 {
                     await mediator.Send(command, ct);
                     return Results.NoContent();
                 })
-            .WithName("PafSelecionarUnidade")
+            .WithName("PafSetUnidadeCorrente")
             .WithSummary("Troca a unidade corrente da sessão");
     }
 }

@@ -8,9 +8,9 @@ using FSH.Modules.Identity.Contracts.v1.Tokens.TokenGeneration;
 using FSH.Modules.PAF.Contracts.Authorization;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Escopo;
-using FSH.Modules.PAF.Features.v1.Sessao.EncerrarSessao;
-using FSH.Modules.PAF.Features.v1.Sessao.SelecionarGuiche;
-using FSH.Modules.PAF.Features.v1.Sessao.SelecionarUnidade;
+using FSH.Modules.PAF.Features.v1.Sessao.EndSessao;
+using FSH.Modules.PAF.Features.v1.Sessao.SetGuiche;
+using FSH.Modules.PAF.Features.v1.Sessao.SetUnidadeCorrente;
 using FSH.Modules.PAF.Sessao;
 using Mediator;
 using Microsoft.AspNetCore.Builder;
@@ -79,8 +79,8 @@ public sealed class PafModule : IModule
             .WithApiVersionSet(versionSet)
             .RequireAuthorization();
 
-        sessao.MapSelecionarUnidadeEndpoint();
-        sessao.MapSelecionarGuicheEndpoint();
-        sessao.MapEncerrarSessaoEndpoint();
+        sessao.MapSetUnidadeCorrenteEndpoint();
+        sessao.MapSetGuicheEndpoint();
+        sessao.MapEndSessaoEndpoint();
     }
 }

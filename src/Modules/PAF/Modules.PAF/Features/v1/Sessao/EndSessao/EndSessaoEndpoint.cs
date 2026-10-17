@@ -4,19 +4,19 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
-namespace FSH.Modules.PAF.Features.v1.Sessao.EncerrarSessao;
+namespace FSH.Modules.PAF.Features.v1.Sessao.EndSessao;
 
-public static class EncerrarSessaoEndpoint
+public static class EndSessaoEndpoint
 {
     /// <summary>Lido pelo SessionCheckMiddleware: o logout exige só a sessão ativa, sem marca de sessão viva.</summary>
-    public const string NomeEndpoint = "PafEncerrarSessao";
+    public const string NomeEndpoint = "PafEndSessao";
 
-    internal static RouteHandlerBuilder MapEncerrarSessaoEndpoint(this IEndpointRouteBuilder endpoints)
+    internal static RouteHandlerBuilder MapEndSessaoEndpoint(this IEndpointRouteBuilder endpoints)
     {
         return endpoints.MapPost("/logout",
                 async (IMediator mediator, CancellationToken ct) =>
                 {
-                    await mediator.Send(new EncerrarSessaoCommand(), ct);
+                    await mediator.Send(new EndSessaoCommand(), ct);
                     return Results.NoContent();
                 })
             .WithName(NomeEndpoint)

@@ -4,7 +4,7 @@ using FSH.Framework.Core.Exceptions;
 using FSH.Modules.PAF.Contracts.v1.Sessao;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Escopo;
-using FSH.Modules.PAF.Features.v1.Sessao.SelecionarUnidade;
+using FSH.Modules.PAF.Features.v1.Sessao.SetUnidadeCorrente;
 using FSH.Modules.PAF.Sessao;
 using Integration.Tests.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -90,7 +90,7 @@ public sealed class PafEstadoSessaoValkeyTests(FshWebApplicationFactory factory)
 
         using var scope = factory.Services.CreateScope();
         var handler = Handler(scope, origem, sessaoId, usuarioId, out var estado);
-        await handler.Handle(new SelecionarUnidadeCommand(destino.UnidadeId), CancellationToken.None);
+        await handler.Handle(new SetUnidadeCorrenteCommand(destino.UnidadeId), CancellationToken.None);
 
         (await estado.LerUnidadeAsync(_tenant.TenantId, sessaoId, CancellationToken.None)).ShouldBe(destino.UnidadeId);
         (await VinculosAtivosAsync(sessaoId)).ShouldBe(0);
@@ -106,21 +106,21 @@ public sealed class PafEstadoSessaoValkeyTests(FshWebApplicationFactory factory)
         using var scope = factory.Services.CreateScope();
         var handler = Handler(scope, origem, sessaoId, usuarioId, out var estado);
         var erro = await Should.ThrowAsync<CustomException>(
-            () => handler.Handle(new SelecionarUnidadeCommand(destino.UnidadeId), CancellationToken.None).AsTask());
+            () => handler.Handle(new SetUnidadeCorrenteCommand(destino.UnidadeId), CancellationToken.None).AsTask());
 
         erro.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         (await estado.LerUnidadeAsync(_tenant.TenantId, sessaoId, CancellationToken.None)).ShouldBeNull();
         (await VinculosAtivosAsync(sessaoId)).ShouldBe(1);
     }
 
-    private SelecionarUnidadeCommandHandler Handler(
+    private SetUnidadeCorrenteCommandHandler Handler(
         IServiceScope scope, UnidadeTeste origem, Guid sessaoId, Guid usuarioId, out EstadoSessao estado)
     {
         var db = _tenant.Contexto(scope, unidadeCorrente: origem.UnidadeId);
         var sessao = new SessaoCorrente();
         sessao.Definir(_tenant.TenantId, sessaoId, usuarioId, origem.UnidadeId);
         estado = Estado();
-        return new SelecionarUnidadeCommandHandler(db, sessao, scope.ServiceProvider.GetRequiredService<IUnidadeCorrente>(), estado);
+        return new SetUnidadeCorrenteCommandHandler(db, sessao, scope.ServiceProvider.GetRequiredService<IUnidadeCorrente>(), estado);
     }
 
     private async Task<(UnidadeTeste Origem, UnidadeTeste Destino, Guid SessaoId, Guid UsuarioId)> PrepararAsync()

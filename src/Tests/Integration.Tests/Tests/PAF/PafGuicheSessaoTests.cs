@@ -1,5 +1,5 @@
 using FSH.Modules.PAF.Domain;
-using FSH.Modules.PAF.Features.v1.Sessao.SelecionarGuiche;
+using FSH.Modules.PAF.Features.v1.Sessao.SetGuiche;
 using FSH.Modules.PAF.Sessao;
 using Integration.Tests.Infrastructure;
 
@@ -31,7 +31,7 @@ public sealed class PafGuicheSessaoTests(FshWebApplicationFactory factory) : IAs
         segunda.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         var detalhe = PafSessaoLicencaTests.Detalhe(await segunda.Content.ReadAsStringAsync());
         // The seeder registers userName as the e-mail's local part.
-        detalhe.ShouldBe(SelecionarGuicheCommandHandler.MensagemEmUso("Guichê 1", ana.Email.Split('@')[0]));
+        detalhe.ShouldBe(SetGuicheCommandHandler.MensagemEmUso("Guichê 1", ana.Email.Split('@')[0]));
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public sealed class PafGuicheSessaoTests(FshWebApplicationFactory factory) : IAs
         var trocaUnidade = await cliente.PostAsJsonAsync(RotaUnidade, new { unidadeId = outra.UnidadeId });
 
         trocaGuiche.StatusCode.ShouldBe(HttpStatusCode.Conflict);
-        PafSessaoLicencaTests.Detalhe(await trocaGuiche.Content.ReadAsStringAsync()).ShouldBe(SelecionarGuicheCommandHandler.MensagemAtendimentoEmCurso);
+        PafSessaoLicencaTests.Detalhe(await trocaGuiche.Content.ReadAsStringAsync()).ShouldBe(SetGuicheCommandHandler.MensagemAtendimentoEmCurso);
         trocaUnidade.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         (await VinculosAtivosAsync(unidade.GuicheA)).ShouldBe(1);
     }
@@ -101,7 +101,7 @@ public sealed class PafGuicheSessaoTests(FshWebApplicationFactory factory) : IAs
         var resposta = await Selecionar(cliente, outra.GuicheA);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.NotFound);
-        PafSessaoLicencaTests.Detalhe(await resposta.Content.ReadAsStringAsync()).ShouldBe(SelecionarGuicheCommandHandler.MensagemNaoEncontrado);
+        PafSessaoLicencaTests.Detalhe(await resposta.Content.ReadAsStringAsync()).ShouldBe(SetGuicheCommandHandler.MensagemNaoEncontrado);
     }
 
     [Fact]

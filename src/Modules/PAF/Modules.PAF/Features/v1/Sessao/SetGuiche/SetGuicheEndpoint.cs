@@ -6,19 +6,19 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
-namespace FSH.Modules.PAF.Features.v1.Sessao.SelecionarGuiche;
+namespace FSH.Modules.PAF.Features.v1.Sessao.SetGuiche;
 
-public static class SelecionarGuicheEndpoint
+public static class SetGuicheEndpoint
 {
-    internal static RouteHandlerBuilder MapSelecionarGuicheEndpoint(this IEndpointRouteBuilder endpoints)
+    internal static RouteHandlerBuilder MapSetGuicheEndpoint(this IEndpointRouteBuilder endpoints)
     {
         return endpoints.MapPost("/guiche",
-                async (SelecionarGuicheCommand command, IMediator mediator, CancellationToken ct) =>
+                async (SetGuicheCommand command, IMediator mediator, CancellationToken ct) =>
                 {
                     await mediator.Send(command, ct);
                     return Results.NoContent();
                 })
-            .WithName("PafSelecionarGuiche")
+            .WithName("PafSetGuiche")
             .WithSummary("Seleciona o guichê da sessão na unidade corrente")
             .RequirePermission(PafSessaoPermissions.Guiches.Selecionar);
     }

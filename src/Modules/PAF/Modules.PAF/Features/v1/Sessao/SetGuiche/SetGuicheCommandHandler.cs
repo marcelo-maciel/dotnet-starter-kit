@@ -9,18 +9,18 @@ using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
-namespace FSH.Modules.PAF.Features.v1.Sessao.SelecionarGuiche;
+namespace FSH.Modules.PAF.Features.v1.Sessao.SetGuiche;
 
 /// <summary>
 /// Seleção do guichê depois do login (ADR 0006, seção 5): um guichê por sessão e uma sessão por guichê. Trocar de
 /// guichê solta o atual na mesma transação e é recusado com atendimento em curso nele. Vínculo de sessão morta é
 /// solto e a escolha aceita no mesmo ato; o de sessão viva recusa informando quem está no guichê.
 /// </summary>
-public sealed class SelecionarGuicheCommandHandler(
+public sealed class SetGuicheCommandHandler(
     PafDbContext db,
     SessaoCorrente sessao,
     ISessionService sessoes,
-    Licencas licencas) : ICommandHandler<SelecionarGuicheCommand>
+    Licencas licencas) : ICommandHandler<SetGuicheCommand>
 {
     public const string RestricaoEstacaoAtiva = "UX_SessoesEstacao_EstacaoAtiva";
     public const string MensagemNaoEncontrado = "Guichê não encontrado na unidade corrente.";
@@ -34,7 +34,7 @@ public sealed class SelecionarGuicheCommandHandler(
     public static string MensagemEmUso(string nomeEstacao, string ocupante) =>
         $"O guichê {nomeEstacao} está em uso por {ocupante}.";
 
-    public async ValueTask<Unit> Handle(SelecionarGuicheCommand command, CancellationToken cancellationToken)
+    public async ValueTask<Unit> Handle(SetGuicheCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
         var (tenantId, sessaoId, _) = sessao.Exigir();

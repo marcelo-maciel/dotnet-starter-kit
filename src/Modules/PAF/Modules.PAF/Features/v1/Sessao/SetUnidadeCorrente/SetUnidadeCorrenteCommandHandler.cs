@@ -7,24 +7,24 @@ using FSH.Modules.PAF.Sessao;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
-namespace FSH.Modules.PAF.Features.v1.Sessao.SelecionarUnidade;
+namespace FSH.Modules.PAF.Features.v1.Sessao.SetUnidadeCorrente;
 
 /// <summary>
 /// Troca a unidade corrente da sessão (ADR 0006). Primeira fatia: a licença fica na unidade do login e não migra.
 /// Solta o guichê selecionado no mesmo ato e recusa com atendimento em curso nele; sem Valkey, recusa (seção 9).
 /// </summary>
-public sealed class SelecionarUnidadeCommandHandler(
+public sealed class SetUnidadeCorrenteCommandHandler(
     PafDbContext db,
     SessaoCorrente sessao,
     IUnidadeCorrente unidadeCorrente,
-    EstadoSessao estado) : ICommandHandler<SelecionarUnidadeCommand>
+    EstadoSessao estado) : ICommandHandler<SetUnidadeCorrenteCommand>
 {
     public const string MensagemForaDoEscopo = "Esta unidade não faz parte do seu acesso.";
     public const string MensagemUnidadeInativa = "Esta unidade está inativa.";
     public const string MensagemTrocaIndisponivel =
         "A troca de unidade está indisponível no momento. Tente novamente em instantes.";
 
-    public async ValueTask<Unit> Handle(SelecionarUnidadeCommand command, CancellationToken cancellationToken)
+    public async ValueTask<Unit> Handle(SetUnidadeCorrenteCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
         var (tenantId, sessaoId, usuarioId) = sessao.Exigir();

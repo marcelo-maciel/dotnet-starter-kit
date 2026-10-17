@@ -1,5 +1,5 @@
 using System.Text.Json;
-using FSH.Modules.PAF.Features.v1.Sessao.SelecionarUnidade;
+using FSH.Modules.PAF.Features.v1.Sessao.SetUnidadeCorrente;
 using FSH.Modules.PAF.Sessao;
 using Integration.Tests.Infrastructure;
 
@@ -191,7 +191,7 @@ public sealed class PafSessaoLicencaTests(FshWebApplicationFactory factory) : IA
         var resposta = await cliente.PostAsJsonAsync("/api/v1/paf/sessao/unidade-corrente", new { unidadeId = alheia.UnidadeId });
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        Detalhe(await resposta.Content.ReadAsStringAsync()).ShouldBe(SelecionarUnidadeCommandHandler.MensagemForaDoEscopo);
+        Detalhe(await resposta.Content.ReadAsStringAsync()).ShouldBe(SetUnidadeCorrenteCommandHandler.MensagemForaDoEscopo);
     }
 
     // No Valkey in the harness: the switch is refused, as seção 9 decides for the degraded mode.
@@ -206,7 +206,7 @@ public sealed class PafSessaoLicencaTests(FshWebApplicationFactory factory) : IA
         var resposta = await cliente.PostAsJsonAsync("/api/v1/paf/sessao/unidade-corrente", new { unidadeId = segunda.UnidadeId });
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
-        Detalhe(await resposta.Content.ReadAsStringAsync()).ShouldBe(SelecionarUnidadeCommandHandler.MensagemTrocaIndisponivel);
+        Detalhe(await resposta.Content.ReadAsStringAsync()).ShouldBe(SetUnidadeCorrenteCommandHandler.MensagemTrocaIndisponivel);
     }
 
     [Fact]

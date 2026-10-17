@@ -5,7 +5,7 @@ using FSH.Framework.Shared.Constants;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.PAF.Escopo;
-using FSH.Modules.PAF.Features.v1.Sessao.EncerrarSessao;
+using FSH.Modules.PAF.Features.v1.Sessao.EndSessao;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -73,7 +73,7 @@ internal sealed class SessionCheckMiddleware(RequestDelegate next)
         // The root tenant has no PAF unit and takes no licence (RF23). Logout needs only a live session: with an
         // expired mark it must still revoke the session server-side, or the refresh token stays revivable.
         var endpoint = context.GetEndpoint()?.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName;
-        if (raiz || string.Equals(endpoint, EncerrarSessaoEndpoint.NomeEndpoint, StringComparison.Ordinal))
+        if (raiz || string.Equals(endpoint, EndSessaoEndpoint.NomeEndpoint, StringComparison.Ordinal))
         {
             await next(context);
             return;
