@@ -53,7 +53,7 @@ public sealed class SetUnidadeCorrenteCommandHandler(
         await using var transacao = await db.Database.BeginTransactionAsync(cancellationToken);
         if (await VinculosGuiche.AtivoDaSessaoAsync(db, sessaoId, cancellationToken) is { } vinculo)
         {
-            await VinculosGuiche.SoltarSemAtendimentoEmCursoAsync(db, vinculo, cancellationToken);
+            await VinculosGuiche.SoltarSemAtendimentoEmCursoAsync(db, tenantId, vinculo, cancellationToken);
         }
 
         // Valkey is written before the commit: if it fails, the guichê release rolls back with it.

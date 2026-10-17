@@ -17,9 +17,41 @@ internal static class VinculosGuiche
     public static Task<SessaoEstacao?> AtivoDaEstacaoAsync(PafDbContext db, Guid estacaoId, CancellationToken ct) =>
         db.SessoesEstacao.AsNoTracking().FirstOrDefaultAsync(v => v.EstacaoId == estacaoId && v.LiberadoEm == null, ct);
 
-    /// <summary>Solta o vínculo do guichê, recusando quando há atendimento chamado ou em atendimento nele.</summary>
-    public static async Task SoltarSemAtendimentoEmCursoAsync(PafDbContext db, SessaoEstacao vinculo, CancellationToken ct)
+    /// <summary>
+    /// Trava o vínculo ativo da sessão até o fim da transação aberta e devolve a estação dele, ou nulo sem vínculo.
+    /// A chamada e a soltura tomam esta trava primeiro, então nenhuma soltura cai entre a conferência "o guichê
+    /// ainda é meu" da chamada e o commit dela (seção 8 item 1).
+    /// </summary>
+    public static async Task<Guid?> TravarAtivoDaSessaoAsync(PafDbContext db, string tenantId, Guid sessaoId, CancellationToken ct)
     {
+        ExigirTransacao(db);
+        var estacoes = await db.Database.SqlQuery<Guid>($"""
+            SELECT "EstacaoId" AS "Value" FROM paf."SessoesEstacao"
+             WHERE "TenantId" = {tenantId} AND "SessaoId" = {sessaoId} AND "LiberadoEm" IS NULL
+               FOR UPDATE
+            """).ToListAsync(ct);
+        return estacoes.Count == 0 ? null : estacoes[0];
+    }
+
+    /// <summary>
+    /// Solta o vínculo do guichê, recusando quando há atendimento chamado ou em atendimento nele. A linha do
+    /// vínculo é travada antes da conferência: uma chamada em voo neste guichê ou já confirmou (e é vista) ou
+    /// espera e encontra o vínculo solto.
+    /// </summary>
+    public static async Task SoltarSemAtendimentoEmCursoAsync(PafDbContext db, string tenantId, SessaoEstacao vinculo, CancellationToken ct)
+    {
+        ExigirTransacao(db);
+        var travados = await db.Database.SqlQuery<Guid>($"""
+            SELECT "Id" AS "Value" FROM paf."SessoesEstacao"
+             WHERE "TenantId" = {tenantId} AND "Id" = {vinculo.Id} AND "LiberadoEm" IS NULL
+               FOR UPDATE
+            """).ToListAsync(ct);
+        if (travados.Count == 0)
+        {
+            // Released meanwhile by another writer (logout, manager): nothing left to release.
+            return;
+        }
+
         // The station belongs to the unit being left, which may differ from the current one: only the unit filter is lifted.
         var emCurso = await db.Atendimentos.AsNoTracking()
             .IgnoreQueryFilters([PafQueryFilters.Unidade])
@@ -30,11 +62,21 @@ internal static class VinculosGuiche
             throw new CustomException(MensagemAtendimentoEmCurso, [], System.Net.HttpStatusCode.Conflict);
         }
 
-        await SoltarAsync(db, vinculo.Id, ct);
+        await SoltarAsync(db, tenantId, vinculo.Id, ct);
     }
 
-    public static Task<int> SoltarAsync(PafDbContext db, Guid vinculoId, CancellationToken ct) =>
+    // Raw SQL skips the global filters: the tenant is explicit.
+    public static Task<int> SoltarAsync(PafDbContext db, string tenantId, Guid vinculoId, CancellationToken ct) =>
         db.Database.ExecuteSqlAsync(
-            $"""UPDATE paf."SessoesEstacao" SET "LiberadoEm" = now() WHERE "Id" = {vinculoId} AND "LiberadoEm" IS NULL""",
+            $"""UPDATE paf."SessoesEstacao" SET "LiberadoEm" = now() WHERE "TenantId" = {tenantId} AND "Id" = {vinculoId} AND "LiberadoEm" IS NULL""",
             ct);
+
+    // FOR UPDATE outside a transaction autocommits and holds nothing; fail loudly instead of locking nothing.
+    private static void ExigirTransacao(PafDbContext db)
+    {
+        if (db.Database.CurrentTransaction is null)
+        {
+            throw new InvalidOperationException("O travamento do vínculo do guichê exige transação aberta.");
+        }
+    }
 }

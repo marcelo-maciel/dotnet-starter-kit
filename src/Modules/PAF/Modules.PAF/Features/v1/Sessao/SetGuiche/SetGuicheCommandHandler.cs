@@ -29,7 +29,7 @@ public sealed class SetGuicheCommandHandler(
     public const string MensagemAtendimentoEmCurso = VinculosGuiche.MensagemAtendimentoEmCurso;
     public const string MensagemEscolhidoAgora = "O guichê acabou de ser escolhido por outra pessoa.";
 
-    private static readonly TipoEstacao[] TiposComGuiche = [TipoEstacao.Guiche, TipoEstacao.EmissaoGuiche, TipoEstacao.GuichePainel];
+    internal static readonly TipoEstacao[] TiposComGuiche = [TipoEstacao.Guiche, TipoEstacao.EmissaoGuiche, TipoEstacao.GuichePainel];
 
     public static string MensagemEmUso(string nomeEstacao, string ocupante) =>
         $"O guichê {nomeEstacao} está em uso por {ocupante}.";
@@ -56,7 +56,7 @@ public sealed class SetGuicheCommandHandler(
 
         if (atual is not null)
         {
-            await VinculosGuiche.SoltarSemAtendimentoEmCursoAsync(db, atual, cancellationToken);
+            await VinculosGuiche.SoltarSemAtendimentoEmCursoAsync(db, tenantId, atual, cancellationToken);
         }
 
         if (await VinculosGuiche.AtivoDaEstacaoAsync(db, estacao.Id, cancellationToken) is { } ocupante)
@@ -100,6 +100,6 @@ public sealed class SetGuicheCommandHandler(
             throw new CustomException(MensagemEmUso(estacao.Nome, nome), [], HttpStatusCode.Conflict);
         }
 
-        await VinculosGuiche.SoltarAsync(db, ocupante.Id, ct);
+        await VinculosGuiche.SoltarAsync(db, tenantId, ocupante.Id, ct);
     }
 }
