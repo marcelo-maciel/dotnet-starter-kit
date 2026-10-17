@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -13,9 +13,15 @@ import {
   operarAtendimento,
   type GuicheDto,
   type OperacaoAtendimento,
+  type PostoDto,
 } from "@/features/paf/guiche/guiche-api";
+import { conectarHubGuiche, type HubGuiche } from "@/features/paf/guiche/hub-guiche";
+import type { EstadoConexao } from "@/features/paf/paf-hub";
 
 type Ultimo = { senha: string; estado: string };
+
+/** What SenhaChamada, SenhaRechamada and AtendimentoAtualizado share, as PafHub sends them (camelCase). */
+type AvisoAtendimento = { atendimentoId: string; versao: number };
 
 // The server holds unit, guichê and atendimento (GET posto): a reload asks it again. Only the step of a
 // "Trocar" in progress lives here, because until the new choice is made the server still has the old one.
@@ -31,6 +37,13 @@ const ROTULO_ESTADO: Record<string, string> = {
 };
 
 const ESTADOS_FINAIS = new Set(["Encerrado", "Cancelado"]);
+
+const ROTULO_CONEXAO: Record<EstadoConexao, string> = {
+  conectando: "Conectando ao tempo real…",
+  conectado: "",
+  reconectando: "Tempo real reconectando…",
+  desconectado: "Tempo real desconectado.",
+};
 
 const SELECT_CLASSES =
   "h-9 w-full rounded-md border border-[var(--color-input)] bg-[var(--color-card)] px-3 text-sm";
@@ -48,6 +61,8 @@ export function GuichePage() {
   const [guicheEscolhido, setGuicheEscolhido] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [conexao, setConexao] = useState<EstadoConexao>("conectando");
+  const hub = useRef<HubGuiche | null>(null);
   const idUnidade = useId();
   const idGuiche = useId();
 
@@ -55,6 +70,33 @@ export function GuichePage() {
   const etapa: Etapa | null = posto.data
     ? (troca ?? (posto.data.unidadeId === null ? "unidade" : posto.data.estacaoId === null ? "guiche" : "operar"))
     : null;
+
+  useEffect(() => {
+    // A notice only matters for the atendimento on screen with a newer Versao (seção 7): the server's post is
+    // re-read, so a change made elsewhere (manager cancel, another window) reaches the screen.
+    const aoAviso = (aviso: AvisoAtendimento, estado: string | null) => {
+      const atual = queryClient.getQueryData<PostoDto>(CHAVE_POSTO)?.atendimento;
+      if (atual?.atendimentoId !== aviso.atendimentoId || aviso.versao <= atual.versao) return;
+      if (estado !== null && ESTADOS_FINAIS.has(estado)) setUltimo({ senha: atual.senha, estado });
+      void queryClient.invalidateQueries({ queryKey: CHAVE_POSTO });
+    };
+    const atual = conectarHubGuiche({
+      handlers: {
+        SenhaChamada: (p) => aoAviso(p as AvisoAtendimento, null),
+        SenhaRechamada: (p) => aoAviso(p as AvisoAtendimento, null),
+        AtendimentoAtualizado: (p) => {
+          const aviso = p as AvisoAtendimento & { estado: string };
+          aoAviso(aviso, aviso.estado);
+        },
+      },
+      aoMudarEstado: setConexao,
+    });
+    hub.current = atual;
+    return () => {
+      hub.current = null;
+      atual.parar();
+    };
+  }, [queryClient]);
 
   const unidades = useQuery({ queryKey: ["paf", "guiche", "unidades"], queryFn: listarUnidades, enabled: etapa === "unidade" });
   const guiches = useQuery({
@@ -90,6 +132,7 @@ export function GuichePage() {
     executar(async () => {
       if (guicheEscolhido === "") return;
       await definirGuiche(guicheEscolhido);
+      hub.current?.entrarNoGuiche();
       setTroca(null);
     });
 
@@ -134,6 +177,11 @@ export function GuichePage() {
 
       {posto.isPending && <p className="text-[var(--color-muted-foreground)]">Carregando…</p>}
       {posto.isError && <p role="alert">{mensagemAmigavel(posto.error)}</p>}
+      {ROTULO_CONEXAO[conexao] && (
+        <p role="status" className="text-sm text-[var(--color-muted-foreground)]">
+          {ROTULO_CONEXAO[conexao]}
+        </p>
+      )}
 
       {erro && (
         <p role="alert" className="rounded-md border border-[var(--color-destructive)] px-4 py-3 text-[var(--color-destructive)]">
