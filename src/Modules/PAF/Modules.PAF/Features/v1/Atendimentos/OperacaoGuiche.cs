@@ -22,7 +22,7 @@ public static class MensagensGuiche
 }
 
 /// <summary>The guichê of the session and the atendimento it acts on.</summary>
-internal sealed record Guiche(string TenantId, Guid UsuarioId, Estacao Estacao);
+internal sealed record Guiche(string TenantId, Guid SessaoId, Guid UsuarioId, Estacao Estacao);
 
 /// <summary>Atendimento re-read after its ficha's rows were locked; the state check runs on this, never on a read from before the lock.</summary>
 internal sealed record AtendimentoTravado(
@@ -43,7 +43,7 @@ internal static class OperacaoGuiche
         // Unit-filtered: a guichê of a unit the session left is not operable from here.
         var estacao = await db.Estacoes.AsNoTracking().FirstOrDefaultAsync(e => e.Id == vinculo.EstacaoId, ct).ConfigureAwait(false)
             ?? throw Conflito(MensagensGuiche.MensagemSemGuiche);
-        return new Guiche(tenantId, usuarioId, estacao);
+        return new Guiche(tenantId, sessaoId, usuarioId, estacao);
     }
 
     /// <summary>

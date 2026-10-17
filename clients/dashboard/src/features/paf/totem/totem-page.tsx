@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import QRCode from "qrcode";
 import { ApiRequestError } from "@/lib/api-client";
 import { lerCredencial } from "@/features/paf/estacao/credencial-estacao";
 import {
@@ -21,7 +20,7 @@ type Pendente = { chave: string; botao: BotaoEmissao };
 type Emissao =
   | { tipo: "ocioso"; aviso: string | null }
   | { tipo: "emitindo" }
-  | { tipo: "imprimindo"; ficha: FichaEmitidaDto; qrSvg: string }
+  | { tipo: "imprimindo"; ficha: FichaEmitidaDto }
   | { tipo: "concluido"; senha: string };
 
 function chaveDoBotao(b: BotaoEmissao): string {
@@ -33,11 +32,6 @@ function chaveDoBotao(b: BotaoEmissao): string {
 // on the next tap and the idempotency filter returns the stored ficha instead of a new number.
 function falhaDefinitiva(erro: unknown): boolean {
   return erro instanceof ApiRequestError && erro.status >= 400 && erro.status < 500 && erro.status !== 408 && erro.status !== 429;
-}
-
-// ponytail: the QR points to the public ficha page, which does not exist yet (fila digital, requisitos 7.1).
-function urlPublicaDaFicha(identificadorPublico: string): string {
-  return `${window.location.origin}/paf/f/${identificadorPublico}`;
 }
 
 export function TotemPage() {
@@ -57,7 +51,7 @@ export function TotemPage() {
   useEffect(() => {
     if (!vinculado) return;
     obterConfiguracaoEmissao().then(
-      (cfg) => setBotoes([...(cfg.botoes ?? [])].sort((a, b) => a.ordem - b.ordem)),
+      (cfg) => setBotoes([...cfg.botoes].sort((a, b) => a.ordem - b.ordem)),
       (erro: unknown) => {
         if (!tratarCredencial(erro)) setErroConfiguracao(mensagemAmigavel(erro));
       },
@@ -73,12 +67,7 @@ export function TotemPage() {
     try {
       const ficha = await emitirFicha(botao.filaId, botao.prioridadeId, chave);
       pendenteRef.current = null;
-      const qrSvg = await QRCode.toString(urlPublicaDaFicha(ficha.identificadorPublico), {
-        type: "svg",
-        errorCorrectionLevel: "M",
-        margin: 4,
-      });
-      setEmissao({ tipo: "imprimindo", ficha, qrSvg });
+      setEmissao({ tipo: "imprimindo", ficha });
     } catch (erro) {
       if (tratarCredencial(erro)) return;
       if (falhaDefinitiva(erro)) {
@@ -173,7 +162,7 @@ export function TotemPage() {
         )}
       </div>
 
-      {emissao.tipo === "imprimindo" && <FichaImpressa ref={fichaRef} ficha={emissao.ficha} qrSvg={emissao.qrSvg} />}
+      {emissao.tipo === "imprimindo" && <FichaImpressa ref={fichaRef} ficha={emissao.ficha} />}
     </main>
   );
 }

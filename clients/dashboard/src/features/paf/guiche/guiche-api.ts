@@ -4,7 +4,25 @@ import { apiFetch } from "@/lib/api-client";
 
 export type UnidadeDto = { id: string; nome: string; documentoFiscal: string | null; ativa: boolean };
 
-export type EstacaoDto = { id: string; unidadeId: string; nome: string; tipo: string; ativa: boolean };
+/** `ocupante` is another session's user name; null when free or when `meu`. */
+export type GuicheDto = { id: string; nome: string; tipo: string; ocupante: string | null; meu: boolean };
+
+export type AtendimentoEmCursoDto = {
+  atendimentoId: string;
+  fichaId: string;
+  senha: string;
+  estado: string;
+  versao: number;
+};
+
+/** The server's view of the session: current unit, selected guichê and the atendimento in progress on it. */
+export type PostoDto = {
+  unidadeId: string | null;
+  unidade: string | null;
+  estacaoId: string | null;
+  guiche: string | null;
+  atendimento: AtendimentoEmCursoDto | null;
+};
 
 export type ChamadaDto = {
   atendimentoId: string;
@@ -19,17 +37,17 @@ export type AtendimentoAlteradoDto = { atendimentoId: string; estado: string; ve
 
 export type OperacaoAtendimento = "rechamar" | "iniciar" | "encerrar" | "cancelar";
 
-const TIPOS_COM_GUICHE = new Set(["Guiche", "EmissaoGuiche", "GuichePainel"]);
-
-// Gap reported to the backend: both lists need Unidades.View / Estacoes.View, which the basic
-// attendant does not have; there is no read of the session's own units and guichês yet.
+// These three reads need only Guiches.Selecionar, which the ordinary attendant has.
 export function listarUnidades() {
-  return apiFetch<UnidadeDto[]>("/api/v1/paf/unidades");
+  return apiFetch<UnidadeDto[]>("/api/v1/paf/guiche/unidades");
 }
 
-export async function listarGuiches() {
-  const estacoes = await apiFetch<EstacaoDto[]>("/api/v1/paf/estacoes");
-  return estacoes.filter((e) => e.ativa && TIPOS_COM_GUICHE.has(e.tipo));
+export function listarGuiches() {
+  return apiFetch<GuicheDto[]>("/api/v1/paf/guiche/guiches");
+}
+
+export function obterPosto() {
+  return apiFetch<PostoDto>("/api/v1/paf/guiche/posto");
 }
 
 export function definirUnidadeCorrente(unidadeId: string) {

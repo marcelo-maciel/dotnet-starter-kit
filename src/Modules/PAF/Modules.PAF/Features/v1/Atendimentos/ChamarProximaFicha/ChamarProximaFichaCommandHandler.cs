@@ -95,6 +95,15 @@ public sealed partial class ChamarProximaFichaCommandHandler(
     private async Task<ChamadaDto> TentarAsync(Guiche guiche, bool respeitaOrdem, CancellationToken ct)
     {
         await using var transacao = await db.Database.BeginTransactionAsync(ct);
+
+        // The guichê read before the transaction only feeds the early messages; under this lock a concurrent
+        // switch or unit change either released it already (refused here) or waits for this call to commit.
+        var estacaoDoVinculo = await VinculosGuiche.TravarAtivoDaSessaoAsync(db, guiche.TenantId, guiche.SessaoId, ct);
+        if (estacaoDoVinculo != guiche.Estacao.Id)
+        {
+            throw OperacaoGuiche.Conflito(MensagensGuiche.MensagemSemGuiche);
+        }
+
         var pulados = new List<Guid>();
         while (pulados.Count <= MaxPulos)
         {

@@ -1,11 +1,7 @@
 import { estacaoFetch } from "@/features/paf/estacao/estacao-http";
 import type { EstadoPainelDto } from "@/features/paf/painel/painel-estado";
 
-/**
- * One totem button. NOT served by the API yet: `ConfiguracaoEstacaoDto` has no filas/prioridades
- * (arquitetura seção 5 says the totem reads them from its own configuration). Shape requested from
- * the backend; until it lands the totem shows "sem filas" instead of buttons.
- */
+/** One totem button: a fila of the station's emission role with one of its active prioridades. */
 export type BotaoEmissao = {
   filaId: string;
   fila: string;
@@ -22,7 +18,8 @@ export type ConfiguracaoEstacaoDto = {
   tipo: string;
   /** JSON block of the station type, as a string. */
   configuracao: string | null;
-  botoes?: BotaoEmissao[];
+  /** Empty for the painel. */
+  botoes: BotaoEmissao[];
 };
 
 export type FichaEmitidaDto = {
