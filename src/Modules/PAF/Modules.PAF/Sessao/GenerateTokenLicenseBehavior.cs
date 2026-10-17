@@ -1,4 +1,5 @@
 using Finbuckle.MultiTenant.Abstractions;
+using FSH.Framework.Core.Exceptions;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Contracts.DTOs;
 using FSH.Modules.Identity.Contracts.Services;
@@ -39,7 +40,7 @@ internal sealed class GenerateTokenLicenseBehavior(
         // The kit service throws on every invalid credential; null would only come from another implementation.
         var credencial = await identidade.ValidateCredentialsAsync(
                 message.Email, message.Password, message.TwoFactorCode, cancellationToken)
-            ?? throw new UnauthorizedAccessException("Invalid credentials.");
+            ?? throw new UnauthorizedException("Invalid credentials.");
         var subject = credencial.Subject;
 
         await using var reserva = await licencas.ReservarAsync(tenantId, Guid.Parse(subject), cancellationToken);
@@ -56,8 +57,11 @@ internal sealed class GenerateTokenLicenseBehavior(
             .Select(s => s.Id)
             .Where(id => id != sessaoId)
             .ToList();
-        await reserva.ConfirmarAsync(sessaoId, anteriores, cancellationToken);
-
+        // Revoked before the commit, still under the unit lock: a refresh of an earlier session waiting on that
+        // lock then finds its session revoked and stops (RefreshTokenLicenseBehavior), instead of re-occupying
+        // and deleting this session's row, which would let two machines knock each other out in turns. Two
+        // DbContexts, no atomicity: if the commit fails after this, the user is left with no session and logs
+        // in again, the safe side.
         // The admin variant: the login request is anonymous, and the self-service one checks the current user.
         foreach (var anterior in anteriores)
         {
@@ -65,6 +69,7 @@ internal sealed class GenerateTokenLicenseBehavior(
             await estado.RemoverAsync(tenantId, anterior, cancellationToken);
         }
 
+        await reserva.ConfirmarAsync(sessaoId, anteriores, cancellationToken);
         return token;
     }
 }
