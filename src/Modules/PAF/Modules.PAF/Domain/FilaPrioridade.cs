@@ -37,4 +37,13 @@ public sealed class FilaPrioridade : BaseEntity<Guid>, IEscopoUnidade
             Ordem = ordem,
         };
     }
+
+    public void Atualizar(string letra, int numeroInicial, int ordem)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(letra);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(letra.Length, LetraMaxLength);
+        Letra = letra;
+        NumeroInicial = numeroInicial;
+        Ordem = ordem;
+    }
 }

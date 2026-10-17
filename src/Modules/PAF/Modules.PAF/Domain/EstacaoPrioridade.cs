@@ -12,4 +12,6 @@ public sealed class EstacaoPrioridade : IEscopoUnidade
 
     public static EstacaoPrioridade Criar(Guid unidadeId, Guid estacaoId, Guid prioridadeId, int ordem) =>
         new() { UnidadeId = unidadeId, EstacaoId = estacaoId, PrioridadeId = prioridadeId, Ordem = ordem };
+
+    public void DefinirOrdem(int ordem) => Ordem = ordem;
 }

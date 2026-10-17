@@ -74,6 +74,7 @@ builder.Services.AddMediator(o =>
         typeof(FSH.Modules.Chat.ChatModule),
         typeof(FSH.Modules.Notifications.Contracts.v1.Commands.MarkNotificationReadCommand),
         typeof(FSH.Modules.Notifications.NotificationsModule),
+        typeof(FSH.Modules.PAF.Contracts.PafContractsMarker),
         typeof(FSH.Modules.PAF.PafModule)];
 });
 

@@ -24,4 +24,15 @@ public sealed class Prioridade : BaseEntity<Guid>, IEscopoUnidade
             Ativa = true,
         };
     }
+
+    public void Atualizar(string nome, int valor)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nome);
+        Nome = nome;
+        Valor = valor;
+    }
+
+    public void Ativar() => Ativa = true;
+
+    public void Desativar() => Ativa = false;
 }

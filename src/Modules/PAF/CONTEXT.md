@@ -30,9 +30,16 @@ Concurrency and fail-closed tests: `src/Tests/Integration.Tests/Tests/PAF/`.
 - `PafDbContext` follows the kit pattern: `base.OnModelCreating` runs LAST, so tenant isolation stays default-ON.
 - Migrations live in `src/Host/FSH.Starter.Migrations.PostgreSQL/PAF/`, not in this module. Critical rules are enforced in PostgreSQL and carried by those migrations. See ADR 0005.
 
-## Pending registration
+## Registration
 
-`typeof(FSH.Modules.PAF.Contracts.PafContractsMarker)` is NOT yet in the Mediator `o.Assemblies` list of either host: Mediator's generator fails with MSG0007 on an assembly with no messages. The change that adds the first command or query to `Modules.PAF.Contracts` must add it, right before `typeof(FSH.Modules.PAF.PafModule)`, in both `src/Host/FSH.Starter.Api/Program.cs` and `src/Host/FSH.Starter.DbMigrator/Program.cs`.
+`PafContractsMarker` and `PafModule` are both in the Mediator `o.Assemblies` list of both hosts. Permissions (`PafPermissions`, `Permissions.PAF.{Recurso}.{Acao}`) are registered in `PafModule`; `Contratos.Manage` is root-only.
+
+## Unit scope in requests
+
+- `Escopo/UnidadeCorrenteMiddleware` fills `IUnidadeCorrente`: station credential from claim `paf_unidade` (`PafClaims`); person from header `X-Paf-Unidade`, 403 when outside the person's `UsuarioUnidade`. The header is temporary (ponytail): the session state of ADR 0006 replaces it.
+- Unit-scoped writes take the unidade from `IUnidadeCorrente.Exigir()`, never from the body.
+- Explicit cross-unit paths (only `IgnoreQueryFilters([PafQueryFilters.Unidade])`): `ListFilasConsolidadas` (caller's scope) and `UpdateContratoUnidade` (Codefi operator). `Architecture.Tests/PafQueryFilterTests` scans the PAF IL and fails on the bare form or on a specification overriding `IgnoreQueryFilters`.
+- Demo data: `Data/PafDemoSeeder`, called by the DbMigrator `seed-demo` verb only, never by tenant provisioning.
 
 ## Touching the kit
 

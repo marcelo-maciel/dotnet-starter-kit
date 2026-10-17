@@ -103,6 +103,7 @@ builder.Services.AddMediator(o =>
         typeof(FSH.Modules.Chat.ChatModule),
         typeof(FSH.Modules.Notifications.Contracts.v1.Commands.MarkNotificationReadCommand),
         typeof(FSH.Modules.Notifications.NotificationsModule),
+        typeof(FSH.Modules.PAF.Contracts.PafContractsMarker),
         typeof(FSH.Modules.PAF.PafModule),
     ];
 });
@@ -310,6 +311,12 @@ try
         using var scope = host.Services.CreateScope();
         var seeder = scope.ServiceProvider.GetRequiredService<DemoSeeder>();
         await seeder.RunAsync(CancellationToken.None).ConfigureAwait(false);
+        // PAF (ADR 0008, module registration): its demo data needs the demo tenants and their admins above.
+        var pafSeeder = scope.ServiceProvider.GetRequiredService<FSH.Modules.PAF.Data.PafDemoSeeder>();
+        foreach (var demo in new[] { DemoSeeder.Acme, DemoSeeder.Globex })
+        {
+            await pafSeeder.SemearAsync(demo.Id, demo.AdminEmail, CancellationToken.None).ConfigureAwait(false);
+        }
         await Console.Out.WriteLineAsync("[demo-seed] done").ConfigureAwait(false);
     }
 

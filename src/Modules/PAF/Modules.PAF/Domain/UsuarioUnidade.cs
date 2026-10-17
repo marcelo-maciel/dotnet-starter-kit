@@ -16,4 +16,6 @@ public sealed class UsuarioUnidade : BaseEntity<Guid>
 
     public static UsuarioUnidade Criar(Guid usuarioId, Guid unidadeId, int ordem) =>
         new() { Id = Guid.CreateVersion7(), UsuarioId = usuarioId, UnidadeId = unidadeId, Ordem = ordem };
+
+    public void DefinirOrdem(int ordem) => Ordem = ordem;
 }

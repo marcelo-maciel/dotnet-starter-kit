@@ -16,4 +16,6 @@ public sealed class EstacaoFila : IEscopoUnidade
 
     public static EstacaoFila Criar(Guid unidadeId, Guid estacaoId, PapelEstacao papel, Guid filaId, int ordem) =>
         new() { UnidadeId = unidadeId, EstacaoId = estacaoId, Papel = papel, FilaId = filaId, Ordem = ordem };
+
+    public void DefinirOrdem(int ordem) => Ordem = ordem;
 }

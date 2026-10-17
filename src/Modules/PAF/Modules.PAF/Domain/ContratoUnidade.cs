@@ -35,4 +35,20 @@ public sealed class ContratoUnidade : BaseEntity<Guid>, IEscopoUnidade
             Politica = politica,
         };
     }
+
+    public void Atualizar(
+        DateOnly inicioVigencia,
+        DateOnly? fimVigencia,
+        string plano,
+        int limiteSessoes,
+        PoliticaLimiteLicenca politica)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(plano);
+        ArgumentOutOfRangeException.ThrowIfNegative(limiteSessoes);
+        InicioVigencia = inicioVigencia;
+        FimVigencia = fimVigencia;
+        Plano = plano;
+        LimiteSessoes = limiteSessoes;
+        Politica = politica;
+    }
 }

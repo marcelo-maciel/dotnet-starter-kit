@@ -37,4 +37,14 @@ public sealed class Estacao : BaseEntity<Guid>, IEscopoUnidade
             Ativa = true,
         };
     }
+
+    public void Renomear(string nome)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nome);
+        Nome = nome;
+    }
+
+    public void Ativar() => Ativa = true;
+
+    public void Desativar() => Ativa = false;
 }
