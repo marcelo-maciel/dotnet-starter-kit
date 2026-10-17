@@ -101,6 +101,32 @@ public sealed class PafHubConexoesTests(FshWebApplicationFactory factory) : IAsy
         chamadas.Recebidos.ShouldNotContain(s => s.AtendimentoId == chamadaNoA.AtendimentoId, "a troca tirou a conexão do grupo do guichê A");
     }
 
+    // No EntrarNoGuiche from the client: the selection handler moves the session's connections after its commit,
+    // so a screen that misses its own invoke still follows the guichê.
+    [Fact]
+    public async Task SelecaoDoGuiche_MoveAsConexoesDaSessao_SemChamadaDoCliente()
+    {
+        var c = await _op.CriarAsync();
+        using var totem = await _op.TotemAsync(c);
+        var usuario = await _tenant.CriarUsuarioAsync(c.UnidadeId);
+        using var atendente = _tenant.Cliente((await _tenant.EntrarAsync(usuario)).AccessToken);
+        var hub = await ConectarAsync(Token(atendente));
+        using var chamadas = new Caixa<SenhaChamada>(hub, PafHubMetodos.SenhaChamada);
+
+        await SelecionarAsync(atendente, c.GuicheA);
+        await SelecionarAsync(atendente, c.GuicheB);
+        using var outroNoA = await _op.AtendenteAsync(c, c.GuicheA);
+        await PafOperacao.EmitirOkAsync(totem, c.Caixa, c.Normal);
+        await PafOperacao.EmitirOkAsync(totem, c.Protocolo, c.Normal);
+        await _op.EnvelhecerFichasAsync(c.UnidadeId);
+        var chamadaNoA = await PafOperacao.ChamarOkAsync(outroNoA);
+        var chamadaNoB = await PafOperacao.ChamarOkAsync(atendente);
+
+        (await chamadas.EsperarAsync(s => s.AtendimentoId == chamadaNoB.AtendimentoId, Espera))
+            .ShouldNotBeNull("a seleção do guichê B pôs a conexão no grupo dele");
+        chamadas.Recebidos.ShouldNotContain(s => s.AtendimentoId == chamadaNoA.AtendimentoId, "a troca tirou a conexão do grupo do guichê A");
+    }
+
     [Fact]
     public async Task VinculoRevogado_EncerraAsConexoesDaEstacao_ENaoReconecta()
     {

@@ -26,7 +26,8 @@ public sealed class SetGuicheCommandHandler(
     SessaoCorrente sessao,
     ISessionService sessoes,
     Licencas licencas,
-    AvisosTempoReal avisos) : ICommandHandler<SetGuicheCommand>
+    AvisosTempoReal avisos,
+    ConexoesPaf conexoes) : ICommandHandler<SetGuicheCommand>
 {
     public const string RestricaoEstacaoAtiva = "UX_SessoesEstacao_EstacaoAtiva";
     public const string MensagemNaoEncontrado = "Guichê não encontrado na unidade corrente.";
@@ -68,9 +69,10 @@ public sealed class SetGuicheCommandHandler(
             await VinculosGuiche.SoltarSemAtendimentoEmCursoAsync(db, tenantId, atual, cancellationToken);
         }
 
+        Guid? ocupanteSolto = null;
         if (await VinculosGuiche.AtivoDaEstacaoAsync(db, estacao.Id, cancellationToken) is { } ocupante)
         {
-            await SoltarOcupanteMortoAsync(tenantId, estacao, ocupante, cancellationToken);
+            ocupanteSolto = await SoltarOcupanteMortoAsync(tenantId, estacao, ocupante, cancellationToken);
         }
 
         AtendimentoAtualizadoPaf? avisoLiberacao = null;
@@ -108,6 +110,14 @@ public sealed class SetGuicheCommandHandler(
             await OperacaoGuiche.ConfirmarEAvisarAsync(transacao, avisos, avisoLiberacao, cancellationToken);
         }
 
+        // After the commit: the hub groups follow the links just written (seção 7).
+        if (ocupanteSolto is { } solto)
+        {
+            await conexoes.MoverSessaoParaGuicheAsync(tenantId, solto, null, cancellationToken);
+        }
+
+        await conexoes.MoverSessaoParaGuicheAsync(tenantId, sessaoId, estacao.Id, cancellationToken);
+
         return Unit.Value;
     }
 
@@ -144,7 +154,8 @@ public sealed class SetGuicheCommandHandler(
 
     internal sealed record Pendencia(Guid Id, string Senha);
 
-    private async Task SoltarOcupanteMortoAsync(string tenantId, Estacao estacao, SessaoEstacao ocupante, CancellationToken ct)
+    /// <summary>Releases a dead session's link and returns that session; a live owner refuses the choice.</summary>
+    private async Task<Guid> SoltarOcupanteMortoAsync(string tenantId, Estacao estacao, SessaoEstacao ocupante, CancellationToken ct)
     {
         // ponytail: a grant-owned link follows the grant's life (impersonation slice); refused here until then.
         if (ocupante.SessaoId is not { } dono)
@@ -162,5 +173,6 @@ public sealed class SetGuicheCommandHandler(
         }
 
         await VinculosGuiche.SoltarAsync(db, tenantId, ocupante.Id, ct);
+        return dono;
     }
 }
