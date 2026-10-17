@@ -16,7 +16,7 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
     public async Task LetraRepetidaNaUnidade_EmOutraFila_Recusada409ComMensagem_InclusiveEmMinuscula()
     {
         using var root = await _api.RootAsync();
-        var unidade = await PafApi.CriarUnidadeAsync(root);
+        var unidade = await _api.CriarUnidadeAsync(root);
         var normal = await PafApi.CriarPrioridadeAsync(root, unidade, "Normal");
         await PafApi.CriarFilaAsync(root, unidade, "Caixa", normal, "A");
 
@@ -32,8 +32,8 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
     public async Task MesmaLetraEmOutraUnidade_Aceita()
     {
         using var root = await _api.RootAsync();
-        var u1 = await PafApi.CriarUnidadeAsync(root);
-        var u2 = await PafApi.CriarUnidadeAsync(root);
+        var u1 = await _api.CriarUnidadeAsync(root);
+        var u2 = await _api.CriarUnidadeAsync(root);
 
         await PafApi.CriarFilaAsync(root, u1, "Caixa", await PafApi.CriarPrioridadeAsync(root, u1, "Normal"), "A");
         await PafApi.CriarFilaAsync(root, u2, "Caixa", await PafApi.CriarPrioridadeAsync(root, u2, "Normal"), "A");
@@ -45,7 +45,7 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
     public async Task LetraDisputadaEmParalelo_UmaGravaEAOutraRecebe409_NuncaDuasLinhas()
     {
         using var root = await _api.RootAsync();
-        var unidade = await PafApi.CriarUnidadeAsync(root);
+        var unidade = await _api.CriarUnidadeAsync(root);
         var normal = await PafApi.CriarPrioridadeAsync(root, unidade, "Normal");
         var idoso = await PafApi.CriarPrioridadeAsync(root, unidade, "Idoso");
         var caixa = await PafApi.CriarFilaAsync(root, unidade, "Caixa", normal, "A");
@@ -75,7 +75,7 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
     public async Task FilaSemPrioridade_OuJanelaQueViraAMeiaNoite_Recusada400()
     {
         using var root = await _api.RootAsync();
-        var unidade = await PafApi.CriarUnidadeAsync(root);
+        var unidade = await _api.CriarUnidadeAsync(root);
         var normal = await PafApi.CriarPrioridadeAsync(root, unidade, "Normal");
 
         using var semPrioridade = await PafApi.EnviarAsync(root, HttpMethod.Post, "/filas", unidade,
@@ -97,8 +97,8 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
     public async Task PrioridadeDeOutraUnidade_NaoEntraNaGradeDaFila()
     {
         using var root = await _api.RootAsync();
-        var u1 = await PafApi.CriarUnidadeAsync(root);
-        var u2 = await PafApi.CriarUnidadeAsync(root);
+        var u1 = await _api.CriarUnidadeAsync(root);
+        var u2 = await _api.CriarUnidadeAsync(root);
         var deU2 = await PafApi.CriarPrioridadeAsync(root, u2, "Normal");
 
         using var response = await PafApi.EnviarAsync(root, HttpMethod.Post, "/filas", u1,
@@ -111,7 +111,7 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
     public async Task DesativarEAtivarFila_MudaSoOIndicador()
     {
         using var root = await _api.RootAsync();
-        var unidade = await PafApi.CriarUnidadeAsync(root);
+        var unidade = await _api.CriarUnidadeAsync(root);
         var fila = await PafApi.CriarFilaAsync(root, unidade, "Caixa", await PafApi.CriarPrioridadeAsync(root, unidade, "Normal"), "A");
 
         await PafApi.OkAsync<Guid>(root, HttpMethod.Post, $"/filas/{fila}/disable", unidade, null);
@@ -121,7 +121,7 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
         (await PafApi.FilasAsync(root, unidade)).Single().Ativa.ShouldBeTrue();
 
         // Another unidade's header cannot reach this fila: the unit filter hides it.
-        var outra = await PafApi.CriarUnidadeAsync(root);
+        var outra = await _api.CriarUnidadeAsync(root);
         using var deFora = await PafApi.EnviarAsync(root, HttpMethod.Post, $"/filas/{fila}/disable", outra, null);
         deFora.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
@@ -130,10 +130,10 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
     public async Task Estacao_GuicheSemFilaDeGuiche_PapelForaDoTipo_EFilaDeOutraUnidade_Recusados()
     {
         using var root = await _api.RootAsync();
-        var unidade = await PafApi.CriarUnidadeAsync(root);
+        var unidade = await _api.CriarUnidadeAsync(root);
         var normal = await PafApi.CriarPrioridadeAsync(root, unidade, "Normal");
         var fila = await PafApi.CriarFilaAsync(root, unidade, "Caixa", normal, "A");
-        var outra = await PafApi.CriarUnidadeAsync(root);
+        var outra = await _api.CriarUnidadeAsync(root);
         var filaDeOutra = await PafApi.CriarFilaAsync(root, outra, "Caixa", await PafApi.CriarPrioridadeAsync(root, outra, "Normal"), "A");
 
         using var muda = await PafApi.EnviarAsync(root, HttpMethod.Post, "/estacoes", unidade,
@@ -159,7 +159,7 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
     public async Task Estacao_CriadaComListasPorPapel_EAtualizacaoSubstituiAsListas()
     {
         using var root = await _api.RootAsync();
-        var unidade = await PafApi.CriarUnidadeAsync(root);
+        var unidade = await _api.CriarUnidadeAsync(root);
         var normal = await PafApi.CriarPrioridadeAsync(root, unidade, "Normal");
         var idoso = await PafApi.CriarPrioridadeAsync(root, unidade, "Idoso");
         var caixa = await PafApi.CriarFilaAsync(root, unidade, "Caixa", normal, "A");
@@ -189,7 +189,7 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
     public async Task ContratoUnidade_OperadorRaizGravaEAtualiza_EAUnidadeLe()
     {
         using var root = await _api.RootAsync();
-        var unidade = await PafApi.CriarUnidadeAsync(root);
+        var unidade = await _api.CriarUnidadeAsync(root);
 
         var id = await PafApi.OkAsync<Guid>(root, HttpMethod.Post, "/contratos", null,
             new CreateContratoUnidadeCommand(unidade, new DateOnly(2026, 1, 1), null, "Básico", 3, "Recusar"));
@@ -215,8 +215,8 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
     {
         using var root = await _api.RootAsync();
         var adminId = await _api.RootAdminIdAsync();
-        var u1 = await PafApi.CriarUnidadeAsync(root);
-        var u2 = await PafApi.CriarUnidadeAsync(root);
+        var u1 = await _api.CriarUnidadeAsync(root);
+        var u2 = await _api.CriarUnidadeAsync(root);
 
         var atual = await PafApi.OkAsync<List<UsuarioUnidadeDto>>(root, HttpMethod.Get, $"/usuarios/{adminId}/unidades", null, null);
         var reordenada = atual.Select(u => u.UnidadeId).Where(u => u != u2).Prepend(u2).ToList();

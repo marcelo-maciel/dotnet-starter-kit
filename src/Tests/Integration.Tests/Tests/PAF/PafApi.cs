@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Shared.Multitenancy;
@@ -5,6 +6,8 @@ using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.PAF.Contracts.v1.Filas;
 using FSH.Modules.PAF.Contracts.v1.Prioridades;
 using FSH.Modules.PAF.Contracts.v1.Unidades;
+using FSH.Modules.PAF.Data;
+using FSH.Modules.PAF.Domain;
 using Integration.Tests.Infrastructure;
 using Integration.Tests.Infrastructure.Extensions;
 
@@ -52,9 +55,27 @@ internal sealed class PafApi(FshWebApplicationFactory factory)
         return await response.DeserializeAsync<T>();
     }
 
-    /// <summary>A new unidade, which joins the caller's scope on creation.</summary>
-    public static Task<Guid> CriarUnidadeAsync(HttpClient client) =>
-        OkAsync<Guid>(client, HttpMethod.Post, "/unidades", null, new CreateUnidadeCommand($"Loja {Guid.NewGuid():N}", null));
+    /// <summary>
+    /// A new unidade through the API, then granted to the caller straight in the database: creation does not
+    /// add the creator to the scope, and granting through the API needs the unidade in the granter's scope.
+    /// </summary>
+    public async Task<Guid> CriarUnidadeAsync(HttpClient client)
+    {
+        var unidadeId = await OkAsync<Guid>(client, HttpMethod.Post, "/unidades", null, new CreateUnidadeCommand($"Loja {Guid.NewGuid():N}", null));
+        var token = new JwtSecurityTokenHandler().ReadJwtToken(client.DefaultRequestHeaders.Authorization!.Parameter);
+        var usuarioId = Guid.Parse(token.Subject);
+        var tenantId = client.DefaultRequestHeaders.GetValues("tenant").Single();
+
+        using var scope = factory.Services.CreateScope();
+        var tenant = await scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>().GetAsync(tenantId);
+        scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>().MultiTenantContext =
+            new MultiTenantContext<AppTenantInfo>(tenant!);
+        var db = scope.ServiceProvider.GetRequiredService<PafDbContext>();
+        int? ultimaOrdem = await db.UsuariosUnidade.Where(u => u.UsuarioId == usuarioId).MaxAsync(u => (int?)u.Ordem);
+        db.UsuariosUnidade.Add(UsuarioUnidade.Criar(usuarioId, unidadeId, (ultimaOrdem ?? -1) + 1));
+        await db.SaveChangesAsync();
+        return unidadeId;
+    }
 
     public static Task<Guid> CriarPrioridadeAsync(HttpClient client, Guid unidade, string nome) =>
         OkAsync<Guid>(client, HttpMethod.Post, "/prioridades", unidade, new CreatePrioridadeCommand(nome, 0));

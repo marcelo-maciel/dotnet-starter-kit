@@ -23,7 +23,7 @@ public sealed class PafEscopoTests(FshWebApplicationFactory factory)
     public async Task LeituraConsolidada_NuncaDevolveFilaDeOutroTenant_MesmoApontandoParaUnidadeDoEscopo()
     {
         using var root = await _api.RootAsync();
-        var unidade = await PafApi.CriarUnidadeAsync(root);
+        var unidade = await _api.CriarUnidadeAsync(root);
         var prioridade = await PafApi.CriarPrioridadeAsync(root, unidade, "Normal");
         var filaDoRoot = await PafApi.CriarFilaAsync(root, unidade, "Caixa", prioridade, "A");
 
@@ -47,8 +47,8 @@ public sealed class PafEscopoTests(FshWebApplicationFactory factory)
     public async Task LeituraNormal_SoVeAUnidadeDoCabecalho_ESemCabecalhoNaoVeNada()
     {
         using var root = await _api.RootAsync();
-        var u1 = await PafApi.CriarUnidadeAsync(root);
-        var u2 = await PafApi.CriarUnidadeAsync(root);
+        var u1 = await _api.CriarUnidadeAsync(root);
+        var u2 = await _api.CriarUnidadeAsync(root);
         var f1 = await PafApi.CriarFilaAsync(root, u1, "Caixa", await PafApi.CriarPrioridadeAsync(root, u1, "Normal"), "A");
         var f2 = await PafApi.CriarFilaAsync(root, u2, "Caixa", await PafApi.CriarPrioridadeAsync(root, u2, "Normal"), "A");
 
@@ -103,7 +103,7 @@ public sealed class PafEscopoTests(FshWebApplicationFactory factory)
     public async Task ListaDeUnidades_TrazOEscopoDoChamador_ComAUnidadeRecemCriada()
     {
         using var root = await _api.RootAsync();
-        var unidade = await PafApi.CriarUnidadeAsync(root);
+        var unidade = await _api.CriarUnidadeAsync(root);
 
         var unidades = await PafApi.OkAsync<List<UnidadeDto>>(root, HttpMethod.Get, "/unidades", null, null);
 
