@@ -119,6 +119,10 @@ namespace FSH.Starter.Migrations.PostgreSQL.PAF
                     b.HasIndex("UnidadeId", "DataOperacional")
                         .HasDatabaseName("IX_Atendimentos_UnidadeData");
 
+                    b.HasIndex("UnidadeId", "FilaId", "DataElegibilidade")
+                        .HasDatabaseName("IX_Atendimentos_Candidatos")
+                        .HasFilter("\"Estado\" = 'Aguardando'");
+
                     b.HasIndex("UnidadeId", "FilaId", "DataOperacional")
                         .HasDatabaseName("IX_Atendimentos_UnidadeFilaData");
 
