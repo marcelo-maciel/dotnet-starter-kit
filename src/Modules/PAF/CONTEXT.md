@@ -34,6 +34,8 @@ Concurrency and fail-closed tests: `src/Tests/Integration.Tests/Tests/PAF/`.
 
 `PafContractsMarker` and `PafModule` are both in the Mediator `o.Assemblies` list of both hosts. Permissions (`PafPermissions`, `Permissions.PAF.{Recurso}.{Acao}`) are registered in `PafModule`; `Contratos.Manage` is root-only.
 
+- Slice 2 permission catalog (P01): every endpoint of slice 2 authorizes with a `PafPermissions` constant; only wave 0 (and D01) edits that file. Basic: `Guiches.Selecionar`, `Atendimentos.Operar`, `Fichas.Emitir`, `Atendimentos.Encaminhar`, `Atendimentos.SelecionarFicha`. Root: `Contratos.Manage`, `Unidades.Operar`, and `Estatisticas.ViewPorAtendente` (root only so the kit `RolePermissionSyncer` does not hand it to every client Admin before D10). `PAF.Tests/PafPermissionsTests` pins constants = `All` and both sets.
+
 ## Unit scope in requests
 
 - `IUnidadeCorrente` sources, in middleware order: `Conferencia/ConferenciaRequisicaoMiddleware` (station credential, claim `PafClaims.Unidade` = `paf_unidade`, checked against `VinculoEstacao`), `Sessao/SessionCheckMiddleware` (person with a PAF session), then `Escopo/UnidadeCorrenteMiddleware`: header `X-Paf-Unidade` only when neither set the unit (root tenant, root operator in a client tenant), 403 outside the person's `UsuarioUnidade`; a station (recognised by `PafClaims.Papel`, like the other middlewares) sending another unit in the header gets 403. Ponytail: the header goes away when the session covers root.
