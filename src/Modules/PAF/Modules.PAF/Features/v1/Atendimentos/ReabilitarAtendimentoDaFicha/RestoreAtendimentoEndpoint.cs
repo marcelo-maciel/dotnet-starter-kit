@@ -8,14 +8,14 @@ using Microsoft.AspNetCore.Routing;
 
 namespace FSH.Modules.PAF.Features.v1.Atendimentos.ReabilitarAtendimentoDaFicha;
 
-public static class RehabilitateAtendimentoEndpoint
+public static class RestoreAtendimentoEndpoint
 {
-    internal static RouteHandlerBuilder MapRehabilitateAtendimentoEndpoint(this IEndpointRouteBuilder endpoints)
+    internal static RouteHandlerBuilder MapRestoreAtendimentoEndpoint(this IEndpointRouteBuilder endpoints)
     {
         return endpoints.MapPost("/fichas/atendimentos/{atendimentoId:guid}/reabilitar",
                 async (Guid atendimentoId, IMediator mediator, CancellationToken ct) =>
                     Results.Ok(await mediator.Send(new ReabilitarAtendimentoDaFichaCommand(atendimentoId), ct)))
-            .WithName("PafRehabilitateAtendimento")
+            .WithName("PafRestoreAtendimento")
             .WithSummary("Bring a cancelled atendimento back to the queue on the same row (RF12)")
             .RequirePermission(PafPermissions.FichasDoDia.Reabilitar);
     }

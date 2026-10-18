@@ -129,7 +129,7 @@ public sealed class PafModule : IModule
             .WithApiVersionSet(versionSet)
             .RequireAuthorization();
         MapCadastroEndpoints(cadastro);
-        cadastro.MapRehabilitateAtendimentoEndpoint();
+        cadastro.MapRestoreAtendimentoEndpoint();
 
         // No group-wide RequireAuthorization: redeeming a link and renewing a credential are anonymous.
         var estacao = endpoints
