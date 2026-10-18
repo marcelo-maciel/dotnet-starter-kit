@@ -51,4 +51,23 @@ public sealed class EstadoSessao(IEnumerable<IConnectionMultiplexer> multiplexer
             return seIndisponivel;
         }
     }
+
+    // Impersonation (S10B): the grant's own current unit, keyed by the grant (jti), never by the user's session, so
+    // the support's switch never moves the real user (seção 9). It lives as long as the grant: a grant has no renewal.
+    public async Task<Guid?> LerUnidadeDaConcessaoAsync(string tenantId, Guid concessaoId, CancellationToken ct)
+    {
+        var valor = await TentarAsync(concessaoId, db => db.StringGetAsync(ChaveConcessao(tenantId, concessaoId)), RedisValue.Null, ct);
+        return Guid.TryParse(valor.ToString(), out var unidadeId) ? unidadeId : null;
+    }
+
+    /// <summary>Falso quando o Valkey não respondeu: a troca de unidade da impersonação não aconteceu.</summary>
+    public Task<bool> DefinirUnidadeDaConcessaoAsync(string tenantId, Guid concessaoId, Guid unidadeId, DateTimeOffset expiraEm, CancellationToken ct)
+    {
+        var validade = expiraEm - DateTimeOffset.UtcNow;
+        return validade <= TimeSpan.Zero
+            ? Task.FromResult(false)
+            : TentarAsync(concessaoId, db => db.StringSetAsync(ChaveConcessao(tenantId, concessaoId), unidadeId.ToString(), validade), false, ct);
+    }
+
+    private static RedisKey ChaveConcessao(string tenantId, Guid concessaoId) => $"paf:{tenantId}:concessao:{concessaoId:N}:unidade";
 }

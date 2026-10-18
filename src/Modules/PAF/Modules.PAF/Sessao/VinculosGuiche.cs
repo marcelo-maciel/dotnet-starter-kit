@@ -14,6 +14,9 @@ internal static class VinculosGuiche
     public static Task<SessaoEstacao?> AtivoDaSessaoAsync(PafDbContext db, Guid sessaoId, CancellationToken ct) =>
         db.SessoesEstacao.AsNoTracking().FirstOrDefaultAsync(v => v.SessaoId == sessaoId && v.LiberadoEm == null, ct);
 
+    public static Task<SessaoEstacao?> AtivoDaConcessaoAsync(PafDbContext db, Guid concessaoId, CancellationToken ct) =>
+        db.SessoesEstacao.AsNoTracking().FirstOrDefaultAsync(v => v.ConcessaoId == concessaoId && v.LiberadoEm == null, ct);
+
     public static Task<SessaoEstacao?> AtivoDaEstacaoAsync(PafDbContext db, Guid estacaoId, CancellationToken ct) =>
         db.SessoesEstacao.AsNoTracking().FirstOrDefaultAsync(v => v.EstacaoId == estacaoId && v.LiberadoEm == null, ct);
 

@@ -272,7 +272,7 @@ public sealed class PafEscopoEmpresaTests(FshWebApplicationFactory factory) : IA
         var sessao = new SessaoCorrente();
         sessao.Definir(_tenant.TenantId, sessaoId, usuarioId, origem);
         var estado = new EstadoSessao([_multiplexer], NullLogger<EstadoSessao>.Instance);
-        var handler = new SetUnidadeCorrenteCommandHandler(db, sessao, scope.ServiceProvider.GetRequiredService<IUnidadeCorrente>(), estado,
+        var handler = new SetUnidadeCorrenteCommandHandler(db, sessao, new ConcessaoCorrente(), scope.ServiceProvider.GetRequiredService<IUnidadeCorrente>(), estado,
             scope.ServiceProvider.GetRequiredService<EscopoUsuario>());
         return (handler, estado);
     }

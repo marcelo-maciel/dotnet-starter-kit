@@ -3,6 +3,7 @@ using System.Security.Claims;
 using FSH.Framework.Core.Exceptions;
 using FSH.Framework.Shared.Identity.Claims;
 using FSH.Modules.PAF.Contracts.Authorization;
+using FSH.Modules.PAF.Sessao;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -14,7 +15,8 @@ namespace FSH.Modules.PAF.Escopo;
 /// unidade is set by <c>ConferenciaRequisicaoMiddleware</c>; here a <see cref="Cabecalho"/> naming another
 /// unidade is refused. A person with a PAF session has the unidade set by <c>SessionCheckMiddleware</c>, and
 /// the header is ignored. Only a person without one (root tenant, root operator in a client tenant) uses the
-/// header, accepted when the unidade is in the person's effective scope (<see cref="EscopoUsuario"/>). Without any source,
+/// header, accepted when the unidade is in the person's effective scope (<see cref="EscopoUsuario"/>). An impersonation
+/// token (<c>act_sub</c>) never uses the header: its unidade is the grant's own state. Without any source,
 /// nothing is set and the unit filter returns no rows.
 /// </summary>
 public sealed partial class UnidadeCorrenteMiddleware(RequestDelegate next, ILogger<UnidadeCorrenteMiddleware> logger)
@@ -41,6 +43,11 @@ public sealed partial class UnidadeCorrenteMiddleware(RequestDelegate next, ILog
         if (principal.HasClaim(c => c.Type == PafClaims.Papel))
         {
             ConferirCabecalhoDaEstacao(principal.FindFirstValue(PafClaims.Unidade), cabecalho);
+        }
+        else if (ImpersonacaoPaf.Impersonando(principal))
+        {
+            // The grant's unit comes only from its own state (SessionCheckMiddleware); the header is ignored, as for
+            // a person with a PAF session, even when the grant's scope is empty and nothing was set.
         }
         else if (unidadeCorrente.UnidadeId is null
             && await ResolverPelaPessoaAsync(context, principal, cabecalho).ConfigureAwait(false) is { } unidadeId)

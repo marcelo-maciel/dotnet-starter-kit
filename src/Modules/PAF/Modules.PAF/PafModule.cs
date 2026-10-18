@@ -158,6 +158,9 @@ public sealed class PafModule : IModule
     private static void ConfigurarSessao(IServiceCollection services)
     {
         services.AddScoped<SessaoCorrente>();
+        // S10B: the impersonation grant's own branch (current unit keyed by the grant, no licence).
+        services.AddScoped<ConcessaoCorrente>();
+        services.AddScoped<UnidadeDaConcessao>();
         services.AddScoped<Licencas>();
         // S09: licence set in the Valkey and its rebuild from the PostgreSQL (seção 9).
         services.AddSingleton(sp => new ConjuntoLicencas(
