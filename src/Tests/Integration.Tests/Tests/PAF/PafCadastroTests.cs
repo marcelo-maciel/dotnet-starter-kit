@@ -175,7 +175,7 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
         criada.Filas.Count(f => f.Papel == "Painel").ShouldBe(2);
         criada.Filas.Single(f => f.Papel == "Guiche").FilaId.ShouldBe(caixa);
 
-        await PafApi.OkAsync<Guid>(root, HttpMethod.Put, $"/estacoes/{id}", unidade, new UpdateEstacaoCommand(
+        await PafApi.OkAsync<EstacaoAlteradaDto>(root, HttpMethod.Put, $"/estacoes/{id}", unidade, new UpdateEstacaoCommand(
             id, "Guichê 3", [new EstacaoFilaItem("Guiche", protocolo, 0), new EstacaoFilaItem("Guiche", caixa, 1)],
             [new EstacaoPrioridadeItem(idoso, 0), new EstacaoPrioridadeItem(normal, 1)]));
 

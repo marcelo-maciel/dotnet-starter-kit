@@ -67,4 +67,11 @@ public sealed class Fila : BaseEntity<Guid>, IEscopoUnidade
     public void Ativar() => Ativa = true;
 
     public void Desativar() => Ativa = false;
+
+    /// <summary>
+    /// Whether the window lets a ficha be emitted at <paramref name="hora"/> (America/Sao_Paulo, from the database
+    /// clock). Both bounds inclusive; both null = no restriction. Static so the buttons apply it to a projection.
+    /// </summary>
+    public static bool JanelaPermiteEmissao(TimeOnly? horaInicial, TimeOnly? horaFinal, TimeOnly hora) =>
+        horaInicial is not { } inicio || horaFinal is not { } fim || (hora >= inicio && hora <= fim);
 }
