@@ -23,12 +23,10 @@ import {
   type AtendimentoNaTela,
   type PassosGuiche,
 } from "@/features/paf/guiche/guiche-fluxo";
+import { decidirAviso, ESTADOS_FINAIS, type AvisoAtendimento } from "@/features/paf/guiche/avisos-guiche";
 import type { EstadoConexao } from "@/features/paf/paf-hub";
 
 type Ultimo = { senha: string; estado: string };
-
-/** What SenhaChamada, SenhaRechamada and AtendimentoAtualizado share, as PafHub sends them (camelCase). */
-type AvisoAtendimento = { atendimentoId: string; versao: number };
 
 // The server holds unit, guichê and atendimento (GET posto): a reload asks it again. Only the step of a
 // "Trocar" in progress lives here, because until the new choice is made the server still has the old one.
@@ -42,8 +40,6 @@ const ROTULO_ESTADO: Record<string, string> = {
   Encerrado: "Encerrado",
   Cancelado: "Cancelado",
 };
-
-const ESTADOS_FINAIS = new Set(["Encerrado", "Cancelado"]);
 
 const ROTULO_CONEXAO: Record<EstadoConexao, string> = {
   conectando: "Conectando ao tempo real…",
@@ -82,10 +78,13 @@ export function GuichePage() {
   useEffect(() => {
     // A notice only matters for the atendimento on screen with a newer Versao (seção 7): the server's post is
     // re-read, so a change made elsewhere (manager cancel, another window) reaches the screen.
+    let versoes: Record<string, number> = {};
     const aoAviso = (aviso: AvisoAtendimento, estado: string | null) => {
       const atual = queryClient.getQueryData<PostoDto>(CHAVE_POSTO)?.atendimento;
-      if (atual?.atendimentoId !== aviso.atendimentoId || aviso.versao <= atual.versao) return;
-      if (estado !== null && ESTADOS_FINAIS.has(estado)) setUltimo({ senha: atual.senha, estado });
+      const decisao = decidirAviso(versoes, atual, aviso, estado);
+      versoes = decisao.versoes;
+      if (!atual || !decisao.reler) return;
+      if (decisao.estadoFinal !== null) setUltimo({ senha: atual.senha, estado: decisao.estadoFinal });
       void queryClient.invalidateQueries({ queryKey: CHAVE_POSTO });
     };
     const atual = conectarHubGuiche({
