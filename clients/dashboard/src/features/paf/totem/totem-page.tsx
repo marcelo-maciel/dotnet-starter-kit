@@ -124,9 +124,15 @@ export function TotemPage() {
     definirPagina(fichaRef.current);
     let ativo = true;
     const senhaEmitida = emissao.ficha.senha;
-    void imprimir(LIMITE_IMPRESSAO_MS).then(() => {
+    const concluir = () => {
       removerPagina();
       if (ativo) setEmissao({ tipo: "concluido", senha: senhaEmitida });
+    };
+    // A print failure never undoes the ficha (RF11): the senha stays on screen and the cycle still has to end,
+    // or the emission cycle would stay busy and lock every button until a reload.
+    void imprimir(LIMITE_IMPRESSAO_MS).then(concluir, (erro: unknown) => {
+      console.warn("[paf-totem] falha ao imprimir a ficha", erro);
+      concluir();
     });
     return () => {
       ativo = false;
