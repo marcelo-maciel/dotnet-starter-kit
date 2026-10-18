@@ -144,7 +144,7 @@ public sealed class PafCoberturaGuicheTests(FshWebApplicationFactory factory) : 
 
         // The window containing now brings the button back.
         var aberta = new TimeOnly(agora.Hour, 0);
-        await EnviarAsync(c, new UpdateFilaCommand(c.Caixa, "Caixa", "Caixa", aberta, aberta.Hour == 23 ? new TimeOnly(23, 59, 59) : aberta.AddHours(1)));
+        await EnviarAsync(c, new UpdateFilaCommand(c.Caixa, "Caixa", "Caixa", aberta, aberta.Hour == 23 ? TimeOnly.MaxValue : aberta.AddHours(1)));
         (await BotoesAsync(totem)).ShouldContain((c.Caixa, c.Normal));
     }
 
