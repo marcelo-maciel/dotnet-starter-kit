@@ -68,6 +68,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 
@@ -262,11 +263,23 @@ public sealed class PafModule : IModule
                 .RequireAssertion(context => ConexaoPaf.Ler(context.User) is not null));
         services.AddScoped<AvisosTempoReal>();
         services.AddSingleton<ConexoesPaf>();
+        RegistrarVidaPelaConexao(services);
         services.AddSingleton<PafHubFilter>();
         // AddHubOptions, not Configure<HubOptions<PafHub>>: only it registers HubOptionsSetup<PafHub>, which marks the
         // per-hub options as set; without that mark SignalR falls back to the global options and the filter never runs.
         services.AddSignalR().AddHubOptions<PafHub>(options => options.AddFilter<PafHubFilter>());
         services.AddIntegrationEventHandlers(typeof(PafModule).Assembly);
+    }
+
+    // Connection registry in Valkey and the per-instance loop that keeps licence and guichê alive by the connection,
+    // releasing them after the reconnect grace period (seção 7, seção 9, RF22).
+    private static void RegistrarVidaPelaConexao(IServiceCollection services)
+    {
+        OpcoesSessaoPaf.Registrar(services);
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<RegistroConexoes>();
+        services.AddSingleton<RenovacaoPelaConexao>();
+        services.AddHostedService(sp => sp.GetRequiredService<RenovacaoPelaConexao>());
     }
 
     private static void MapTempoReal(IEndpointRouteBuilder endpoints)

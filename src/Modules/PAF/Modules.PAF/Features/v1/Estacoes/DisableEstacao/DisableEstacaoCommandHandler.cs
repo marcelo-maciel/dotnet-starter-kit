@@ -31,7 +31,7 @@ public sealed class DisableEstacaoCommandHandler(
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         if (tenantAccessor.MultiTenantContext?.TenantInfo?.Id is { } tenant)
         {
-            conexoes.EncerrarEstacao(tenant, entidade.Id);
+            await conexoes.EncerrarEstacaoAsync(tenant, entidade.Id, cancellationToken).ConfigureAwait(false);
         }
 
         return entidade.Id;

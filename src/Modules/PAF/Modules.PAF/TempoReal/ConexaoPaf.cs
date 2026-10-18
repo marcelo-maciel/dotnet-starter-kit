@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using FSH.Framework.Shared.Constants;
 using FSH.Modules.PAF.Contracts.Authorization;
@@ -40,7 +41,9 @@ public abstract record ConexaoPaf(string TenantId)
         }
 
         var impersonacao = !string.IsNullOrEmpty(principal.FindFirstValue(ClaimConstants.ActorSubject));
-        return new ConexaoPessoa(tenantId, usuarioId, impersonacao, ClaimDeSessao.DasClaims(principal.Claims));
+        // The grant is keyed by the token jti (ImpersonationGrant.Jti): the registry finds its connections by it.
+        var concessao = impersonacao ? principal.FindFirstValue(JwtRegisteredClaimNames.Jti) : null;
+        return new ConexaoPessoa(tenantId, usuarioId, impersonacao, ClaimDeSessao.DasClaims(principal.Claims), concessao);
     }
 
     private static ConexaoEstacao? LerEstacao(ClaimsPrincipal principal, string tenantId, string papel)
@@ -75,5 +78,7 @@ public sealed record ConexaoEstacao(string TenantId, string Papel, Guid EstacaoI
 /// <paramref name="Impersonacao"/>: the token carries <c>act_sub</c> (support acting as the user).
 /// <paramref name="SessaoId"/>: the kit session (<c>sid</c>); absent on impersonation and on the root tokens of the
 /// kit's end-impersonation path, which SessionCheckMiddleware also lets through.
+/// <paramref name="Concessao"/>: the impersonation grant (<c>jti</c> of the token), only when <paramref name="Impersonacao"/>.
 /// </summary>
-public sealed record ConexaoPessoa(string TenantId, string UsuarioId, bool Impersonacao, Guid? SessaoId) : ConexaoPaf(TenantId);
+public sealed record ConexaoPessoa(string TenantId, string UsuarioId, bool Impersonacao, Guid? SessaoId, string? Concessao)
+    : ConexaoPaf(TenantId);

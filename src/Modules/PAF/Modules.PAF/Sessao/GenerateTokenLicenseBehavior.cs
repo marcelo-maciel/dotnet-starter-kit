@@ -74,7 +74,7 @@ internal sealed class GenerateTokenLicenseBehavior(
         await reserva.ConfirmarAsync(sessaoId, anteriores, cancellationToken);
         foreach (var anterior in anteriores)
         {
-            conexoes.EncerrarSessao(tenantId, anterior);
+            await conexoes.EncerrarSessaoAsync(tenantId, anterior, cancellationToken);
         }
 
         return token;

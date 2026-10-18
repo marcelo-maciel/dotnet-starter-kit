@@ -20,6 +20,6 @@ public sealed class RevogacaoSessao(Licencas licencas, EstadoSessao estado, ISes
         await licencas.LiberarAsync(tenantId, sessaoId, ct);
         await estado.RemoverAsync(tenantId, sessaoId, ct);
         await sessoes.RevokeSessionForAdminAsync(sessaoId, usuarioId.ToString(), motivo, ct);
-        conexoes.EncerrarSessao(tenantId, sessaoId);
+        await conexoes.EncerrarSessaoAsync(tenantId, sessaoId, ct);
     }
 }
