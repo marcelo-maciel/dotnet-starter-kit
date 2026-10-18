@@ -75,6 +75,11 @@ Concurrency and fail-closed tests: `src/Tests/Integration.Tests/Tests/PAF/`.
 - Notices: emission → `FilaAtualizadaPaf`; call → `SenhaChamadaPaf` (guichê + active painéis listing the fila) and `FilaAtualizadaPaf`; recall → `SenhaRechamadaPaf`; start/close/cancel → `AtendimentoAtualizadoPaf`. Always `GravarAsync` before commit, `EnviarAsync` after.
 - Raw SQL skips global filters: every raw statement carries `"TenantId"` (and `"UnidadeId"` where it selects).
 
+## I/O deadlines (RNF05, O19)
+
+- `src/Tests/PAF.Tests/PrazosEntradaSaida` is the barrier. Configuration: the API host config (its appsettings files, copied next to the tests, plus process env vars) with `PafModule` registered must give the PostgreSQL string explicit `Timeout` and `Command Timeout`, `CachingOptions:Redis` explicit `connectTimeout`, `syncTimeout`, `asyncTimeout`, and every configured named `HttpClient` and every registered AWS client a finite `Timeout`, all at most `RegrasDePrazo.Teto` (30 s). Code: the PAF IL never references `CancellationToken.None` nor `Timeout.InfiniteTimeSpan`; bound a call with a linked `CancellationTokenSource` + `CancelAfter` (as `AvisosTempoReal`).
+- A new PAF client (HttpClient, S3) is registered in `PafModule` with its timeout set, or the barrier fails. Environment files are checked by O02's `verificar-ambiente.sh`.
+
 ## Touching the kit
 
 The kit is touched only at module registration points (both host `Program.cs` and `.csproj`, `src/FSH.Starter.slnx`, the migrations project) and at the other items of the closed list in ADR 0008. Any other kit edit requires amending ADR 0008 first.
