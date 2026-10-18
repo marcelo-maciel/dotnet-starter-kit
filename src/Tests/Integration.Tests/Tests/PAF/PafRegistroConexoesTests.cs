@@ -189,6 +189,29 @@ public sealed class PafRegistroConexoesTests(FshWebApplicationFactory factory) :
     }
 
     [Fact]
+    public async Task TelaAbertaSemHttp_DevolveOMembroAoConjuntoDeLicencasJuntoComAMarca()
+    {
+        var unidade = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);
+        var dono = await _tenant.CriarUsuarioAsync(unidade.UnidadeId);
+        var token = (await _tenant.EntrarAsync(dono)).AccessToken;
+        var sessaoId = PafTenantCliente.SessaoDoToken(token);
+        var conjunto = new ConjuntoLicencas([_multiplexer], TimeSpan.FromMinutes(10), NullLogger<ConjuntoLicencas>.Instance);
+        var instancia = NovaInstanciaComConjunto(new RelogioDeTeste(), conjunto);
+        await instancia.Conexoes.RegistrarAsync(
+            new ContextoDeTeste(Guid.NewGuid().ToString("N"), Principal(token)), Pessoa(token), CancellationToken.None);
+        var chave = ConjuntoLicencas.ChaveConjunto(_tenant.TenantId, unidade.UnidadeId);
+        var membro = ConjuntoLicencas.Membro(sessaoId);
+
+        // The harness host has no Valkey, so the login left the set empty: only the renewal can put the member there.
+        (await _multiplexer.GetDatabase().SortedSetScoreAsync(chave, membro)).ShouldBeNull();
+
+        await PassarMinutosAsync(sessaoId, instancia.Renovacao, 2);
+
+        (await _multiplexer.GetDatabase().SortedSetScoreAsync(chave, membro))
+            .ShouldNotBeNull("a renovação pela conexão renova também o membro do conjunto (S09), senão a vaga vence em 10 min com a tela aberta");
+    }
+
+    [Fact]
     public async Task QuedaSemVolta_SoltaLicencaEGuicheSoDepoisDaCarencia()
     {
         var (pessoa, contexto) = await AtendenteComGuicheAsync();
@@ -349,6 +372,16 @@ public sealed class PafRegistroConexoesTests(FshWebApplicationFactory factory) :
         return new Instancia(registro, conexoes, renovacao);
     }
 
+    private Instancia NovaInstanciaComConjunto(RelogioDeTeste relogio, ConjuntoLicencas conjunto)
+    {
+        var opcoes = Options.Create(new OpcoesSessaoPaf { CarenciaReconexao = Carencia });
+        var registro = new RegistroConexoes([_multiplexer], opcoes, relogio, NullLogger<RegistroConexoes>.Instance);
+        var conexoes = new ConexoesPaf(factory.Services.GetRequiredService<IHubContext<PafHub>>(), registro, NullLogger<ConexoesPaf>.Instance);
+        var escopos = new EscoposComConjunto(factory.Services.GetRequiredService<IServiceScopeFactory>(), conjunto);
+        var renovacao = new RenovacaoPelaConexao(conexoes, registro, escopos, opcoes, relogio, NullLogger<RenovacaoPelaConexao>.Instance);
+        return new Instancia(registro, conexoes, renovacao);
+    }
+
     private async Task<(ConexaoPessoa Pessoa, ContextoDeTeste Contexto)> AtendenteComGuicheAsync()
     {
         var c = await _op.CriarAsync();
@@ -430,6 +463,22 @@ public sealed class PafRegistroConexoesTests(FshWebApplicationFactory factory) :
             authenticationType: "Bearer"));
 
     private sealed record Instancia(RegistroConexoes Registro, ConexoesPaf Conexoes, RenovacaoPelaConexao Renovacao);
+
+    // The harness host runs without Valkey; this hands the renewal a licence set that has one, the rest from the host.
+    private sealed class EscoposComConjunto(IServiceScopeFactory host, ConjuntoLicencas conjunto) : IServiceScopeFactory
+    {
+        public IServiceScope CreateScope() => new Escopo(host.CreateScope(), conjunto);
+
+        private sealed class Escopo(IServiceScope doHost, ConjuntoLicencas conjunto) : IServiceScope, IServiceProvider
+        {
+            public IServiceProvider ServiceProvider => this;
+
+            public object? GetService(Type serviceType) =>
+                serviceType == typeof(ConjuntoLicencas) ? conjunto : doHost.ServiceProvider.GetService(serviceType);
+
+            public void Dispose() => doHost.Dispose();
+        }
+    }
 
     private sealed class RelogioDeTeste : TimeProvider
     {

@@ -82,11 +82,14 @@ public sealed partial class RenovacaoPelaConexao(
         var db = servicos.GetRequiredService<PafDbContext>();
         foreach (var (sessaoId, usuarioId) in sessoes)
         {
-            // Seam for S09: the renewal of this session's member of the Valkey licence set goes here, next to the mark.
-            if (!await RenovarMarcaAsync(db, tenantId, sessaoId, ct).ConfigureAwait(false))
+            if (await RenovarMarcaAsync(db, tenantId, sessaoId, ct).ConfigureAwait(false) is not { } unidadeId)
             {
                 continue;
             }
+
+            // The Valkey member follows the mark (S09): a session alive only through its connection keeps its seat.
+            var conjunto = servicos.GetRequiredService<ConjuntoLicencas>();
+            await conjunto.RestaurarAsync(tenantId, ConjuntoLicencas.Membro(sessaoId), unidadeId, conjunto.PrazoMembro, ct).ConfigureAwait(false);
 
             await ConferirSessaoAsync(servicos, tenantId, sessaoId, usuarioId, ct).ConfigureAwait(false);
         }
@@ -94,16 +97,18 @@ public sealed partial class RenovacaoPelaConexao(
 
     // Only a live mark is renewed: a session whose mark expired re-occupies through the login check (seção 9), never
     // by the mere existence of a connection. Spaced by the renewal interval, like the per-request renewal.
-    private async Task<bool> RenovarMarcaAsync(PafDbContext db, string tenantId, Guid sessaoId, CancellationToken ct)
+    private async Task<Guid?> RenovarMarcaAsync(PafDbContext db, string tenantId, Guid sessaoId, CancellationToken ct)
     {
         var intervalo = opcoes.Value.IntervaloRenovacao.TotalSeconds;
         var prazo = opcoes.Value.PrazoMarca.TotalSeconds;
-        return await db.Database.ExecuteSqlAsync($"""
+        var unidades = await db.Database.SqlQuery<Guid>($"""
             UPDATE paf."AtividadesSessao" SET "UltimaAtividadeEm" = now()
              WHERE "TenantId" = {tenantId} AND "SessaoId" = {sessaoId}
                AND "UltimaAtividadeEm" < now() - make_interval(secs => {intervalo})
                AND "UltimaAtividadeEm" > now() - make_interval(secs => {prazo})
-            """, ct).ConfigureAwait(false) > 0;
+            RETURNING "UnidadeId" AS "Value"
+            """).ToListAsync(ct).ConfigureAwait(false);
+        return unidades.Count == 0 ? null : unidades[0];
     }
 
     // The renewal checks the kit session and the user (seção 9, 03/10/2026): a revocation born in the kit whose event
@@ -160,7 +165,7 @@ public sealed partial class RenovacaoPelaConexao(
 
             Instalar(escopo.ServiceProvider, tenant);
 
-            // Releases the licence (S09 adds its Valkey member to the same call) and the guichê; an atendimento in
+            // Releases the licence (PostgreSQL row and Valkey member) and the guichê; an atendimento in
             // course stays on the released guichê (RF04).
             await escopo.ServiceProvider.GetRequiredService<Licencas>().LiberarAsync(queda.TenantId, queda.SessaoId, ct).ConfigureAwait(false);
             LogSoltaPelaCarencia(logger, queda.TenantId, queda.SessaoId);
