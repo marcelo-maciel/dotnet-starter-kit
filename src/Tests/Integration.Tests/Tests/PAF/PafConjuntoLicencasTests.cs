@@ -49,6 +49,7 @@ public sealed class PafConjuntoLicencasTests(FshWebApplicationFactory factory) :
         _tenant.Contexto(scope, unidadeCorrente: null),
         scope.ServiceProvider.GetRequiredService<IUnidadeCorrente>(),
         Conjunto(),
+        scope.ServiceProvider.GetRequiredService<EscopoUsuario>(),
         NullLogger<Licencas>.Instance);
 
     private async Task<List<string>> MembrosAsync(Guid unidadeId) =>

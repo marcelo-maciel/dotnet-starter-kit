@@ -8,16 +8,17 @@ using Microsoft.Extensions.Logging;
 namespace FSH.Modules.PAF.Sessao;
 
 /// <summary>
-/// Licença da sessão (RF22). Sem cascata ainda: paga a unidade principal do usuário. A decisão é do conjunto de
-/// licenças no Valkey (<see cref="ConjuntoLicencas"/>); <see cref="AtividadeSessao"/> continua a fonte da verdade e
-/// é gravada em toda ocupação. Só com o Valkey fora, ou antes da reconstrução dos conjuntos, a contagem é a das
-/// linhas frescas de <see cref="AtividadeSessao"/>, serializada por bloqueio consultivo da unidade (seção 9, modo
-/// degradado).
+/// Licença da sessão (RF22). Cascata pelo escopo efetivo (<see cref="EscopoUsuario"/>): a primeira unidade ativa,
+/// com contrato vigente e com saldo, ou com ultrapassagem contratada, paga. A decisão é do conjunto de licenças no
+/// Valkey (<see cref="ConjuntoLicencas"/>); <see cref="AtividadeSessao"/> continua a fonte da verdade e é gravada em
+/// toda ocupação. Só com o Valkey fora, ou antes da reconstrução dos conjuntos, a contagem é a das linhas frescas de
+/// <see cref="AtividadeSessao"/>, sob os bloqueios consultivos de todas as candidatas (seção 9, modo degradado).
 /// </summary>
 public sealed class Licencas(
     PafDbContext db,
     IUnidadeCorrente unidadeCorrente,
     ConjuntoLicencas conjunto,
+    EscopoUsuario escopo,
     ILogger<Licencas> logger)
 {
     // ponytail: initial values of seção 9 as constants; move to options when measurement asks for others.
@@ -31,25 +32,22 @@ public sealed class Licencas(
     private static readonly TimeSpan PrazoLimpeza = TimeSpan.FromSeconds(2);
 
     public const string MensagemSemUnidadeAtiva =
-        "A unidade do seu acesso está inativa. Procure o administrador da empresa.";
+        "Nenhuma unidade do seu acesso está ativa. Procure o administrador da empresa.";
     public const string MensagemSemContrato =
-        "A unidade do seu acesso não tem contrato ativo. Procure o administrador da empresa.";
+        "Nenhuma unidade do seu acesso tem contrato ativo. Procure o administrador da empresa.";
     public const string MensagemLimite =
-        "O limite de licenças da unidade foi atingido. Aguarde outro usuário sair ou procure o administrador.";
+        "O limite de licenças foi atingido em todas as unidades do seu acesso. Aguarde outro usuário sair ou procure o administrador.";
 
     /// <summary>
-    /// Abre a transação da ocupação e reserva a vaga: no conjunto do Valkey por um membro provisório, que a
-    /// confirmação troca pela sessão, ou, no modo degradado, conferindo o saldo sob o bloqueio da unidade. Nulo
-    /// quando o usuário não tem unidade no PAF: ele não opera o PAF, e o filtro de unidade continua fechado para ele.
+    /// Abre a transação da ocupação e reserva a vaga na primeira candidata da cascata: no conjunto do Valkey por um
+    /// membro provisório, que a confirmação troca pela sessão, ou, no modo degradado, contando sob os bloqueios das
+    /// candidatas. Nulo quando o usuário não tem unidade no PAF: ele não opera o PAF, e o filtro de unidade continua
+    /// fechado para ele.
     /// </summary>
     public async Task<ReservaLicenca?> ReservarAsync(string tenantId, Guid usuarioId, CancellationToken ct)
     {
-        var principal = await db.UsuariosUnidade.AsNoTracking()
-            .Where(u => u.UsuarioId == usuarioId)
-            .OrderBy(u => u.Ordem)
-            .Select(u => (Guid?)u.UnidadeId)
-            .FirstOrDefaultAsync(ct);
-        if (principal is not { } unidadeId)
+        var escopoEfetivo = await escopo.EscopoEfetivoAsync(usuarioId, ct);
+        if (escopoEfetivo.Count == 0)
         {
             return null;
         }
@@ -61,26 +59,28 @@ public sealed class Licencas(
             // machine is revoking must not confirm after that login and release the new session (sessão única).
             // The unit lock below did this alone before the Valkey set; the user lock keeps it with the set.
             await BloquearAsync($"paf-licenca-usuario:{tenantId}:{usuarioId}", ct);
-            var candidata = await CandidataAsync(tenantId, unidadeId, ct);
+            var candidatas = await CandidatasAsync(tenantId, escopoEfetivo, ct);
 
             var membro = ConjuntoLicencas.NovaReserva();
             var ocupacao = await conjunto.OcuparAsync(
-                tenantId, membro, [candidata], await SessoesDoUsuarioAsync(tenantId, usuarioId, ct), [], PrazoReserva, ct);
+                tenantId, membro, candidatas, await SessoesDoUsuarioAsync(tenantId, usuarioId, ct), [], PrazoReserva, ct);
             string? membroReserva = null;
+            CandidataLicenca candidata;
             switch (ocupacao.Desfecho)
             {
                 case DesfechoOcupacao.Ocupada:
+                    candidata = candidatas.First(c => c.UnidadeId == ocupacao.UnidadeId);
                     AvisarUltrapassagem(tenantId, candidata, ocupacao.Ocupadas);
                     membroReserva = membro;
                     break;
                 case DesfechoOcupacao.SemSaldo:
                     throw new ForbiddenException(MensagemLimite);
                 default:
-                    await ConferirSaldoNoBancoAsync(tenantId, usuarioId, candidata, ct);
+                    candidata = await EscolherNoBancoAsync(tenantId, usuarioId, candidatas, ct);
                     break;
             }
 
-            unidadeCorrente.Definir(unidadeId);
+            unidadeCorrente.Definir(candidata.UnidadeId);
             return new ReservaLicenca(this, transacao, tenantId, usuarioId, candidata, membroReserva, ocupacao.Desfecho);
         }
         catch
@@ -126,7 +126,7 @@ public sealed class Licencas(
                     // The reservation outlived PrazoReserva and its seat was taken meanwhile.
                     throw new ForbiddenException(MensagemLimite);
                 default:
-                    await ConferirSaldoNoBancoAsync(tenantId, reserva.UsuarioId, reserva.Candidata, ct);
+                    await EscolherNoBancoAsync(tenantId, reserva.UsuarioId, [reserva.Candidata], ct);
                     restaurar = ocupacao.Desfecho == DesfechoOcupacao.NaoReconstruido;
                     break;
             }
@@ -186,59 +186,78 @@ public sealed class Licencas(
         await conjunto.LiberarAsync(tenantId, membro, prazo.Token);
     }
 
-    private async Task<CandidataLicenca> CandidataAsync(string tenantId, Guid unidadeId, CancellationToken ct)
+    /// <summary>
+    /// Candidatas da cascata na ordem do escopo efetivo: só as unidades ativas e com contrato vigente, porque a
+    /// unidade sem contrato não tem saldo qualquer que seja a política (RF22). A recusa diz a causa: nenhuma ativa,
+    /// ou nenhuma ativa com contrato.
+    /// </summary>
+    private async Task<List<CandidataLicenca>> CandidatasAsync(string tenantId, IReadOnlyList<Guid> escopoEfetivo, CancellationToken ct)
     {
-        var ativa = await db.Unidades.AsNoTracking()
-            .Where(u => u.Id == unidadeId)
-            .Select(u => u.Ativa)
-            .FirstOrDefaultAsync(ct);
-        if (!ativa)
+        var ativas = await db.Unidades.AsNoTracking()
+            .Where(u => escopoEfetivo.Contains(u.Id) && u.Ativa)
+            .Select(u => u.Id)
+            .ToListAsync(ct);
+        if (ativas.Count == 0)
         {
             throw new ForbiddenException(MensagemSemUnidadeAtiva);
         }
 
         // Validity is a calendar day in America/Sao_Paulo, taken from the PostgreSQL clock.
-        var contrato = await db.Database.SqlQuery<ContratoVigente>($"""
-            SELECT "LimiteSessoes", "Politica"
+        var ids = ativas.ToArray();
+        var contratos = await db.Database.SqlQuery<ContratoVigente>($"""
+            SELECT DISTINCT ON ("UnidadeId") "UnidadeId", "LimiteSessoes", "Politica"
               FROM paf."ContratosUnidade"
-             WHERE "TenantId" = {tenantId} AND "UnidadeId" = {unidadeId}
+             WHERE "TenantId" = {tenantId} AND "UnidadeId" = ANY({ids})
                AND "InicioVigencia" <= (now() AT TIME ZONE 'America/Sao_Paulo')::date
                AND ("FimVigencia" IS NULL OR "FimVigencia" >= (now() AT TIME ZONE 'America/Sao_Paulo')::date)
-             ORDER BY "InicioVigencia" DESC
-             LIMIT 1
-            """).FirstOrDefaultAsync(ct)
-            ?? throw new ForbiddenException(MensagemSemContrato);
+             ORDER BY "UnidadeId", "InicioVigencia" DESC
+            """).ToDictionaryAsync(c => c.UnidadeId, ct);
 
-        return new CandidataLicenca(
-            unidadeId,
-            contrato.LimiteSessoes,
-            string.Equals(contrato.Politica, nameof(PoliticaLimiteLicenca.UltrapassarComAviso), StringComparison.Ordinal));
+        var candidatas = escopoEfetivo
+            .Where(contratos.ContainsKey)
+            .Select(id => contratos[id])
+            .Select(c => new CandidataLicenca(
+                c.UnidadeId,
+                c.LimiteSessoes,
+                string.Equals(c.Politica, nameof(PoliticaLimiteLicenca.UltrapassarComAviso), StringComparison.Ordinal)))
+            .ToList();
+        return candidatas.Count == 0 ? throw new ForbiddenException(MensagemSemContrato) : candidatas;
     }
 
-    // Degraded mode: the count of fresh rows, serialized per unit until the transaction ends.
-    private async Task ConferirSaldoNoBancoAsync(string tenantId, Guid usuarioId, CandidataLicenca candidata, CancellationToken ct)
+    /// <summary>
+    /// Modo degradado: a cascata pela contagem das linhas frescas. Os bloqueios de todas as candidatas são tomados
+    /// antes de contar qualquer uma, em ordem canônica por id, e seguram até o fim da transação: escopos [A, B] e
+    /// [B, A] disputando ao mesmo tempo esperam um pelo outro em vez de travar em ciclo.
+    /// </summary>
+    private async Task<CandidataLicenca> EscolherNoBancoAsync(
+        string tenantId, Guid usuarioId, IReadOnlyList<CandidataLicenca> candidatas, CancellationToken ct)
     {
-        // Two logins racing for the last seat of the same unit serialize here until one commits.
-        await BloquearAsync($"paf-licenca:{tenantId}:{candidata.UnidadeId}", ct);
+        var ids = candidatas.Select(c => c.UnidadeId).Order().ToArray();
+        foreach (var unidadeId in ids)
+        {
+            await BloquearAsync($"paf-licenca:{tenantId}:{unidadeId}", ct);
+        }
 
         // The user's own earlier sessions are released in the same act, so they do not count against him.
-        var ocupadas = await db.Database.SqlQuery<int>($"""
-            SELECT count(*)::int AS "Value"
+        var ocupadas = await db.Database.SqlQuery<OcupadasDaUnidade>($"""
+            SELECT "UnidadeId", count(*)::int AS "Ocupadas"
               FROM paf."AtividadesSessao"
-             WHERE "TenantId" = {tenantId} AND "UnidadeId" = {candidata.UnidadeId} AND "UsuarioId" <> {usuarioId}
+             WHERE "TenantId" = {tenantId} AND "UnidadeId" = ANY({ids}) AND "UsuarioId" <> {usuarioId}
                AND "UltimaAtividadeEm" > now() - make_interval(mins => {PrazoMarcaMinutos})
-            """).SingleAsync(ct);
-        if (ocupadas < candidata.Limite)
+             GROUP BY "UnidadeId"
+            """).ToDictionaryAsync(o => o.UnidadeId, o => o.Ocupadas, ct);
+
+        foreach (var candidata in candidatas)
         {
-            return;
+            var naUnidade = ocupadas.GetValueOrDefault(candidata.UnidadeId);
+            if (naUnidade < candidata.Limite || candidata.UltrapassaComAviso)
+            {
+                AvisarUltrapassagem(tenantId, candidata, naUnidade + 1);
+                return candidata;
+            }
         }
 
-        if (!candidata.UltrapassaComAviso)
-        {
-            throw new ForbiddenException(MensagemLimite);
-        }
-
-        AvisarUltrapassagem(tenantId, candidata, ocupadas + 1);
+        throw new ForbiddenException(MensagemLimite);
     }
 
     private Task BloquearAsync(string chave, CancellationToken ct) =>
@@ -272,6 +291,17 @@ public sealed class Licencas(
               FROM paf."AtividadesSessao"
              WHERE "TenantId" = {tenantId} AND "SessaoId" = {sessaoId}
                AND "UltimaAtividadeEm" > now() - make_interval(mins => {PrazoMarcaMinutos})
+            """).FirstOrDefaultAsync(ct);
+
+    /// <summary>
+    /// Unidade da última licença registrada da sessão, viva ou vencida; nulo depois de solta. É a unidade que a tela
+    /// mostrava quando a sessão é revivida sem estado de unidade no Valkey.
+    /// </summary>
+    public Task<Guid?> UnidadeDaUltimaMarcaAsync(string tenantId, Guid sessaoId, CancellationToken ct) =>
+        db.Database.SqlQuery<Guid?>($"""
+            SELECT "UnidadeId" AS "Value"
+              FROM paf."AtividadesSessao"
+             WHERE "TenantId" = {tenantId} AND "SessaoId" = {sessaoId}
             """).FirstOrDefaultAsync(ct);
 
     public Task<bool> UsuarioDoPafAsync(Guid usuarioId, CancellationToken ct) =>
@@ -340,5 +370,7 @@ public sealed class Licencas(
         await conjunto.LiberarAsync(tenantId, ConjuntoLicencas.Membro(sessaoId), ct);
     }
 
-    private sealed record ContratoVigente(int LimiteSessoes, string Politica);
+    private sealed record ContratoVigente(Guid UnidadeId, int LimiteSessoes, string Politica);
+
+    private sealed record OcupadasDaUnidade(Guid UnidadeId, int Ocupadas);
 }

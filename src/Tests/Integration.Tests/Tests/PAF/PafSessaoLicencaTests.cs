@@ -142,7 +142,7 @@ public sealed class PafSessaoLicencaTests(FshWebApplicationFactory factory) : IA
     }
 
     [Fact]
-    public async Task MarcaVencida_RequisicaoRecusadaERenovacaoSemSaldoRevogaASessao()
+    public async Task MarcaVencida_RequisicaoRecusadaERenovacaoSemSaldoRecusadaSemRevogar()
     {
         var unidade = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);
         var dono = await _tenant.CriarUsuarioAsync(unidade.UnidadeId);
@@ -161,7 +161,8 @@ public sealed class PafSessaoLicencaTests(FshWebApplicationFactory factory) : IA
 
         renovacao.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         Detalhe(await renovacao.Content.ReadAsStringAsync()).ShouldBe(Licencas.MensagemLimite);
-        await SessoesDoKitAsync(dono.UserId).ShouldBeAsync(0);
+        // S05: the refusal comes before the token is issued, so the session stays for a later refresh with a seat.
+        await SessoesDoKitAsync(dono.UserId).ShouldBeAsync(1);
     }
 
     [Fact]
