@@ -122,6 +122,7 @@ const PafResgateVinculoPage = lazyNamed(
 const PafTotemPage = lazyNamed(() => import("@/features/paf/totem/totem-page"), "TotemPage");
 const PafPainelPage = lazyNamed(() => import("@/features/paf/painel/painel-page"), "PainelPage");
 const PafGuichePage = lazyNamed(() => import("@/features/paf/guiche/guiche-page"), "GuichePage");
+const PafUnidadesPage = lazyNamed(() => import("@/features/paf/unidades/unidades-page"), "UnidadesPage");
 
 /**
  * RouteFallback — what shows while a lazy chunk is downloading. Mirrors
@@ -237,6 +238,7 @@ export const router = createBrowserRouter([
           { path: "chat", element: withSuspense(<ChatPage />) },
           { path: "chat/:channelId", element: withSuspense(<ChatPage />) },
           { path: "paf/guiche", element: withSuspense(<PafGuichePage />) },
+          { path: "paf/unidades", element: withSuspense(<PafUnidadesPage />) },
           { path: "tickets", element: withSuspense(<TicketsPage />) },
           { path: "tickets/:ticketId", element: withSuspense(<TicketDetailPage />) },
           { path: "identity", element: <Navigate to="/identity/users" replace /> },
