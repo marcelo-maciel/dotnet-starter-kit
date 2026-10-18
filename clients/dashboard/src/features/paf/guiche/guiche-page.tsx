@@ -2,6 +2,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { tokenStore } from "@/auth/token-store";
+import { env } from "@/env";
 import { mensagemAmigavel } from "@/features/paf/paf-erros";
 import {
   chamarProxima as chamarProximaApi,
@@ -25,6 +27,7 @@ import {
 } from "@/features/paf/guiche/guiche-fluxo";
 import { decidirAviso, ESTADOS_FINAIS, type AvisoAtendimento } from "@/features/paf/guiche/avisos-guiche";
 import type { EstadoConexao } from "@/features/paf/paf-hub";
+import { CHAVE_ULTIMO_GUICHE, serializarUltimoGuiche, sugerirGuiche } from "@/features/paf/guiche/guiche-sugestao";
 
 type Ultimo = { senha: string; estado: string };
 
@@ -51,6 +54,16 @@ const ROTULO_CONEXAO: Record<EstadoConexao, string> = {
 const SELECT_CLASSES =
   "h-9 w-full rounded-md border border-[var(--color-input)] bg-[var(--color-card)] px-3 text-sm";
 
+function guardarUltimoGuiche(tenant: string, unidadeId: string, estacaoId: string) {
+  try {
+    localStorage.setItem(CHAVE_ULTIMO_GUICHE, serializarUltimoGuiche(tenant, unidadeId, estacaoId));
+  } catch (e) {
+    // The server already accepted the guichê; a full or blocked storage only loses the next suggestion, so it
+    // must not surface as a failed selection.
+    console.warn("PAF: não foi possível guardar o último guichê", e);
+  }
+}
+
 function rotuloGuiche(g: GuicheDto): string {
   if (g.meu) return `${g.nome} (seu)`;
   if (g.ocupante) return `${g.nome} (em uso por ${g.ocupante})`;
@@ -62,7 +75,8 @@ export function GuichePage() {
   const [troca, setTroca] = useState<Etapa | null>(null);
   const [ultimo, setUltimo] = useState<Ultimo | null>(null);
   const [unidadeEscolhida, setUnidadeEscolhida] = useState("");
-  const [guicheEscolhido, setGuicheEscolhido] = useState("");
+  // null = the user has not touched the select yet, so the suggestion of this machine (RF04) shows pre-marked.
+  const [guicheEscolhido, setGuicheEscolhido] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [conexao, setConexao] = useState<EstadoConexao>("conectando");
@@ -135,13 +149,20 @@ export function GuichePage() {
       setTroca("guiche");
     });
 
+  const tenant = tokenStore.getTenant() ?? env.defaultTenant;
+  const unidadeAtual = posto.data?.unidadeId ?? null;
+  const sugestao =
+    unidadeAtual === null ? "" : sugerirGuiche(localStorage.getItem(CHAVE_ULTIMO_GUICHE), tenant, unidadeAtual, guiches.data ?? []);
+  const guicheMarcado = guicheEscolhido ?? sugestao;
+
   // Another user's pendência on the chosen guichê is released only by an explicit choice (RF04): the button says so.
-  const pendenciaEscolhida = guiches.data?.find((g) => g.id === guicheEscolhido)?.pendencia ?? null;
+  const pendenciaEscolhida = guiches.data?.find((g) => g.id === guicheMarcado)?.pendencia ?? null;
 
   const escolherGuiche = () =>
     executar(async () => {
-      if (guicheEscolhido === "") return;
-      await definirGuiche(guicheEscolhido, pendenciaEscolhida !== null);
+      if (guicheMarcado === "" || unidadeAtual === null) return;
+      await definirGuiche(guicheMarcado, pendenciaEscolhida !== null);
+      guardarUltimoGuiche(tenant, unidadeAtual, guicheMarcado);
       hub.current?.entrarNoGuiche();
       setTroca(null);
     });
@@ -177,7 +198,7 @@ export function GuichePage() {
   const trocarPosto = () => {
     setErro(null);
     setUnidadeEscolhida("");
-    setGuicheEscolhido("");
+    setGuicheEscolhido(null);
     setTroca("unidade");
   };
 
@@ -245,7 +266,7 @@ export function GuichePage() {
           <select
             id={idGuiche}
             className={SELECT_CLASSES}
-            value={guicheEscolhido}
+            value={guicheMarcado}
             onChange={(e) => setGuicheEscolhido(e.target.value)}
           >
             <option value="">{guiches.isPending ? "Carregando…" : "Selecione o guichê"}</option>
@@ -263,7 +284,7 @@ export function GuichePage() {
           )}
           <Button
             variant={pendenciaEscolhida ? "destructive" : "default"}
-            disabled={ocupado || guicheEscolhido === ""}
+            disabled={ocupado || guicheMarcado === ""}
             onClick={() => void escolherGuiche()}
           >
             {pendenciaEscolhida ? `Liberar a senha ${pendenciaEscolhida} e usar este guichê` : "Usar este guichê"}
