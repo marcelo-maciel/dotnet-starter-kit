@@ -181,6 +181,29 @@ public sealed class PafConjuntoLicencasTests(FshWebApplicationFactory factory) :
     }
 
     [Fact]
+    public async Task RestauracaoQueChegaDepoisDoLogout_NaoDeixaMembroFantasma()
+    {
+        var unidade = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);
+        var sessao = (await EntrarAsync(await UsuarioDoPafAsync(unidade.UnidadeId)))!.Value;
+        var conjunto = Conjunto();
+        using var scope = factory.Services.CreateScope();
+        var db = _tenant.Contexto(scope, unidadeCorrente: null);
+
+        // Control: with the row in place the restore keeps the member, so the empty set below is the recheck's doing.
+        await Licencas.RestaurarMembroAsync(db, conjunto, _tenant.TenantId, sessao, unidade.UnidadeId, CancellationToken.None);
+        (await MembrosAsync(unidade.UnidadeId)).ShouldBe([ConjuntoLicencas.Membro(sessao)]);
+
+        // The renewal's UPDATE ... RETURNING already gave the unit back when the logout deletes the row and releases
+        // the member; the renewal's restore lands only after that.
+        await NovasLicencas(scope).LiberarAsync(_tenant.TenantId, sessao, CancellationToken.None);
+        (await MembrosAsync(unidade.UnidadeId)).ShouldBeEmpty();
+        await Licencas.RestaurarMembroAsync(db, conjunto, _tenant.TenantId, sessao, unidade.UnidadeId, CancellationToken.None);
+
+        (await MembrosAsync(unidade.UnidadeId)).ShouldBeEmpty("a sessão encerrada não pode voltar a ocupar a vaga pela restauração atrasada");
+        (await EntrarAsync(await UsuarioDoPafAsync(unidade.UnidadeId))).ShouldNotBeNull("a vaga do logout fica livre");
+    }
+
+    [Fact]
     public async Task ValkeyPausado_ModoDegradado_UltimaVagaComOMesmoResultadoEPrazoCurto()
     {
         var unidade = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);

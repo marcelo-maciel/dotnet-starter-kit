@@ -298,8 +298,30 @@ public sealed class Licencas(
             return false;
         }
 
-        await conjunto.RestaurarAsync(tenantId, ConjuntoLicencas.Membro(sessaoId), unidades[0], conjunto.PrazoMembro, ct);
+        await RestaurarMembroAsync(db, conjunto, tenantId, sessaoId, unidades[0], ct);
         return true;
+    }
+
+    /// <summary>
+    /// Devolve o membro da sessão à unidade da marca recém-renovada. Um logout ou uma soltura que apague a linha e
+    /// solte o membro entre a renovação e esta restauração deixaria um membro fantasma por um prazo inteiro: a linha é
+    /// relida depois de restaurar e, se sumiu, o membro sai de novo. <see cref="LiberarAsync"/> só toca o Valkey
+    /// depois de apagar a linha, então toda ordem com ele termina sem o membro. A confirmação de um login novo solta
+    /// os membros das sessões anteriores antes de apagar as linhas delas: ali a janela continua, até o prazo do membro.
+    /// </summary>
+    internal static async Task RestaurarMembroAsync(
+        PafDbContext db, ConjuntoLicencas conjunto, string tenantId, Guid sessaoId, Guid unidadeId, CancellationToken ct)
+    {
+        var membro = ConjuntoLicencas.Membro(sessaoId);
+        await conjunto.RestaurarAsync(tenantId, membro, unidadeId, conjunto.PrazoMembro, ct);
+        var segue = await db.Database.SqlQuery<bool>($"""
+            SELECT EXISTS (SELECT 1 FROM paf."AtividadesSessao"
+                            WHERE "TenantId" = {tenantId} AND "SessaoId" = {sessaoId}) AS "Value"
+            """).SingleAsync(ct);
+        if (!segue)
+        {
+            await conjunto.LiberarAsync(tenantId, membro, ct);
+        }
     }
 
     /// <summary>Solta licença e guichê da sessão numa transação (logout), e depois o membro do conjunto.</summary>

@@ -105,8 +105,8 @@ public sealed partial class RenovacaoPelaConexao(
             }
 
             // The Valkey member follows the mark (S09): a session alive only through its connection keeps its seat.
-            var conjunto = servicos.GetRequiredService<ConjuntoLicencas>();
-            await conjunto.RestaurarAsync(tenantId, ConjuntoLicencas.Membro(sessaoId), unidadeId, conjunto.PrazoMembro, ct).ConfigureAwait(false);
+            await Licencas.RestaurarMembroAsync(db, servicos.GetRequiredService<ConjuntoLicencas>(), tenantId, sessaoId, unidadeId, ct)
+                .ConfigureAwait(false);
 
             await ConferirSessaoAsync(servicos, tenantId, sessaoId, usuarioId, ct).ConfigureAwait(false);
         }
