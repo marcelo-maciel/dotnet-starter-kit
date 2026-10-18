@@ -8,6 +8,7 @@ using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Escopo;
 using FSH.Modules.PAF.Features.v1.Atendimentos;
+using FSH.Modules.PAF.Features.v1.Filas;
 using FSH.Modules.PAF.TempoReal;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
@@ -108,9 +109,17 @@ public sealed partial class EmitirFichaCommandHandler(
         var agora = await PafRelogio.AgoraEmSaoPauloAsync(db, ct).ConfigureAwait(false);
         var hora = TimeOnly.FromDateTime(agora);
         // The window blocks only emission, never the call (RF02); no window crosses midnight.
-        if (emissao.Fila.HoraInicial is { } inicio && emissao.Fila.HoraFinal is { } fim && (hora < inicio || hora > fim))
+        if (!Fila.JanelaPermiteEmissao(emissao.Fila.HoraInicial, emissao.Fila.HoraFinal, hora))
         {
             throw new CustomException(MensagemForaDoHorario, [], HttpStatusCode.Conflict);
+        }
+
+        // Checked inside the transaction, under the shared coverage lock held to commit: a station write that
+        // removes the last guichê waits for this emission, and every emission after it sees the new cadastro.
+        await CoberturaGuiche.TravarParaEmissaoAsync(db, tenantId, emissao.Unidade.Id, ct).ConfigureAwait(false);
+        if (!await CoberturaGuiche.CobreAsync(db, command.FilaId, command.PrioridadeId, ct).ConfigureAwait(false))
+        {
+            throw new CustomException(CoberturaGuiche.MensagemSemCobertura, [], HttpStatusCode.Conflict);
         }
 
         var hoje = DateOnly.FromDateTime(agora);

@@ -19,6 +19,12 @@ public sealed class ListFilasConsolidadasQueryHandler(PafDbContext db, EscopoUsu
     {
         var unidades = await escopo.UnidadesAsync(cancellationToken).ConfigureAwait(false);
 
+        // Coverage of a fila is computed in the fila's own unidade: a guichê of another unidade never lists it.
+        var cobertas = CoberturaGuiche.Pares(
+            db.Estacoes.IgnoreQueryFilters(SoOFiltroDeUnidade),
+            db.EstacaoFilas.IgnoreQueryFilters(SoOFiltroDeUnidade),
+            db.EstacaoPrioridades.IgnoreQueryFilters(SoOFiltroDeUnidade));
+
         return await db.Filas.IgnoreQueryFilters(SoOFiltroDeUnidade).AsNoTracking()
             .Where(f => unidades.Contains(f.UnidadeId))
             .OrderBy(f => f.UnidadeId)
@@ -29,6 +35,11 @@ public sealed class ListFilasConsolidadasQueryHandler(PafDbContext db, EscopoUsu
                     .Where(fp => fp.FilaId == f.Id)
                     .OrderBy(fp => fp.Ordem)
                     .Select(fp => new FilaPrioridadeDto(fp.Id, fp.PrioridadeId, fp.Letra, fp.NumeroInicial, fp.Ordem))
+                    .ToList(),
+                db.FilaPrioridades.IgnoreQueryFilters(SoOFiltroDeUnidade)
+                    .Where(fp => fp.FilaId == f.Id && !cobertas.Any(c => c.FilaId == fp.FilaId && c.PrioridadeId == fp.PrioridadeId))
+                    .OrderBy(fp => fp.Ordem)
+                    .Select(fp => fp.Id)
                     .ToList()))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);

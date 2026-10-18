@@ -1,3 +1,4 @@
+using FSH.Modules.PAF.Contracts.v1.Filas;
 using Mediator;
 
 namespace FSH.Modules.PAF.Contracts.v1.Estacoes;
@@ -31,10 +32,16 @@ public sealed record UpdateEstacaoCommand(
     Guid Id,
     string Nome,
     IReadOnlyList<EstacaoFilaItem> Filas,
-    IReadOnlyList<EstacaoPrioridadeItem> Prioridades) : ICommand<Guid>;
+    IReadOnlyList<EstacaoPrioridadeItem> Prioridades) : ICommand<EstacaoAlteradaDto>;
+
+/// <summary>
+/// <paramref name="CombinacoesSemCobertura"/>: combinations this write left without any guichê (RF02, RF04). A
+/// warning, never a refusal: they leave the emission screens, and the fichas already waiting stay callable.
+/// </summary>
+public sealed record EstacaoAlteradaDto(Guid Id, IReadOnlyList<CombinacaoFilaPrioridadeDto> CombinacoesSemCobertura);
 
 public sealed record EnableEstacaoCommand(Guid Id) : ICommand<Guid>;
 
-public sealed record DisableEstacaoCommand(Guid Id) : ICommand<Guid>;
+public sealed record DisableEstacaoCommand(Guid Id) : ICommand<EstacaoAlteradaDto>;
 
 public sealed record ListEstacoesQuery : IQuery<IReadOnlyList<EstacaoDto>>;

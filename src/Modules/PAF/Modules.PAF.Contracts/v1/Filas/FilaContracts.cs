@@ -4,6 +4,7 @@ namespace FSH.Modules.PAF.Contracts.v1.Filas;
 
 public sealed record FilaPrioridadeDto(Guid Id, Guid PrioridadeId, string Letra, int NumeroInicial, int Ordem);
 
+/// <summary><paramref name="CombinacoesSemCobertura"/>: ids of the <see cref="FilaPrioridadeDto"/> rows that no active guichê covers (RF02).</summary>
 public sealed record FilaDto(
     Guid Id,
     Guid UnidadeId,
@@ -12,7 +13,14 @@ public sealed record FilaDto(
     TimeOnly? HoraInicial,
     TimeOnly? HoraFinal,
     bool Ativa,
-    IReadOnlyList<FilaPrioridadeDto> Prioridades);
+    IReadOnlyList<FilaPrioridadeDto> Prioridades,
+    IReadOnlyList<Guid> CombinacoesSemCobertura);
+
+/// <summary>
+/// A fila x prioridade combination (the <see cref="FilaPrioridadeDto"/> row) named for a warning. Covered means an
+/// active station with the fila in its guichê role and the prioridade enabled (RF02, 03/10/2026).
+/// </summary>
+public sealed record CombinacaoFilaPrioridadeDto(Guid Id, Guid FilaId, string Fila, Guid PrioridadeId, string Prioridade, string Letra);
 
 /// <summary>One line of the fila's priority grid (RF02): the senha letter is unique in the whole unidade.</summary>
 public sealed record FilaPrioridadeItem(Guid PrioridadeId, string Letra, int NumeroInicial, int Ordem);

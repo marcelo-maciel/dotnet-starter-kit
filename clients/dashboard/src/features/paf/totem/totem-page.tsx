@@ -8,12 +8,16 @@ import {
   type FichaEmitidaDto,
 } from "@/features/paf/estacao/estacao-api";
 import { CredencialEstacaoInvalidaError } from "@/features/paf/estacao/estacao-http";
+import { conectarHubEstacao } from "@/features/paf/estacao/hub-estacao";
 import { mensagemAmigavel } from "@/features/paf/paf-erros";
 import { FichaImpressa } from "@/features/paf/totem/ficha-impressa";
 import { ajustarFonteSenha, definirPagina, imprimir, removerPagina } from "@/features/paf/totem/impressao";
 
 const LIMITE_IMPRESSAO_MS = 15_000;
 const TEMPO_CONFIRMACAO_MS = 4_000;
+// ponytail: a fila window opening or closing pushes no notice, so the buttons follow it by this periodic
+// re-read (plus FilaAtualizada); the emission refuses outside the window meanwhile. Upgrade: a scheduled notice.
+const RELEITURA_BOTOES_MS = 60_000;
 
 type Pendente = { chave: string; botao: BotaoEmissao };
 
@@ -48,15 +52,37 @@ export function TotemPage() {
     return true;
   }, []);
 
-  useEffect(() => {
-    if (!vinculado) return;
+  // The server drops buttons outside the fila window or without a guichê covering them (RF02), so the
+  // list is re-read whenever it may have changed instead of being loaded once.
+  const recarregarBotoes = useCallback(() => {
     obterConfiguracaoEmissao().then(
-      (cfg) => setBotoes([...cfg.botoes].sort((a, b) => a.ordem - b.ordem)),
+      (cfg) => {
+        setErroConfiguracao(null);
+        setBotoes([...cfg.botoes].sort((a, b) => a.ordem - b.ordem));
+      },
       (erro: unknown) => {
         if (!tratarCredencial(erro)) setErroConfiguracao(mensagemAmigavel(erro));
       },
     );
-  }, [vinculado, tratarCredencial]);
+  }, [tratarCredencial]);
+
+  useEffect(() => {
+    if (!vinculado) return;
+    recarregarBotoes();
+    const timer = window.setInterval(recarregarBotoes, RELEITURA_BOTOES_MS);
+    const pararHub = conectarHubEstacao({
+      papel: "Emissao",
+      handlers: { FilaAtualizada: () => recarregarBotoes() },
+      aoConectar: recarregarBotoes,
+      // The totem shows no connection state: while offline, the periodic re-read keeps the buttons current.
+      aoMudarEstado: () => undefined,
+      aoPerderCredencial: () => setVinculado(false),
+    });
+    return () => {
+      window.clearInterval(timer);
+      pararHub();
+    };
+  }, [vinculado, recarregarBotoes]);
 
   const emitir = async (botao: BotaoEmissao) => {
     const pendente = pendenteRef.current;
@@ -73,6 +99,8 @@ export function TotemPage() {
       if (falhaDefinitiva(erro)) {
         pendenteRef.current = null;
         setEmissao({ tipo: "ocioso", aviso: mensagemAmigavel(erro) });
+        // A refusal for the window or for lost coverage means this button is stale.
+        recarregarBotoes();
         return;
       }
       setEmissao({
