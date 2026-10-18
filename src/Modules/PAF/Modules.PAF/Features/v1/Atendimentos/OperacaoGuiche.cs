@@ -26,7 +26,17 @@ internal sealed record Guiche(string TenantId, Guid SessaoId, Guid UsuarioId, Es
 
 /// <summary>Atendimento re-read after its ficha's rows were locked; the state check runs on this, never on a read from before the lock.</summary>
 internal sealed record AtendimentoTravado(
-    Guid Id, Guid UnidadeId, Guid FichaId, Guid FilaId, Guid? EstacaoId, EstadoAtendimento Estado, string Letra, int Numero);
+    Guid Id,
+    Guid UnidadeId,
+    Guid FichaId,
+    Guid FilaId,
+    Guid PrioridadeId,
+    Guid? EstacaoId,
+    EstadoAtendimento Estado,
+    string Letra,
+    int Numero,
+    DateTimeOffset CriadoEm,
+    DateOnly DataElegibilidade);
 
 /// <summary>
 /// Shared steps of the guichê operations (seção 8): resolve the guichê from the session, lock every
@@ -47,13 +57,33 @@ internal static class OperacaoGuiche
     }
 
     /// <summary>
-    /// Locks all atendimentos of the ficha (waiting, ascending id: two operations on one ficha ask in the
-    /// same order and never deadlock) and re-reads the target. Only the guichê that holds it may act on it.
+    /// The guichê's entry to <see cref="TravarFichaAsync"/>: an atendimento this guichê does not hold answers 404
+    /// before any lock, so a guichê never waits on a ficha that is not its own.
     /// </summary>
     public static async Task<AtendimentoTravado> TravarAsync(PafDbContext db, Guiche guiche, Guid atendimentoId, CancellationToken ct)
     {
+        var doGuiche = await db.Atendimentos.AsNoTracking()
+            .AnyAsync(a => a.Id == atendimentoId && a.EstacaoId == guiche.Estacao.Id, ct)
+            .ConfigureAwait(false);
+        if (!doGuiche)
+        {
+            throw new NotFoundException(MensagensGuiche.MensagemNaoEncontrado);
+        }
+
+        return await TravarFichaAsync(db, guiche.TenantId, atendimentoId, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Locks all atendimentos of the ficha (waiting, ascending id: two operations on one ficha ask in the same
+    /// order whichever atendimento they entered by, so they never deadlock) and re-reads the target under the
+    /// lock. Needs no guichê: the RF12 paths outside it enter here too. An atendimento of another unit is not
+    /// found, because the first read goes through the unit filter.
+    /// </summary>
+    public static async Task<AtendimentoTravado> TravarFichaAsync(PafDbContext db, string tenantId, Guid atendimentoId, CancellationToken ct)
+    {
+        ExigirTransacao(db);
         var fichaId = await db.Atendimentos.AsNoTracking()
-            .Where(a => a.Id == atendimentoId && a.EstacaoId == guiche.Estacao.Id)
+            .Where(a => a.Id == atendimentoId)
             .Select(a => (Guid?)a.FichaId)
             .FirstOrDefaultAsync(ct)
             .ConfigureAwait(false)
@@ -62,7 +92,7 @@ internal static class OperacaoGuiche
         // Raw SQL skips the global filters: tenant is explicit, and the ficha id came from a filtered read.
         await db.Database.SqlQuery<Guid>($"""
             SELECT "Id" AS "Value" FROM paf."Atendimentos"
-             WHERE "TenantId" = {guiche.TenantId} AND "FichaId" = {fichaId}
+             WHERE "TenantId" = {tenantId} AND "FichaId" = {fichaId}
              ORDER BY "Id"
                FOR UPDATE
             """).ToListAsync(ct).ConfigureAwait(false);
@@ -71,9 +101,32 @@ internal static class OperacaoGuiche
                 from a in db.Atendimentos.AsNoTracking()
                 join f in db.Fichas.AsNoTracking() on a.FichaId equals f.Id
                 where a.Id == atendimentoId
-                select new AtendimentoTravado(a.Id, a.UnidadeId, a.FichaId, a.FilaId, a.EstacaoId, a.Estado, f.Letra, f.Numero))
+                select new AtendimentoTravado(
+                    a.Id, a.UnidadeId, a.FichaId, a.FilaId, a.PrioridadeId, a.EstacaoId, a.Estado, f.Letra, f.Numero,
+                    a.CriadoEm, a.DataElegibilidade))
             .SingleAsync(ct)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Releases the link of a deactivated station (L18) in the caller's transaction, after its atendimento left the
+    /// in-progress states; an active station keeps its link. Keyed by station, not by session, because the RF12
+    /// paths outside the guichê also end atendimentos on it. Returns the released link's session, null when
+    /// nothing was released or the link belonged to a grant.
+    /// </summary>
+    public static async Task<Guid?> SoltarVinculoDeEstacaoInativaAsync(PafDbContext db, string tenantId, Guid estacaoId, CancellationToken ct)
+    {
+        ExigirTransacao(db);
+
+        // Ativa is read by this statement, inside the transaction, never from a read taken before it.
+        var soltos = await db.Database.SqlQuery<Guid?>($"""
+            UPDATE paf."SessoesEstacao" v SET "LiberadoEm" = now()
+              FROM paf."Estacoes" e
+             WHERE v."TenantId" = {tenantId} AND v."EstacaoId" = {estacaoId} AND v."LiberadoEm" IS NULL
+               AND e."TenantId" = v."TenantId" AND e."Id" = v."EstacaoId" AND NOT e."Ativa"
+            RETURNING v."SessaoId" AS "Value"
+            """).ToListAsync(ct).ConfigureAwait(false);
+        return soltos.Count == 0 ? null : soltos[0];
     }
 
     public static void ExigirEstado(AtendimentoTravado atendimento, Guiche guiche, EstadoAtendimento esperado, string mensagem)
@@ -129,6 +182,11 @@ internal static class OperacaoGuiche
         AtendimentoAtualizadoPaf.Criar(guiche.TenantId, Correlacao(), new AtendimentoAtualizado(
             Guid.CreateVersion7(), atendimento.UnidadeId, atendimento.Id, atendimento.FichaId, versao, estado.ToString(), guiche.Estacao.Id));
 
+    /// <summary>For the paths outside the guichê: the notice names the station the atendimento was on, if any.</summary>
+    public static AtendimentoAtualizadoPaf AvisoDeEstado(string tenantId, AtendimentoTravado atendimento, int versao, EstadoAtendimento estado) =>
+        AtendimentoAtualizadoPaf.Criar(tenantId, Correlacao(), new AtendimentoAtualizado(
+            Guid.CreateVersion7(), atendimento.UnidadeId, atendimento.Id, atendimento.FichaId, versao, estado.ToString(), atendimento.EstacaoId));
+
     /// <summary>Letter followed by the raw number, no zero padding (seção 4.1).</summary>
     public static string Senha(string letra, int numero) =>
         string.Create(CultureInfo.InvariantCulture, $"{letra}{numero}");
@@ -136,4 +194,13 @@ internal static class OperacaoGuiche
     public static string Correlacao() => Activity.Current?.Id ?? Guid.NewGuid().ToString();
 
     public static CustomException Conflito(string mensagem) => new(mensagem, [], HttpStatusCode.Conflict);
+
+    // FOR UPDATE outside a transaction autocommits and holds nothing; fail loudly instead of locking nothing.
+    private static void ExigirTransacao(PafDbContext db)
+    {
+        if (db.Database.CurrentTransaction is null)
+        {
+            throw new InvalidOperationException("O travamento da ficha exige transação aberta.");
+        }
+    }
 }
