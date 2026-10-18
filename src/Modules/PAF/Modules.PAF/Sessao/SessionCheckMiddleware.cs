@@ -123,7 +123,7 @@ internal sealed class SessionCheckMiddleware(RequestDelegate next)
         // act; this check covers a revocation that failed half-way. A disabled unit is not checked here: sessions
         // already open in it run until they end (RF08, RF22).
         var revogacao = servicos.GetRequiredService<RevogacaoSessao>();
-        if (!await licencas.NoEscopoAsync(usuarioId, unidadeCorrente, ct))
+        if (!await servicos.GetRequiredService<EscopoUsuario>().ContemAsync(usuarioId, unidadeCorrente, ct))
         {
             await revogacao.RevogarAsync(tenantId, sessaoId, usuarioId, RevogacaoSessao.MotivoUnidadeRetirada, ct);
             throw new UnauthorizedException(RevogacaoSessao.MensagemUnidadeRetirada);

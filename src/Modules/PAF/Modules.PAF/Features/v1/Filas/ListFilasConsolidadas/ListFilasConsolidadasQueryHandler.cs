@@ -17,7 +17,7 @@ public sealed class ListFilasConsolidadasQueryHandler(PafDbContext db, EscopoUsu
 
     public async ValueTask<IReadOnlyList<FilaDto>> Handle(ListFilasConsolidadasQuery query, CancellationToken cancellationToken)
     {
-        var unidades = await escopo.UnidadesAsync(cancellationToken).ConfigureAwait(false);
+        var unidades = await escopo.EscopoEfetivoAsync(escopo.ObterUsuarioId(), cancellationToken).ConfigureAwait(false);
 
         // Coverage of a fila is computed in the fila's own unidade: a guichê of another unidade never lists it.
         var cobertas = CoberturaGuiche.Pares(

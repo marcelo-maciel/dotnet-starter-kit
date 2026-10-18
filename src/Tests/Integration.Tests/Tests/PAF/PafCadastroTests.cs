@@ -218,26 +218,26 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
         var u1 = await _api.CriarUnidadeAsync(root);
         var u2 = await _api.CriarUnidadeAsync(root);
 
-        var atual = await PafApi.OkAsync<List<UsuarioUnidadeDto>>(root, HttpMethod.Get, $"/usuarios/{adminId}/unidades", null, null);
+        var atual = (await PafApi.OkAsync<EscopoUsuarioDto>(root, HttpMethod.Get, $"/usuarios/{adminId}/unidades", null, null)).Unidades;
         var reordenada = atual.Select(u => u.UnidadeId).Where(u => u != u2).Prepend(u2).ToList();
-        await PafApi.OkAsync<Guid>(root, HttpMethod.Put, $"/usuarios/{adminId}/unidades", null, new SetUsuarioUnidadesCommand(adminId, reordenada));
+        await PafApi.OkAsync<Guid>(root, HttpMethod.Put, $"/usuarios/{adminId}/unidades", null, new SetUsuarioUnidadesCommand(adminId, reordenada, false));
 
-        var depois = await PafApi.OkAsync<List<UsuarioUnidadeDto>>(root, HttpMethod.Get, $"/usuarios/{adminId}/unidades", null, null);
+        var depois = (await PafApi.OkAsync<EscopoUsuarioDto>(root, HttpMethod.Get, $"/usuarios/{adminId}/unidades", null, null)).Unidades;
         depois[0].ShouldBe(new UsuarioUnidadeDto(u2, 0));
         depois.ShouldContain(new UsuarioUnidadeDto(u1, reordenada.IndexOf(u1)));
 
-        // Root holds Unidades.Create, so it grants any active unidade of the tenant; one that does not exist is
-        // refused. The subset rule for callers without it is in PafEscopoConcessaoTests.
+        // Root holds Unidades.Create, so it administers the tenant and grants any active unidade; one that does not
+        // exist is refused. The subset rule for callers who do not administer the tenant is in PafEscopoConcessaoTests.
         using var foraDoEscopo = await PafApi.EnviarAsync(root, HttpMethod.Put, $"/usuarios/{adminId}/unidades", null,
-            new SetUsuarioUnidadesCommand(adminId, [.. reordenada, Guid.NewGuid()]));
+            new SetUsuarioUnidadesCommand(adminId, [.. reordenada, Guid.NewGuid()], false));
         foraDoEscopo.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
         using var vazia = await PafApi.EnviarAsync(root, HttpMethod.Put, $"/usuarios/{adminId}/unidades", null,
-            new SetUsuarioUnidadesCommand(adminId, []));
+            new SetUsuarioUnidadesCommand(adminId, [], false));
         vazia.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
         using var usuarioInexistente = await PafApi.EnviarAsync(root, HttpMethod.Put, $"/usuarios/{Guid.NewGuid()}/unidades", null,
-            new SetUsuarioUnidadesCommand(Guid.Empty, [u1]));
+            new SetUsuarioUnidadesCommand(Guid.Empty, [u1], false));
         usuarioInexistente.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 }

@@ -134,6 +134,10 @@ public sealed class UsuarioUnidadeConfiguration : IEntityTypeConfiguration<Usuar
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).ValueGeneratedNever();
         builder.HasIndex(x => new { x.UsuarioId, x.UnidadeId }).IsUnique().HasDatabaseName("UX_UsuariosUnidade_UsuarioUnidade");
+
+        // UX_UsuariosUnidade_Ordem (UsuarioId, Ordem, TenantId) lives only in the migration, as a DEFERRABLE INITIALLY
+        // DEFERRED constraint so a reorder swapping two positions is checked at commit. Not declared here: Npgsql has
+        // no fluent API for it, and as a model index EF refuses the swap as a circular dependency before PostgreSQL.
         builder.HasOne<Unidade>().WithMany().HasForeignKey(x => x.UnidadeId).OnDelete(DeleteBehavior.Restrict);
         builder.Ignore(x => x.DomainEvents);
     }

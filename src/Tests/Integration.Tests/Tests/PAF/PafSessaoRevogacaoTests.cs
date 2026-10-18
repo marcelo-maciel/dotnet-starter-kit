@@ -51,7 +51,7 @@ public sealed class PafSessaoRevogacaoTests(FshWebApplicationFactory factory) : 
         using var operador = await OperadorRaizComEscopoAsync(u1.UnidadeId, u2.UnidadeId);
 
         await PafApi.OkAsync<Guid>(operador, HttpMethod.Put, $"/usuarios/{usuario.UserId}/unidades", null,
-            new SetUsuarioUnidadesCommand(Guid.Parse(usuario.UserId), [u2.UnidadeId]));
+            new SetUsuarioUnidadesCommand(Guid.Parse(usuario.UserId), [u2.UnidadeId], false));
 
         (await _tenant.AtividadesAsync(Guid.Parse(usuario.UserId))).ShouldBeEmpty();
         (await SessaoAtivaAsync(_tenant.TenantId, PafTenantCliente.SessaoDoToken(token.AccessToken))).ShouldBeFalse();
@@ -68,7 +68,7 @@ public sealed class PafSessaoRevogacaoTests(FshWebApplicationFactory factory) : 
         using var operador = await OperadorRaizComEscopoAsync(u1.UnidadeId, u2.UnidadeId);
 
         await PafApi.OkAsync<Guid>(operador, HttpMethod.Put, $"/usuarios/{usuario.UserId}/unidades", null,
-            new SetUsuarioUnidadesCommand(Guid.Parse(usuario.UserId), [u1.UnidadeId]));
+            new SetUsuarioUnidadesCommand(Guid.Parse(usuario.UserId), [u1.UnidadeId], false));
 
         (await cliente.GetAsync(Perfil)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await _tenant.AtividadesAsync(Guid.Parse(usuario.UserId))).ShouldHaveSingleItem();

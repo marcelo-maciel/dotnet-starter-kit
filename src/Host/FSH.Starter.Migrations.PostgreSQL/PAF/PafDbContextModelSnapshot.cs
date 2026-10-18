@@ -587,6 +587,33 @@ namespace FSH.Starter.Migrations.PostgreSQL.PAF
                     b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
+            modelBuilder.Entity("FSH.Modules.PAF.Domain.PerfilUsuario", b =>
+                {
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EscopoEmpresa")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Funcao")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("Ramal")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("UsuarioId");
+
+                    b.ToTable("PerfisUsuario", "paf");
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
             modelBuilder.Entity("FSH.Modules.PAF.Domain.Prioridade", b =>
                 {
                     b.Property<Guid>("Id")

@@ -86,6 +86,42 @@ internal sealed class PafTenantCliente(FshWebApplicationFactory factory, string 
         return new UnidadeTeste(unidade.Id, guicheA.Id, guicheB.Id);
     }
 
+    /// <summary>
+    /// Usuário de escopo empresa com a principal dada, gravado direto no banco: pela API só outro escopo empresa
+    /// concede escopo empresa, e o primeiro do tenant vem do tratador da criação do tenant (RF23).
+    /// </summary>
+    public async Task<SeededUser> CriarUsuarioEmpresaAsync(Guid principal)
+    {
+        var usuario = await CriarUsuarioAsync(principal);
+        using var scope = factory.Services.CreateScope();
+        var db = Contexto(scope, unidadeCorrente: null);
+        var perfil = PerfilUsuario.Criar(Guid.Parse(usuario.UserId));
+        perfil.DefinirEscopoEmpresa();
+        db.PerfisUsuario.Add(perfil);
+        await db.SaveChangesAsync();
+        return usuario;
+    }
+
+    /// <summary>Papel novo com as permissões dadas, atribuído ao usuário pela API do kit.</summary>
+    public async Task DarPapelAsync(string usuarioId, params string[] permissoes)
+    {
+        var nome = $"paf-papel-{Guid.NewGuid():N}"[..20];
+        using var criar = await Admin.PostAsJsonAsync($"{TestConstants.IdentityBasePath}/roles", new { id = string.Empty, name = nome, description = "PAF teste" });
+        criar.StatusCode.ShouldBe(HttpStatusCode.OK, await criar.Content.ReadAsStringAsync());
+        using var json = System.Text.Json.JsonDocument.Parse(await criar.Content.ReadAsStringAsync());
+        var papelId = json.RootElement.GetProperty("id").GetString()!;
+
+        using var definir = await Admin.PutAsJsonAsync($"{TestConstants.IdentityBasePath}/{papelId}/permissions", new { roleId = papelId, permissions = permissoes });
+        definir.StatusCode.ShouldBe(HttpStatusCode.OK, await definir.Content.ReadAsStringAsync());
+
+        using var atribuir = await Admin.PostAsJsonAsync($"{TestConstants.IdentityBasePath}/users/{usuarioId}/roles", new
+        {
+            userId = usuarioId,
+            userRoles = new[] { new { roleName = nome, enabled = true } },
+        });
+        atribuir.StatusCode.ShouldBe(HttpStatusCode.OK, await atribuir.Content.ReadAsStringAsync());
+    }
+
     /// <summary>Usuário com login confirmado e escopo nas unidades dadas, a primeira como principal.</summary>
     public async Task<SeededUser> CriarUsuarioAsync(params Guid[] unidades)
     {

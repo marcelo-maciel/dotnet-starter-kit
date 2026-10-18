@@ -3,9 +3,7 @@ using System.Security.Claims;
 using FSH.Framework.Core.Exceptions;
 using FSH.Framework.Shared.Identity.Claims;
 using FSH.Modules.PAF.Contracts.Authorization;
-using FSH.Modules.PAF.Data;
 using Microsoft.AspNetCore.Http;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -16,7 +14,7 @@ namespace FSH.Modules.PAF.Escopo;
 /// unidade is set by <c>ConferenciaRequisicaoMiddleware</c>; here a <see cref="Cabecalho"/> naming another
 /// unidade is refused. A person with a PAF session has the unidade set by <c>SessionCheckMiddleware</c>, and
 /// the header is ignored. Only a person without one (root tenant, root operator in a client tenant) uses the
-/// header, accepted when the unidade is in the person's <c>UsuarioUnidade</c> scope. Without any source,
+/// header, accepted when the unidade is in the person's effective scope (<see cref="EscopoUsuario"/>). Without any source,
 /// nothing is set and the unit filter returns no rows.
 /// </summary>
 public sealed partial class UnidadeCorrenteMiddleware(RequestDelegate next, ILogger<UnidadeCorrenteMiddleware> logger)
@@ -86,10 +84,9 @@ public sealed partial class UnidadeCorrenteMiddleware(RequestDelegate next, ILog
             throw new ForbiddenException("Unidade fora do escopo do usuário.");
         }
 
-        // UsuarioUnidade has no unit filter (tenant only), so it is readable before the current unit exists.
-        var db = context.RequestServices.GetRequiredService<PafDbContext>();
-        bool noEscopo = await db.UsuariosUnidade.AsNoTracking()
-            .AnyAsync(u => u.UsuarioId == usuarioId && u.UnidadeId == unidadeId, context.RequestAborted)
+        // The scope tables have no unit filter (tenant only), so they are readable before the current unit exists.
+        bool noEscopo = await context.RequestServices.GetRequiredService<EscopoUsuario>()
+            .ContemAsync(usuarioId, unidadeId, context.RequestAborted)
             .ConfigureAwait(false);
         if (!noEscopo)
         {

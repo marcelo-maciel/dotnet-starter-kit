@@ -8,19 +8,16 @@ using Microsoft.EntityFrameworkCore;
 namespace FSH.Modules.PAF.Escopo;
 
 /// <summary>
-/// The caller's ordered unidade scope (<c>UsuarioUnidade</c>). Scope is also the boundary of what the
-/// caller may grant or edit, checked here on the server and never trusted from the screen (arquitetura seção 5).
+/// A user's effective unidade scope (RF08, ADR 0006): the single definition read by the middlewares, the unit
+/// switch, the lists and the scope edits. "Unidades selecionadas" is the <c>UsuarioUnidade</c> list in its order;
+/// "escopo empresa" is the principal row and then every unidade of the tenant by creation, including the ones
+/// created after the user. Scope is also the boundary of what a caller may grant or edit, checked here on the
+/// server and never trusted from the screen (arquitetura seção 5).
 /// </summary>
 public sealed class EscopoUsuario(PafDbContext db, ICurrentUser currentUser, IUserPermissionService permissoes)
 {
-    /// <summary>
-    /// The tenant admin of RF08 reads, grants and edits the scope of any user with any active unidade of the
-    /// tenant, outside the subset rule (decision of 17/10/2026).
-    /// </summary>
-    // ponytail: Unidades.Create stands for the tenant admin in the first slice; slice 2 replaces this criterion
-    // with the RF08 "escopo empresa" (sees every unidade, including the ones created later).
-    public Task<bool> AdministraTenantAsync(CancellationToken cancellationToken) =>
-        permissoes.HasPermissionAsync(ObterUsuarioId().ToString(), PafPermissions.Unidades.Create, cancellationToken);
+    public const string MensagemForaDoEscopo = "Unidade fora do escopo do usuário.";
+    public const string MensagemAlvoForaDoAlcance = "Usuário com unidade fora do escopo de quem consulta.";
 
     public Guid ObterUsuarioId()
     {
@@ -28,26 +25,82 @@ public sealed class EscopoUsuario(PafDbContext db, ICurrentUser currentUser, IUs
         return usuarioId == Guid.Empty ? throw new ForbiddenException("Usuário não identificado.") : usuarioId;
     }
 
-    public async Task<IReadOnlyList<Guid>> UnidadesAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// The tenant admin of RF08 reads and edits any user, grants any active unidade of the tenant and grants escopo
+    /// empresa: the escopo empresa profile, or the holder of Unidades.Create (decision of 17/10/2026, option A), who
+    /// keeps administering the tenant while no escopo empresa profile exists yet (RF23 seeds the first one).
+    /// </summary>
+    public async Task<bool> AdministraTenantAsync(CancellationToken cancellationToken)
     {
         var usuarioId = ObterUsuarioId();
-        return await db.UsuariosUnidade.AsNoTracking()
+        return await EscopoEmpresaAsync(usuarioId, cancellationToken).ConfigureAwait(false)
+            || await permissoes.HasPermissionAsync(usuarioId.ToString(), PafPermissions.Unidades.Create, cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task<bool> EscopoEmpresaAsync(Guid usuarioId, CancellationToken cancellationToken) =>
+        db.PerfisUsuario.AsNoTracking().AnyAsync(p => p.UsuarioId == usuarioId && p.EscopoEmpresa, cancellationToken);
+
+    /// <summary>Principal first. Inactive unidades stay in: scope says where the user may be, not where a login opens.</summary>
+    public async Task<IReadOnlyList<Guid>> EscopoEfetivoAsync(Guid usuarioId, CancellationToken cancellationToken)
+    {
+        var lista = await db.UsuariosUnidade.AsNoTracking()
             .Where(u => u.UsuarioId == usuarioId)
             .OrderBy(u => u.Ordem)
             .Select(u => u.UnidadeId)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+
+        // An empresa profile without its principal row has no defined start: fail-closed, like an empty list.
+        if (lista.Count == 0 || !await EscopoEmpresaAsync(usuarioId, cancellationToken).ConfigureAwait(false))
+        {
+            return lista;
+        }
+
+        var principal = lista[0];
+        var demais = await db.Unidades.AsNoTracking()
+            .Where(u => u.Id != principal)
+            .OrderBy(u => u.CriadoEm)
+            .ThenBy(u => u.Id)
+            .Select(u => u.Id)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return [principal, .. demais];
+    }
+
+    public async Task<bool> ContemAsync(Guid usuarioId, Guid unidadeId, CancellationToken cancellationToken) =>
+        (await EscopoEfetivoAsync(usuarioId, cancellationToken).ConfigureAwait(false)).Contains(unidadeId);
+
+    /// <summary>
+    /// RF08: the caller only reads or edits a user whose whole effective scope fits in his own, so an escopo
+    /// empresa user is reached only by the tenant admin, never by a list caller, even one holding every unidade.
+    /// </summary>
+    public async Task ExigirAlcanceSobreAsync(Guid usuarioAlvoId, CancellationToken cancellationToken)
+    {
+        if (await AdministraTenantAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        var chamadorId = ObterUsuarioId();
+
+        if (await EscopoEmpresaAsync(usuarioAlvoId, cancellationToken).ConfigureAwait(false))
+        {
+            throw new ForbiddenException(MensagemAlvoForaDoAlcance);
+        }
+
+        var doChamador = (await EscopoEfetivoAsync(chamadorId, cancellationToken).ConfigureAwait(false)).ToHashSet();
+        var doAlvo = await EscopoEfetivoAsync(usuarioAlvoId, cancellationToken).ConfigureAwait(false);
+        if (!doAlvo.All(doChamador.Contains))
+        {
+            throw new ForbiddenException(MensagemAlvoForaDoAlcance);
+        }
     }
 
     public async Task ExigirAsync(Guid unidadeId, CancellationToken cancellationToken)
     {
-        var usuarioId = ObterUsuarioId();
-        bool contem = await db.UsuariosUnidade.AsNoTracking()
-            .AnyAsync(u => u.UsuarioId == usuarioId && u.UnidadeId == unidadeId, cancellationToken)
-            .ConfigureAwait(false);
-        if (!contem)
+        if (!await ContemAsync(ObterUsuarioId(), unidadeId, cancellationToken).ConfigureAwait(false))
         {
-            throw new ForbiddenException("Unidade fora do escopo do usuário.");
+            throw new ForbiddenException(MensagemForaDoEscopo);
         }
     }
 }

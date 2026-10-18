@@ -277,9 +277,6 @@ public sealed class Licencas(
     public Task<bool> UsuarioDoPafAsync(Guid usuarioId, CancellationToken ct) =>
         db.UsuariosUnidade.AsNoTracking().AnyAsync(u => u.UsuarioId == usuarioId, ct);
 
-    public Task<bool> NoEscopoAsync(Guid usuarioId, Guid unidadeId, CancellationToken ct) =>
-        db.UsuariosUnidade.AsNoTracking().AnyAsync(u => u.UsuarioId == usuarioId && u.UnidadeId == unidadeId, ct);
-
     /// <summary>
     /// Renova a marca de sessão viva e o membro do conjunto, no máximo uma escrita por intervalo; verdadeiro
     /// quando escreveu. O membro volta à unidade da linha mesmo se tinha sumido do Valkey, sem cascata (seção 9):

@@ -17,7 +17,8 @@ public sealed class SetUnidadeCorrenteCommandHandler(
     PafDbContext db,
     SessaoCorrente sessao,
     IUnidadeCorrente unidadeCorrente,
-    EstadoSessao estado) : ICommandHandler<SetUnidadeCorrenteCommand>
+    EstadoSessao estado,
+    EscopoUsuario escopo) : ICommandHandler<SetUnidadeCorrenteCommand>
 {
     public const string MensagemForaDoEscopo = "Esta unidade não faz parte do seu acesso.";
     public const string MensagemUnidadeInativa = "Esta unidade está inativa.";
@@ -29,9 +30,7 @@ public sealed class SetUnidadeCorrenteCommandHandler(
         ArgumentNullException.ThrowIfNull(command);
         var (tenantId, sessaoId, usuarioId) = sessao.Exigir();
 
-        var noEscopo = await db.UsuariosUnidade.AsNoTracking()
-            .AnyAsync(u => u.UsuarioId == usuarioId && u.UnidadeId == command.UnidadeId, cancellationToken);
-        if (!noEscopo)
+        if (!await escopo.ContemAsync(usuarioId, command.UnidadeId, cancellationToken))
         {
             throw new ForbiddenException(MensagemForaDoEscopo);
         }

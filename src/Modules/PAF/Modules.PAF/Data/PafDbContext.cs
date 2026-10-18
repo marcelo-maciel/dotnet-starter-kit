@@ -49,6 +49,7 @@ public sealed class PafDbContext : BaseDbContext
     public DbSet<Parametro> Parametros => Set<Parametro>();
     public DbSet<ContratoUnidade> ContratosUnidade => Set<ContratoUnidade>();
     public DbSet<UsuarioUnidade> UsuariosUnidade => Set<UsuarioUnidade>();
+    public DbSet<PerfilUsuario> PerfisUsuario => Set<PerfilUsuario>();
     public DbSet<SessaoEstacao> SessoesEstacao => Set<SessaoEstacao>();
     public DbSet<AtividadeSessao> AtividadesSessao => Set<AtividadeSessao>();
     public DbSet<AtoImpersonacao> AtosImpersonacao => Set<AtoImpersonacao>();
