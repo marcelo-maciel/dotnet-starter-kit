@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { serializarUltimoGuiche, sugerirGuiche } from "./guiche-sugestao.ts";
 
-const ATIVOS = [{ id: "g1" }, { id: "g2" }, { id: "g3" }];
+const ATIVOS = [{ id: "g1", pendencia: null }, { id: "g2", pendencia: null }, { id: "g3", pendencia: null }];
 const SALVO_G2 = serializarUltimoGuiche("loja-x", "u-a", "g2");
 
 test("guichê salvo para o mesmo tenant e unidade e ainda ativo é sugerido", () => {
@@ -20,7 +20,7 @@ test("guichê salvo em outro tenant não é sugerido, mesmo com a mesma unidade 
 });
 
 test("guichê desativado ou ausente da lista de ativos não é sugerido", () => {
-  assert.equal(sugerirGuiche(SALVO_G2, "loja-x", "u-a", [{ id: "g1" }, { id: "g3" }]), "");
+  assert.equal(sugerirGuiche(SALVO_G2, "loja-x", "u-a", [{ id: "g1", pendencia: null }, { id: "g3", pendencia: null }]), "");
   assert.equal(sugerirGuiche(SALVO_G2, "loja-x", "u-a", []), "");
 });
 
@@ -54,5 +54,10 @@ test("a gravação seguinte substitui a anterior", () => {
 
 test("tenant, unidade e id com aspas e acentos sobrevivem à ida e volta", () => {
   const salvo = serializarUltimoGuiche('lo"ja', "unidade-ç", 'g"2');
-  assert.equal(sugerirGuiche(salvo, 'lo"ja', "unidade-ç", [{ id: 'g"2' }]), 'g"2');
+  assert.equal(sugerirGuiche(salvo, 'lo"ja', "unidade-ç", [{ id: 'g"2', pendencia: null }]), 'g"2');
+});
+
+test("guichê com pendência de outro usuário não é pré-marcado, para a liberação ser escolha explícita", () => {
+  const comPendencia = [{ id: "g1", pendencia: null }, { id: "g2", pendencia: "A012" }];
+  assert.equal(sugerirGuiche(SALVO_G2, "loja-x", "u-a", comPendencia), "");
 });

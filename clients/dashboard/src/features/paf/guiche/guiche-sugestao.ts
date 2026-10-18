@@ -29,15 +29,17 @@ function lerUltimoGuiche(bruto: string): UltimoGuiche | null {
 /**
  * The guichê id to pre-mark, or "" for none. Only a guichê saved for this tenant and unidade that is still in
  * the list of active guichês of the current unidade is suggested, so a deactivated or foreign one never is.
+ * A guichê holding another user's pendência is never pre-marked: selecting it cancels that atendimento (RF04,
+ * RF12), and that has to be a choice the user makes in the select, not a click on a pre-filled button.
  */
 export function sugerirGuiche(
   bruto: string | null,
   tenant: string,
   unidadeId: string,
-  guiches: readonly { id: string }[],
+  guiches: readonly { id: string; pendencia: string | null }[],
 ): string {
   if (bruto === null) return "";
   const ultimo = lerUltimoGuiche(bruto);
   if (ultimo === null || ultimo.tenant !== tenant || ultimo.unidadeId !== unidadeId) return "";
-  return guiches.some((g) => g.id === ultimo.estacaoId) ? ultimo.estacaoId : "";
+  return guiches.some((g) => g.id === ultimo.estacaoId && g.pendencia === null) ? ultimo.estacaoId : "";
 }
