@@ -38,6 +38,9 @@ internal sealed record AtendimentoTravado(
     DateTimeOffset CriadoEm,
     DateOnly DataElegibilidade);
 
+/// <summary>Result of the RF12 cancel: the new version and the notices to write before the commit and send after it.</summary>
+internal sealed record AtendimentoCancelado(Guid AtendimentoId, int Versao, IReadOnlyList<AvisoPaf> Avisos);
+
 /// <summary>
 /// Shared steps of the guichê operations (seção 8): resolve the guichê from the session, lock every
 /// atendimento row of the ficha in ascending id order, re-validate, then write with the PostgreSQL clock.
@@ -156,12 +159,17 @@ internal static class OperacaoGuiche
     /// Releases the other waiting atendimentos of the same ficha (seção 8 item 4): ElegivelDesde is rewritten
     /// and DataElegibilidade follows as a generated column; DataOperacional never moves. Runs under the lock.
     /// </summary>
-    public static Task<int> LiberarPendentesAsync(PafDbContext db, Guiche guiche, AtendimentoTravado atendimento, CancellationToken ct) =>
-        db.Database.ExecuteSqlAsync($"""
+    public static Task<List<Guid>> LiberarPendentesAsync(PafDbContext db, Guiche guiche, AtendimentoTravado atendimento, CancellationToken ct) =>
+        LiberarPendentesAsync(db, guiche.TenantId, atendimento, ct);
+
+    /// <summary>Same release for the paths outside the guichê; returns the filas of the released atendimentos.</summary>
+    public static Task<List<Guid>> LiberarPendentesAsync(PafDbContext db, string tenantId, AtendimentoTravado atendimento, CancellationToken ct) =>
+        db.Database.SqlQuery<Guid>($"""
             UPDATE paf."Atendimentos" SET "ElegivelDesde" = now()
-             WHERE "TenantId" = {guiche.TenantId} AND "FichaId" = {atendimento.FichaId}
+             WHERE "TenantId" = {tenantId} AND "FichaId" = {atendimento.FichaId}
                AND "Id" <> {atendimento.Id} AND "Estado" = 'Aguardando'
-            """, ct);
+            RETURNING "FilaId" AS "Value"
+            """).ToListAsync(ct);
 
     /// <summary>Active painéis of the unit whose painel list includes the fila (RF04, bloco Painel Chamador).</summary>
     public static Task<List<Guid>> PaineisDaFilaAsync(PafDbContext db, Guid filaId, CancellationToken ct) =>
@@ -194,6 +202,80 @@ internal static class OperacaoGuiche
     public static string Correlacao() => Activity.Current?.Id ?? Guid.NewGuid().ToString();
 
     public static CustomException Conflito(string mensagem) => new(mensagem, [], HttpStatusCode.Conflict);
+
+    // ─── F04: cancelamento do RF12, fora do guichê ──────────────────
+
+    public const string MensagemNaoCancelavel = "O atendimento já foi encerrado ou cancelado e não pode ser cancelado.";
+
+    /// <summary>
+    /// The RF12 cancel (requisitos seção 4 item 5, ARQ l.290-294): locks the ficha's rows and cancels the atendimento in
+    /// any non-terminal state, with or without a guichê. Runs in the caller's transaction; the notices it returns are
+    /// for <see cref="ConfirmarEAvisarTodosAsync"/>.
+    /// </summary>
+    public static async Task<AtendimentoCancelado> CancelarAsync(PafDbContext db, string tenantId, Guid atendimentoId, CancellationToken ct)
+    {
+        var atendimento = await TravarFichaAsync(db, tenantId, atendimentoId, ct).ConfigureAwait(false);
+        return await CancelarTravadoAsync(db, tenantId, atendimento, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The cancel's write, for a caller that already holds the ficha lock (<see cref="TravarFichaAsync"/>) and judged
+    /// the state it read under it. Only a Chamado or EmAtendimento releases the ficha's waiting atendimentos: an
+    /// Aguardando never held the exclusivity, so its siblings stay as they are.
+    /// </summary>
+    public static async Task<AtendimentoCancelado> CancelarTravadoAsync(PafDbContext db, string tenantId, AtendimentoTravado atendimento, CancellationToken ct)
+    {
+        ExigirTransacao(db);
+        if (atendimento.Estado is not (EstadoAtendimento.Aguardando or EstadoAtendimento.Chamado or EstadoAtendimento.EmAtendimento))
+        {
+            throw Conflito(MensagemNaoCancelavel);
+        }
+
+        // The state guard repeats the check above: under the lock it never misses, and if it did, zero rows is a 409, not an overwrite.
+        var versoes = await db.Database.SqlQuery<int>($"""
+            UPDATE paf."Atendimentos"
+               SET "Estado" = 'Cancelado', "CanceladoEm" = now(), "Versao" = "Versao" + 1
+             WHERE "TenantId" = {tenantId} AND "Id" = {atendimento.Id}
+               AND "Estado" IN ('Aguardando', 'Chamado', 'EmAtendimento')
+            RETURNING "Versao" AS "Value"
+            """).ToListAsync(ct).ConfigureAwait(false);
+        if (versoes.Count != 1)
+        {
+            throw Conflito(MensagemNaoCancelavel);
+        }
+
+        var filas = new HashSet<Guid> { atendimento.FilaId };
+        if (atendimento.Estado is EstadoAtendimento.Chamado or EstadoAtendimento.EmAtendimento)
+        {
+            filas.UnionWith(await LiberarPendentesAsync(db, tenantId, atendimento, ct).ConfigureAwait(false));
+        }
+
+        if (atendimento.EstacaoId is { } estacaoId)
+        {
+            await SoltarVinculoDeEstacaoInativaAsync(db, tenantId, estacaoId, ct).ConfigureAwait(false);
+        }
+
+        // The owner guichê's screen and the painéis are all in the unit group, which both notices target.
+        var avisos = new List<AvisoPaf> { AvisoDeEstado(tenantId, atendimento, versoes[0], EstadoAtendimento.Cancelado) };
+        avisos.AddRange(filas.Select(fila => FilaAtualizadaPaf.Criar(tenantId, Correlacao(),
+            new FilaAtualizada(Guid.CreateVersion7(), atendimento.UnidadeId, fila))));
+        return new AtendimentoCancelado(atendimento.Id, versoes[0], avisos);
+    }
+
+    /// <summary>Seção 8 item 6 for a write with several notices: all written to the outbox before the commit, all sent after it.</summary>
+    public static async Task ConfirmarEAvisarTodosAsync(IDbContextTransaction transacao, AvisosTempoReal avisos, IReadOnlyList<AvisoPaf> lista, CancellationToken ct)
+    {
+        foreach (var aviso in lista)
+        {
+            await avisos.GravarAsync(aviso, ct).ConfigureAwait(false);
+        }
+
+        await transacao.CommitAsync(ct).ConfigureAwait(false);
+        foreach (var aviso in lista)
+        {
+            await avisos.EnviarAsync(aviso, ct).ConfigureAwait(false);
+        }
+    }
 
     // FOR UPDATE outside a transaction autocommits and holds nothing; fail loudly instead of locking nothing.
     private static void ExigirTransacao(PafDbContext db)

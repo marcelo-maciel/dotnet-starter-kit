@@ -31,6 +31,7 @@ using FSH.Modules.PAF.Features.v1.Estacoes.RenovarCredencial;
 using FSH.Modules.PAF.Features.v1.Estacoes.ResgatarVinculo;
 using FSH.Modules.PAF.Features.v1.Estacoes.RevogarVinculo;
 using FSH.Modules.PAF.Features.v1.Estacoes.UpdateEstacao;
+using FSH.Modules.PAF.Features.v1.Fichas.CancelarAtendimentoDaFicha;
 using FSH.Modules.PAF.Features.v1.Fichas.EmitirFicha;
 using FSH.Modules.PAF.Features.v1.Filas.AddFilaPrioridade;
 using FSH.Modules.PAF.Features.v1.Guiches.ListGuichesDaUnidade;
@@ -128,6 +129,7 @@ public sealed class PafModule : IModule
             .WithApiVersionSet(versionSet)
             .RequireAuthorization();
         MapCadastroEndpoints(cadastro);
+        MapearFichas(cadastro);
 
         // No group-wide RequireAuthorization: redeeming a link and renewing a credential are anonymous.
         var estacao = endpoints
@@ -174,6 +176,12 @@ public sealed class PafModule : IModule
         services.AddScoped<RevogacaoSessao>();
         services.AddScoped<IPipelineBehavior<GenerateTokenCommand, TokenResponse>, GenerateTokenLicenseBehavior>();
         services.AddScoped<IPipelineBehavior<RefreshTokenCommand, RefreshTokenCommandResponse>, RefreshTokenLicenseBehavior>();
+    }
+
+    // RF12 fichas screens (F04): person operations outside the guichê, each under its own FichasDoDia permission.
+    private static void MapearFichas(IEndpointRouteBuilder fichas)
+    {
+        fichas.MapVoidAtendimentoDaFichaEndpoint();
     }
 
     private static void MapearSessao(IEndpointRouteBuilder sessao)
