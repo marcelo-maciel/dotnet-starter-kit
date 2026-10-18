@@ -64,6 +64,16 @@ function guardarUltimoGuiche(tenant: string, unidadeId: string, estacaoId: strin
   }
 }
 
+function lerUltimoGuicheGuardado(): string | null {
+  try {
+    return localStorage.getItem(CHAVE_ULTIMO_GUICHE);
+  } catch (e) {
+    // Blocked storage (browser policy) reads as "nothing saved": no suggestion, never a broken selection screen.
+    console.warn("PAF: não foi possível ler o último guichê", e);
+    return null;
+  }
+}
+
 function rotuloGuiche(g: GuicheDto): string {
   if (g.meu) return `${g.nome} (seu)`;
   if (g.ocupante) return `${g.nome} (em uso por ${g.ocupante})`;
@@ -152,7 +162,7 @@ export function GuichePage() {
   const tenant = tokenStore.getTenant() ?? env.defaultTenant;
   const unidadeAtual = posto.data?.unidadeId ?? null;
   const sugestao =
-    unidadeAtual === null ? "" : sugerirGuiche(localStorage.getItem(CHAVE_ULTIMO_GUICHE), tenant, unidadeAtual, guiches.data ?? []);
+    unidadeAtual === null ? "" : sugerirGuiche(lerUltimoGuicheGuardado(), tenant, unidadeAtual, guiches.data ?? []);
   const guicheMarcado = guicheEscolhido ?? sugestao;
 
   // Another user's pendência on the chosen guichê is released only by an explicit choice (RF04): the button says so.
