@@ -60,12 +60,29 @@ public sealed partial class RenovacaoPelaConexao(
             .GroupBy(s => s.TenantId, StringComparer.Ordinal);
         foreach (var doTenant in sessoes)
         {
-            await RenovarMarcasAsync(doTenant.Key, [.. doTenant.Select(s => (s.SessaoId, s.UsuarioId))], ct).ConfigureAwait(false);
+            try
+            {
+                await RenovarMarcasAsync(doTenant.Key, [.. doTenant.Select(s => (s.SessaoId, s.UsuarioId))], ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // A tenant whose database is down must not stop the renewal of the others nor the release by the
+                // grace period below; its own sessions renew on the first cycle after the database returns.
+                LogTenantFalhou(logger, doTenant.Key, ex);
+            }
         }
 
         foreach (var queda in await registro.QuedasVencidasAsync(ct).ConfigureAwait(false))
         {
-            await SoltarAsync(queda, ct).ConfigureAwait(false);
+            try
+            {
+                await SoltarAsync(queda, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // SoltarAsync already gave the drop back, so the next cycle retries it; the other drops go on now.
+                LogTenantFalhou(logger, queda.TenantId, ex);
+            }
         }
     }
 
@@ -195,6 +212,9 @@ public sealed partial class RenovacaoPelaConexao(
 
     [LoggerMessage(EventId = 9012, Level = LogLevel.Error, Message = "PAF: ciclo de renovacao pela conexao falhou")]
     private static partial void LogCicloFalhou(ILogger logger, Exception ex);
+
+    [LoggerMessage(EventId = 9016, Level = LogLevel.Error, Message = "PAF: renovacao pela conexao pulou o tenant {TenantId} neste ciclo")]
+    private static partial void LogTenantFalhou(ILogger logger, string tenantId, Exception ex);
 
     [LoggerMessage(EventId = 9013, Level = LogLevel.Information,
         Message = "PAF: licenca e guiche soltos pela carencia de reconexao tenant={TenantId} sessao={SessaoId}")]

@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Net;
 using System.Security.Claims;
+using Finbuckle.MultiTenant.Abstractions;
+using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.PAF.Contracts.v1.TempoReal;
 using FSH.Modules.PAF.Sessao;
 using FSH.Modules.PAF.TempoReal;
@@ -327,6 +329,54 @@ public sealed class PafRegistroConexoesTests(FshWebApplicationFactory factory) :
         finally
         {
             await _valkey.UnpauseAsync();
+        }
+    }
+
+    [Fact]
+    public async Task TenantComBancoFora_NaoParaARenovacaoNemASolturaDosOutros()
+    {
+        var (caida, contextoCaida) = await AtendenteComGuicheAsync();
+        var unidade = await _tenant.CriarUnidadeAsync(limiteSessoes: 5);
+        var token = (await _tenant.EntrarAsync(await _tenant.CriarUsuarioAsync(unidade.UnidadeId))).AccessToken;
+        var viva = Pessoa(token);
+        // Same shape as a tenant whose provisioning failed (TenantProvisioningFailureTests): in the store, database down.
+        var quebrado = new AppTenantInfo(
+            $"paf-qb-{Guid.NewGuid():N}"[..20], "PAF banco fora",
+            "Host=127.0.0.1;Port=1;Database=does_not_exist;Username=postgres;Password=x;Timeout=3;Command Timeout=3",
+            "qb@paf.test") { IsActive = true, ValidUpto = DateTime.UtcNow.AddMonths(1) };
+        var loja = factory.Services.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
+        (await loja.AddAsync(quebrado)).ShouldBeTrue();
+        try
+        {
+            var relogio = new RelogioDeTeste();
+            var instancia = NovaInstancia(relogio, Carencia);
+            // The broken tenant has a live connection (renewal) and a drop (release); both throw on its database.
+            await instancia.Conexoes.RegistrarAsync(
+                new ContextoDeTeste(Guid.NewGuid().ToString("N"), Principal(token)),
+                viva with { TenantId = quebrado.Id, SessaoId = Guid.NewGuid() }, CancellationToken.None);
+            var contextoQuebradoCaida = new ContextoDeTeste(Guid.NewGuid().ToString("N"), Principal(token));
+            await instancia.Conexoes.RegistrarAsync(
+                contextoQuebradoCaida, viva with { TenantId = quebrado.Id, SessaoId = Guid.NewGuid() }, CancellationToken.None);
+            await instancia.Conexoes.RemoverAsync(contextoQuebradoCaida.ConnectionId, CancellationToken.None);
+            // The drops are read by score: the broken tenant's comes first, so the release below runs after its failure.
+            relogio.Avancar(TimeSpan.FromSeconds(1));
+            await instancia.Conexoes.RegistrarAsync(
+                new ContextoDeTeste(Guid.NewGuid().ToString("N"), Principal(token)), viva, CancellationToken.None);
+            await instancia.Conexoes.RegistrarAsync(contextoCaida, caida, CancellationToken.None);
+            await instancia.Conexoes.RemoverAsync(contextoCaida.ConnectionId, CancellationToken.None);
+            await EnvelhecerMarcaAsync(viva.SessaoId!.Value, TimeSpan.FromMinutes(3));
+            relogio.Avancar(Carencia + TimeSpan.FromSeconds(1));
+
+            await Should.NotThrowAsync(() => instancia.Renovacao.CicloAsync(CancellationToken.None));
+
+            (await IdadeDaMarcaAsync(viva.SessaoId.Value)).ShouldNotBeNull().ShouldBeLessThan(TimeSpan.FromMinutes(1),
+                "o tenant com banco fora não pode parar a renovação dos outros");
+            (await LicencaAsync(caida.SessaoId!.Value)).ShouldBe(0, "nem a soltura pela carência dos outros");
+            (await GuichesAsync(caida.SessaoId.Value)).ShouldBe(0);
+        }
+        finally
+        {
+            (await loja.RemoveAsync(quebrado.Identifier)).ShouldBeTrue();
         }
     }
 
