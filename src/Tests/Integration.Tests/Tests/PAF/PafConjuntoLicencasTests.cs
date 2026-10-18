@@ -143,6 +143,28 @@ public sealed class PafConjuntoLicencasTests(FshWebApplicationFactory factory) :
     }
 
     [Fact]
+    public async Task ReservaDescartadaComRequisicaoCancelada_SoltaOMembroSemTrocarOErro()
+    {
+        var unidade = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);
+        var usuario = await UsuarioDoPafAsync(unidade.UnidadeId);
+        using var requisicao = new CancellationTokenSource();
+
+        // The client drops and the token issue fails: that failure must surface, not a cancellation thrown by the
+        // cleanup, and the provisional seat must not wait a minute to free itself.
+        var erro = await Should.ThrowAsync<InvalidOperationException>(async () =>
+        {
+            using var scope = factory.Services.CreateScope();
+            await using var reserva = await NovasLicencas(scope).ReservarAsync(_tenant.TenantId, usuario, requisicao.Token);
+            await requisicao.CancelAsync();
+            throw new InvalidOperationException("emissão do token falhou");
+        });
+
+        erro.Message.ShouldBe("emissão do token falhou");
+
+        (await MembrosAsync(unidade.UnidadeId)).ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task Logout_TiraOMembroEAbreAVaga()
     {
         var unidade = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);

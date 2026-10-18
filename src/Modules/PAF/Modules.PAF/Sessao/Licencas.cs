@@ -27,6 +27,9 @@ public sealed class Licencas(
     // Covers the token issue between reservation and confirmation; an abandoned reservation frees itself in this time.
     public static readonly TimeSpan PrazoReserva = TimeSpan.FromMinutes(1);
 
+    // Above the Valkey call deadline, so the call gives up by its own timeout and logs, never by cancellation.
+    private static readonly TimeSpan PrazoLimpeza = TimeSpan.FromSeconds(2);
+
     public const string MensagemSemUnidadeAtiva =
         "A unidade do seu acesso está inativa. Procure o administrador da empresa.";
     public const string MensagemSemContrato =
@@ -78,7 +81,7 @@ public sealed class Licencas(
             }
 
             unidadeCorrente.Definir(unidadeId);
-            return new ReservaLicenca(this, transacao, tenantId, usuarioId, candidata, membroReserva, ocupacao.Desfecho, ct);
+            return new ReservaLicenca(this, transacao, tenantId, usuarioId, candidata, membroReserva, ocupacao.Desfecho);
         }
         catch
         {
@@ -152,7 +155,7 @@ public sealed class Licencas(
             // The PostgreSQL row is the truth: without it the seat taken in the set is given back.
             if (ocupouAgora)
             {
-                await conjunto.LiberarAsync(tenantId, membro, ct);
+                await SoltarNaLimpezaAsync(tenantId, membro);
             }
 
             throw;
@@ -171,8 +174,16 @@ public sealed class Licencas(
     {
         if (reserva.MembroReserva is { } membroReserva)
         {
-            await conjunto.LiberarAsync(reserva.TenantId, membroReserva, reserva.Cancelamento);
+            await SoltarNaLimpezaAsync(reserva.TenantId, membroReserva);
         }
+    }
+
+    // Cleanup runs after a failure, often the request's own cancellation: with that token it would throw and
+    // replace the original error, and the seat would stay taken until it expires. Its own deadline instead.
+    private async Task SoltarNaLimpezaAsync(string tenantId, string membro)
+    {
+        using var prazo = new CancellationTokenSource(PrazoLimpeza);
+        await conjunto.LiberarAsync(tenantId, membro, prazo.Token);
     }
 
     private async Task<CandidataLicenca> CandidataAsync(string tenantId, Guid unidadeId, CancellationToken ct)

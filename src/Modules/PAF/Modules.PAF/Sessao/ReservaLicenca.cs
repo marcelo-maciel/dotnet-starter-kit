@@ -18,8 +18,7 @@ public sealed class ReservaLicenca : IAsyncDisposable
         Guid usuarioId,
         CandidataLicenca candidata,
         string? membroReserva,
-        DesfechoOcupacao desfecho,
-        CancellationToken cancelamento)
+        DesfechoOcupacao desfecho)
     {
         _licencas = licencas;
         Transacao = transacao;
@@ -28,7 +27,6 @@ public sealed class ReservaLicenca : IAsyncDisposable
         Candidata = candidata;
         MembroReserva = membroReserva;
         Desfecho = desfecho;
-        Cancelamento = cancelamento;
     }
 
     public Guid UnidadeId => Candidata.UnidadeId;
@@ -43,9 +41,6 @@ public sealed class ReservaLicenca : IAsyncDisposable
 
     /// <summary>Como a vaga foi reservada: no conjunto, ou no modo degradado com o Valkey fora ou não reconstruído.</summary>
     internal DesfechoOcupacao Desfecho { get; }
-
-    // The token of the request that reserved, used by DisposeAsync, which takes none.
-    internal CancellationToken Cancelamento { get; }
 
     /// <summary>
     /// Ocupa a licença para a sessão e solta, no mesmo ato, licenças e guichês das sessões anteriores do usuário
