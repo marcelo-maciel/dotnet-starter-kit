@@ -4,7 +4,10 @@
 // - the list of last calls updates on arrival; only the highlight and the voice wait in the queue;
 // - a recall moves the entry to the top, never duplicates it, and does not add a second queue item
 //   while the same atendimento is still waiting its turn;
-// - a cancel removes that atendimento's pending announcement.
+// - a cancel removes that atendimento's pending announcement;
+// - the re-query on (re)connect brings at most 10 calls, so it removes a pending announcement only when it
+//   contradicts it (a state other than Chamado with a Versao above the announced one); an atendimento
+//   absent from the re-query keeps its announcement, in its place in the queue.
 
 export type ChamadaPainelDto = {
   atendimentoId: string;
@@ -48,7 +51,8 @@ export type ChamadaExibida = {
   estado: string;
 };
 
-export type Anuncio = { atendimentoId: string; senha: string; nomeEstacao: string };
+/** `versao` is the one the call carried: the re-query contradicts the announcement only above it. */
+export type Anuncio = { atendimentoId: string; senha: string; nomeEstacao: string; versao: number };
 
 export type EstadoPainel = {
   /** Most recent call or recall first. */
@@ -86,6 +90,7 @@ export const ESTADO_INICIAL_PAINEL: EstadoPainel = {
 };
 
 const ESTADO_CANCELADO = "Cancelado";
+const ESTADO_CHAMADO = "Chamado";
 
 function lembrarEvento(estado: EstadoPainel, eventoId: string): string[] {
   const lista = [...estado.eventosAplicados, eventoId];
@@ -111,7 +116,12 @@ function aplicarChamada(estado: EstadoPainel, evento: SenhaChamadaEvento): Estad
     LIMITE_LISTA,
   );
   const jaNaFila = estado.fila.some((a) => a.atendimentoId === evento.atendimentoId);
-  const anuncio: Anuncio = { atendimentoId: evento.atendimentoId, senha: evento.senha, nomeEstacao: evento.nomeEstacao };
+  const anuncio: Anuncio = {
+    atendimentoId: evento.atendimentoId,
+    senha: evento.senha,
+    nomeEstacao: evento.nomeEstacao,
+    versao: evento.versao,
+  };
   const fila = !estado.anunciando || jaNaFila ? estado.fila : [...estado.fila, anuncio];
   return {
     ...estado,
@@ -143,7 +153,11 @@ function aplicarEstadoCarregado(estado: EstadoPainel, dto: EstadoPainelDto): Est
   // server's (event raced the query) is kept so a stale copy of that event is still dropped later.
   const versoes = { ...estado.versoes };
   for (const c of dto.chamadas) versoes[c.atendimentoId] = Math.max(versoes[c.atendimentoId] ?? 0, c.versao);
-  const vigentes = new Set(dto.chamadas.filter((c) => c.estado !== ESTADO_CANCELADO).map((c) => c.atendimentoId));
+  const doServidor = new Map(dto.chamadas.map((c) => [c.atendimentoId, c]));
+  const contradiz = (a: Anuncio) => {
+    const c = doServidor.get(a.atendimentoId);
+    return c !== undefined && c.estado !== ESTADO_CHAMADO && c.versao > a.versao;
+  };
   return {
     ...estado,
     versoes,
@@ -151,7 +165,7 @@ function aplicarEstadoCarregado(estado: EstadoPainel, dto: EstadoPainelDto): Est
       .filter((c) => c.estado !== ESTADO_CANCELADO)
       .slice(0, LIMITE_LISTA)
       .map((c) => ({ atendimentoId: c.atendimentoId, senha: c.senha, nomeEstacao: c.nomeEstacao, estado: c.estado })),
-    fila: estado.fila.filter((a) => vigentes.has(a.atendimentoId)),
+    fila: estado.fila.filter((a) => !contradiz(a)),
   };
 }
 
