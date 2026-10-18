@@ -13,7 +13,7 @@ public sealed class EnableUnidadeCommandHandler(PafDbContext db, EscopoUsuario e
     public async ValueTask<Guid> Handle(EnableUnidadeCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
-        await escopo.ExigirAsync(command.Id, cancellationToken).ConfigureAwait(false);
+        await escopo.ExigirAdministracaoDeUnidadesAsync(cancellationToken).ConfigureAwait(false);
 
         var entidade = await db.Unidades
             .FirstOrDefaultAsync(e => e.Id == command.Id, cancellationToken)
