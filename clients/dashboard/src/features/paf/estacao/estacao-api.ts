@@ -47,14 +47,6 @@ export function obterConfiguracaoPainel() {
   });
 }
 
-export function emitirFicha(filaId: string, prioridadeId: string, chaveIdempotencia: string) {
-  return estacaoFetch<FichaEmitidaDto>("Emissao", "/api/v1/paf/estacao/emissao/fichas", {
-    method: "POST",
-    headers: { "Idempotency-Key": chaveIdempotencia },
-    body: JSON.stringify({ filaId, prioridadeId }),
-  });
-}
-
 export function obterEstadoPainel() {
   return estacaoFetch<EstadoPainelDto>("Painel", "/api/v1/paf/estacao/painel/estado", { method: "GET" });
 }
