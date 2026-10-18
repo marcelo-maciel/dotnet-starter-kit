@@ -71,6 +71,8 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using StackExchange.Redis;
 
 [assembly: FshModule(typeof(FSH.Modules.PAF.PafModule), 900)]
 
@@ -156,6 +158,17 @@ public sealed class PafModule : IModule
     {
         services.AddScoped<SessaoCorrente>();
         services.AddScoped<Licencas>();
+        // S09: licence set in the Valkey and its rebuild from the PostgreSQL (seção 9).
+        services.AddSingleton(sp => new ConjuntoLicencas(
+            sp.GetServices<IConnectionMultiplexer>(),
+            TimeSpan.FromMinutes(Licencas.PrazoMarcaMinutos),
+            sp.GetRequiredService<ILogger<ConjuntoLicencas>>()));
+        services.AddSingleton(sp => new ReconstrucaoLicencas(
+            sp.GetRequiredService<IServiceScopeFactory>(),
+            sp.GetRequiredService<ConjuntoLicencas>(),
+            ReconstrucaoLicencas.IntervaloVerificacao,
+            sp.GetRequiredService<ILogger<ReconstrucaoLicencas>>()));
+        services.AddHostedService(sp => sp.GetRequiredService<ReconstrucaoLicencas>());
         services.AddScoped<EstadoSessao>();
         services.AddScoped<RevogacaoSessao>();
         services.AddScoped<IPipelineBehavior<GenerateTokenCommand, TokenResponse>, GenerateTokenLicenseBehavior>();
