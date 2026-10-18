@@ -59,6 +59,7 @@ using FSH.Modules.PAF.Features.v1.Unidades.ListUnidades;
 using FSH.Modules.PAF.Features.v1.Unidades.UpdateUnidade;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.GetUsuarioUnidades;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.SetUsuarioUnidades;
+using FSH.Modules.PAF.Parametros;
 using FSH.Modules.PAF.Sessao;
 using FSH.Modules.PAF.TempoReal;
 using Mediator;
@@ -84,6 +85,7 @@ public sealed class PafModule : IModule
         builder.Services.AddHeroDbContext<PafDbContext>();
         builder.Services.AddScoped<IDbInitializer, PafDbInitializer>();
         builder.Services.AddScoped<IUnidadeCorrente, UnidadeCorrente>();
+        builder.Services.AddScoped<LeitorParametros>();
 
         builder.Services.AddHealthChecks()
             .AddDbContextCheck<PafDbContext>(

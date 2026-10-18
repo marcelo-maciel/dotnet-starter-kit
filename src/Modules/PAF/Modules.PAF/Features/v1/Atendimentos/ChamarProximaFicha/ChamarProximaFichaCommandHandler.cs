@@ -5,6 +5,7 @@ using FSH.Modules.PAF.Contracts.v1.Atendimentos;
 using FSH.Modules.PAF.Contracts.v1.TempoReal;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Domain;
+using FSH.Modules.PAF.Parametros;
 using FSH.Modules.PAF.Sessao;
 using FSH.Modules.PAF.TempoReal;
 using Mediator;
@@ -27,6 +28,7 @@ public sealed partial class ChamarProximaFichaCommandHandler(
     PafDbContext db,
     SessaoCorrente sessao,
     AvisosTempoReal avisos,
+    LeitorParametros parametros,
     ILogger<ChamarProximaFichaCommandHandler> logger) : ICommandHandler<ChamarProximaFichaCommand, ChamadaDto>
 {
     public const string RestricaoFichaEmCurso = "UX_Atendimentos_FichaEmCurso";
@@ -65,11 +67,12 @@ public sealed partial class ChamarProximaFichaCommandHandler(
         }
 
         var respeitaOrdem = RespeitaOrdemDasFilas(guiche.Estacao.Configuracao);
+        var somenteDataAtual = await parametros.LerAsync(CatalogoParametros.SomenteFichasDaDataAtual, guiche.Estacao.UnidadeId, cancellationToken);
         for (var tentativa = 1; tentativa <= MaxTentativas; tentativa++)
         {
             try
             {
-                var chamada = await TentarAsync(guiche, respeitaOrdem, cancellationToken);
+                var chamada = await TentarAsync(guiche, respeitaOrdem, somenteDataAtual, cancellationToken);
                 if (tentativa > 1)
                 {
                     LogChamadaRepetida(logger, guiche.TenantId, guiche.Estacao.Id, tentativa);
@@ -92,7 +95,7 @@ public sealed partial class ChamarProximaFichaCommandHandler(
         throw new CustomException(MensagemDisputa, [], HttpStatusCode.ServiceUnavailable);
     }
 
-    private async Task<ChamadaDto> TentarAsync(Guiche guiche, bool respeitaOrdem, CancellationToken ct)
+    private async Task<ChamadaDto> TentarAsync(Guiche guiche, bool respeitaOrdem, bool somenteDataAtual, CancellationToken ct)
     {
         await using var transacao = await db.Database.BeginTransactionAsync(ct);
 
@@ -108,7 +111,7 @@ public sealed partial class ChamarProximaFichaCommandHandler(
         while (pulados.Count <= MaxPulos)
         {
             await transacao.CreateSavepointAsync("candidato", ct);
-            var candidato = await CandidatoAsync(guiche, respeitaOrdem, pulados, ct)
+            var candidato = await CandidatoAsync(guiche, respeitaOrdem, somenteDataAtual, pulados, ct)
                 ?? throw new NotFoundException(MensagemSemFichas);
 
             if (!await TravarFichaSemEsperarAsync(guiche, candidato.FichaId, ct))
@@ -163,37 +166,44 @@ public sealed partial class ChamarProximaFichaCommandHandler(
         return new ChamadaDto(candidato.AtendimentoId, candidato.FichaId, senha, candidato.FilaId, candidato.PrioridadeId, versao);
     }
 
+    private async Task<Candidato?> CandidatoAsync(Guiche guiche, bool respeitaOrdem, bool somenteDataAtual, List<Guid> pulados, CancellationToken ct)
+    {
+        var candidatos = await db.Database.SqlQuery<Candidato>(ConsultaCandidato(
+            guiche.TenantId, guiche.Estacao.UnidadeId, guiche.Estacao.Id, respeitaOrdem, somenteDataAtual, pulados.ToArray())).ToListAsync(ct);
+        return candidatos.Count == 0 ? null : candidatos[0];
+    }
+
     /// <summary>
     /// Requisitos seção 4: fila of the guichê role (active or not), prioridade enabled on the station, waiting,
-    /// eligible today, ficha older than five seconds, no other atendimento of the ficha in progress. Order:
-    /// station's fila order when it respects it, then prioridade value descending, then creation order.
+    /// eligible (today only when RF06 "somente fichas da data atual" is on), ficha older than five seconds, no
+    /// other atendimento of the ficha in progress. Order: station's fila order when it respects it, then
+    /// prioridade value descending, then creation order. Public so the plan test runs EXPLAIN on this exact text.
+    /// The date test is a lower bound (">= today", same as "= today" because ElegivelDesde only takes now()) so
+    /// DataElegibilidade stays a range condition on IX_Atendimentos_Candidatos with the parameter on or off.
     /// </summary>
-    private async Task<Candidato?> CandidatoAsync(Guiche guiche, bool respeitaOrdem, List<Guid> pulados, CancellationToken ct)
-    {
-        // ponytail: RF06 "chamar somente fichas da data atual" is always on; read the parameter here once the cadastro writes it.
-        var candidatos = await db.Database.SqlQuery<Candidato>($"""
+    public static FormattableString ConsultaCandidato(
+        string tenantId, Guid unidadeId, Guid estacaoId, bool respeitaOrdem, bool somenteDataAtual, Guid[] fichasPuladas) => $"""
             SELECT a."Id" AS "AtendimentoId", a."FichaId", a."FilaId", a."PrioridadeId", f."Letra", f."Numero"
               FROM paf."Atendimentos" a
               JOIN paf."Fichas" f ON f."Id" = a."FichaId"
               JOIN paf."EstacaoFilas" ef
-                ON ef."EstacaoId" = {guiche.Estacao.Id} AND ef."Papel" = 'Guiche' AND ef."FilaId" = a."FilaId"
+                ON ef."EstacaoId" = {estacaoId} AND ef."Papel" = 'Guiche' AND ef."FilaId" = a."FilaId"
               JOIN paf."EstacaoPrioridades" ep
-                ON ep."EstacaoId" = {guiche.Estacao.Id} AND ep."PrioridadeId" = a."PrioridadeId"
+                ON ep."EstacaoId" = {estacaoId} AND ep."PrioridadeId" = a."PrioridadeId"
               JOIN paf."Prioridades" p ON p."Id" = a."PrioridadeId"
-             WHERE a."TenantId" = {guiche.TenantId} AND a."UnidadeId" = {guiche.Estacao.UnidadeId}
+             WHERE a."TenantId" = {tenantId} AND a."UnidadeId" = {unidadeId}
                AND a."Estado" = 'Aguardando'
-               AND a."DataElegibilidade" = (now() AT TIME ZONE 'America/Sao_Paulo')::date
+               AND a."DataElegibilidade" >= CASE WHEN {somenteDataAtual}
+                   THEN (now() AT TIME ZONE 'America/Sao_Paulo')::date ELSE '-infinity'::date END
                AND f."CriadoEm" <= now() - interval '5 seconds'
-               AND a."FichaId" <> ALL({pulados.ToArray()})
+               AND a."FichaId" <> ALL({fichasPuladas})
                AND NOT EXISTS (
                    SELECT 1 FROM paf."Atendimentos" o
-                    WHERE o."FichaId" = a."FichaId" AND o."Estado" IN ('Chamado', 'EmAtendimento'))
+                    WHERE o."TenantId" = {tenantId} AND o."FichaId" = a."FichaId" AND o."Estado" IN ('Chamado', 'EmAtendimento'))
              ORDER BY CASE WHEN {respeitaOrdem} THEN ef."Ordem" ELSE 0 END, p."Valor" DESC, a."CriadoEm", a."Id"
              LIMIT 1
                FOR UPDATE OF a SKIP LOCKED
-            """).ToListAsync(ct);
-        return candidatos.Count == 0 ? null : candidatos[0];
-    }
+            """;
 
     /// <summary>
     /// Locks every atendimento row of the ficha in ascending id order without waiting. Fewer rows locked than
