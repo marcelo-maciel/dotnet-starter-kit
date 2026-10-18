@@ -19,7 +19,8 @@ namespace FSH.Modules.PAF.Sessao;
 /// Conferência de sessão por requisição do token de pessoa (RF22, seção 9, ADR 0008 "Conferência de tenant e de
 /// sessão"): claim de sessão, UserSession ativa e marca de sessão viva em <c>AtividadeSessao</c>, conferidas no
 /// PostgreSQL. Define a unidade corrente (estado no Valkey, ou a unidade da licença sem ele) e renova a marca.
-/// Impersonação e credencial de estação têm ramos próprios, fora deste middleware.
+/// Credencial de estação tem ramo próprio, fora deste middleware; da impersonação, aqui só a barreira de
+/// <see cref="ImpersonacaoPaf"/> (act_tenant raiz nas rotas do PAF).
 /// </summary>
 internal sealed class SessionCheckMiddleware(RequestDelegate next)
 {
@@ -30,9 +31,16 @@ internal sealed class SessionCheckMiddleware(RequestDelegate next)
     {
         var usuario = context.User;
         if (usuario.Identity?.IsAuthenticated != true
-            || usuario.HasClaim(c => c.Type == ClaimConstants.ActorSubject)
             || usuario.HasClaim(c => c.Type == PafClaims.Papel))
         {
+            await next(context);
+            return;
+        }
+
+        // Impersonation has no kit session (the kit checks its grant per request); the PAF adds only the barrier.
+        if (ImpersonacaoPaf.Impersonando(usuario))
+        {
+            ImpersonacaoPaf.ConferirRequisicao(context);
             await next(context);
             return;
         }

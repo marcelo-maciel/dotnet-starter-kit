@@ -1,3 +1,5 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Shared.Multitenancy;
@@ -5,6 +7,7 @@ using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.PAF.Conferencia;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Escopo;
+using FSH.Modules.PAF.Sessao;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -14,12 +17,16 @@ namespace FSH.Modules.PAF.TempoReal;
 /// <summary>
 /// Revalidates the connection on connect and on every client call (seção 7, "Revogar sessão encerra a conexão"):
 /// over WebSockets the per-request middlewares run once, at the upgrade, so a revoked link or session would
-/// otherwise keep its connection. A station needs a live VinculoEstacao; a person, an active kit session.
+/// otherwise keep its connection. A station needs a live VinculoEstacao; a person, an active kit session; an
+/// impersonation, a live grant with <c>act_tenant</c> of the root tenant.
 /// Refusal aborts the connection.
 /// </summary>
 public sealed partial class PafHubFilter(ILogger<PafHubFilter> logger) : IHubFilter
 {
     public const string MensagemRecusada = "Credencial ou sessão encerrada. Conecte novamente.";
+
+    // Grant check (HybridCache, then Valkey or PostgreSQL) on every hub call.
+    private static readonly TimeSpan LimiteConcessao = TimeSpan.FromSeconds(5);
 
     public async Task OnConnectedAsync(HubLifetimeContext context, Func<HubLifetimeContext, Task> next)
     {
@@ -64,10 +71,12 @@ public sealed partial class PafHubFilter(ILogger<PafHubFilter> logger) : IHubFil
         var vigente = conexao switch
         {
             ConexaoEstacao estacao => await EstacaoVigenteAsync(servicos, estacao, ct).ConfigureAwait(false),
+            // Before the session arm: an impersonation is judged by its grant, whatever else the token carries.
+            ConexaoPessoa { Impersonacao: true } => await ImpersonacaoVigenteAsync(servicos, contexto, ct).ConfigureAwait(false),
             ConexaoPessoa { SessaoId: { } sessaoId } => await servicos.GetRequiredService<ISessionService>()
                 .GetSessionAsync(sessaoId, ct).ConfigureAwait(false) is { IsActive: true },
-            // Impersonation and the root token without sid have no kit session to re-check; the expiry of
-            // the token closes them (CloseOnAuthenticationExpiration), as SessionCheckMiddleware lets them through.
+            // The root token without sid has no kit session to re-check; the expiry of the token closes it
+            // (CloseOnAuthenticationExpiration), as SessionCheckMiddleware lets it through.
             _ => true,
         };
 
@@ -77,6 +86,23 @@ public sealed partial class PafHubFilter(ILogger<PafHubFilter> logger) : IHubFil
         }
 
         return tenant;
+    }
+
+    // Over WebSockets the kit's JWT hook checks the grant once, at the upgrade: revocation or end of the grant
+    // must also drop a connection that is already open (RF22, RNF15). Unknown grant counts as ended (kit).
+    private static async Task<bool> ImpersonacaoVigenteAsync(IServiceProvider servicos, HubCallerContext contexto, CancellationToken ct)
+    {
+        var principal = contexto.User!;
+        var jti = principal.FindFirstValue(JwtRegisteredClaimNames.Jti);
+        if (!ImpersonacaoPaf.DaCodefi(principal) || string.IsNullOrEmpty(jti))
+        {
+            return false;
+        }
+
+        using var limite = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limite.CancelAfter(LimiteConcessao);
+        return !await servicos.GetRequiredService<IImpersonationGrantService>()
+            .IsRevokedOrEndedAsync(jti, limite.Token).ConfigureAwait(false);
     }
 
     private static Task<bool> EstacaoVigenteAsync(IServiceProvider servicos, ConexaoEstacao estacao, CancellationToken ct)
