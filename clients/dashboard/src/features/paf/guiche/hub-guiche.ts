@@ -1,6 +1,8 @@
 import { env } from "@/env";
 import { tokenStore } from "@/auth/token-store";
 import { conectarPafHub, type ConexaoPafHub, type EstadoConexao } from "@/features/paf/paf-hub";
+import { comAvisoDeUnidadeCorrente, recarregarAoReconectar } from "@/features/paf/unidade-corrente";
+import { queryClient } from "@/lib/query-client";
 
 // The guichê's PafHub connection, with the kit user token. The server puts it in the group of the guichê
 // held by the session's SessaoEstacao; the screen asks it to re-read that link after every selection and
@@ -27,6 +29,11 @@ export function conectarHubGuiche(opcoes: OpcoesHubGuiche): HubGuiche {
     });
   };
 
+  const recarregarContexto = () => {
+    void queryClient.invalidateQueries({ queryKey: ["paf"] });
+  };
+  const aoReconectar = recarregarAoReconectar(recarregarContexto);
+
   const conexao: ConexaoPafHub = conectarPafHub({
     tenant: () => tokenStore.getTenant() ?? env.defaultTenant,
     obterToken: () => tokenStore.getAccessToken() ?? "",
@@ -34,8 +41,12 @@ export function conectarHubGuiche(opcoes: OpcoesHubGuiche): HubGuiche {
     renovarToken: null,
     // Session loss is the kit's to handle (logout redirect); the loop keeps retrying until the page leaves.
     credencialPerdida: () => false,
-    handlers: opcoes.handlers,
-    aoConectar: entrar,
+    // The guichê page is F18's in wave 1; the unit-change reload lives here so the page stays untouched (S05).
+    handlers: comAvisoDeUnidadeCorrente(opcoes.handlers, recarregarContexto),
+    aoConectar: () => {
+      entrar();
+      aoReconectar();
+    },
     aoMudarEstado: opcoes.aoMudarEstado,
     aoPerderCredencial: () => undefined,
   });
