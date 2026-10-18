@@ -53,7 +53,7 @@ internal sealed class RefreshTokenLicenseBehavior(
         catch (ForbiddenException)
         {
             await sessoes.RevokeSessionForAdminAsync(sessaoId, usuarioId.ToString(), MotivoSemLicenca, cancellationToken);
-            conexoes.EncerrarSessao(tenantId, sessaoId);
+            await conexoes.EncerrarSessaoAsync(tenantId, sessaoId, cancellationToken);
             throw;
         }
 

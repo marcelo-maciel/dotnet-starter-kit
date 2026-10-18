@@ -63,7 +63,7 @@ public sealed class GerarVinculoEstacaoCommandHandler(
         }, cancellationToken).ConfigureAwait(false);
 
         // The replaced device loses its connections; the new one has none yet.
-        conexoes.EncerrarEstacao(tenant, command.EstacaoId);
+        await conexoes.EncerrarEstacaoAsync(tenant, command.EstacaoId, cancellationToken).ConfigureAwait(false);
         return new VinculoEstacaoGeradoDto(vinculo!.Id, tenant, token);
     }
 }

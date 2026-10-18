@@ -39,7 +39,7 @@ public sealed class EndSessaoCommandHandler(
         await sessoes.RevokeSessionAsync(sessaoId, usuarioAtual.GetUserId().ToString(), Motivo, cancellationToken);
         if (usuarioAtual.GetTenant() is { Length: > 0 } tenant)
         {
-            conexoes.EncerrarSessao(tenant, sessaoId);
+            await conexoes.EncerrarSessaoAsync(tenant, sessaoId, cancellationToken);
         }
 
         return Unit.Value;

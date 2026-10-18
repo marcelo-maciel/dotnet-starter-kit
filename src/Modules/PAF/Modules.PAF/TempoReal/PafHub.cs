@@ -3,6 +3,7 @@ using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Sessao;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -19,6 +20,8 @@ public sealed partial class PafHub(ConexoesPaf conexoes, IServiceProvider servic
     /// <summary>Accepts a well-formed station credential or a person token; anything else is 403 at negotiate.</summary>
     public const string Politica = "PafHub";
 
+    private static readonly TimeSpan LimiteDesconexao = TimeSpan.FromSeconds(5);
+
     public override async Task OnConnectedAsync()
     {
         // Context.User, never ICurrentUser: the negotiate HttpContext is not pinned to the connection.
@@ -27,16 +30,16 @@ public sealed partial class PafHub(ConexoesPaf conexoes, IServiceProvider servic
         {
             if (conexao is not null)
             {
-                conexoes.Registrar(Context, conexao);
+                await conexoes.RegistrarAsync(Context, conexao, Context.ConnectionAborted).ConfigureAwait(false);
             }
 
             switch (conexao)
             {
                 case ConexaoEstacao estacao:
-                    await EntrarAsync(PafGrupos.Unidade(estacao.TenantId, estacao.UnidadeId)).ConfigureAwait(false);
+                    await EntrarAsync(estacao.TenantId, PafGrupos.Unidade(estacao.TenantId, estacao.UnidadeId)).ConfigureAwait(false);
                     if (estacao.Papel == PafPapeisEstacao.Painel)
                     {
-                        await EntrarAsync(PafGrupos.Painel(estacao.TenantId, estacao.EstacaoId)).ConfigureAwait(false);
+                        await EntrarAsync(estacao.TenantId, PafGrupos.Painel(estacao.TenantId, estacao.EstacaoId)).ConfigureAwait(false);
                     }
 
                     LogEstacaoConectada(logger, Context.ConnectionId, estacao.TenantId, estacao.UnidadeId, estacao.EstacaoId, estacao.Papel);
@@ -45,19 +48,32 @@ public sealed partial class PafHub(ConexoesPaf conexoes, IServiceProvider servic
                 // The impersonation token shares the user's sub; in the user group it would receive the
                 // real user's unit-switch notice (seção 7, RF22), so it stays out.
                 case ConexaoPessoa { Impersonacao: false } pessoa:
-                    await EntrarAsync(PafGrupos.Usuario(pessoa.TenantId, pessoa.UsuarioId)).ConfigureAwait(false);
-                    // The guichê may already be selected (reload, second window): the group follows SessaoEstacao.
-                    if (pessoa.SessaoId is { } sessaoId
-                        && await GuicheDaSessaoAsync(sessaoId).ConfigureAwait(false) is { } guicheId)
+                    await EntrarAsync(pessoa.TenantId, PafGrupos.Usuario(pessoa.TenantId, pessoa.UsuarioId)).ConfigureAwait(false);
+                    if (pessoa.SessaoId is { } sessaoId)
                     {
-                        await conexoes.MoverConexaoParaGuicheAsync(Context.ConnectionId, pessoa.TenantId, guicheId, Context.ConnectionAborted)
-                            .ConfigureAwait(false);
+                        // The unit comes from the session state on the server, never from a claim (seção 7, RF08).
+                        if (await UnidadeDaSessaoAsync(pessoa.TenantId, sessaoId).ConfigureAwait(false) is { } unidadeId)
+                        {
+                            await EntrarAsync(pessoa.TenantId, PafGrupos.Unidade(pessoa.TenantId, unidadeId)).ConfigureAwait(false);
+                        }
+
+                        // The guichê may already be selected (reload, second window): the group follows SessaoEstacao.
+                        if (await GuicheDaSessaoAsync(sessaoId).ConfigureAwait(false) is { } guicheId)
+                        {
+                            await conexoes.MoverConexaoParaGuicheAsync(Context.ConnectionId, pessoa.TenantId, guicheId, Context.ConnectionAborted)
+                                .ConfigureAwait(false);
+                        }
                     }
 
                     LogPessoaConectada(logger, Context.ConnectionId, pessoa.TenantId, pessoa.UsuarioId);
                     break;
 
                 case ConexaoPessoa pessoa:
+                    if (await UnidadeDaImpersonacaoAsync(pessoa).ConfigureAwait(false) is { } unidadeImpersonada)
+                    {
+                        await EntrarAsync(pessoa.TenantId, PafGrupos.Unidade(pessoa.TenantId, unidadeImpersonada)).ConfigureAwait(false);
+                    }
+
                     LogPessoaConectada(logger, Context.ConnectionId, pessoa.TenantId, pessoa.UsuarioId);
                     break;
 
@@ -75,10 +91,12 @@ public sealed partial class PafHub(ConexoesPaf conexoes, IServiceProvider servic
         }
     }
 
-    public override Task OnDisconnectedAsync(Exception? exception)
+    public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        conexoes.Remover(Context.ConnectionId);
-        return base.OnDisconnectedAsync(exception);
+        // ConnectionAborted is already cancelled here; the registry write gets its own short ceiling.
+        using var limite = new CancellationTokenSource(LimiteDesconexao);
+        await conexoes.RemoverAsync(Context.ConnectionId, limite.Token).ConfigureAwait(false);
+        await base.OnDisconnectedAsync(exception).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -107,8 +125,42 @@ public sealed partial class PafHub(ConexoesPaf conexoes, IServiceProvider servic
         return vinculo?.EstacaoId;
     }
 
-    private Task EntrarAsync(string grupo) =>
-        Groups.AddToGroupAsync(Context.ConnectionId, grupo, Context.ConnectionAborted);
+    // Valkey state first (the unit the session switched to), else the unit of the live licence mark.
+    private async Task<Guid?> UnidadeDaSessaoAsync(string tenantId, Guid sessaoId)
+    {
+        var ct = Context.ConnectionAborted;
+        return await servicos.GetRequiredService<EstadoSessao>().LerUnidadeAsync(tenantId, sessaoId, ct).ConfigureAwait(false)
+            ?? await servicos.GetRequiredService<Licencas>().UnidadeDaMarcaVivaAsync(tenantId, sessaoId, ct).ConfigureAwait(false);
+    }
+
+    // ponytail: the impersonated user's licence unit, else his principal unit. S10B keys the grant's own current unit
+    // by jti (and the link of the grant's guichê first); this connection then joins that unit instead.
+    private async Task<Guid?> UnidadeDaImpersonacaoAsync(ConexaoPessoa pessoa)
+    {
+        if (!Guid.TryParse(pessoa.UsuarioId, out var usuarioId))
+        {
+            return null;
+        }
+
+        var ct = Context.ConnectionAborted;
+        var db = servicos.GetRequiredService<PafDbContext>();
+        var daLicenca = await db.Database.SqlQuery<Guid?>($"""
+            SELECT "UnidadeId" AS "Value"
+              FROM paf."AtividadesSessao"
+             WHERE "TenantId" = {pessoa.TenantId} AND "UsuarioId" = {usuarioId}
+               AND "UltimaAtividadeEm" > now() - make_interval(mins => {Licencas.PrazoMarcaMinutos})
+             ORDER BY "UltimaAtividadeEm" DESC
+             LIMIT 1
+            """).FirstOrDefaultAsync(ct).ConfigureAwait(false);
+        return daLicenca ?? await db.UsuariosUnidade.AsNoTracking()
+            .Where(u => u.UsuarioId == usuarioId)
+            .OrderBy(u => u.Ordem)
+            .Select(u => (Guid?)u.UnidadeId)
+            .FirstOrDefaultAsync(ct).ConfigureAwait(false);
+    }
+
+    private Task EntrarAsync(string tenantId, string grupo) =>
+        conexoes.EntrarNoGrupoAsync(Context.ConnectionId, tenantId, grupo, Context.ConnectionAborted);
 
     [LoggerMessage(EventId = 9001, Level = LogLevel.Information,
         Message = "PafHub estacao conectada {ConnectionId} tenant={TenantId} unidade={UnidadeId} estacao={EstacaoId} papel={Papel}")]
