@@ -8,15 +8,24 @@ using Microsoft.Extensions.Logging;
 namespace FSH.Modules.PAF.Sessao;
 
 /// <summary>
-/// Licença da sessão (RF22), primeira fatia: sem cascata, paga a unidade principal do usuário, e sem saldo nela
-/// o login é recusado. A contagem é sempre a de <see cref="AtividadeSessao"/> no PostgreSQL, serializada por
-/// bloqueio consultivo da unidade (seção 9, modo degradado), com ou sem Valkey.
+/// Licença da sessão (RF22). Sem cascata ainda: paga a unidade principal do usuário. A decisão é do conjunto de
+/// licenças no Valkey (<see cref="ConjuntoLicencas"/>); <see cref="AtividadeSessao"/> continua a fonte da verdade e
+/// é gravada em toda ocupação. Só com o Valkey fora, ou antes da reconstrução dos conjuntos, a contagem é a das
+/// linhas frescas de <see cref="AtividadeSessao"/>, serializada por bloqueio consultivo da unidade (seção 9, modo
+/// degradado).
 /// </summary>
-public sealed class Licencas(PafDbContext db, IUnidadeCorrente unidadeCorrente, ILogger<Licencas> logger)
+public sealed class Licencas(
+    PafDbContext db,
+    IUnidadeCorrente unidadeCorrente,
+    ConjuntoLicencas conjunto,
+    ILogger<Licencas> logger)
 {
     // ponytail: initial values of seção 9 as constants; move to options when measurement asks for others.
     public const int PrazoMarcaMinutos = 10;
     public const int IntervaloMarcaMinutos = 1;
+
+    // Covers the token issue between reservation and confirmation; an abandoned reservation frees itself in this time.
+    public static readonly TimeSpan PrazoReserva = TimeSpan.FromMinutes(1);
 
     public const string MensagemSemUnidadeAtiva =
         "A unidade do seu acesso está inativa. Procure o administrador da empresa.";
@@ -26,8 +35,9 @@ public sealed class Licencas(PafDbContext db, IUnidadeCorrente unidadeCorrente, 
         "O limite de licenças da unidade foi atingido. Aguarde outro usuário sair ou procure o administrador.";
 
     /// <summary>
-    /// Abre a transação da ocupação e confere o saldo sob o bloqueio da unidade. Nulo quando o usuário não tem
-    /// unidade no PAF: ele não opera o PAF, e o filtro de unidade continua fechado para ele.
+    /// Abre a transação da ocupação e reserva a vaga: no conjunto do Valkey por um membro provisório, que a
+    /// confirmação troca pela sessão, ou, no modo degradado, conferindo o saldo sob o bloqueio da unidade. Nulo
+    /// quando o usuário não tem unidade no PAF: ele não opera o PAF, e o filtro de unidade continua fechado para ele.
     /// </summary>
     public async Task<ReservaLicenca?> ReservarAsync(string tenantId, Guid usuarioId, CancellationToken ct)
     {
@@ -44,24 +54,129 @@ public sealed class Licencas(PafDbContext db, IUnidadeCorrente unidadeCorrente, 
         var transacao = await db.Database.BeginTransactionAsync(ct);
         try
         {
-            await ConferirSaldoAsync(tenantId, usuarioId, unidadeId, ct);
+            // Login and refresh of the same user serialize here: a refresh of a session that a login on another
+            // machine is revoking must not confirm after that login and release the new session (sessão única).
+            // The unit lock below did this alone before the Valkey set; the user lock keeps it with the set.
+            await BloquearAsync($"paf-licenca-usuario:{tenantId}:{usuarioId}", ct);
+            var candidata = await CandidataAsync(tenantId, unidadeId, ct);
+
+            var membro = ConjuntoLicencas.NovaReserva();
+            var ocupacao = await conjunto.OcuparAsync(
+                tenantId, membro, [candidata], await SessoesDoUsuarioAsync(tenantId, usuarioId, ct), [], PrazoReserva, ct);
+            string? membroReserva = null;
+            switch (ocupacao.Desfecho)
+            {
+                case DesfechoOcupacao.Ocupada:
+                    AvisarUltrapassagem(tenantId, candidata, ocupacao.Ocupadas);
+                    membroReserva = membro;
+                    break;
+                case DesfechoOcupacao.SemSaldo:
+                    throw new ForbiddenException(MensagemLimite);
+                default:
+                    await ConferirSaldoNoBancoAsync(tenantId, usuarioId, candidata, ct);
+                    break;
+            }
+
+            unidadeCorrente.Definir(unidadeId);
+            return new ReservaLicenca(this, transacao, tenantId, usuarioId, candidata, membroReserva, ocupacao.Desfecho, ct);
         }
         catch
         {
             await transacao.DisposeAsync();
             throw;
         }
-
-        unidadeCorrente.Definir(unidadeId);
-        return new ReservaLicenca(db, transacao, tenantId, usuarioId, unidadeId);
     }
 
-    private async Task ConferirSaldoAsync(string tenantId, Guid usuarioId, Guid unidadeId, CancellationToken ct)
+    /// <summary>
+    /// Ocupa a licença para a sessão e solta, no mesmo ato, licenças e guichês das sessões anteriores do usuário
+    /// e o guichê que a própria sessão ainda tiver, porque a licença dela já tinha sido solta.
+    /// </summary>
+    internal async Task ConfirmarAsync(ReservaLicenca reserva, Guid sessaoId, IReadOnlyCollection<Guid> sessoesAnteriores, CancellationToken ct)
     {
-        // Two logins racing for the last seat of the same unit serialize here until one commits.
-        var chave = $"paf-licenca:{tenantId}:{unidadeId}";
-        await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({chave}, 0))", ct);
+        var tenantId = reserva.TenantId;
+        var unidadeId = reserva.Candidata.UnidadeId;
+        var membro = ConjuntoLicencas.Membro(sessaoId);
+        var ocupouAgora = false;
+        var restaurar = reserva.Desfecho == DesfechoOcupacao.NaoReconstruido;
+        if (reserva.MembroReserva is { } membroReserva)
+        {
+            // The reservation, the user's earlier sessions and the given ones leave in the same script that
+            // occupies, so the seat passes from the reservation to the session without a window.
+            var soltar = (await SessoesDoUsuarioAsync(tenantId, reserva.UsuarioId, ct))
+                .Concat(sessoesAnteriores.Select(ConjuntoLicencas.Membro))
+                .Where(s => s != membro)
+                .Append(membroReserva)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+            var ocupacao = await conjunto.OcuparAsync(tenantId, membro, [reserva.Candidata], [], soltar, conjunto.PrazoMembro, ct);
+            switch (ocupacao.Desfecho)
+            {
+                case DesfechoOcupacao.Ocupada:
+                    AvisarUltrapassagem(tenantId, reserva.Candidata, ocupacao.Ocupadas);
+                    unidadeId = ocupacao.UnidadeId!.Value;
+                    ocupouAgora = true;
+                    break;
+                case DesfechoOcupacao.JaOcupava:
+                    unidadeId = ocupacao.UnidadeId!.Value;
+                    break;
+                case DesfechoOcupacao.SemSaldo:
+                    // The reservation outlived PrazoReserva and its seat was taken meanwhile.
+                    throw new ForbiddenException(MensagemLimite);
+                default:
+                    await ConferirSaldoNoBancoAsync(tenantId, reserva.UsuarioId, reserva.Candidata, ct);
+                    restaurar = ocupacao.Desfecho == DesfechoOcupacao.NaoReconstruido;
+                    break;
+            }
+        }
 
+        var soltas = sessoesAnteriores.Append(sessaoId).ToArray();
+        try
+        {
+            await db.Database.ExecuteSqlAsync($"""
+                UPDATE paf."SessoesEstacao" SET "LiberadoEm" = now()
+                 WHERE "TenantId" = {tenantId} AND "SessaoId" = ANY({soltas}) AND "LiberadoEm" IS NULL
+                """, ct);
+            await db.Database.ExecuteSqlAsync($"""
+                DELETE FROM paf."AtividadesSessao"
+                 WHERE "TenantId" = {tenantId} AND "UsuarioId" = {reserva.UsuarioId} AND "SessaoId" <> {sessaoId}
+                """, ct);
+            await db.Database.ExecuteSqlAsync($"""
+                INSERT INTO paf."AtividadesSessao" ("SessaoId", "UsuarioId", "UnidadeId", "UltimaAtividadeEm", "TenantId")
+                VALUES ({sessaoId}, {reserva.UsuarioId}, {unidadeId}, now(), {tenantId})
+                ON CONFLICT ("SessaoId") DO UPDATE SET "UnidadeId" = EXCLUDED."UnidadeId", "UltimaAtividadeEm" = now()
+                """, ct);
+            await reserva.Transacao.CommitAsync(ct);
+        }
+        catch
+        {
+            // The PostgreSQL row is the truth: without it the seat taken in the set is given back.
+            if (ocupouAgora)
+            {
+                await conjunto.LiberarAsync(tenantId, membro, ct);
+            }
+
+            throw;
+        }
+
+        if (restaurar)
+        {
+            // Decided in the degraded mode; when the Valkey is up but not yet rebuilt the member goes in now,
+            // otherwise the rebuild on its return puts it there.
+            await conjunto.RestaurarAsync(tenantId, membro, unidadeId, conjunto.PrazoMembro, ct);
+        }
+    }
+
+    /// <summary>Reserva descartada sem confirmação: o membro provisório sai do conjunto.</summary>
+    internal async Task DescartarAsync(ReservaLicenca reserva)
+    {
+        if (reserva.MembroReserva is { } membroReserva)
+        {
+            await conjunto.LiberarAsync(reserva.TenantId, membroReserva, reserva.Cancelamento);
+        }
+    }
+
+    private async Task<CandidataLicenca> CandidataAsync(string tenantId, Guid unidadeId, CancellationToken ct)
+    {
         var ativa = await db.Unidades.AsNoTracking()
             .Where(u => u.Id == unidadeId)
             .Select(u => u.Ativa)
@@ -80,32 +195,63 @@ public sealed class Licencas(PafDbContext db, IUnidadeCorrente unidadeCorrente, 
                AND ("FimVigencia" IS NULL OR "FimVigencia" >= (now() AT TIME ZONE 'America/Sao_Paulo')::date)
              ORDER BY "InicioVigencia" DESC
              LIMIT 1
-            """).FirstOrDefaultAsync(ct);
-        if (contrato is null)
-        {
-            throw new ForbiddenException(MensagemSemContrato);
-        }
+            """).FirstOrDefaultAsync(ct)
+            ?? throw new ForbiddenException(MensagemSemContrato);
+
+        return new CandidataLicenca(
+            unidadeId,
+            contrato.LimiteSessoes,
+            string.Equals(contrato.Politica, nameof(PoliticaLimiteLicenca.UltrapassarComAviso), StringComparison.Ordinal));
+    }
+
+    // Degraded mode: the count of fresh rows, serialized per unit until the transaction ends.
+    private async Task ConferirSaldoNoBancoAsync(string tenantId, Guid usuarioId, CandidataLicenca candidata, CancellationToken ct)
+    {
+        // Two logins racing for the last seat of the same unit serialize here until one commits.
+        await BloquearAsync($"paf-licenca:{tenantId}:{candidata.UnidadeId}", ct);
 
         // The user's own earlier sessions are released in the same act, so they do not count against him.
         var ocupadas = await db.Database.SqlQuery<int>($"""
             SELECT count(*)::int AS "Value"
               FROM paf."AtividadesSessao"
-             WHERE "TenantId" = {tenantId} AND "UnidadeId" = {unidadeId} AND "UsuarioId" <> {usuarioId}
+             WHERE "TenantId" = {tenantId} AND "UnidadeId" = {candidata.UnidadeId} AND "UsuarioId" <> {usuarioId}
                AND "UltimaAtividadeEm" > now() - make_interval(mins => {PrazoMarcaMinutos})
             """).SingleAsync(ct);
-        if (ocupadas < contrato.LimiteSessoes)
+        if (ocupadas < candidata.Limite)
         {
             return;
         }
 
-        if (!string.Equals(contrato.Politica, nameof(PoliticaLimiteLicenca.UltrapassarComAviso), StringComparison.Ordinal))
+        if (!candidata.UltrapassaComAviso)
         {
             throw new ForbiddenException(MensagemLimite);
         }
 
+        AvisarUltrapassagem(tenantId, candidata, ocupadas + 1);
+    }
+
+    private Task BloquearAsync(string chave, CancellationToken ct) =>
+        db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({chave}, 0))", ct);
+
+    // Members of the user's sessions holding a licence: they count as free for him, released when he confirms.
+    private async Task<List<string>> SessoesDoUsuarioAsync(string tenantId, Guid usuarioId, CancellationToken ct) =>
+        (await db.Database.SqlQuery<Guid>($"""
+            SELECT "SessaoId" AS "Value" FROM paf."AtividadesSessao"
+             WHERE "TenantId" = {tenantId} AND "UsuarioId" = {usuarioId}
+            """).ToListAsync(ct))
+        .Select(ConjuntoLicencas.Membro)
+        .ToList();
+
+    private void AvisarUltrapassagem(string tenantId, CandidataLicenca candidata, int ocupadas)
+    {
+        if (ocupadas <= candidata.Limite)
+        {
+            return;
+        }
+
         logger.LogWarning(
             "Licença acima do limite contratado na unidade {UnidadeId} do tenant {TenantId}: {Ocupadas} de {Limite}",
-            unidadeId, tenantId, ocupadas + 1, contrato.LimiteSessoes);
+            candidata.UnidadeId, tenantId, ocupadas, candidata.Limite);
     }
 
     /// <summary>Unidade da licença quando a marca de sessão viva está dentro do prazo; nulo caso contrário.</summary>
@@ -123,26 +269,45 @@ public sealed class Licencas(PafDbContext db, IUnidadeCorrente unidadeCorrente, 
     public Task<bool> NoEscopoAsync(Guid usuarioId, Guid unidadeId, CancellationToken ct) =>
         db.UsuariosUnidade.AsNoTracking().AnyAsync(u => u.UsuarioId == usuarioId && u.UnidadeId == unidadeId, ct);
 
-    /// <summary>Renova a marca de sessão viva, no máximo uma escrita por intervalo; verdadeiro quando escreveu.</summary>
-    public async Task<bool> RenovarMarcaAsync(string tenantId, Guid sessaoId, CancellationToken ct) =>
-        await db.Database.ExecuteSqlAsync($"""
+    /// <summary>
+    /// Renova a marca de sessão viva e o membro do conjunto, no máximo uma escrita por intervalo; verdadeiro
+    /// quando escreveu. O membro volta à unidade da linha mesmo se tinha sumido do Valkey, sem cascata (seção 9):
+    /// é por aqui que a sessão viva entra de novo no conjunto antes da reconstrução.
+    /// </summary>
+    public async Task<bool> RenovarMarcaAsync(string tenantId, Guid sessaoId, CancellationToken ct)
+    {
+        var unidades = await db.Database.SqlQuery<Guid>($"""
             UPDATE paf."AtividadesSessao" SET "UltimaAtividadeEm" = now()
              WHERE "TenantId" = {tenantId} AND "SessaoId" = {sessaoId}
                AND "UltimaAtividadeEm" < now() - make_interval(mins => {IntervaloMarcaMinutos})
-            """, ct) > 0;
+            RETURNING "UnidadeId" AS "Value"
+            """).ToListAsync(ct);
+        if (unidades.Count == 0)
+        {
+            return false;
+        }
 
-    /// <summary>Solta licença e guichê da sessão numa transação (logout).</summary>
+        await conjunto.RestaurarAsync(tenantId, ConjuntoLicencas.Membro(sessaoId), unidades[0], conjunto.PrazoMembro, ct);
+        return true;
+    }
+
+    /// <summary>Solta licença e guichê da sessão numa transação (logout), e depois o membro do conjunto.</summary>
     public async Task LiberarAsync(string tenantId, Guid sessaoId, CancellationToken ct)
     {
-        await using var transacao = await db.Database.BeginTransactionAsync(ct);
-        await db.Database.ExecuteSqlAsync($"""
-            UPDATE paf."SessoesEstacao" SET "LiberadoEm" = now()
-             WHERE "TenantId" = {tenantId} AND "SessaoId" = {sessaoId} AND "LiberadoEm" IS NULL
-            """, ct);
-        await db.Database.ExecuteSqlAsync($"""
-            DELETE FROM paf."AtividadesSessao" WHERE "TenantId" = {tenantId} AND "SessaoId" = {sessaoId}
-            """, ct);
-        await transacao.CommitAsync(ct);
+        await using (var transacao = await db.Database.BeginTransactionAsync(ct))
+        {
+            await db.Database.ExecuteSqlAsync($"""
+                UPDATE paf."SessoesEstacao" SET "LiberadoEm" = now()
+                 WHERE "TenantId" = {tenantId} AND "SessaoId" = {sessaoId} AND "LiberadoEm" IS NULL
+                """, ct);
+            await db.Database.ExecuteSqlAsync($"""
+                DELETE FROM paf."AtividadesSessao" WHERE "TenantId" = {tenantId} AND "SessaoId" = {sessaoId}
+                """, ct);
+            await transacao.CommitAsync(ct);
+        }
+
+        // Without Valkey the member stays until it expires; the rebuild on its return drops it earlier.
+        await conjunto.LiberarAsync(tenantId, ConjuntoLicencas.Membro(sessaoId), ct);
     }
 
     private sealed record ContratoVigente(int LimiteSessoes, string Politica);
