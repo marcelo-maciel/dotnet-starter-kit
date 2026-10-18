@@ -11,6 +11,7 @@ using FSH.Modules.Identity.Features.v1.Tokens.TokenGeneration;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 
 namespace Identity.Tests.Handlers;
@@ -30,6 +31,7 @@ public sealed class GenerateTokenCommandHandlerTests
     private readonly ILogger<GenerateTokenCommandHandler> _logger;
     private readonly GenerateTokenCommandHandler _sut;
     private readonly IFixture _fixture;
+    private readonly Guid _sessionId = Guid.NewGuid();
 
     public GenerateTokenCommandHandlerTests()
     {
@@ -53,7 +55,19 @@ public sealed class GenerateTokenCommandHandlerTests
             _logger);
 
         _fixture = new Fixture();
+
+        // PAF: login now creates the session before signing, so every successful login needs one.
+        _sessionService.CreateSessionAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(new UserSessionDto { Id = _sessionId });
     }
+
+    // The handler signs the validated claims plus the session id (sid), never the bare claims.
+    private IEnumerable<Claim> ClaimsWithSession(List<Claim> claims) =>
+        Arg.Is<IEnumerable<Claim>>(issued =>
+            issued.Count() == claims.Count + 1
+            && issued.Take(claims.Count).SequenceEqual(claims)
+            && issued.Last().Type == JwtRegisteredClaimNames.Sid
+            && issued.Last().Value == _sessionId.ToString());
 
     #region Handle - Happy Path Tests
 
@@ -82,7 +96,7 @@ public sealed class GenerateTokenCommandHandlerTests
         _identityService.ValidateCredentialsAsync(command.Email, command.Password, Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns((userId, claims));
 
-        _tokenService.IssueAsync(userId, claims, null, Arg.Any<CancellationToken>())
+        _tokenService.IssueAsync(userId, ClaimsWithSession(claims), null, Arg.Any<CancellationToken>())
             .Returns(expectedToken);
 
         // Act
@@ -116,7 +130,7 @@ public sealed class GenerateTokenCommandHandlerTests
         _identityService.ValidateCredentialsAsync(command.Email, command.Password, Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns((userId, claims));
 
-        _tokenService.IssueAsync(userId, claims, null, Arg.Any<CancellationToken>())
+        _tokenService.IssueAsync(userId, ClaimsWithSession(claims), null, Arg.Any<CancellationToken>())
             .Returns(token);
 
         // Act
@@ -124,7 +138,7 @@ public sealed class GenerateTokenCommandHandlerTests
 
         // Assert
         await _identityService.Received(1).ValidateCredentialsAsync(command.Email, command.Password, Arg.Any<string?>(), Arg.Any<CancellationToken>());
-        await _tokenService.Received(1).IssueAsync(userId, claims, null, Arg.Any<CancellationToken>());
+        await _tokenService.Received(1).IssueAsync(userId, ClaimsWithSession(claims), null, Arg.Any<CancellationToken>());
         await _identityService.Received(1).StoreRefreshTokenAsync(userId, token.RefreshToken, token.RefreshTokenExpiresAt, Arg.Any<CancellationToken>());
         await _securityAudit.Received(1).LoginSucceededAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _securityAudit.Received(1).TokenIssuedAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
@@ -213,7 +227,7 @@ public sealed class GenerateTokenCommandHandlerTests
         _identityService.ValidateCredentialsAsync(command.Email, command.Password, null, cancellationToken)
             .Returns((userId, claims));
 
-        _tokenService.IssueAsync(userId, claims, null, cancellationToken)
+        _tokenService.IssueAsync(userId, ClaimsWithSession(claims), null, cancellationToken)
             .Returns(token);
 
         // Act
@@ -221,23 +235,58 @@ public sealed class GenerateTokenCommandHandlerTests
 
         // Assert
         await _identityService.Received(1).ValidateCredentialsAsync(command.Email, command.Password, null, cancellationToken);
-        await _tokenService.Received(1).IssueAsync(userId, claims, null, cancellationToken);
+        await _tokenService.Received(1).IssueAsync(userId, ClaimsWithSession(claims), null, cancellationToken);
         await _identityService.Received(1).StoreRefreshTokenAsync(userId, token.RefreshToken, token.RefreshTokenExpiresAt, cancellationToken);
+        await _sessionService.Received(1).CreateSessionAsync(userId, Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<DateTime>(), cancellationToken);
         await _outboxStore.Received(1).AddAsync(Arg.Any<FSH.Framework.Eventing.Abstractions.IIntegrationEvent>(), cancellationToken);
     }
 
     #endregion
 
-    #region Handle - Session Creation Exception Tests
+    #region Handle - Session Binding Tests
 
     [Fact]
-    public async Task Handle_Should_ContinueSuccessfully_When_SessionCreationFails()
+    public async Task Handle_Should_SignSessionIdClaim_And_RekeySessionToIssuedRefreshToken()
     {
         // Arrange
         var command = new GenerateTokenCommand("user@example.com", "password123");
         var userId = _fixture.Create<string>();
         var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
         var token = _fixture.Create<TokenResponse>();
+        IEnumerable<Claim>? signedClaims = null;
+        string? provisionalHash = null;
+
+        _requestContext.IpAddress.Returns("192.168.1.1");
+        _requestContext.UserAgent.Returns("TestAgent");
+
+        _identityService.ValidateCredentialsAsync(command.Email, command.Password, Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns((userId, claims));
+
+        _sessionService.CreateSessionAsync(userId, Arg.Do<string>(h => provisionalHash = h), "192.168.1.1", "TestAgent", Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(new UserSessionDto { Id = _sessionId });
+
+        _tokenService.IssueAsync(userId, Arg.Do<IEnumerable<Claim>>(c => signedClaims = c), null, Arg.Any<CancellationToken>())
+            .Returns(token);
+
+        // Act
+        await _sut.Handle(command, CancellationToken.None);
+
+        // Assert
+        signedClaims.ShouldNotBeNull();
+        signedClaims.Single(c => c.Type == JwtRegisteredClaimNames.Sid).Value.ShouldBe(_sessionId.ToString());
+        provisionalHash.ShouldNotBeNull();
+        provisionalHash.ShouldStartWith("pending-");
+        await _sessionService.Received(1).UpdateSessionRefreshTokenAsync(
+            provisionalHash, Arg.Is<string>(h => h != provisionalHash), token.RefreshTokenExpiresAt, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_Should_RefuseLogin_When_SessionCreationFails()
+    {
+        // Arrange
+        var command = new GenerateTokenCommand("user@example.com", "password123");
+        var userId = _fixture.Create<string>();
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
 
         _requestContext.IpAddress.Returns("192.168.1.1");
         _requestContext.UserAgent.Returns("TestAgent");
@@ -246,18 +295,19 @@ public sealed class GenerateTokenCommandHandlerTests
         _identityService.ValidateCredentialsAsync(command.Email, command.Password, Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns((userId, claims));
 
-        _tokenService.IssueAsync(userId, claims, null, Arg.Any<CancellationToken>())
-            .Returns(token);
-
         _sessionService.CreateSessionAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("Database not available"));
 
         // Act
-        var result = await _sut.Handle(command, CancellationToken.None);
+        var exception = await Should.ThrowAsync<InvalidOperationException>(
+            async () => await _sut.Handle(command, CancellationToken.None));
 
-        // Assert
-        result.ShouldNotBeNull();
-        result.AccessToken.ShouldBe(token.AccessToken);
+        // Assert: no token is signed, stored, audited or announced without a session behind it
+        exception.Message.ShouldBe("Database not available");
+        await _tokenService.DidNotReceiveWithAnyArgs().IssueAsync(default!, default!, default, default);
+        await _identityService.DidNotReceiveWithAnyArgs().StoreRefreshTokenAsync(default!, default!, default, default);
+        await _securityAudit.DidNotReceiveWithAnyArgs().TokenIssuedAsync(default!, default!, default!, default!, default, default);
+        await _outboxStore.DidNotReceiveWithAnyArgs().AddAsync(default!, default);
     }
 
     #endregion
@@ -281,7 +331,7 @@ public sealed class GenerateTokenCommandHandlerTests
         _identityService.ValidateCredentialsAsync(command.Email, command.Password, Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns((userId, claims));
 
-        _tokenService.IssueAsync(userId, claims, null, Arg.Any<CancellationToken>())
+        _tokenService.IssueAsync(userId, ClaimsWithSession(claims), null, Arg.Any<CancellationToken>())
             .Returns(token);
 
         // Act
