@@ -25,14 +25,14 @@ public sealed record CreateEstacaoCommand(
     string Nome,
     string Tipo,
     IReadOnlyList<EstacaoFilaItem> Filas,
-    IReadOnlyList<EstacaoPrioridadeItem> Prioridades) : ICommand<Guid>;
+    IReadOnlyList<EstacaoPrioridadeItem> Prioridades) : ICommand<Guid>, IEscritaDeCadastro;
 
 /// <summary>Replaces the station's filas and prioridades lists.</summary>
 public sealed record UpdateEstacaoCommand(
     Guid Id,
     string Nome,
     IReadOnlyList<EstacaoFilaItem> Filas,
-    IReadOnlyList<EstacaoPrioridadeItem> Prioridades) : ICommand<EstacaoAlteradaDto>;
+    IReadOnlyList<EstacaoPrioridadeItem> Prioridades) : ICommand<EstacaoAlteradaDto>, IEscritaDeCadastro;
 
 /// <summary>
 /// <paramref name="CombinacoesSemCobertura"/>: combinations this write left without any guichê (RF02, RF04). A
@@ -40,8 +40,8 @@ public sealed record UpdateEstacaoCommand(
 /// </summary>
 public sealed record EstacaoAlteradaDto(Guid Id, IReadOnlyList<CombinacaoFilaPrioridadeDto> CombinacoesSemCobertura);
 
-public sealed record EnableEstacaoCommand(Guid Id) : ICommand<Guid>;
+public sealed record EnableEstacaoCommand(Guid Id) : ICommand<Guid>, IEscritaDeCadastro;
 
-public sealed record DisableEstacaoCommand(Guid Id) : ICommand<EstacaoAlteradaDto>;
+public sealed record DisableEstacaoCommand(Guid Id) : ICommand<EstacaoAlteradaDto>, IEscritaDeCadastro;
 
 public sealed record ListEstacoesQuery : IQuery<IReadOnlyList<EstacaoDto>>;

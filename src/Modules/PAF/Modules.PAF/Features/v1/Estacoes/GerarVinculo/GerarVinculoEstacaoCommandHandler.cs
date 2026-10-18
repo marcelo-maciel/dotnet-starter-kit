@@ -6,6 +6,7 @@ using FSH.Modules.PAF.Contracts.v1.Estacoes;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Estacoes;
+using FSH.Modules.PAF.Sessao;
 using FSH.Modules.PAF.TempoReal;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +16,7 @@ namespace FSH.Modules.PAF.Features.v1.Estacoes.GerarVinculo;
 public sealed class GerarVinculoEstacaoCommandHandler(
     PafDbContext db,
     ConexoesPaf conexoes,
+    AtosImpersonacao atos,
     IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor)
     : ICommandHandler<GerarVinculoEstacaoCommand, VinculoEstacaoGeradoDto>
 {
@@ -54,6 +56,8 @@ public sealed class GerarVinculoEstacaoCommandHandler(
         await strategy.ExecuteAsync(async ct =>
         {
             db.ChangeTracker.Clear();
+            // The clear also drops the impersonation act noted by the pipeline; it rides this transaction again.
+            atos.Anotar(atendimentoId: null);
             vinculo = VinculoEstacao.Criar(estacao.UnidadeId, command.EstacaoId, linkHash);
             await using var tx = await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
             await RevogacaoVinculo.RevogarVigentesAsync(db, command.EstacaoId, ct).ConfigureAwait(false);
