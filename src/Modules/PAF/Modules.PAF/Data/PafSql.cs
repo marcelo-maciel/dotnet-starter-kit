@@ -20,5 +20,7 @@ internal static class PafSql
 
     public const string EstadoEmCurso = "\"Estado\" IN ('Chamado', 'EmAtendimento')";
 
+    public const string EstadoAguardando = "\"Estado\" = 'Aguardando'";
+
     public const string VinculoAtivo = "\"LiberadoEm\" IS NULL";
 }

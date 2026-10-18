@@ -75,6 +75,12 @@ Concurrency and fail-closed tests: `src/Tests/Integration.Tests/Tests/PAF/`.
 - Notices: emission → `FilaAtualizadaPaf`; call → `SenhaChamadaPaf` (guichê + active painéis listing the fila) and `FilaAtualizadaPaf`; recall → `SenhaRechamadaPaf`; start/close/cancel → `AtendimentoAtualizadoPaf`. Always `GravarAsync` before commit, `EnviarAsync` after.
 - Raw SQL skips global filters: every raw statement carries `"TenantId"` (and `"UnidadeId"` where it selects).
 
+## Parameters (`Parametros/`)
+
+- RF06 parameters are read only through `LeitorParametros.LerAsync(definicao, unidadeId)`: unidade row, else empresa row, else the default of `CatalogoParametros` (the catalog in code; a key not listed there is never read). Absent = default, silent; invalid stored text = default with a warning log (key and level, never the value). The read goes through the unit filter, so pass the current unidade.
+- "somenteFichasDaDataAtual" (default on) drives the date test of the call's candidate query on `DataElegibilidade`; the query is `ChamarProximaFichaCommandHandler.ConsultaCandidato`, served by `IX_Atendimentos_Candidatos` (UnidadeId, FilaId, DataElegibilidade WHERE Estado = 'Aguardando'; model in slice 2 wave 0, migration from the wave's designated task).
+- `Architecture.Tests/PafSqlBrutoTests` scans the PAF IL: every raw statement carries `"TenantId"` once per paf table it reads or writes (FROM, UPDATE, INTO; subqueries included), and the `*Raw` SQL APIs are banned.
+
 ## Touching the kit
 
 The kit is touched only at module registration points (both host `Program.cs` and `.csproj`, `src/FSH.Starter.slnx`, the migrations project) and at the other items of the closed list in ADR 0008. Any other kit edit requires amending ADR 0008 first.

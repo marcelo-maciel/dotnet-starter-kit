@@ -58,6 +58,9 @@ public sealed class AtendimentoConfiguration : IEntityTypeConfiguration<Atendime
             .HasDatabaseName("UX_Atendimentos_EstacaoEmCurso");
         builder.HasIndex(x => new { x.UnidadeId, x.DataOperacional }).HasDatabaseName("IX_Atendimentos_UnidadeData");
         builder.HasIndex(x => new { x.UnidadeId, x.FilaId, x.DataOperacional }).HasDatabaseName("IX_Atendimentos_UnidadeFilaData");
+        // Candidate query of the call (hottest path): only waiting rows, so the index stays the size of the live queue.
+        builder.HasIndex(x => new { x.UnidadeId, x.FilaId, x.DataElegibilidade }).HasFilter(PafSql.EstadoAguardando)
+            .HasDatabaseName("IX_Atendimentos_Candidatos");
 
         builder.HasOne<Unidade>().WithMany().HasForeignKey(x => x.UnidadeId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Ficha>().WithMany().HasForeignKey(x => x.FichaId).OnDelete(DeleteBehavior.Restrict);
