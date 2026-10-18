@@ -46,7 +46,21 @@ public sealed class ReconstrucaoLicencas(
         var sessoes = 0;
         foreach (var tenant in tenants.Where(t => !string.Equals(t.Id, MultitenancyConstants.Root.Id, StringComparison.Ordinal)))
         {
-            var vivos = await MembrosVivosAsync(tenant, ct);
+            List<MembroVivo> vivos;
+            try
+            {
+                vivos = await MembrosVivosAsync(tenant, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // A tenant whose database is down (a failed provisioning stays in the store) cannot log anyone in
+                // nor renew a mark, so its set has nothing to gain from waiting; holding the global mark for it
+                // would keep every other tenant in the degraded mode for as long as it stays down. Its live
+                // sessions put their members back on the next renewal once the database returns.
+                logger.LogError(ex, "Reconstrução do conjunto de licenças pulou o tenant {TenantId}: banco indisponível", tenant.Id);
+                continue;
+            }
+
             if (!await conjunto.ReconstruirTenantAsync(tenant.Id, vivos, marco, ct))
             {
                 return false;

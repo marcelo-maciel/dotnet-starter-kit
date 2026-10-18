@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Core.Exceptions;
+using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Escopo;
@@ -292,5 +294,37 @@ public sealed class PafConjuntoLicencasTests(FshWebApplicationFactory factory) :
         var restante = await _multiplexer.GetDatabase().SortedSetScoreAsync(
             ConjuntoLicencas.ChaveConjunto(_tenant.TenantId, unidade.UnidadeId), ConjuntoLicencas.Membro(sessaoViva));
         restante.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task Reconstrucao_ComTenantDeBancoInalcancavel_ReconstroiOsDemaisEGravaAMarca()
+    {
+        var unidade = await _tenant.CriarUnidadeAsync(limiteSessoes: 5);
+        var viva = await _tenant.CriarUsuarioAsync(unidade.UnidadeId);
+        var sessaoViva = PafTenantCliente.SessaoDoToken((await _tenant.EntrarAsync(viva)).AccessToken);
+        // Same shape as a tenant whose provisioning failed (TenantProvisioningFailureTests): in the store, database down.
+        var quebrado = new AppTenantInfo(
+            $"paf-qb-{Guid.NewGuid():N}"[..20], "PAF banco fora",
+            "Host=127.0.0.1;Port=1;Database=does_not_exist;Username=postgres;Password=x;Timeout=3;Command Timeout=3",
+            "qb@paf.test") { IsActive = true, ValidUpto = DateTime.UtcNow.AddMonths(1) };
+        var loja = factory.Services.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
+        (await loja.AddAsync(quebrado)).ShouldBeTrue();
+        try
+        {
+            await _multiplexer.GetServers()[0].FlushAllDatabasesAsync();
+            var conjunto = Conjunto();
+            var reconstrucao = new ReconstrucaoLicencas(
+                factory.Services.GetRequiredService<IServiceScopeFactory>(), conjunto, TimeSpan.FromMinutes(1),
+                NullLogger<ReconstrucaoLicencas>.Instance);
+            using var prazo = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+            (await reconstrucao.ReconstruirAsync(prazo.Token)).ShouldBeTrue("um tenant fora não pode deixar todos no modo degradado");
+            (await conjunto.ReconstruidoAsync(prazo.Token)).ShouldBe(true);
+            (await MembrosAsync(unidade.UnidadeId)).ShouldBe([ConjuntoLicencas.Membro(sessaoViva)]);
+        }
+        finally
+        {
+            (await loja.RemoveAsync(quebrado.Identifier)).ShouldBeTrue();
+        }
     }
 }
