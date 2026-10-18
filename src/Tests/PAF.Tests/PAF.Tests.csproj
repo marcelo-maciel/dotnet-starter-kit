@@ -17,10 +17,17 @@
 		<PackageReference Include="xunit" />
 		<PackageReference Include="xunit.runner.visualstudio" />
 		<PackageReference Include="coverlet.collector" />
+		<!-- O19: the RNF05 barrier builds AWS clients to read their configured deadline. -->
+		<PackageReference Include="AWSSDK.S3" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\Modules\PAF\Modules.PAF\Modules.PAF.csproj" />
+	</ItemGroup>
+
+	<!-- O19: the RNF05 barrier evaluates the API host configuration from the host's own files. -->
+	<ItemGroup>
+		<Content Include="..\..\Host\FSH.Starter.Api\appsettings*.json" Link="host\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 
 </Project>
