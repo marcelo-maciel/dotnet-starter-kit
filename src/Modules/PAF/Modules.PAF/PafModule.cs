@@ -40,6 +40,7 @@ using FSH.Modules.PAF.Features.v1.Filas.CreateFila;
 using FSH.Modules.PAF.Features.v1.Filas.DisableFila;
 using FSH.Modules.PAF.Features.v1.Filas.EnableFila;
 using FSH.Modules.PAF.Features.v1.Filas.ListFilas;
+using FSH.Modules.PAF.Features.v1.Estatistica.ConsultarEstatistica;
 using FSH.Modules.PAF.Features.v1.Filas.ListFilasConsolidadas;
 using FSH.Modules.PAF.Features.v1.Filas.UpdateFila;
 using FSH.Modules.PAF.Features.v1.Filas.UpdateFilaPrioridade;
@@ -128,6 +129,9 @@ public sealed class PafModule : IModule
             .WithApiVersionSet(versionSet)
             .RequireAuthorization();
         MapCadastroEndpoints(cadastro);
+
+        // RF07 (E0): reads the caller's scope, never the current unit.
+        cadastro.MapGetEstatisticaEndpoint();
 
         // No group-wide RequireAuthorization: redeeming a link and renewing a credential are anonymous.
         var estacao = endpoints
