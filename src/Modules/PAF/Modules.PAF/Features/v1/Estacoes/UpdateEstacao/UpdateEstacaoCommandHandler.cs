@@ -49,11 +49,12 @@ public sealed class UpdateEstacaoCommandHandler(
 
         ConfiguracaoDaEstacao.Validar(estacao.Tipo, command.Configuracao, fonteMinima);
         await ListasDaEstacao.ValidarAsync(db, estacao.Tipo, command.Filas, command.Prioridades, cancellationToken).ConfigureAwait(false);
+        var enviosDasImagens = await ImagemDeFundoDaEstacao.ConferirAsync(db, command.Configuracao, cancellationToken).ConfigureAwait(false);
 
         var antes = await CoberturaGuiche.CombinacoesCobertasAsync(db, cancellationToken).ConfigureAwait(false);
         estacao.Renomear(command.Nome.Trim());
         estacao.DefinirRamal(command.Ramal);
-        estacao.DefinirConfiguracao(ConfiguracaoDaEstacao.Serializar(command.Configuracao));
+        estacao.DefinirConfiguracao(ConfiguracaoDaEstacao.Serializar(command.Configuracao, enviosDasImagens));
         await ListasDaEstacao.SincronizarAsync(db, estacao, command.Filas, command.Prioridades, cancellationToken).ConfigureAwait(false);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         var depois = await CoberturaGuiche.CombinacoesCobertasAsync(db, cancellationToken).ConfigureAwait(false);

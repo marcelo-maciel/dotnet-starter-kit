@@ -28,7 +28,7 @@ public static partial class Contraste
     // Compared unrounded: #767676 on white is 4.54 and passes, #777777 is 4.48 and fails; rounding would blur the edge.
     public static bool Suficiente(string texto, string fundo) => Razao(texto, fundo) >= RazaoMinima;
 
-    private static double Luminancia(string cor)
+    internal static double Luminancia(string cor)
     {
         if (!CorValida(cor))
         {

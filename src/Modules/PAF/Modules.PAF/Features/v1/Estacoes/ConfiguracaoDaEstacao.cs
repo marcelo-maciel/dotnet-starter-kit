@@ -26,6 +26,10 @@ internal static class ConfiguracaoDaEstacao
     public const int TituloMaxLength = 120;
     public const int NomeExibicaoMaxLength = 60;
 
+    /// <summary>C17: what the totem screen draws today (black on white) when the block sets no text color.</summary>
+    public const string CorTextoPadraoTotem = "#000000";
+    public const string FundoPadraoTotem = "#FFFFFF";
+
     private static readonly string[] LadosSeta = ["Esquerda", "Direita"];
     private static readonly string[] ModosPainel = ["Normal", "Informativo"];
 
@@ -66,9 +70,14 @@ internal static class ConfiguracaoDaEstacao
         }
     }
 
-    public static string Serializar(BlocosEstacaoDto configuracao)
+    /// <summary>
+    /// <paramref name="enviosDasImagens"/>: current <c>EnvioId</c> of each background mídia, from
+    /// <see cref="ImagemDeFundoDaEstacao.ConferirAsync"/>; stored so a later file swap is detected on read.
+    /// </summary>
+    public static string Serializar(BlocosEstacaoDto configuracao, IReadOnlyDictionary<Guid, Guid> enviosDasImagens)
     {
         ArgumentNullException.ThrowIfNull(configuracao);
+        ArgumentNullException.ThrowIfNull(enviosDasImagens);
         var e = configuracao.Emissao;
         var g = configuracao.Guiche;
         var p = configuracao.Painel;
@@ -78,12 +87,24 @@ internal static class ConfiguracaoDaEstacao
             TempoExibicaoChamadaSegundos: p?.TempoExibicaoChamadaSegundos,
             PrazoCicloEmissaoSegundos: e?.PrazoCicloEmissaoSegundos,
             Emissao: e is null ? null : new AparenciaEmissao(
-                e.Titulo, e.TamanhoFontePx, e.TamanhoBotaoPx, e.CorFundoBotao, e.CorFonteBotao, e.CorDescricaoBotao),
+                e.Titulo, e.TamanhoFontePx, e.TamanhoBotaoPx, e.CorFundoBotao, e.CorFonteBotao, e.CorDescricaoBotao,
+                e.CorTexto, Gravar(e.ImagemFundo, enviosDasImagens)),
             Guiche: g is null ? null : new IdentidadeGuiche(g.Numero, g.NomeExibicao, g.LadoSeta),
             Painel: p is null ? null : new AparenciaPainel(
-                p.MostrarDataHora, p.TamanhoFontePx, p.CorFundo, p.CorFonteFilas, p.CorFonteChamada, p.CorFonteAlternada, p.Modo));
+                p.MostrarDataHora, p.TamanhoFontePx, p.CorFundo, p.CorFonteFilas, p.CorFonteChamada, p.CorFonteAlternada, p.Modo,
+                Gravar(p.ImagemFundo, enviosDasImagens)));
         return JsonSerializer.Serialize(documento, Json);
     }
+
+    /// <summary>C17: the stored background images of both blocks (null when absent), for the screens' read URL.</summary>
+    public static (ImagemFundoGravada? Emissao, ImagemFundoGravada? Painel) ImagensDeFundo(string? configuracao)
+    {
+        var d = LerDocumento(configuracao);
+        return (d?.Emissao?.ImagemFundo, d?.Painel?.ImagemFundo);
+    }
+
+    private static ImagemFundoGravada? Gravar(ImagemFundoDto? imagem, IReadOnlyDictionary<Guid, Guid> enviosDasImagens) =>
+        imagem is null ? null : new ImagemFundoGravada(imagem.MidiaId, imagem.VersaoMidia, enviosDasImagens[imagem.MidiaId], imagem.Luminancias);
 
     /// <summary>The blocks as stored; null when nothing was ever written through the cadastro.</summary>
     public static BlocosEstacaoDto? Ler(string? configuracao)
@@ -97,13 +118,23 @@ internal static class ConfiguracaoDaEstacao
         return new BlocosEstacaoDto(
             d.Emissao is not { } e ? null : new BlocoEmissaoDto(
                 e.Titulo, e.TamanhoFontePx, e.TamanhoBotaoPx, e.CorFundoBotao, e.CorFonteBotao, e.CorDescricaoBotao,
-                d.PrazoCicloEmissaoSegundos),
+                d.PrazoCicloEmissaoSegundos)
+            {
+                CorTexto = e.CorTexto,
+                ImagemFundo = Expor(e.ImagemFundo),
+            },
             d.Guiche is not { } g ? null : new BlocoGuicheDto(
                 g.Numero, g.NomeExibicao, g.LadoSeta, d.RespeitarOrdemFilas ?? false, d.SelecionarFicha ?? false),
             d.Painel is not { } p ? null : new BlocoPainelDto(
                 d.TempoExibicaoChamadaSegundos, p.MostrarDataHora, p.TamanhoFontePx, p.CorFundo, p.CorFonteFilas,
-                p.CorFonteChamada, p.CorFonteAlternada, p.Modo));
+                p.CorFonteChamada, p.CorFonteAlternada, p.Modo)
+            {
+                ImagemFundo = Expor(p.ImagemFundo),
+            });
     }
+
+    private static ImagemFundoDto? Expor(ImagemFundoGravada? imagem) =>
+        imagem is null ? null : new ImagemFundoDto(imagem.MidiaId, imagem.VersaoMidia, imagem.Luminancias);
 
     /// <summary>Number and display name the painel announces for a guichê; both null when the block was never written.</summary>
     public static (int? Numero, string? NomeExibicao) IdentidadeDoGuiche(string? configuracao)
@@ -163,6 +194,71 @@ internal static class ConfiguracaoDaEstacao
         ValidarTempo(erros, "Emissao.PrazoCicloEmissaoSegundos", e.PrazoCicloEmissaoSegundos);
         ValidarCores(erros, "Emissao", ("CorFundoBotao", e.CorFundoBotao),
             [("CorFonteBotao", e.CorFonteBotao), ("CorDescricaoBotao", e.CorDescricaoBotao)]);
+        ValidarTextoDoTotem(erros, e);
+    }
+
+    // C17: the buttons keep their own solid color, so on the totem only the title and the messages sit on the screen
+    // background: the image when there is one, else the screen's white.
+    private static void ValidarTextoDoTotem(List<string> erros, BlocoEmissaoDto e)
+    {
+        if (e.CorTexto is not null && !Contraste.CorValida(e.CorTexto))
+        {
+            erros.Add("Emissao.CorTexto deve estar no formato #RRGGBB.");
+            return;
+        }
+
+        var texto = e.CorTexto ?? CorTextoPadraoTotem;
+        if (e.ImagemFundo is { } imagem)
+        {
+            ValidarContraImagem(erros, "Emissao", imagem, [("CorTexto", texto)]);
+        }
+        else if (e.CorTexto is not null && !Contraste.Suficiente(texto, FundoPadraoTotem))
+        {
+            erros.Add(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"Emissao.CorTexto sobre o fundo branco do totem tem contraste {Math.Floor(Contraste.Razao(texto, FundoPadraoTotem) * 100) / 100:0.00}:1, abaixo do mínimo de {Contraste.RazaoMinima}:1."));
+        }
+    }
+
+    // C17: every painel text sits on the background, so with an image each text color is measured against it. Without
+    // the block colors the screen would use its default translucent whites, which nobody measured: required.
+    private static void ValidarImagemDoPainel(List<string> erros, BlocoPainelDto p)
+    {
+        if (p.ImagemFundo is not { } imagem)
+        {
+            return;
+        }
+
+        if (p.CorFundo is null)
+        {
+            erros.Add("Painel: com imagem de fundo, informe as cores do bloco (CorFundo, CorFonteFilas, CorFonteChamada, CorFonteAlternada).");
+            return;
+        }
+
+        (string Campo, string? Cor)[] textos =
+            [("CorFonteFilas", p.CorFonteFilas), ("CorFonteChamada", p.CorFonteChamada), ("CorFonteAlternada", p.CorFonteAlternada)];
+        if (textos.All(t => Contraste.CorValida(t.Cor)))
+        {
+            ValidarContraImagem(erros, "Painel", imagem, [.. textos.Select(t => (t.Campo, t.Cor!))]);
+        }
+    }
+
+    private static void ValidarContraImagem(List<string> erros, string bloco, ImagemFundoDto imagem, (string Campo, string Cor)[] textos)
+    {
+        if (!ContrasteImagem.AmostraValida(imagem.Luminancias))
+        {
+            erros.Add($"{bloco}.ImagemFundo.Luminancias deve ter {ContrasteImagem.DigitosDaAmostra} dígitos hexadecimais com ao menos uma faixa.");
+            return;
+        }
+
+        foreach (var (campo, cor) in textos)
+        {
+            var razao = ContrasteImagem.PiorRazao(cor, imagem.Luminancias);
+            if (razao < Contraste.RazaoMinima)
+            {
+                erros.Add(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                    $"{bloco}.{campo} sobre a imagem de fundo tem contraste {Math.Floor(razao * 100) / 100:0.00}:1 no pior ponto, abaixo do mínimo de {Contraste.RazaoMinima}:1."));
+            }
+        }
     }
 
     private static void ValidarGuiche(List<string> erros, BlocoGuicheDto g)
@@ -199,6 +295,7 @@ internal static class ConfiguracaoDaEstacao
 
         ValidarCores(erros, "Painel", ("CorFundo", p.CorFundo),
             [("CorFonteFilas", p.CorFonteFilas), ("CorFonteChamada", p.CorFonteChamada), ("CorFonteAlternada", p.CorFonteAlternada)]);
+        ValidarImagemDoPainel(erros, p);
     }
 
     private static void ValidarTempo(List<string> erros, string campo, int? segundos)
@@ -253,11 +350,19 @@ internal static class ConfiguracaoDaEstacao
         AparenciaPainel? Painel);
 
     private sealed record AparenciaEmissao(
-        string? Titulo, int? TamanhoFontePx, int? TamanhoBotaoPx, string? CorFundoBotao, string? CorFonteBotao, string? CorDescricaoBotao);
+        string? Titulo, int? TamanhoFontePx, int? TamanhoBotaoPx, string? CorFundoBotao, string? CorFonteBotao, string? CorDescricaoBotao,
+        string? CorTexto, ImagemFundoGravada? ImagemFundo);
 
     private sealed record IdentidadeGuiche(int Numero, string? NomeExibicao, string? LadoSeta);
 
     private sealed record AparenciaPainel(
         bool? MostrarDataHora, int? TamanhoFontePx, string? CorFundo, string? CorFonteFilas, string? CorFonteChamada,
-        string? CorFonteAlternada, string? Modo);
+        string? CorFonteAlternada, string? Modo, ImagemFundoGravada? ImagemFundo);
 }
+
+/// <summary>
+/// C17: a background image as stored in the station <c>jsonb</c>. <paramref name="EnvioId"/> is the mídia's file when the
+/// sample was accepted: once the mídia points at another envio (file swap), the sample no longer describes what the
+/// screen would show, and the screens get no URL until the cadastro measures and saves again.
+/// </summary>
+internal sealed record ImagemFundoGravada(Guid MidiaId, int VersaoMidia, Guid EnvioId, string Luminancias);

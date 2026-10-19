@@ -1,3 +1,4 @@
+using FSH.Modules.PAF.Contracts.v1.Midias;
 using Mediator;
 
 namespace FSH.Modules.PAF.Contracts.v1.Estacoes;
@@ -11,6 +12,12 @@ public sealed record ConfiguracaoEstacaoDto(
 {
     /// <summary>C20: what the painel shows and says with each call (RF06 Geral); null for a station without the painel role.</summary>
     public AnuncioDaChamadaDto? AnuncioDaChamada { get; init; }
+
+    /// <summary>C17: signed read URL of the Emissão block's background image; null = no image (none, inactive or swapped since measured).</summary>
+    public UrlLeituraMidiaDto? ImagemFundoEmissao { get; init; }
+
+    /// <summary>C17: same for the Painel block.</summary>
+    public UrlLeituraMidiaDto? ImagemFundoPainel { get; init; }
 }
 
 /// <summary>
