@@ -17,7 +17,17 @@ public sealed record EstacaoDto(
     IReadOnlyList<EstacaoFilaItem> Filas,
     IReadOnlyList<EstacaoPrioridadeItem> Prioridades,
     string? Ramal,
-    BlocosEstacaoDto? Configuracao);
+    BlocosEstacaoDto? Configuracao,
+    VinculoAtualDto? VinculoAtual,
+    DateTimeOffset? UltimaConexaoEmissaoEm,
+    DateTimeOffset? UltimaConexaoPainelEm);
+
+/// <summary>
+/// The station's live device link (not revoked), at most one by construction of the generation (RF04).
+/// <paramref name="PapeisResgatados"/> lists the roles (Emissao, Painel) the redemption issued a credential for; empty
+/// while the link waits for its device.
+/// </summary>
+public sealed record VinculoAtualDto(DateTimeOffset CriadoEm, DateTimeOffset? ResgatadoEm, IReadOnlyList<string> PapeisResgatados);
 
 /// <summary>
 /// <paramref name="Tipo"/> is one of the seven RF04 types (Administracao, Emissao, EmissaoGuiche,

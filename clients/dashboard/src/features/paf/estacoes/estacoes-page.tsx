@@ -7,10 +7,15 @@ import { ApiRequestError } from "@/lib/api-client";
 import { mensagemAmigavel } from "@/features/paf/paf-erros";
 import { useAuth } from "@/auth/use-auth";
 import { DialogoDesativacao } from "@/features/paf/estacoes/desativacao-dialogo";
+import { LinkGerado } from "@/features/paf/estacoes/link-gerado";
+import { avisosDoLinkGerado, linhasDoVinculo, usaLink } from "@/features/paf/estacoes/vinculo-estacao";
+import { montarLinkVinculo } from "@/features/paf/estacao/link-vinculo";
 import {
   atualizarEstacao,
   criarEstacao,
+  gerarVinculo,
   liberarGuiche,
+  revogarVinculo,
   listarEstacoes,
   listarFilas,
   listarPrioridades,
@@ -41,6 +46,8 @@ import {
 
 const CHAVE_ESTACOES = ["paf", "estacoes"] as const;
 const PERMISSAO_LIBERAR_GUICHE = "Permissions.PAF.Guiches.Liberar";
+const PERMISSAO_GERAR_LINK = "Permissions.PAF.VinculosEstacao.Generate";
+const PERMISSAO_REVOGAR_LINK = "Permissions.PAF.VinculosEstacao.Revoke";
 const ROTULO_PAPEL: Record<Papel, string> = { Emissao: "Emissão de Fichas", Guiche: "Guichê", Painel: "Painel Chamador" };
 
 type Edicao = {
@@ -187,6 +194,44 @@ export function EstacoesPage() {
   const [desativando, setDesativando] = useState<EstacaoDto | null>(null);
   const { user, permissionsHydrated } = useAuth();
   const podeLiberar = permissionsHydrated && (user?.permissions.includes(PERMISSAO_LIBERAR_GUICHE) ?? false);
+  const podeGerarLink = permissionsHydrated && (user?.permissions.includes(PERMISSAO_GERAR_LINK) ?? false);
+  const podeRevogarLink = permissionsHydrated && (user?.permissions.includes(PERMISSAO_REVOGAR_LINK) ?? false);
+  const [linkGerado, setLinkGerado] = useState<{ estacao: string; link: string; avisos: string[] } | null>(null);
+
+  const gerarLink = async (e: EstacaoDto) => {
+    setOcupado(true);
+    setAviso(null);
+    setLinkGerado(null);
+    try {
+      const gerado = await gerarVinculo(e.id);
+      setLinkGerado({
+        estacao: e.nome,
+        link: montarLinkVinculo(window.location.origin, gerado.tenant, gerado.token),
+        avisos: avisosDoLinkGerado(e.vinculoAtual !== null),
+      });
+      await queryClient.invalidateQueries({ queryKey: CHAVE_ESTACOES });
+    } catch (erro) {
+      setAviso(mensagemAmigavel(erro));
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  const revogarLink = async (e: EstacaoDto) => {
+    if (!window.confirm(`Revogar o link de ${e.nome}? O aparelho vinculado é desconectado na hora e só volta com um link novo.`)) return;
+    setOcupado(true);
+    setAviso(null);
+    setLinkGerado(null);
+    try {
+      await revogarVinculo(e.id);
+      setAviso(`Link de ${e.nome} revogado.`);
+      await queryClient.invalidateQueries({ queryKey: CHAVE_ESTACOES });
+    } catch (erro) {
+      setAviso(mensagemAmigavel(erro));
+    } finally {
+      setOcupado(false);
+    }
+  };
 
   const liberar = async (e: EstacaoDto) => {
     setOcupado(true);
@@ -261,6 +306,8 @@ export function EstacoesPage() {
           {aviso}
         </p>
       )}
+
+      {linkGerado && <LinkGerado {...linkGerado} onFechar={() => setLinkGerado(null)} />}
 
       {edicao && (
         <section className="space-y-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5" data-edicao-estacao>
@@ -473,10 +520,27 @@ export function EstacoesPage() {
                 Liberar guichê
               </Button>
             )}
+            {e.ativa && podeGerarLink && usaLink(e.tipo) && (
+              <Button size="sm" variant="outline" disabled={ocupado} onClick={() => void gerarLink(e)}>
+                Gerar link
+              </Button>
+            )}
+            {podeRevogarLink && e.vinculoAtual !== null && (
+              <Button size="sm" variant="outline" disabled={ocupado} onClick={() => void revogarLink(e)}>
+                Revogar link
+              </Button>
+            )}
             {e.ativa && (
               <Button size="sm" variant="outline" disabled={ocupado} onClick={() => setDesativando(e)}>
                 Desativar
               </Button>
+            )}
+            {usaLink(e.tipo) && (
+              <ul className="w-full space-y-0.5 text-sm text-[var(--color-muted-foreground)]" data-vinculo-estacao>
+                {linhasDoVinculo(e).map((linha) => (
+                  <li key={linha}>{linha}</li>
+                ))}
+              </ul>
             )}
           </li>
         ))}
