@@ -185,3 +185,51 @@ deploy/paf/seed-homolog.test.sh paf-dbmigrator:<tag>
 ```
 
 O teste prova cada guarda com um `docker` falso no `PATH`, que deixa um arquivo marcador se for chamado (código 2 e marcador ausente; a homologação válida é o controle e chega ao `docker`). Depois sobe só PostgreSQL e Valkey no projeto descartável `paf-ensaio-o09` (porta 29432 do PostgreSQL, 29080 a 29083 reservadas, subnet `172.31.29.0/24`), roda o wrapper duas vezes e confere que a contagem exata de linhas de toda tabela é igual nas duas, que o hash do administrador demo confere com `PAF_SENHA_DEMO` e não com a senha padrão, e que o `seed-demo` sem o wrapper, com o `Production` do arquivo, continua recusado pelo kit. Remove o projeto ao sair.
+
+## Backup diário e teste de restauração (O11, RNF14)
+
+O serviço `backup` do `compose.yml` roda `paf-backup agendar` (imagem `deploy/paf/pg-backup`, sobre a mesma `postgres:18-alpine` do banco, porque o `pg_dump` não lê servidor de versão maior que a dele). Uma vez por dia, às 03:00 de Brasília (`TZ=America/Sao_Paulo`, o agendador recusa outro fuso):
+
+- `flock` no volume de trabalho: uma segunda execução simultânea sai com código 75 sem enviar nada;
+- recusa o backup se algum tenant tiver banco próprio (`ConnectionString` preenchida), porque esse banco ficaria fora da cópia;
+- abre uma transação `REPEATABLE READ`, exporta o snapshot, conta as linhas de toda tabela dentro dele e roda `pg_dump -Fc --snapshot` no mesmo snapshot, de modo que as contagens batem exatamente com a cópia;
+- confere o dump com `pg_restore --list`, calcula o sha256 do dump e das contagens e envia, nesta ordem, `.dump`, `.contagens` e `.sha256` para `<projeto>/copias/<AAAA-MM-DD>/fsh-<AAAA-MM-DDTHHMMSS>` no bucket de backup do ambiente. Todo envio é condicional (`If-None-Match: *`): o script nunca sobrescreve objeto. O `.sha256` vai por último; cópia sem ele é envio interrompido, e a restauração a recusa;
+- qualquer falha: linha JSON no log, POST `{"text": "..."}` em `PAF_BACKUP_ALERTA_URL`, código diferente de zero e healthcheck do contêiner vermelho até o próximo sucesso. O healthcheck também fica vermelho sem sucesso há mais de 26 horas.
+
+Execução manual (depois de todo deploy e sempre que quiser uma cópia agora):
+
+```bash
+docker compose -f deploy/paf/compose.yml --env-file deploy/paf/ambientes/producao.env exec backup paf-backup agora
+```
+
+### Passo humano: bucket, token, bloqueio e ciclo de vida (uma vez por ambiente)
+
+A garantia contra um host comprometido é o bloqueio do bucket (ARQ l.388), que só o dono da conta Cloudflare configura. Para cada ambiente, com `wrangler login` na conta da Codefi:
+
+- [ ] Criar o bucket de backup: `npx wrangler r2 bucket create paf-backup-producao` (e `paf-backup-homologacao`), separado do bucket da aplicação.
+- [ ] Bloqueio de 7 dias no bucket inteiro: `npx wrangler r2 bucket lock add paf-backup-producao retencao-7-dias "" --retention-days 7`.
+- [ ] Ciclo de vida só nas cópias, que apaga o que passou do prazo e uploads incompletos: `npx wrangler r2 bucket lifecycle add paf-backup-producao expira-copias "paf-producao/copias/" --expire-days 7 --abort-multipart-days 1` (o prefixo é o `COMPOSE_PROJECT_NAME` do ambiente).
+- [ ] Ciclo de vida dos objetos de prova do bloqueio: `npx wrangler r2 bucket lifecycle add paf-backup-producao expira-provas "paf-producao/verificacao-bloqueio/" --expire-days 7`.
+- [ ] Conferir: `npx wrangler r2 bucket lock list paf-backup-producao` mostra a regra de bloqueio e `npx wrangler r2 bucket lifecycle list paf-backup-producao` as duas de ciclo de vida. Os relatórios de restauração (`paf-producao/restauracoes/`) ficam fora do ciclo de vida de propósito: são o registro do RNF14 e não expiram.
+- [ ] Token de API do R2 com permissão de objeto, leitura e escrita, só nesse bucket; access key e secret em `PAF_BACKUP_ACCESS_KEY` e `PAF_BACKUP_SECRET_KEY` do arquivo do ambiente. Nunca a credencial do Storage da aplicação (o `verificar-ambiente.sh` reprova).
+- [ ] Provar o bloqueio com a credencial do backup: `docker compose -f deploy/paf/compose.yml --env-file <arquivo.env> run --rm backup verificar-bloqueio`. Envia um objeto de prova, tenta sobrescrever e apagar, e só sai com 0 se as duas tentativas forem recusadas. O objeto fica retido 7 dias e sai pelo ciclo de vida `expira-provas`.
+
+Comandos conferidos na documentação do Wrangler em 19/10/2026 (`r2 bucket lock add <BUCKET> [NAME] [PREFIX] --retention-days`, `r2 bucket lifecycle add <BUCKET> [NAME] [PREFIX] --expire-days --abort-multipart-days`). O bloqueio tem precedência sobre o ciclo de vida, então nada sai antes dos 7 dias.
+
+### Teste de restauração
+
+```bash
+deploy/paf/restaurar-backup.sh deploy/paf/ambientes/producao.env ultima      # ou a chave sem extensão
+```
+
+Sobe um projeto descartável (`deploy/paf/pg-backup/restauracao.yml`, rede própria, onde o `postgres` do ambiente nem resolve), e em sequência, cada etapa com o seu código de saída: baixa a cópia e confere o sha256; `pg_restore` num PostgreSQL vazio; compara a contagem de cada tabela com a do momento do dump; roda o `apply` da imagem do migrator do ambiente sobre a cópia, e qualquer linha nova em `__EFMigrationsHistory` reprova (migração pendente); faz HEAD de cada `paf."Midias"."ChaveObjeto"` no bucket da aplicação, com a mesma regra de prefixo do kit, e uma mídia ausente reprova. Com tudo verde, grava o relatório em `<projeto>/restauracoes/<instante>.json` no bucket de backup, que é o registro do RNF14. Remove o projeto descartável ao sair.
+
+### Testes
+
+```bash
+docker build -t paf-backup:teste deploy/paf/pg-backup
+deploy/paf/publicar-imagem-migrator.sh teste
+deploy/paf/pg-backup/backup.test.sh paf-backup:teste paf-dbmigrator:teste
+```
+
+PostgreSQL migrado e com o `seed-demo`, MinIO no lugar dos dois buckets e um receptor de webhook. Casos: cópia completa e restauração aprovada e registrada; execução simultânea no `flock`; credencial errada com alerta e healthcheck vermelho; armazenamento fora do ar no meio da execução sem `.sha256`; cópia parcial recusada pelo sha256; cópia sem `.sha256` recusada; mídia ausente; migração pendente; tenant com banco próprio; `verificar-bloqueio` reprovando bucket sem bloqueio; agendador mirando 03:00 de Brasília e recusando outro fuso. A recusa de sobrescrita e exclusão dentro dos 7 dias não tem como ser provada no MinIO (ele cria versão nova em vez de recusar) e fica SKIPPED aqui: a prova é o `verificar-bloqueio` no R2 real, no passo humano acima.

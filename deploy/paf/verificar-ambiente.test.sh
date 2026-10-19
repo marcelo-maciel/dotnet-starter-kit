@@ -22,6 +22,8 @@ preencher() {
       -e "s#^JwtOptions__SigningKey=.*#JwtOptions__SigningKey=paf-$sufixo-signing-key-ascii-0123456789abcdef#" \
       -e "s#<account-id>#conta-teste#" -e "s#<segredo>#segredo-teste#g" -e "s#<usuario>#usuario-teste#g" \
       -e "s#<smtp>#smtp.teste#" -e "s#<tag>#teste#" \
+      -e "s#^PAF_BACKUP_ACCESS_KEY=.*#PAF_BACKUP_ACCESS_KEY=backup-$sufixo-1#" \
+      -e "s#<webhook-de-alerta>#alerta.teste/hook#" \
       "$exemplo" >"$destino"
 }
 
@@ -98,6 +100,11 @@ caso "fuso ausente na API" "TZ=America/Sao_Paulo" trocar "$PROD" TZ ""
 caso "segredo com cifrão" "compose sem aviso de interpolação" trocar "$PROD" HangfireOptions__Password 'HangfireOptions__Password=abc$def'
 caso "arquivo aponta outro ambiente" "env_file é o próprio arquivo do ambiente" trocar "$HOMOLOG" PAF_ARQUIVO_AMBIENTE "PAF_ARQUIVO_AMBIENTE=ambientes/teste-producao.env"
 caso "Storage local" "Storage__Provider=s3" trocar "$PROD" Storage__Provider "Storage__Provider=local"
+caso "backup no bucket da aplicação" "bucket de backup separado do bucket da aplicação" trocar "$PROD" PAF_BACKUP_BUCKET "PAF_BACKUP_BUCKET=paf-producao"
+caso "mesmo bucket de backup nos dois" "buckets de backup diferentes" trocar "$HOMOLOG" PAF_BACKUP_BUCKET "PAF_BACKUP_BUCKET=paf-backup-producao"
+caso "backup com a credencial do Storage" "backup sem a credencial do Storage da aplicação" trocar "$PROD" PAF_BACKUP_ACCESS_KEY "PAF_BACKUP_ACCESS_KEY=segredo-teste"
+caso "backup sem alerta" "docker compose config falhou" trocar "$PROD" PAF_BACKUP_ALERTA_URL ""
+caso "backup com alerta http" "backup com alerta https" trocar "$PROD" PAF_BACKUP_ALERTA_URL "PAF_BACKUP_ALERTA_URL=http://alerta.teste/hook"
 caso "prazo de inatividade inválido" "prazo de inatividade (D04)" trocar "$PROD" PAF_INATIVIDADE_MS "PAF_INATIVIDADE_MS=oito-horas"
 
 # The .exemplo files themselves must never pass: placeholders and the sample key.
