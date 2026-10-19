@@ -81,3 +81,13 @@ test("o executável recusa SHA malformado e falta de token com código 2, antes 
     );
   }
 });
+
+// GitHub marks a deployment "inactive" once a newer one goes green in the same environment: only the SHA that is
+// in homologação now can be promoted, an older one has to be redeployed there first.
+test("SHA substituído por implantação mais nova em homologação (inactive) não é promovido", () => {
+  const r = avaliarHomologacao(SHA, [
+    implantacao(1, SHA, "homologacao", "2026-10-19T10:00:00Z", ["success", "2026-10-19T10:04:00Z"], ["inactive", "2026-10-19T11:04:00Z"]),
+  ]);
+  assert.equal(r.verde, false);
+  assert.match(r.motivo, /inactive/);
+});
