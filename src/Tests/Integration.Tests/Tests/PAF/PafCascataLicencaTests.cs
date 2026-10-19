@@ -227,8 +227,25 @@ public sealed class PafCascataLicencaTests(FshWebApplicationFactory factory) : I
         var usuario = await UsuarioEmpresaAsync(principal.UnidadeId);
         var criadaDepois = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);
 
-        // The tenant's initial unit (RF23) sits between them by creation and has no contract, so it is skipped too.
-        (await EntrarAsync(usuario, comValkey)).UnidadeId.ShouldBe(criadaDepois.UnidadeId);
+        // The tenant's initial unit (C03, with the fixture's contract) and the units of this class's other tests sit
+        // between them by creation with balance; they are put out of the cascade (inactive) for this test only.
+        Guid[] entre;
+        using (var scope = factory.Services.CreateScope())
+        {
+            entre = await _tenant.Contexto(scope, unidadeCorrente: null).Unidades.AsNoTracking()
+                .Where(u => u.Ativa && u.Id != principal.UnidadeId && u.Id != criadaDepois.UnidadeId)
+                .Select(u => u.Id).ToArrayAsync();
+        }
+
+        await _tenant.ExecutarAsync($"""UPDATE paf."Unidades" SET "Ativa" = false WHERE "Id" = ANY({entre}) AND "TenantId" = {_tenant.TenantId}""");
+        try
+        {
+            (await EntrarAsync(usuario, comValkey)).UnidadeId.ShouldBe(criadaDepois.UnidadeId);
+        }
+        finally
+        {
+            await _tenant.ExecutarAsync($"""UPDATE paf."Unidades" SET "Ativa" = true WHERE "Id" = ANY({entre}) AND "TenantId" = {_tenant.TenantId}""");
+        }
     }
 
     // Opposite scope orders racing: the degraded mode locks every candidate in id order, the set decides in one script.

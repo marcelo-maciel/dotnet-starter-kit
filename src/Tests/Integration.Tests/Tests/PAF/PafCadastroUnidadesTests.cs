@@ -35,7 +35,10 @@ public sealed class PafCadastroUnidadesTests(FshWebApplicationFactory factory) :
         var nova = await PafApi.OkAsync<Guid>(empresa, HttpMethod.Post, "/unidades", null, new CreateUnidadeCommand("  Loja Centro  ", "12345678000199"));
 
         var lista = await ListarAsync(empresa);
-        lista.Select(u => u.Id).ShouldBe([u1.UnidadeId, nova]);
+        // Escopo empresa lists the principal first, then every unit by creation: the tenant's initial unit (C03) and
+        // this class's other units sit in between, the one just created comes last.
+        lista[0].Id.ShouldBe(u1.UnidadeId);
+        lista[^1].Id.ShouldBe(nova);
         var criada = lista.Single(u => u.Id == nova);
         criada.Nome.ShouldBe("Loja Centro");
         criada.Ativa.ShouldBeTrue();
@@ -89,7 +92,20 @@ public sealed class PafCadastroUnidadesTests(FshWebApplicationFactory factory) :
         await _tenant.DarPapelAsync(usuario.UserId, PermissoesDeCadastro);
         // Without a scope row he is no PAF user: the login passes with no licence and the scope is empty.
         await _tenant.ExecutarAsync($"""DELETE FROM paf."UsuariosUnidade" WHERE "UsuarioId" = {Guid.Parse(usuario.UserId)} AND "TenantId" = {_tenant.TenantId}""");
-        using var cliente = _tenant.Cliente((await _tenant.EntrarAsync(usuario)).AccessToken);
+        // Since C03 such a login is refused once the PAF reached the tenant; the tenant goes back to the state before
+        // that just for the login, so the request reaches the escopo empresa rule this test covers.
+        await _tenant.ExecutarAsync($"""UPDATE paf."Unidades" SET "Inicial" = false WHERE "Id" = {_tenant.UnidadeInicial} AND "TenantId" = {_tenant.TenantId}""");
+        string token;
+        try
+        {
+            token = (await _tenant.EntrarAsync(usuario)).AccessToken;
+        }
+        finally
+        {
+            await _tenant.ExecutarAsync($"""UPDATE paf."Unidades" SET "Inicial" = true WHERE "Id" = {_tenant.UnidadeInicial} AND "TenantId" = {_tenant.TenantId}""");
+        }
+
+        using var cliente = _tenant.Cliente(token);
 
         using var criar = await PafApi.EnviarAsync(cliente, HttpMethod.Post, "/unidades", null, new CreateUnidadeCommand("Loja", null));
         await RecusadoPorNaoSerEmpresaAsync(criar);
