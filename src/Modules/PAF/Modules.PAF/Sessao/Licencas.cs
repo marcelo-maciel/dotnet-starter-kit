@@ -1,3 +1,4 @@
+using System.Net;
 using FSH.Framework.Core.Exceptions;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Domain;
@@ -37,6 +38,10 @@ public sealed class Licencas(
         "Nenhuma unidade do seu acesso tem contrato ativo. Procure o administrador da empresa.";
     public const string MensagemLimite =
         "O limite de licenças foi atingido em todas as unidades do seu acesso. Aguarde outro usuário sair ou procure o administrador.";
+    public const string MensagemDestinoSemContrato =
+        "Esta unidade não tem contrato ativo. Você continua na unidade atual.";
+    public const string MensagemDestinoLimite =
+        "O limite de licenças desta unidade foi atingido. Você continua na unidade atual.";
 
     /// <summary>
     /// Whether the PAF has reached the tenant: its initial unidade exists (RF23). Until then no user of the tenant can
@@ -221,26 +226,159 @@ public sealed class Licencas(
             throw new ForbiddenException(MensagemSemUnidadeAtiva);
         }
 
-        // Validity is a calendar day in America/Sao_Paulo, taken from the PostgreSQL clock.
-        var ids = ativas.ToArray();
-        var contratos = await db.Database.SqlQuery<ContratoVigente>($"""
+        var contratos = await ContratosVigentesAsync(tenantId, [.. ativas], ct);
+        var candidatas = escopoEfetivo
+            .Where(contratos.ContainsKey)
+            .Select(id => contratos[id])
+            .ToList();
+        return candidatas.Count == 0 ? throw new ForbiddenException(MensagemSemContrato) : candidatas;
+    }
+
+    // Validity is a calendar day in America/Sao_Paulo, taken from the PostgreSQL clock.
+    private async Task<Dictionary<Guid, CandidataLicenca>> ContratosVigentesAsync(string tenantId, Guid[] ids, CancellationToken ct) =>
+        (await db.Database.SqlQuery<ContratoVigente>($"""
             SELECT DISTINCT ON ("UnidadeId") "UnidadeId", "LimiteSessoes", "Politica"
               FROM paf."ContratosUnidade"
              WHERE "TenantId" = {tenantId} AND "UnidadeId" = ANY({ids})
                AND "InicioVigencia" <= (now() AT TIME ZONE 'America/Sao_Paulo')::date
                AND ("FimVigencia" IS NULL OR "FimVigencia" >= (now() AT TIME ZONE 'America/Sao_Paulo')::date)
              ORDER BY "UnidadeId", "InicioVigencia" DESC
-            """).ToDictionaryAsync(c => c.UnidadeId, ct);
-
-        var candidatas = escopoEfetivo
-            .Where(contratos.ContainsKey)
-            .Select(id => contratos[id])
-            .Select(c => new CandidataLicenca(
+            """).ToListAsync(ct))
+        .ToDictionary(
+            c => c.UnidadeId,
+            c => new CandidataLicenca(
                 c.UnidadeId,
                 c.LimiteSessoes,
-                string.Equals(c.Politica, nameof(PoliticaLimiteLicenca.UltrapassarComAviso), StringComparison.Ordinal)))
-            .ToList();
-        return candidatas.Count == 0 ? throw new ForbiddenException(MensagemSemContrato) : candidatas;
+                string.Equals(c.Politica, nameof(PoliticaLimiteLicenca.UltrapassarComAviso), StringComparison.Ordinal)));
+
+    /// <summary>
+    /// Troca manual de unidade (S07, RF22, ARQ seção 9): a licença sai da unidade de origem e entra na de destino,
+    /// dentro da transação já aberta pelo chamador, ou a troca é recusada e nada muda. Decide o conjunto do Valkey
+    /// numa operação só; com o Valkey fora ou antes da reconstrução, a contagem das linhas frescas sob os bloqueios
+    /// de origem e destino em ordem canônica. Grava a unidade e o instante na linha de <see cref="AtividadeSessao"/>
+    /// e o excedente da ultrapassagem contratada. Quem chama confirma com <see cref="ConcluirMigracaoAsync"/> depois
+    /// do commit, ou desfaz com <see cref="DesfazerMigracaoAsync"/> se a transação não for confirmada.
+    /// </summary>
+    public async Task<MigracaoLicenca> MigrarAsync(string tenantId, Guid usuarioId, Guid sessaoId, Guid destino, CancellationToken ct)
+    {
+        if (db.Database.CurrentTransaction is null)
+        {
+            throw new InvalidOperationException("A migração da licença exige transação aberta.");
+        }
+
+        // Same user lock as the reservation: a reoccupation or refresh of this user confirming in the middle would
+        // put the member back in the origin after it moved.
+        await BloquearAsync($"paf-licenca-usuario:{tenantId}:{usuarioId}", ct);
+
+        // Under the user lock, link before row: the order of ConfirmarAsync (user, link, row) and of LiberarAsync
+        // (link, row). A login elsewhere or a logout of this session running alongside waits instead of deadlocking.
+        await VinculosGuiche.TravarAtivoDaSessaoAsync(db, tenantId, sessaoId, ct);
+
+        // The row lock keeps the renewal (RenovarMarcaAsync) from restoring the member in the origin before commit.
+        var linhas = await db.Database.SqlQuery<Guid>($"""
+            SELECT "UnidadeId" AS "Value" FROM paf."AtividadesSessao"
+             WHERE "TenantId" = {tenantId} AND "SessaoId" = {sessaoId}
+               FOR UPDATE
+            """).ToListAsync(ct);
+        if (linhas.Count == 0)
+        {
+            // Released meanwhile (logout, grace): the next request re-occupies through the cascade.
+            throw new UnauthorizedException(SessionCheckMiddleware.MensagemSessaoInvalida);
+        }
+
+        var origem = linhas[0];
+        if (origem == destino)
+        {
+            return new MigracaoLicenca(tenantId, sessaoId, origem, destino, DesfechoOcupacao.JaOcupava);
+        }
+
+        var contrato = (await ContratosVigentesAsync(tenantId, [destino], ct)).GetValueOrDefault(destino)
+            ?? throw new CustomException(MensagemDestinoSemContrato, [], HttpStatusCode.Conflict);
+
+        var ocupacao = await conjunto.MoverAsync(tenantId, ConjuntoLicencas.Membro(sessaoId), contrato, conjunto.PrazoMembro, ct);
+        var migracao = new MigracaoLicenca(tenantId, sessaoId, origem, destino, ocupacao.Desfecho);
+        try
+        {
+            var ocupadas = ocupacao.Desfecho switch
+            {
+                DesfechoOcupacao.Ocupada => ocupacao.Ocupadas,
+                // Already a member of the destination (a retry after a failed commit): no new seat, no new excess.
+                DesfechoOcupacao.JaOcupava => 0,
+                DesfechoOcupacao.SemSaldo => throw new CustomException(MensagemDestinoLimite, [], HttpStatusCode.Conflict),
+                _ => await OcupadasNoDestinoAsync(tenantId, sessaoId, origem, contrato, ct),
+            };
+
+            if (ocupadas > contrato.Limite)
+            {
+                await RegistrarExcedenteAsync(tenantId, destino, sessaoId, ocupadas, contrato.Limite, ct);
+            }
+
+            await db.Database.ExecuteSqlAsync($"""
+                UPDATE paf."AtividadesSessao" SET "UnidadeId" = {destino}, "UltimaAtividadeEm" = now()
+                 WHERE "TenantId" = {tenantId} AND "SessaoId" = {sessaoId}
+                """, ct);
+            return migracao;
+        }
+        catch
+        {
+            await DesfazerMigracaoAsync(migracao);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Depois do commit: decidida no modo degradado com o Valkey de pé e ainda não reconstruído, o membro entra no
+    /// destino agora; com o Valkey fora, a reconstrução na volta dele o põe lá.
+    /// </summary>
+    public async Task ConcluirMigracaoAsync(MigracaoLicenca migracao, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(migracao);
+        if (migracao.Desfecho == DesfechoOcupacao.NaoReconstruido)
+        {
+            await RestaurarMembroAsync(db, conjunto, migracao.TenantId, migracao.SessaoId, migracao.Destino, ct);
+        }
+    }
+
+    /// <summary>
+    /// A transação da troca não foi confirmada: o membro que o conjunto já moveu volta à origem, que é a unidade que
+    /// a linha do PostgreSQL continua dizendo. Prazo próprio, como a limpeza da reserva.
+    /// </summary>
+    public async Task DesfazerMigracaoAsync(MigracaoLicenca migracao)
+    {
+        ArgumentNullException.ThrowIfNull(migracao);
+        if (migracao.Desfecho != DesfechoOcupacao.Ocupada)
+        {
+            return;
+        }
+
+        using var prazo = new CancellationTokenSource(PrazoLimpeza);
+        await conjunto.RestaurarAsync(
+            migracao.TenantId, ConjuntoLicencas.Membro(migracao.SessaoId), migracao.Origem, conjunto.PrazoMembro, prazo.Token);
+    }
+
+    /// <summary>
+    /// Modo degradado da troca: bloqueios de origem e destino em ordem canônica por id, como a cascata, e a contagem
+    /// das linhas frescas do destino sem a própria sessão. Devolve as vagas do destino com esta sessão.
+    /// </summary>
+    private async Task<int> OcupadasNoDestinoAsync(
+        string tenantId, Guid sessaoId, Guid origem, CandidataLicenca destino, CancellationToken ct)
+    {
+        foreach (var unidadeId in new[] { origem, destino.UnidadeId }.Order())
+        {
+            await BloquearAsync($"paf-licenca:{tenantId}:{unidadeId}", ct);
+        }
+
+        var naUnidade = await db.Database.SqlQuery<int>($"""
+            SELECT count(*)::int AS "Value" FROM paf."AtividadesSessao"
+             WHERE "TenantId" = {tenantId} AND "UnidadeId" = {destino.UnidadeId} AND "SessaoId" <> {sessaoId}
+               AND "UltimaAtividadeEm" > now() - make_interval(mins => {PrazoMarcaMinutos})
+            """).SingleAsync(ct);
+        if (naUnidade >= destino.Limite && !destino.UltrapassaComAviso)
+        {
+            throw new CustomException(MensagemDestinoLimite, [], HttpStatusCode.Conflict);
+        }
+
+        return naUnidade + 1;
     }
 
     /// <summary>
@@ -399,3 +537,10 @@ public sealed class Licencas(
 
     private sealed record EscolhaNoBanco(CandidataLicenca Candidata, int Ocupadas);
 }
+
+/// <summary>
+/// Licença movida pela troca manual de unidade, ainda dentro da transação. <c>Desfecho</c> diz quem decidiu:
+/// <c>Ocupada</c> moveu no conjunto (desfazer devolve à origem), <c>JaOcupava</c> não mudou nada, e
+/// <c>NaoReconstruido</c> ou <c>Indisponivel</c> decidiram pelo modo degradado.
+/// </summary>
+public sealed record MigracaoLicenca(string TenantId, Guid SessaoId, Guid Origem, Guid Destino, DesfechoOcupacao Desfecho);

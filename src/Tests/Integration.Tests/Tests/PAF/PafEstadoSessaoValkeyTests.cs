@@ -6,6 +6,7 @@ using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Escopo;
 using FSH.Modules.PAF.Features.v1.Sessao.SetUnidadeCorrente;
 using FSH.Modules.PAF.Sessao;
+using FSH.Modules.PAF.TempoReal;
 using Integration.Tests.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
 using StackExchange.Redis;
@@ -121,15 +122,30 @@ public sealed class PafEstadoSessaoValkeyTests(FshWebApplicationFactory factory)
         sessao.Definir(_tenant.TenantId, sessaoId, usuarioId, origem.UnidadeId);
         estado = Estado();
         return new SetUnidadeCorrenteCommandHandler(db, sessao, new ConcessaoCorrente(), scope.ServiceProvider.GetRequiredService<IUnidadeCorrente>(), estado,
-            scope.ServiceProvider.GetRequiredService<EscopoUsuario>());
+            scope.ServiceProvider.GetRequiredService<EscopoUsuario>(),
+            NovasLicencas(scope, db), scope.ServiceProvider.GetRequiredService<AvisosTempoReal>(), scope.ServiceProvider.GetRequiredService<ConexoesPaf>());
     }
+
+    // The set is not rebuilt in this container: the licence move takes the degraded count, the unit state goes to the Valkey.
+    private Licencas NovasLicencas(IServiceScope scope, FSH.Modules.PAF.Data.PafDbContext db) => new(
+        db,
+        scope.ServiceProvider.GetRequiredService<IUnidadeCorrente>(),
+        new ConjuntoLicencas([_multiplexer], TimeSpan.FromMinutes(Licencas.PrazoMarcaMinutos), NullLogger<ConjuntoLicencas>.Instance),
+        scope.ServiceProvider.GetRequiredService<EscopoUsuario>(),
+        NullLogger<Licencas>.Instance);
 
     private async Task<(UnidadeTeste Origem, UnidadeTeste Destino, Guid SessaoId, Guid UsuarioId)> PrepararAsync()
     {
         var origem = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);
         var destino = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);
         var usuario = await _tenant.CriarUsuarioAsync(origem.UnidadeId, destino.UnidadeId);
-        return (origem, destino, Guid.NewGuid(), Guid.Parse(usuario.UserId));
+        var sessaoId = Guid.NewGuid();
+        // The live mark the session check guarantees before the handler: the switch migrates this licence (S07).
+        await _tenant.ExecutarAsync($"""
+            INSERT INTO paf."AtividadesSessao" ("SessaoId", "UsuarioId", "UnidadeId", "UltimaAtividadeEm", "TenantId")
+            VALUES ({sessaoId}, {Guid.Parse(usuario.UserId)}, {origem.UnidadeId}, now(), {_tenant.TenantId})
+            """);
+        return (origem, destino, sessaoId, Guid.Parse(usuario.UserId));
     }
 
     private async Task VincularAsync(Guid estacaoId, Guid sessaoId)
