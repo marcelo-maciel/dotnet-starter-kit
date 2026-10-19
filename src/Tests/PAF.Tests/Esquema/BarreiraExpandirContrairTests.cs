@@ -41,7 +41,7 @@ public sealed class BarreiraExpandirContrairTests
     public void Enumeracao_EncontraAsMigracoesDoPafEmOrdem()
     {
         // Guards against a vacuous pass: a broken enumeration would judge nothing and stay green.
-        Migracoes.Count.ShouldBeGreaterThanOrEqualTo(5);
+        Migracoes.Select(BarreiraExpandirContrair.IdDe).ShouldContain("20261017165201_InitialPaf");
         Migracoes.Select(BarreiraExpandirContrair.IdDe).ShouldContain("20261019083417_ConsumoLicenca");
         Migracoes.Select(BarreiraExpandirContrair.IdDe).ShouldBeInOrder(SortDirection.Ascending, StringComparer.Ordinal);
     }
