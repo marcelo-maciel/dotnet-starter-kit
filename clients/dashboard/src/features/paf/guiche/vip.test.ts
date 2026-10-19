@@ -2,7 +2,7 @@
 // Run: node --test src/features/paf/guiche/vip.test.ts (Node 22 strips the types, D21).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { hojeEmSaoPaulo, montarPedidoVip, podeChamarVip, PERMISSAO_VIP, SENHA_MAX } from "./vip.ts";
+import { decidirVip, hojeEmSaoPaulo, montarPedidoVip, podeChamarVip, PERMISSAO_VIP, SENHA_MAX } from "./vip.ts";
 
 const FILA = "0199f0aa-0000-7000-8000-000000000001";
 
@@ -26,6 +26,13 @@ test("o dia é o de São Paulo: 01h UTC ainda é o dia anterior", () => {
   assert.equal(hojeEmSaoPaulo(new Date("2026-10-20T01:00:00Z")), "2026-10-19");
   assert.equal(hojeEmSaoPaulo(new Date("2026-10-20T03:00:00Z")), "2026-10-20");
   assert.equal(hojeEmSaoPaulo(new Date("2026-01-01T02:59:59Z")), "2025-12-31");
+});
+
+test("busca: nenhuma ficha recusa, uma chama direto, duas ou mais pedem a escolha na ordem do servidor", () => {
+  assert.deepEqual(decidirVip([]), { tipo: "nenhuma" });
+  assert.deepEqual(decidirVip(["f1"]), { tipo: "unica", ficha: "f1" });
+  assert.deepEqual(decidirVip(["f1", "f2"]), { tipo: "escolher", fichas: ["f1", "f2"] });
+  assert.deepEqual(decidirVip(["f2", "f1", "f3"]), { tipo: "escolher", fichas: ["f2", "f1", "f3"] });
 });
 
 test("o formulário só aparece com a permissão exata do VIP", () => {

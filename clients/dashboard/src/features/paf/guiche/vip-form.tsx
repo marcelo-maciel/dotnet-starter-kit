@@ -5,9 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { mensagemAmigavel } from "@/features/paf/paf-erros";
-import { chamarVip, listarFilasVip } from "@/features/paf/guiche/guiche-api";
+import { formatarInstante } from "@/features/paf/consultar-ficha/consultar-ficha-regras";
+import { buscarFichasVip, chamarVip, listarFilasVip, type FichaVipDto } from "@/features/paf/guiche/guiche-api";
 import { RecusaGuiche } from "@/features/paf/guiche/guiche-fluxo";
-import { hojeEmSaoPaulo, montarPedidoVip, podeChamarVip, SENHA_MAX } from "@/features/paf/guiche/vip";
+import {
+  decidirVip,
+  hojeEmSaoPaulo,
+  MENSAGEM_NENHUMA_FICHA,
+  montarPedidoVip,
+  podeChamarVip,
+  SENHA_MAX,
+} from "@/features/paf/guiche/vip";
 
 const SELECT_CLASSES =
   "h-9 w-full rounded-md border border-[var(--color-input)] bg-[var(--color-card)] px-3 text-sm";
@@ -19,13 +27,15 @@ type Props = {
   executar: (acao: () => Promise<void>) => Promise<void>;
 };
 
-/** RF19 "atendimento VIP": call a ficha by its printed senha, date and fila, out of the queue order. */
+/** RF19 "atendimento VIP": search the printed senha and date, then call the ficha (picked when several match) in the fila. */
 export function VipForm({ bloqueado, executar }: Props) {
   const { user } = useAuth();
   const permitido = podeChamarVip(user?.permissions ?? []);
   const [senha, setSenha] = useState("");
   const [data, setData] = useState(() => hojeEmSaoPaulo(new Date()));
   const [filaId, setFilaId] = useState("");
+  // Two or more fichas print the same senha: the list waits for the pick, with the fila of the search that found it.
+  const [escolha, setEscolha] = useState<{ fichas: FichaVipDto[]; filaId: string } | null>(null);
   const idSenha = useId();
   const idData = useId();
   const idFila = useId();
@@ -36,9 +46,25 @@ export function VipForm({ bloqueado, executar }: Props) {
   const enviar = (e: FormEvent) => {
     e.preventDefault();
     void executar(async () => {
+      setEscolha(null);
       const resultado = montarPedidoVip(senha, data, filaId);
       if (!resultado.ok) throw new RecusaGuiche(resultado.erro);
-      await chamarVip(resultado.pedido);
+      const { pedido } = resultado;
+      const decisao = decidirVip(await buscarFichasVip(pedido.senha, pedido.data));
+      if (decisao.tipo === "nenhuma") throw new RecusaGuiche(MENSAGEM_NENHUMA_FICHA);
+      if (decisao.tipo === "escolher") {
+        setEscolha({ fichas: decisao.fichas, filaId: pedido.filaId });
+        return;
+      }
+      await chamarVip({ fichaId: decisao.ficha.fichaId, filaId: pedido.filaId });
+      setSenha("");
+    });
+  };
+
+  const chamarEscolhida = (fichaId: string, filaDaBusca: string) => {
+    void executar(async () => {
+      await chamarVip({ fichaId, filaId: filaDaBusca });
+      setEscolha(null);
       setSenha("");
     });
   };
@@ -81,6 +107,24 @@ export function VipForm({ bloqueado, executar }: Props) {
       <Button type="submit" disabled={bloqueado}>
         Chamar VIP
       </Button>
+      {escolha && (
+        <div className="space-y-2" aria-live="polite">
+          <p className="text-sm">Mais de uma ficha com esta senha nesta data. Escolha qual chamar:</p>
+          <ul className="divide-y divide-[var(--color-border)]" aria-label="Fichas com esta senha">
+            {escolha.fichas.map((f) => (
+              <li key={f.fichaId} className="flex flex-wrap items-center gap-3 py-2">
+                <span className="font-medium">{f.senha}</span>
+                <span className="text-sm">
+                  {f.fila} · {f.prioridade} · emitida em {formatarInstante(f.emitidaEm)}
+                </span>
+                <Button type="button" size="sm" disabled={bloqueado} onClick={() => chamarEscolhida(f.fichaId, escolha.filaId)}>
+                  Chamar esta
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </form>
   );
 }

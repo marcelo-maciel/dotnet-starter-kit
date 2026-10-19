@@ -1,4 +1,5 @@
-// RF19 VIP (D02): the attendant types the printed senha, its date and picks the fila. Pure, tested with node --test (D21).
+// RF19 VIP (D02): the attendant types the printed senha, its date and picks the fila; the search lists every ficha
+// printed with that senha (owner decision 19/10/2026) and the call takes the one picked. Pure, node --test (D21).
 
 export const PERMISSAO_VIP = "Permissions.PAF.Atendimentos.Vip";
 
@@ -29,6 +30,18 @@ export function hojeEmSaoPaulo(agora: Date): string {
     month: "2-digit",
     day: "2-digit",
   }).format(agora);
+}
+
+export const MENSAGEM_NENHUMA_FICHA = "Nenhuma ficha com esta senha nesta data nesta unidade.";
+
+/** The search answer the form acts on; the order is the server's (emission order). */
+export type DecisaoVip<T> = { tipo: "nenhuma" } | { tipo: "unica"; ficha: T } | { tipo: "escolher"; fichas: T[] };
+
+/** One match is called at once, as before the list existed; two or more wait for the attendant's pick. */
+export function decidirVip<T>(fichas: readonly T[]): DecisaoVip<T> {
+  if (fichas.length === 0) return { tipo: "nenhuma" };
+  if (fichas.length === 1) return { tipo: "unica", ficha: fichas[0] };
+  return { tipo: "escolher", fichas: [...fichas] };
 }
 
 export function podeChamarVip(permissoes: readonly string[]): boolean {

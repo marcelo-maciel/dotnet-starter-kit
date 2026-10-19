@@ -92,7 +92,15 @@ export function listarFilasVip() {
   return apiFetch<FilaVipDto[]>("/api/v1/paf/guiche/vip/filas");
 }
 
-/** `data` is the ficha's day (yyyy-MM-dd); the guichê comes from the session, never from the screen. */
-export function chamarVip(pedido: { senha: string; data: string; filaId: string }) {
+/** One match of the VIP search; `emitidaEm` is an ISO instant, shown in America/Sao_Paulo. */
+export type FichaVipDto = { fichaId: string; senha: string; emitidaEm: string; fila: string; prioridade: string };
+
+/** `data` is the ficha's day (yyyy-MM-dd); every ficha of the current unidade printed with the senha, maybe none. */
+export function buscarFichasVip(senha: string, data: string) {
+  return apiFetch<FichaVipDto[]>(`/api/v1/paf/guiche/vip/fichas?${new URLSearchParams({ senha, data })}`);
+}
+
+/** Calls the ficha picked from the search in the fila; the guichê comes from the session, never from the screen. */
+export function chamarVip(pedido: { fichaId: string; filaId: string }) {
   return apiFetch<ChamadaDto>("/api/v1/paf/guiche/vip", { method: "POST", body: JSON.stringify(pedido) });
 }

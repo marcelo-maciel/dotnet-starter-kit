@@ -359,6 +359,7 @@ public sealed class PafModule : IModule
         guiche.MapRequestChosenFichaEndpoint();
         guiche.MapRequestVipFichaEndpoint();
         guiche.MapListVipFilasEndpoint();
+        guiche.MapListVipFichasEndpoint();
         // C10: hotkeys under the guichê permission.
         guiche.MapGetTeclasGuicheEndpoint();
         // F12: manual emission at the guichê and its panel (last ficha for the reprint).
