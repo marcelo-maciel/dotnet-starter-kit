@@ -12,6 +12,9 @@ const FUSO = "America/Sao_Paulo";
 // RNF05 ceiling shared with the O19 test (src/Tests/PAF.Tests/PrazosEntradaSaida/RegrasDePrazo.cs, Teto = 30 s).
 const TETO_PRAZO_S = 30;
 const SERVICOS_DOTNET = ["api-a", "api-b", "migrator"];
+// O12 floors: the measured worst minute at the D20 volume (deploy/paf/README.md, "Limite de taxa"), below which a
+// store opening is refused. Auth is the acceptance criterion: 15 logins of one store behind its NAT in 60 s.
+const PISOS_LIMITE_TAXA = { Auth: 15, Ip: 387, Tenant: 7740 };
 
 const argumentos = process.argv.slice(2);
 if (argumentos.length !== 7) {
@@ -151,6 +154,12 @@ function conferirAmbiente({ rotulo, env, modelo, avisos }) {
     const redesConfiaveis = Object.entries(e).filter(([k, v]) => k.startsWith("TrustedProxyOptions__KnownNetworks__") && v).map(([, v]) => v);
     conferir(s("KnownNetworks não vazio"), redesConfiaveis.length > 0);
     conferir(s("KnownNetworks = subnet da rede do projeto"), redesConfiaveis.includes(rede), `${redesConfiaveis.join(",")} x ${rede}`);
+
+    // Absent = the kit's appsettings.Production.json value (Auth 10, Ip 300, Tenant 1000), all below the floor.
+    for (const [particao, piso] of Object.entries(PISOS_LIMITE_TAXA)) {
+      const limite = e[`RateLimitingOptions__${particao}__PermitLimit`];
+      conferir(s(`limite de taxa ${particao} >= ${piso} (O12)`), inteiroNoIntervalo(limite, piso, Number.MAX_SAFE_INTEGER), limite ?? "ausente");
+    }
 
     const cabecalhos = Object.entries(e).filter(([k]) => k.startsWith("CorsOptions__AllowedHeaders__")).map(([, v]) => String(v).toLowerCase());
     conferir(s("CORS aceita x-paf-unidade"), cabecalhos.includes("x-paf-unidade"));

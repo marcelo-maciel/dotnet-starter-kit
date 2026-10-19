@@ -241,3 +241,23 @@ deploy/paf/pg-backup/backup.test.sh paf-backup:teste paf-dbmigrator:teste
 ```
 
 PostgreSQL migrado e com o `seed-demo`, MinIO no lugar dos dois buckets e um receptor de webhook. Casos: cópia completa e restauração aprovada e registrada; execução simultânea no `flock`; credencial errada com alerta e healthcheck vermelho; armazenamento fora do ar no meio da execução sem `.sha256`; cópia parcial recusada pelo sha256; cópia sem `.sha256` recusada; mídia ausente; migração pendente; tenant com banco próprio; `verificar-bloqueio` reprovando bucket sem bloqueio; agendador mirando 03:00 de Brasília e recusando outro fuso. A recusa de sobrescrita e exclusão dentro dos 7 dias não tem como ser provada no MinIO (ele cria versão nova em vez de recusar) e fica SKIPPED aqui: a prova é o `verificar-bloqueio` no R2 real, no passo humano acima.
+
+## Limite de taxa (O12, ARQ l.380 e l.382, D20)
+
+O limitador do kit (janela fixa de 60 s, sem fila, em memória por instância) fica ligado em produção com os limites do arquivo de ambiente, medidos e não chutados. `RateLimitingOptions__Ip__PermitLimit=800`, `__Tenant__PermitLimit=16000` e `__Auth__PermitLimit=30` estão nos dois `.env.exemplo`; `User` fica no valor do kit (200). Sem `TrustedProxyOptions__KnownNetworks__0` igual à subnet do projeto, toda loja cai na partição do IP do Apache e o limite vira um teto para a base inteira; o teste de integração prova isso (mutação com a máscara errada: 429 já nos logins da primeira loja).
+
+Medição de 19/10/2026, com `clients/dashboard/tests/e2e/paf-abertura-loja.medicao.mjs` contra a API real (`PAF_WALK=tests/e2e/paf-abertura-loja.medicao.mjs deploy/paf/walk-ci.sh`), requisições por estação no minuto da abertura, contando toda rota da tela (shell do kit, upgrades de WebSocket):
+
+| Estação | Abertura (60 s) | Minuto seguinte | Política `auth` |
+|---|---|---|---|
+| Guichê (login, escolha do guichê) | 30 | 0 | 1 login |
+| Totem | 5 | 1 (configuração a cada 60 s) | 0 (resgate do vínculo só na instalação) |
+| Painel | 6 | 1 | 0 |
+
+A medição roda o dashboard no servidor de desenvolvimento, com o `StrictMode` do React duplicando efeitos (3 leituras de permissões, 4 conexões do hub no guichê), então os números são teto, não média.
+
+Com o volume D20 (por loja 8 guichês, 3 totens e 2 painéis; 20 lojas) e o pico de 10 fichas por totem no minuto, cada ficha custando 3 operações de guichê, o pior minuto de uma loja atrás do seu NAT é 8×30 + 3×5 + 2×6 + 30×(1+3) = 387 requisições, e o do tenant, com as 20 lojas abrindo no mesmo minuto, 7740. Os limites são o dobro, arredondado. A política `auth` precisa de 8 logins e 5 renovações de credencial de estação por loja; 30 cobre o critério de 15 logins em 60 s com folga para nova tentativa. Com duas instâncias o teto efetivo dobra, porque cada uma conta sozinha.
+
+A partição própria para estação (ADR 0008, linha "Partição de limite de taxa por estação") não entra: com os limites acima, os 60 totens das 20 lojas emitem no mesmo minuto sem recusa.
+
+Barreiras: `verificar-ambiente.sh` reprova `Auth` abaixo de 15, `Ip` abaixo de 387 e `Tenant` abaixo de 7740 (ausente conta como o valor do kit); `src/Tests/Integration.Tests/Tests/PAF/PafLimiteTaxaTests.cs` sobe a API com `appsettings.Production.json` e as linhas deste arquivo de ambiente e prova os 15 logins pelo Apache, o `X-Forwarded-For` forjado, o pico da loja e do tenant e o 429 com `Retry-After` e sem ficha. Nada disso passou por um Apache de verdade: o teste apresenta o Apache como o gateway da rede do Docker.

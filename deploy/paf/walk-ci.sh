@@ -145,7 +145,9 @@ PID_WEB=$!
 aguardar_http "$URL_API/health/ready" "$LIMITE_API_S" "$PID_API"
 aguardar_http "$URL_WEB/config.json" "$LIMITE_WEB_S" "$PID_WEB"
 
-echo "--- 5. walk da primeira fatia"
+# PAF_WALK runs another script through the same real API (O12: tests/e2e/paf-abertura-loja.medicao.mjs).
+PAF_WALK="${PAF_WALK:-tests/e2e/paf-primeira-fatia.walk.mjs}"
+echo "--- 5. $PAF_WALK"
 cd "$DASHBOARD"
-PAF_API="$URL_API" PAF_WEB="$URL_WEB" timeout "$LIMITE_WALK_S" node tests/e2e/paf-primeira-fatia.walk.mjs
+PAF_API="$URL_API" PAF_WEB="$URL_WEB" timeout "$LIMITE_WALK_S" node "$PAF_WALK"
 echo "WALK-CI OK"
