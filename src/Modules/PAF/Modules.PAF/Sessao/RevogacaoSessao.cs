@@ -14,12 +14,22 @@ public sealed class RevogacaoSessao(Licencas licencas, EstadoSessao estado, ISes
     public const string MensagemUnidadeRetirada = "A unidade da sessão saiu do seu acesso. Entre novamente.";
     public const string MotivoUnidadeRetirada = "PAF: unidade corrente retirada do escopo";
     public const string MotivoUsuarioInativo = "PAF: usuário desativado";
+    public const string MensagemUsuarioInativo = "Seu usuário foi desativado. Procure o administrador da empresa.";
 
     public async Task RevogarAsync(string tenantId, Guid sessaoId, Guid usuarioId, string motivo, CancellationToken ct)
     {
         await licencas.LiberarAsync(tenantId, sessaoId, ct);
         await estado.RemoverAsync(tenantId, sessaoId, ct);
         await sessoes.RevokeSessionForAdminAsync(sessaoId, usuarioId.ToString(), motivo, ct);
-        await conexoes.EncerrarSessaoAsync(tenantId, sessaoId, ct);
+        await conexoes.EncerrarSessaoAsync(tenantId, sessaoId, MensagemDaTela(motivo), ct);
     }
+
+    // The kit reason is for the session audit; the screen gets a sentence the operator can act on (SessaoInvalidada).
+    // A reason added later without its own sentence still closes the screen, with the generic one.
+    private static string MensagemDaTela(string motivo) => motivo switch
+    {
+        MotivoUnidadeRetirada => MensagemUnidadeRetirada,
+        MotivoUsuarioInativo => MensagemUsuarioInativo,
+        _ => SessaoRevogadaPafHandler.MensagemSessaoEncerrada,
+    };
 }

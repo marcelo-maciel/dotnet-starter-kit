@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using FSH.Modules.PAF.Contracts.Authorization;
+using FSH.Modules.PAF.Contracts.v1.TempoReal;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 
@@ -114,9 +115,26 @@ public sealed partial class ConexoesPaf(IHubContext<PafHub> hub, RegistroConexoe
         return await EncerrarAsync(tenantId, conexoes, ct).ConfigureAwait(false);
     }
 
-    /// <summary>Closes every connection of a revoked kit session (single session, logout), on any instance.</summary>
-    public async Task<int> EncerrarSessaoAsync(string tenantId, Guid sessaoId, CancellationToken ct) =>
-        await EncerrarAsync(tenantId, await DaSessaoAsync(tenantId, sessaoId, ct).ConfigureAwait(false), ct).ConfigureAwait(false);
+    /// <summary>
+    /// Closes every connection of a revoked kit session (single session, logout, revocation), on any instance:
+    /// <see cref="SessaoInvalidada"/> with <paramref name="motivo"/> goes first, to those connections only (never the
+    /// user group, which may already hold the new session's), then they leave every group and the ones held here are
+    /// aborted. A repeat (the kit event after a PAF-born revocation) sends no second notice: the session id is marked
+    /// in the registry, and a connection held here is gone by then anyway.
+    /// </summary>
+    public async Task<int> EncerrarSessaoAsync(string tenantId, Guid sessaoId, string motivo, CancellationToken ct)
+    {
+        var conexoes = await DaSessaoAsync(tenantId, sessaoId, ct).ConfigureAwait(false);
+        if (conexoes.Count > 0 && await registro.PrimeiroAvisoDeInvalidacaoAsync(tenantId, sessaoId, ct).ConfigureAwait(false))
+        {
+            // Through the hub lifetime manager: a connection held by another instance gets it over the backplane.
+            using var limite = Limite(ct);
+            await hub.Clients.Clients([.. conexoes]).SendAsync(SessaoInvalidada.Metodo, new SessaoInvalidada(sessaoId, motivo), limite.Token)
+                .ConfigureAwait(false);
+        }
+
+        return await EncerrarAsync(tenantId, conexoes, ct).ConfigureAwait(false);
+    }
 
     private async Task<int> EncerrarAsync(string tenantId, IReadOnlyCollection<string> conexoes, CancellationToken ct)
     {

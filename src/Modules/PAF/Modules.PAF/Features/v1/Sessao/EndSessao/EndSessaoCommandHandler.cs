@@ -23,6 +23,9 @@ public sealed class EndSessaoCommandHandler(
 {
     public const string Motivo = "PAF: logout";
 
+    // The other tabs of the same session learn why they close; the tab that asked logs out by itself anyway.
+    public const string MensagemTela = "Sua sessão foi encerrada pelo logout. Entre novamente.";
+
     public async ValueTask<Unit> Handle(EndSessaoCommand command, CancellationToken cancellationToken)
     {
         var sessaoId = ClaimDeSessao.DasClaims(usuarioAtual.GetUserClaims() ?? [])
@@ -39,7 +42,7 @@ public sealed class EndSessaoCommandHandler(
         await sessoes.RevokeSessionAsync(sessaoId, usuarioAtual.GetUserId().ToString(), Motivo, cancellationToken);
         if (usuarioAtual.GetTenant() is { Length: > 0 } tenant)
         {
-            await conexoes.EncerrarSessaoAsync(tenant, sessaoId, cancellationToken);
+            await conexoes.EncerrarSessaoAsync(tenant, sessaoId, MensagemTela, cancellationToken);
         }
 
         return Unit.Value;

@@ -27,6 +27,10 @@ public sealed partial class RegistroConexoes(
     // ponytail: fixed per-call ceiling, the one EstadoSessao uses; tune once production Valkey latency is measured.
     private static readonly TimeSpan PrazoChamada = TimeSpan.FromMilliseconds(500);
 
+    // ponytail: one hour covers the kit event's delay (dispatcher interval and retries); a repeat later than that
+    // notifies again, harmless once the screen has left. Raise it if the outbox retries ever span longer.
+    private static readonly TimeSpan ValidadeAvisoInvalidacao = TimeSpan.FromHours(1);
+
     // Removes the connection from its indexes and, when it was the session's last live one, records the drop: in one
     // script, so two last connections dropping together on two instances both see the right count.
     private static readonly LuaScript ScriptRemover = LuaScript.Prepare("""
@@ -219,6 +223,16 @@ public sealed partial class RegistroConexoes(
     /// <summary>Devolve a queda reivindicada cuja soltura falhou, para o próximo ciclo tentar de novo.</summary>
     public Task<bool> DevolverQuedaAsync(QuedaSessao queda, CancellationToken ct) =>
         TentarAsync(db => db.SortedSetAddAsync(ChaveQuedas, MembroQueda(queda.TenantId, queda.SessaoId), Agora()), false, "quedas", ct);
+
+    /// <summary>
+    /// Marca o aviso <c>SessaoInvalidada</c> da sessão, uma vez para todas as instâncias: falso quando ele já saiu (o
+    /// evento do kit depois da revogação nascida no PAF, uma reentrega). Sem Valkey conta como primeiro: aí só as
+    /// conexões desta instância são alcançadas, e elas são abortadas.
+    /// </summary>
+    public Task<bool> PrimeiroAvisoDeInvalidacaoAsync(string tenantId, Guid sessaoId, CancellationToken ct) =>
+        TentarAsync(
+            db => db.StringSetAsync(Chave(tenantId, $"sessao:{sessaoId:D}:invalidada"), "1", ValidadeAvisoInvalidacao, When.NotExists),
+            true, "invalidada", ct);
 
     private async Task<IReadOnlyList<string>?> VivasAsync(RedisKey indice, CancellationToken ct) =>
         await TentarAsync<IReadOnlyList<string>?>(

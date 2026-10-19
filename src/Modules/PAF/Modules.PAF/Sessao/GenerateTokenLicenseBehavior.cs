@@ -24,6 +24,7 @@ internal sealed class GenerateTokenLicenseBehavior(
     : IPipelineBehavior<GenerateTokenCommand, TokenResponse>
 {
     public const string MotivoSessaoUnica = "PAF: login em outra máquina (sessão única)";
+    public const string MensagemSessaoUnica = "Sua sessão foi aberta em outra máquina. Esta janela foi encerrada.";
 
     public const string MensagemSemUnidade =
         "Seu usuário não tem unidade de atendimento. Procure o administrador da empresa.";
@@ -85,7 +86,7 @@ internal sealed class GenerateTokenLicenseBehavior(
         await reserva.ConfirmarAsync(sessaoId, anteriores, cancellationToken);
         foreach (var anterior in anteriores)
         {
-            await conexoes.EncerrarSessaoAsync(tenantId, anterior, cancellationToken);
+            await conexoes.EncerrarSessaoAsync(tenantId, anterior, MensagemSessaoUnica, cancellationToken);
         }
 
         return token;
