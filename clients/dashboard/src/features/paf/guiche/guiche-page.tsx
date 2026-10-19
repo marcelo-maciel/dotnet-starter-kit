@@ -30,6 +30,7 @@ import type { EstadoConexao } from "@/features/paf/paf-hub";
 import { CHAVE_ULTIMO_GUICHE, serializarUltimoGuiche, sugerirGuiche } from "@/features/paf/guiche/guiche-sugestao";
 import { EncaminharAtendimento } from "@/features/paf/guiche/encaminhar-atendimento";
 import { VipForm } from "@/features/paf/guiche/vip-form";
+import { TeclasAtalhoGuiche } from "@/features/paf/guiche/teclas-atalho-guiche";
 
 type Ultimo = { senha: string; estado: string };
 
@@ -364,6 +365,7 @@ export function GuichePage() {
               Cancelar (não compareceu)
             </Button>
           </div>
+          <TeclasAtalhoGuiche estado={atendimento?.estado ?? null} ocupado={ocupado} executar={{ chamarProxima: () => void chamar(), encerrarEChamar: () => void encerrarEChamarProxima(), encerrar: () => void operar("encerrar"), iniciar: () => void operar("iniciar"), chamarNovamente: () => void operar("rechamar") }} />
         </section>
       )}
 

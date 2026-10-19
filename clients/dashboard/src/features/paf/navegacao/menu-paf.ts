@@ -2,6 +2,7 @@ import { Building2, Layers, ListOrdered, Monitor, MonitorSmartphone } from "luci
 import { ClipboardList } from "lucide-react";
 import { Hourglass } from "lucide-react";
 import { Search } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import type { NavSection } from "@/components/layout/nav-data";
 
 // PAF section of the dashboard menu (ADR 0008, amended 17/10/2026); nav-data.ts only lists it. Each entry is
@@ -27,5 +28,7 @@ export const secaoMenuPaf: NavSection = {
     { to: "/paf/fichas-em-atendimento", label: "Fichas em atendimento", icon: Hourglass, perm: "Permissions.PAF.FichasEmAtendimento.View" },
     // GET fichas/consulta: FichasDoDia.View (F14).
     { to: "/paf/consultar-ficha", label: "Consultar ficha", icon: Search, perm: "Permissions.PAF.FichasDoDia.View" },
+    // GET parametros: Parametros.View (C10).
+    { to: "/paf/parametros", label: "Parâmetros", icon: SlidersHorizontal, perm: "Permissions.PAF.Parametros.View" },
   ],
 };

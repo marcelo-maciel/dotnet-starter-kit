@@ -42,6 +42,11 @@ export const FichaImpressa = forwardRef<HTMLDivElement, Props>(function FichaImp
           textAlign: "center",
         }}
       >
+        {ficha.titulo !== "" && (
+          <div data-titulo-ficha style={{ fontSize: 17, fontWeight: "bold", marginBottom: "2mm" }}>
+            {ficha.titulo}
+          </div>
+        )}
         <div style={{ fontSize: 15 }}>{ficha.unidade}</div>
         <div style={{ fontSize: 18, marginTop: "3mm" }}>Ficha</div>
         <div
@@ -56,6 +61,11 @@ export const FichaImpressa = forwardRef<HTMLDivElement, Props>(function FichaImp
         <div style={{ fontSize: 18, fontWeight: "bold" }}>{ficha.fila}</div>
         <div style={{ fontSize: 15 }}>{ficha.prioridade}</div>
         <div style={{ fontSize: 13, marginTop: "1mm" }}>{formatoData.format(new Date(ficha.emitidaEm))}</div>
+        {ficha.rodape !== "" && (
+          <div data-rodape-ficha style={{ fontSize: 13, marginTop: "3mm", whiteSpace: "pre-wrap" }}>
+            {ficha.rodape}
+          </div>
+        )}
       </div>
     </div>,
     document.body,

@@ -59,3 +59,9 @@ test("fichas em atendimento aparece só com FichasEmAtendimento.View (F07)", () 
   assert.deepEqual(itensPaf(["Permissions.PAF.FichasDoDia.Cancelar"]), []);
   assert.equal(findSectionForPath("/paf/fichas-em-atendimento"), "paf");
 });
+
+test("parâmetros (C10) aparecem só com Parametros.View e abrem a seção do PAF", () => {
+  assert.deepEqual(itensPaf(["Permissions.PAF.Parametros.View"]), ["/paf/parametros"]);
+  assert.deepEqual(itensPaf(["Permissions.PAF.Parametros.UpdateUnidade"]), []);
+  assert.equal(findSectionForPath("/paf/parametros"), "paf");
+});

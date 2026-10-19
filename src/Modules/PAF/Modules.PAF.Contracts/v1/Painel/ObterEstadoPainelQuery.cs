@@ -5,8 +5,11 @@ namespace FSH.Modules.PAF.Contracts.v1.Painel;
 /// <summary>State the painel re-queries on connect and reconnect (RNF03); the station comes from its credential.</summary>
 public sealed record ObterEstadoPainelQuery(Guid EstacaoId) : IQuery<EstadoPainelDto>;
 
-/// <summary>Latest calls of the painel's filas, most recent call or recall first.</summary>
-public sealed record EstadoPainelDto(IReadOnlyList<ChamadaPainelDto> Chamadas);
+/// <summary>
+/// Latest calls of the painel's filas, most recent call or recall first. <paramref name="QuantidadeChamadas"/> is the RF06
+/// list size the screen keeps while events arrive, so the list never grows past what the re-query returns.
+/// </summary>
+public sealed record EstadoPainelDto(int QuantidadeChamadas, IReadOnlyList<ChamadaPainelDto> Chamadas);
 
 /// <summary>
 /// <paramref name="Versao"/> lets the screen drop any later event with a version not above it (seção 7).

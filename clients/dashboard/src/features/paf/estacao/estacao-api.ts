@@ -38,6 +38,11 @@ export type FichaEmitidaDto = {
   fila: string;
   prioridade: string;
   emitidaEm: string;
+  /** RF06 "Parâmetros das fichas" of the unidade at emission; empty title or footer = no such line. */
+  titulo: string;
+  rodape: string;
+  /** Read but not printed: the QR waits for the public ficha page (requisitos RF11 l.368). */
+  imprimirQr: boolean;
 };
 
 export function obterConfiguracaoEmissao() {

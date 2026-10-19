@@ -37,7 +37,24 @@ public sealed partial class LeitorParametros(PafDbContext db, ILogger<LeitorPara
         return definicao.Padrao;
     }
 
-    [LoggerMessage(EventId = 9060, Level = LogLevel.Warning,
+    /// <summary>
+    /// Every row of the unidade and of the empresa in one query, for a caller that reads several keys (the emission,
+    /// the parameters screen). Same filters and the same resolution as <see cref="LerAsync{T}"/>.
+    /// </summary>
+    public async Task<ParametrosDaUnidade> CarregarAsync(Guid unidadeId, CancellationToken ct)
+    {
+        var linhas = await db.Parametros.AsNoTracking()
+            .Where(p => p.UnidadeId == unidadeId || p.UnidadeId == null)
+            .Select(p => new { p.UnidadeId, p.Chave, p.Valor })
+            .ToListAsync(ct);
+
+        return new ParametrosDaUnidade(
+            linhas.Where(l => l.UnidadeId is null).ToDictionary(l => l.Chave, l => l.Valor, StringComparer.Ordinal),
+            linhas.Where(l => l.UnidadeId is not null).ToDictionary(l => l.Chave, l => l.Valor, StringComparer.Ordinal),
+            (chave, origem) => LogValorInvalido(logger, chave, origem.ToString(), unidadeId));
+    }
+
+    [LoggerMessage(EventId = 9060,Level = LogLevel.Warning,
         Message = "Parametro com valor invalido, usando o padrao; chave={Chave} nivel={Nivel} unidade={UnidadeId}")]
     private static partial void LogValorInvalido(ILogger logger, string chave, string nivel, Guid unidadeId);
 }
