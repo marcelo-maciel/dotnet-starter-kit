@@ -73,12 +73,19 @@ Renderiza os dois ambientes com `docker compose config` (todos os perfis ligados
 - prazos explícitos de PostgreSQL (`Timeout`, `Command Timeout`) e Valkey (`connectTimeout`, `syncTimeout`, `asyncTimeout`) até o teto de 30 s do teste de O19;
 - `TZ=America/Sao_Paulo` na API, no DbMigrator e no PostgreSQL; `Storage:Provider=s3` (R2, ADR 0007);
 - nenhum valor de exemplo (`<...>`), nenhum `container_name`, toda porta em `127.0.0.1`, Valkey sem porta publicada.
+- observabilidade (O10, RNF06): `OTEL_EXPORTER_OTLP_ENDPOINT` em https, `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf`, `OTEL_EXPORTER_OTLP_HEADERS` com `api-key=`, `OTEL_EXPORTER_OTLP_TIMEOUT` até 30 s, `OTEL_SERVICE_NAME` diferente entre os ambientes, o sink OTLP de `appsettings.Production.json` desligado pelo índice (`Serilog__WriteTo__1__Name=`, senão cada log vai duas vezes) e o console em JSON compacto.
 
 `verificar-ambiente.test.sh` prova cada caso negativo sobre um par gerado dos arquivos `.exemplo` (sobe nenhum contêiner).
 
 ### ensaio-ambientes.sh
 
 Ensaio local da topologia, só em projetos `paf-ensaio-*` (roda `down -v`): sobe os dois projetos, confere `SHOW timezone`, o preflight CORS com `X-Paf-Unidade` (204, e a origem do outro ambiente recusada), o `/config.json` do dashboard, que uma emissão na homologação não publica nada no Valkey de produção em 5 s (com a emissão na produção como controle positivo) e que o `down -v` da homologação deixa produção rodando. A massa demo do ensaio entra pelo `seed-demo` em `Development` dentro da rede do projeto; o seed da homologação de verdade é O09 (D19).
+
+## Observabilidade no New Relic (O10)
+
+Logs, traces e métricas saem por OTLP direto para o New Relic, pelo caminho que o kit já tem: com `OTEL_EXPORTER_OTLP_ENDPOINT` definido, `AddHeroLogging` liga o sink de log do Serilog (acrescenta `/v1/logs`) e `AddHeroOpenTelemetry` liga os exportadores do SDK. Endpoint, protocolo e cabeçalho `api-key` com a chave de licença foram conferidos na documentação do New Relic em 19/10/2026 (região US `https://otlp.nr-data.net:4318`; conta na UE usa `https://otlp.eu01.nr-data.net:4318`). Nenhum log leva e-mail: o módulo do PAF ocupa `UserEmail` com `[omitido]` antes do enricher do kit, sem editar o kit.
+
+A chegada dos dados no New Relic é passo manual de Marcelo, depois do primeiro `up` com a chave real: consultar `FROM Log SELECT * WHERE service.name = 'paf-api-homologacao' SINCE 10 minutes ago` e conferir `Tenant`, `UnidadeId`, `trace.id` e `UserEmail` igual a `[omitido]`. Até essa execução, o passo conta como SKIPPED, nunca como verde.
 
 ## Prazo de inatividade do dashboard (O15, D04)
 

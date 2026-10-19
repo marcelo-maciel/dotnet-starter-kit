@@ -46,8 +46,10 @@ function carregar(rotulo, arquivoEnv, arquivoJson, arquivoStderr) {
   };
 }
 
-const cabecalhosDoKit = JSON.parse(readFileSync(arquivoAppsettings, "utf8").replace(/^﻿/, ""))
-  .CorsOptions.AllowedHeaders.map((h) => h.toLowerCase());
+const appsettingsDoKit = JSON.parse(readFileSync(arquivoAppsettings, "utf8").replace(/^﻿/, ""));
+const cabecalhosDoKit = appsettingsDoKit.CorsOptions.AllowedHeaders.map((h) => h.toLowerCase());
+// O10: positions of the kit's Serilog sinks, so the environment overrides the right index whatever the kit reorders.
+const sinksDoKit = (appsettingsDoKit.Serilog?.WriteTo ?? []).map((w, i) => ({ indice: i, nome: w.Name }));
 
 const ambientes = [
   carregar("producao", porAmbiente[0], porAmbiente[1], porAmbiente[2]),
@@ -176,6 +178,21 @@ function conferirAmbiente({ rotulo, env, modelo, avisos }) {
     conferir(s("Storage__Provider=s3 (R2, ADR 0007)"), e.Storage__Provider === "s3", e.Storage__Provider);
     conferir(s("Storage__S3__ServiceUrl https"), /^https:\/\//.test(e.Storage__S3__ServiceUrl ?? ""), e.Storage__S3__ServiceUrl);
     conferir(s("Storage__S3__Bucket definido"), Boolean(e.Storage__S3__Bucket));
+
+    // O10 (RNF06, ARQ l.392): OTLP to New Relic through the kit's env-var path, one log sink, JSON console.
+    conferir(s("OTEL_EXPORTER_OTLP_ENDPOINT https"), /^https:\/\/\S+$/.test(e.OTEL_EXPORTER_OTLP_ENDPOINT ?? ""), e.OTEL_EXPORTER_OTLP_ENDPOINT ?? "ausente");
+    conferir(s("OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf"), e.OTEL_EXPORTER_OTLP_PROTOCOL === "http/protobuf", e.OTEL_EXPORTER_OTLP_PROTOCOL ?? "ausente");
+    conferir(s("OTEL_EXPORTER_OTLP_HEADERS com api-key"), /^api-key=\S+$/.test(e.OTEL_EXPORTER_OTLP_HEADERS ?? ""), e.OTEL_EXPORTER_OTLP_HEADERS === undefined ? "ausente" : "formato inválido");
+    conferir(s(`OTEL_EXPORTER_OTLP_TIMEOUT explícito, 1..${TETO_PRAZO_S * 1000} ms`), inteiroNoIntervalo(e.OTEL_EXPORTER_OTLP_TIMEOUT, 1, TETO_PRAZO_S * 1000), e.OTEL_EXPORTER_OTLP_TIMEOUT ?? "ausente");
+    conferir(s("OTEL_SERVICE_NAME definido"), Boolean(e.OTEL_SERVICE_NAME));
+    for (const { indice } of sinksDoKit.filter((w) => w.nome === "OpenTelemetry")) {
+      // The kit adds its own OTLP sink from OTEL_EXPORTER_OTLP_ENDPOINT; the configured one would ship every log twice.
+      conferir(s(`Serilog__WriteTo__${indice}__Name vazio (sink OTLP do appsettings desligado)`), e[`Serilog__WriteTo__${indice}__Name`] === "", e[`Serilog__WriteTo__${indice}__Name`] ?? "ausente");
+    }
+    for (const { indice } of sinksDoKit.filter((w) => w.nome === "Console")) {
+      const formatador = e[`Serilog__WriteTo__${indice}__Args__formatter`] ?? "";
+      conferir(s(`console em JSON (Serilog__WriteTo__${indice}__Args__formatter)`), formatador.startsWith("Serilog.Formatting.Compact."), formatador || "ausente");
+    }
   }
 }
 
@@ -217,6 +234,8 @@ conferir("cruzado: chaves de assinatura diferentes", api(prod).JwtOptions__Signi
 conferir("cruzado: buckets do R2 diferentes", api(prod).Storage__S3__Bucket !== api(homolog).Storage__S3__Bucket, api(prod).Storage__S3__Bucket);
 const bucketBackup = (modelo) => modelo.services?.backup?.environment?.PAF_BACKUP_BUCKET;
 conferir("cruzado: buckets de backup diferentes", bucketBackup(prod) !== bucketBackup(homolog), bucketBackup(prod));
+// Same service name would mix homologation telemetry into production's in New Relic.
+conferir("cruzado: OTEL_SERVICE_NAME diferentes", api(prod).OTEL_SERVICE_NAME !== api(homolog).OTEL_SERVICE_NAME, api(prod).OTEL_SERVICE_NAME);
 
 console.log(falhas === 0 ? "VERIFICAR-AMBIENTE OK" : `VERIFICAR-AMBIENTE FALHOU (${falhas})`);
 process.exit(falhas === 0 ? 0 : 1);

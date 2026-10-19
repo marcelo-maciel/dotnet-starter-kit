@@ -76,7 +76,11 @@ public sealed class PafHostValkey : WebApplicationFactory<Program>, IAsyncLifeti
         await base.DisposeAsync();
         await _postgres.DisposeAsync();
         await _valkey.DisposeAsync();
+        File.Delete(ArquivoDeLog);
     }
+
+    /// <summary>JSON log of this host (O10); each test reads only what it appended.</summary>
+    public string ArquivoDeLog { get; } = Path.Combine(Path.GetTempPath(), $"paf-host-valkey-{Guid.NewGuid():N}.log");
 
     public Task PausarValkeyAsync() => _valkey.PauseAsync();
 
@@ -122,6 +126,11 @@ public sealed class PafHostValkey : WebApplicationFactory<Program>, IAsyncLifeti
             ["Serilog:WriteTo:0:Name"] = "Console",
             ["Serilog:WriteTo:0:Args:restrictedToMinimumLevel"] = "Warning",
             ["Serilog:WriteTo:1:Name"] = "",
+            // O10: every FSH log at Information as compact JSON in a file of this host, read by PafLogSemDadosPessoaisTests.
+            ["Serilog:MinimumLevel:Override:FSH"] = "Information",
+            ["Serilog:WriteTo:2:Name"] = "File",
+            ["Serilog:WriteTo:2:Args:path"] = ArquivoDeLog,
+            ["Serilog:WriteTo:2:Args:formatter"] = "Serilog.Formatting.Compact.CompactJsonFormatter, Serilog.Formatting.Compact",
             ["MailOptions:UseSendGrid"] = "false",
             ["HangfireOptions:Username"] = "admin",
             ["HangfireOptions:Password"] = "integration-test-hangfire-pwd",

@@ -97,6 +97,7 @@ using FSH.Modules.PAF.Features.v1.Midias.ListMidias;
 using FSH.Modules.PAF.Features.v1.Midias.PedirEnvioMidia;
 using FSH.Modules.PAF.Features.v1.Midias.TrocarArquivoMidia;
 using FSH.Modules.PAF.Features.v1.Midias.UpdateMidia;
+using FSH.Modules.PAF.Observabilidade;
 using FSH.Modules.PAF.Parametros;
 using FSH.Modules.PAF.Saude;
 using FSH.Modules.PAF.Sessao;
@@ -144,6 +145,7 @@ public sealed class PafModule : IModule
         ConfigurarSessao(builder.Services);
         OpcoesMidia.Registrar(builder.Services);
         RegistrarCadastroDeMidia(builder.Services);
+        LogSemDadosPessoais.Registrar(builder.Configuration);
     }
 
     // RF03 (M03): the store door with its deadline, and the envio confirmation shared by create and swap.

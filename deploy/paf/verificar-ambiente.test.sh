@@ -106,6 +106,14 @@ caso "backup com a credencial do Storage" "backup sem a credencial do Storage da
 caso "backup sem alerta" "docker compose config falhou" trocar "$PROD" PAF_BACKUP_ALERTA_URL ""
 caso "backup com alerta http" "backup com alerta https" trocar "$PROD" PAF_BACKUP_ALERTA_URL "PAF_BACKUP_ALERTA_URL=http://alerta.teste/hook"
 caso "prazo de inatividade inválido" "prazo de inatividade (D04)" trocar "$PROD" PAF_INATIVIDADE_MS "PAF_INATIVIDADE_MS=oito-horas"
+caso "OTLP ausente" "OTEL_EXPORTER_OTLP_ENDPOINT https" trocar "$PROD" OTEL_EXPORTER_OTLP_ENDPOINT ""
+caso "OTLP sem TLS" "OTEL_EXPORTER_OTLP_ENDPOINT https" trocar "$HOMOLOG" OTEL_EXPORTER_OTLP_ENDPOINT "OTEL_EXPORTER_OTLP_ENDPOINT=http://otlp.nr-data.net:4318"
+caso "OTLP em gRPC" "OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf" trocar "$PROD" OTEL_EXPORTER_OTLP_PROTOCOL "OTEL_EXPORTER_OTLP_PROTOCOL=grpc"
+caso "OTLP sem api-key" "OTEL_EXPORTER_OTLP_HEADERS com api-key" trocar "$PROD" OTEL_EXPORTER_OTLP_HEADERS "OTEL_EXPORTER_OTLP_HEADERS=x-license-key=abc"
+caso "OTLP sem prazo" "OTEL_EXPORTER_OTLP_TIMEOUT explícito" trocar "$PROD" OTEL_EXPORTER_OTLP_TIMEOUT ""
+caso "mesmo serviço nos dois" "OTEL_SERVICE_NAME diferentes" trocar "$HOMOLOG" OTEL_SERVICE_NAME "OTEL_SERVICE_NAME=paf-api-producao"
+caso "sink OTLP do appsettings ligado" "sink OTLP do appsettings desligado" trocar "$PROD" Serilog__WriteTo__1__Name "Serilog__WriteTo__1__Name=OpenTelemetry"
+caso "console em texto" "console em JSON" trocar "$HOMOLOG" Serilog__WriteTo__0__Args__formatter ""
 
 # The .exemplo files themselves must never pass: placeholders and the sample key.
 cp "$AMBIENTES/producao.env.exemplo" "$PROD"
