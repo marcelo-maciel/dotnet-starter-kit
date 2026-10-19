@@ -97,6 +97,18 @@ export function escolhasDeImagem(midias: readonly MidiaDaUnidade[], valorAtual: 
   return [["", LOGOTIPO_DO_SISTEMA], ...imagens, ...(conhecida ? [] : [[valorAtual, IMAGEM_PERSONALIZADA] as [string, string]])];
 }
 
+/**
+ * Review R4 of wave 4: the server stores only the system logo or an ACTIVE image of the current unidade, at either
+ * level (GravacaoParametros reads the mídia under the unit filter). An inherited image of another unidade, or one
+ * deactivated since, stays visible in the picker but cannot be saved: the save buttons wait for a valid choice.
+ */
+export function logotipoGravavel(midias: readonly MidiaDaUnidade[], valor: string): boolean {
+  return valor === "" || midias.some((m) => m.id === valor && m.tipo === "Imagem" && m.ativa);
+}
+
+export const MENSAGEM_LOGOTIPO_NAO_GRAVAVEL =
+  "Este logotipo é uma imagem de outra unidade ou inativa: escolha o padrão do sistema ou uma imagem desta unidade para salvar.";
+
 /** The logo value as the screen shows it: the image's description when it is one of the unidade's. */
 export function logotipoExibido(midias: readonly MidiaDaUnidade[], valor: string): string {
   if (valor === "") return LOGOTIPO_DO_SISTEMA;
