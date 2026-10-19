@@ -12,6 +12,7 @@ import { avisosDoLinkGerado, linhasDoVinculo, usaLink } from "@/features/paf/est
 import { montarLinkVinculo } from "@/features/paf/estacao/link-vinculo";
 import { avisosContraImagem } from "@/features/paf/aparencia/contraste-imagem";
 import { ImagemFundoCampo } from "@/features/paf/estacoes/imagem-fundo-campo";
+import { ListaMidiasPainel } from "@/features/paf/estacoes/lista-midias-painel";
 import {
   atualizarEstacao,
   criarEstacao,
@@ -519,6 +520,11 @@ export function EstacoesPage() {
                     ["Fonte alternada", edicao.painel.corFonteAlternada],
                   ])}
                 />
+              )}
+              {edicao.id === null ? (
+                <p className="text-sm text-[var(--color-muted-foreground)]">Salve a estação para montar a lista de exibição de mídias.</p>
+              ) : (
+                <ListaMidiasPainel estacaoId={edicao.id} midias={midias} />
               )}
             </fieldset>
           )}

@@ -93,7 +93,7 @@ export function revogarVinculo(id: string) {
 }
 
 /** C17: the unidade's mídias (M03), from which the cadastro offers the active images as block background. */
-export type MidiaResumoDto = { id: string; descricao: string; tipo: string; ativa: boolean; versao: number };
+export type MidiaResumoDto = { id: string; descricao: string; tipo: string; ativa: boolean; versao: number; duracaoSegundos: number };
 
 export function listarMidias() {
   return apiFetch<MidiaResumoDto[]>("/api/v1/paf/midias");
@@ -102,4 +102,20 @@ export function listarMidias() {
 /** Signed read URL of a mídia (M04, `Midias.View`), used to measure the image in the browser. */
 export function obterUrlMidia(id: string) {
   return apiFetch<{ url: string; expiraEm: string }>(`/api/v1/paf/midias/${encodeURIComponent(id)}/url`);
+}
+
+/** M10: the painel station's display list (M06), in loop order; inactive entries stay listed, the painel skips them. */
+export type ItemMidiaDaEstacaoDto = { id: string; ordem: number; midiaId: string; descricao: string; tipo: string; duracaoSegundos: number; ativa: boolean };
+export type MidiasDaEstacaoDto = { estacaoId: string; itens: ItemMidiaDaEstacaoDto[] };
+
+export function obterMidiasDaEstacao(id: string) {
+  return apiFetch<MidiasDaEstacaoDto>(`/api/v1/paf/estacoes/${encodeURIComponent(id)}/midias`);
+}
+
+/** Replaces the whole list; the position in `midias` is the order. */
+export function substituirMidiasDaEstacao(id: string, midias: string[]) {
+  return apiFetch<MidiasDaEstacaoDto>(`/api/v1/paf/estacoes/${encodeURIComponent(id)}/midias`, {
+    method: "PUT",
+    body: JSON.stringify({ estacaoId: id, midias }),
+  });
 }
