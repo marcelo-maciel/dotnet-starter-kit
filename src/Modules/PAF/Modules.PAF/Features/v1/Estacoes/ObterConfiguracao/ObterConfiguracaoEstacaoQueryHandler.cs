@@ -1,14 +1,16 @@
+using System.Globalization;
 using FSH.Framework.Core.Exceptions;
 using FSH.Modules.PAF.Contracts.v1.Estacoes;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Features.v1.Filas;
+using FSH.Modules.PAF.Parametros;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
 namespace FSH.Modules.PAF.Features.v1.Estacoes.ObterConfiguracao;
 
-public sealed class ObterConfiguracaoEstacaoQueryHandler(PafDbContext db)
+public sealed class ObterConfiguracaoEstacaoQueryHandler(PafDbContext db, LeitorParametros parametros)
     : IQueryHandler<ObterConfiguracaoEstacaoQuery, ConfiguracaoEstacaoDto>
 {
     public async ValueTask<ConfiguracaoEstacaoDto> Handle(ObterConfiguracaoEstacaoQuery query, CancellationToken cancellationToken)
@@ -61,8 +63,14 @@ public sealed class ObterConfiguracaoEstacaoQueryHandler(PafDbContext db)
         // the emission refuses outside the window anyway. A pushed notice at each window edge needs a scheduler.
         var hora = TimeOnly.FromDateTime(await PafRelogio.AgoraEmSaoPauloAsync(db, ct).ConfigureAwait(false));
 
+        // RF06 "Ordenação de filas": by name keeps each fila's prioridade order (OrderBy is stable).
+        var ordenacao = await parametros.LerAsync(CatalogoParametros.OrdenacaoFilas, unidadeId, ct).ConfigureAwait(false);
+        var ordenadas = ordenacao == CatalogoParametros.OrdenacaoPorNome
+            ? linhas.OrderBy(l => l.NomeExibicao, StringComparer.Create(CultureInfo.GetCultureInfo("pt-BR"), CompareOptions.IgnoreCase)).ToList()
+            : linhas;
+
         // A flat position: the two source orders may tie across filas, and the screen sorts by one number.
-        return linhas
+        return ordenadas
             .Where(l => Fila.JanelaPermiteEmissao(l.HoraInicial, l.HoraFinal, hora))
             .Select((l, i) => new BotaoEmissaoDto(
                 l.Id, l.NomeExibicao, l.PrioridadeId, l.Nome, l.Letra, i, l.Fonte, l.CorFonte, l.CorBotao, l.CorBotaoSelecionado))

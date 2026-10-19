@@ -9,6 +9,7 @@ using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Escopo;
 using FSH.Modules.PAF.Features.v1.Atendimentos;
 using FSH.Modules.PAF.Features.v1.Filas;
+using FSH.Modules.PAF.Parametros;
 using FSH.Modules.PAF.TempoReal;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
@@ -26,6 +27,7 @@ public sealed partial class EmitirFichaCommandHandler(
     IUnidadeCorrente unidadeCorrente,
     IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor,
     AvisosTempoReal avisos,
+    LeitorParametros parametros,
     ILogger<EmitirFichaCommandHandler> logger) : ICommandHandler<EmitirFichaCommand, FichaEmitidaDto>
 {
     public const string RestricaoNumeracao = "UX_Fichas_Numeracao";
@@ -97,7 +99,12 @@ public sealed partial class EmitirFichaCommandHandler(
             throw new CustomException(MensagemIndisponivel, [], HttpStatusCode.Conflict);
         }
 
-        return new Emissao(unidade, fila, prioridade, associacao);
+        // RF06 "Parâmetros das fichas" of the unidade, read once per emission and printed as they are now (a replay too).
+        var impressao = await parametros.CarregarAsync(unidadeId, ct).ConfigureAwait(false);
+        return new Emissao(unidade, fila, prioridade, associacao, new ImpressaoFicha(
+            impressao.Ler(CatalogoParametros.TituloFichas),
+            impressao.Ler(CatalogoParametros.MensagemRodapeFicha),
+            impressao.Ler(CatalogoParametros.ImprimirQrFicha)));
     }
 
     private async Task<Tentativa> TentarAsync(EmitirFichaCommand command, Emissao emissao, string tenantId, CancellationToken ct)
@@ -182,9 +189,12 @@ public sealed partial class EmitirFichaCommandHandler(
 
     private static FichaEmitidaDto Dto(Ficha ficha, Guid atendimentoId, Emissao emissao) =>
         new(ficha.Id, atendimentoId, ficha.IdentificadorPublico, OperacaoGuiche.Senha(ficha.Letra, ficha.Numero), ficha.Letra, ficha.Numero,
-            emissao.Unidade.Nome, emissao.Fila.NomeExibicao, emissao.Prioridade.Nome, PafRelogio.EmSaoPaulo(ficha.CriadoEm));
+            emissao.Unidade.Nome, emissao.Fila.NomeExibicao, emissao.Prioridade.Nome, PafRelogio.EmSaoPaulo(ficha.CriadoEm),
+            emissao.Impressao.Titulo, emissao.Impressao.Rodape, emissao.Impressao.ImprimirQr);
 
-    private sealed record Emissao(Unidade Unidade, Fila Fila, Prioridade Prioridade, FilaPrioridade Associacao);
+    private sealed record Emissao(Unidade Unidade, Fila Fila, Prioridade Prioridade, FilaPrioridade Associacao, ImpressaoFicha Impressao);
+
+    private sealed record ImpressaoFicha(string Titulo, string Rodape, bool ImprimirQr);
 
     private abstract record Tentativa
     {

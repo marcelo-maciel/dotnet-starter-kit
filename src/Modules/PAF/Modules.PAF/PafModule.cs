@@ -57,6 +57,11 @@ using FSH.Modules.PAF.Features.v1.Painel.ObterEstadoPainel;
 using FSH.Modules.PAF.Features.v1.Prioridades.CreatePrioridade;
 using FSH.Modules.PAF.Features.v1.Prioridades.DisablePrioridade;
 using FSH.Modules.PAF.Features.v1.Prioridades.EnablePrioridade;
+using FSH.Modules.PAF.Features.v1.Parametros.ListParametros;
+using FSH.Modules.PAF.Features.v1.Parametros.ObterTeclasGuiche;
+using FSH.Modules.PAF.Features.v1.Parametros.RemoveParametroUnidade;
+using FSH.Modules.PAF.Features.v1.Parametros.SetParametroEmpresa;
+using FSH.Modules.PAF.Features.v1.Parametros.SetParametroUnidade;
 using FSH.Modules.PAF.Features.v1.Prioridades.ListPrioridades;
 using FSH.Modules.PAF.Features.v1.Prioridades.UpdatePrioridade;
 using FSH.Modules.PAF.Features.v1.Sessao.EndSessao;
@@ -102,6 +107,8 @@ public sealed class PafModule : IModule
         builder.Services.AddScoped<IDbInitializer, PafDbInitializer>();
         builder.Services.AddScoped<IUnidadeCorrente, UnidadeCorrente>();
         builder.Services.AddScoped<LeitorParametros>();
+        // C10: the single writer of RF06 rows (upsert, hotkey rule, impersonation act).
+        builder.Services.AddScoped<GravacaoParametros>();
 
         // S14: own PostgreSQL check with a ceiling, and the Valkey as Degraded (route paf/saude, seção 9).
         builder.Services.AddHealthChecks()
@@ -235,6 +242,8 @@ public sealed class PafModule : IModule
         guiche.MapSendAtendimentoToFilasEndpoint();
         guiche.MapListWaitingFichasEndpoint();
         guiche.MapRequestChosenFichaEndpoint();
+        // C10: hotkeys under the guichê permission.
+        guiche.MapGetTeclasGuicheEndpoint();
     }
 
     // Cadastros and unit scope.
@@ -284,6 +293,12 @@ public sealed class PafModule : IModule
 
         group.MapGetUsuarioUnidadesEndpoint();
         group.MapSetUsuarioUnidadesEndpoint();
+
+        // C10: RF06 parameters (empresa default, unidade override).
+        group.MapListParametrosEndpoint();
+        group.MapSetParametroEmpresaEndpoint();
+        group.MapSetParametroUnidadeEndpoint();
+        group.MapRemoveParametroUnidadeEndpoint();
     }
 
     // Station credential (RF04, ADR 0008 "Token da estação"): the per-role policies and the issuer.

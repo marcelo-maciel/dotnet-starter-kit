@@ -14,7 +14,9 @@ public sealed record EmitirFichaCommand(Guid EstacaoId, Guid FilaId, Guid Priori
 
 /// <summary>
 /// What the totem prints. <paramref name="IdentificadorPublico"/> is the opaque id for the QR;
-/// <paramref name="EmitidaEm"/> is the PostgreSQL instant shown in America/Sao_Paulo.
+/// <paramref name="EmitidaEm"/> is the PostgreSQL instant shown in America/Sao_Paulo. <paramref name="Titulo"/>,
+/// <paramref name="Rodape"/> and <paramref name="ImprimirQr"/> are the RF06 ficha parameters of the unidade at emission
+/// (empty title or footer = that line is not printed).
 /// </summary>
 public sealed record FichaEmitidaDto(
     Guid FichaId,
@@ -26,4 +28,7 @@ public sealed record FichaEmitidaDto(
     string Unidade,
     string Fila,
     string Prioridade,
-    DateTimeOffset EmitidaEm);
+    DateTimeOffset EmitidaEm,
+    string Titulo,
+    string Rodape,
+    bool ImprimirQr);
