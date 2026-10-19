@@ -41,6 +41,7 @@ test("consultar ficha aparece só com a permissão de ver fichas do dia", () => 
   // F06 and F14 share FichasDoDia.View, so that permission opens both screens.
   assert.deepEqual(itensPaf(["Permissions.PAF.FichasDoDia.View"]), ["/paf/fichas-do-dia", "/paf/consultar-ficha"]);
   assert.deepEqual(itensPaf(["Permissions.PAF.FichasDoDia.Cancelar", "Permissions.PAF.FichasDoDia.Reabilitar"]), []);
+  assert.deepEqual(itensPaf(["Permissions.PAF.Prioridades.View", "Permissions.PAF.Prioridades.Update"]), ["/paf/prioridades"]);
 });
 
 test("rotas do PAF abrem a seção do PAF no menu", () => {
@@ -51,6 +52,7 @@ test("rotas do PAF abrem a seção do PAF no menu", () => {
   assert.equal(findSectionForPath("/paf/fichas-do-dia"), "paf");
   assert.equal(findSectionForPath("/paf/consultar-ficha"), "paf");
   assert.equal(findSectionForPath("/paf/usuarios"), "paf");
+  assert.equal(findSectionForPath("/paf/prioridades"), "paf");
   assert.equal(findSectionForPath("/identity/users"), "identity");
 });
 
