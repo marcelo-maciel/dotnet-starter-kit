@@ -5,6 +5,8 @@ using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Contracts.v1.Impersonation;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Sessao;
+using Hangfire;
+using Hangfire.Storage;
 using Integration.Tests.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
 using StackExchange.Redis;
@@ -95,6 +97,18 @@ public sealed class PafManutencaoLicencasTests(FshWebApplicationFactory factory)
         return await db.Database.SqlQuery<DateTimeOffset>($"""
             SELECT date_bin(make_interval(mins => {ManutencaoLicencas.JanelaAmostraMinutos}), now(), timestamptz '2000-01-01 00:00:00+00') AS "Value"
             """).SingleAsync();
+    }
+
+    [Fact]
+    public void Job_RegistradoNoHangfireComOCronDaManutencao()
+    {
+        using var conexao = factory.Services.GetRequiredService<JobStorage>().GetConnection();
+
+        var job = conexao.GetRecurringJobs().Where(j => j.Id == ManutencaoLicencas.IdRecorrente).ShouldHaveSingleItem();
+
+        job.Cron.ShouldBe(ManutencaoLicencas.Cron);
+        job.Job.Type.ShouldBe(typeof(ManutencaoLicencas));
+        job.Job.Method.Name.ShouldBe(nameof(ManutencaoLicencas.ExecutarAsync));
     }
 
     [Fact]
