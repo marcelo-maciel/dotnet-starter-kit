@@ -75,7 +75,7 @@ public sealed class SetGuicheCommandHandler(
             ocupanteSolto = await SoltarOcupanteMortoAsync(tenantId, estacao, ocupante, cancellationToken);
         }
 
-        AtendimentoAtualizadoPaf? avisoLiberacao = null;
+        IReadOnlyList<AvisoPaf>? avisosLiberacao = null;
         if (await PendenciaDeOutroUsuarioAsync(db, estacao.Id, usuarioId, cancellationToken) is { } pendencia)
         {
             if (!command.LiberarPendencia)
@@ -83,7 +83,7 @@ public sealed class SetGuicheCommandHandler(
                 throw new CustomException(MensagemPendencia(estacao.Nome, pendencia.Senha), [], HttpStatusCode.Conflict);
             }
 
-            avisoLiberacao = await CancelarPendenciaAsync(new Guiche(tenantId, sessaoId, usuarioId, estacao), pendencia.Id, cancellationToken);
+            avisosLiberacao = await CancelarPendenciaAsync(new Guiche(tenantId, sessaoId, usuarioId, estacao), pendencia.Id, cancellationToken);
         }
 
         db.SessoesEstacao.Add(SessaoEstacao.CriarParaSessao(estacao.Id, sessaoId));
@@ -101,13 +101,13 @@ public sealed class SetGuicheCommandHandler(
             throw new CustomException(MensagemEscolhidoAgora, [], HttpStatusCode.Conflict);
         }
 
-        if (avisoLiberacao is null)
+        if (avisosLiberacao is null)
         {
             await transacao.CommitAsync(cancellationToken);
         }
         else
         {
-            await OperacaoGuiche.ConfirmarEAvisarAsync(transacao, avisos, avisoLiberacao, cancellationToken);
+            await OperacaoGuiche.ConfirmarEAvisarTodosAsync(transacao, avisos, avisosLiberacao, cancellationToken);
         }
 
         // After the commit: the hub groups follow the links just written (seção 7).
@@ -133,7 +133,7 @@ public sealed class SetGuicheCommandHandler(
 
     // The RF12 cancel, under the same serialization as the guichê operations: the ficha's rows locked in id order,
     // the state re-read after the lock. Resolved meanwhile by its owner, there is nothing left to release.
-    private async Task<AtendimentoAtualizadoPaf?> CancelarPendenciaAsync(Guiche guiche, Guid atendimentoId, CancellationToken ct)
+    private async Task<IReadOnlyList<AvisoPaf>?> CancelarPendenciaAsync(Guiche guiche, Guid atendimentoId, CancellationToken ct)
     {
         var atendimento = await OperacaoGuiche.TravarAsync(db, guiche, atendimentoId, ct);
         if (atendimento.EstacaoId != guiche.Estacao.Id
@@ -142,14 +142,8 @@ public sealed class SetGuicheCommandHandler(
             return null;
         }
 
-        var versao = await OperacaoGuiche.TransitarAsync(db, atendimento, $"""
-            UPDATE paf."Atendimentos"
-               SET "Estado" = 'Cancelado', "CanceladoEm" = now(), "Versao" = "Versao" + 1
-             WHERE "TenantId" = {guiche.TenantId} AND "Id" = {atendimento.Id} AND "Estado" IN ('Chamado', 'EmAtendimento')
-            RETURNING "Versao" AS "Value"
-            """, ct);
-        await OperacaoGuiche.LiberarPendentesAsync(db, guiche, atendimento, ct);
-        return OperacaoGuiche.AvisoDeEstado(guiche, atendimento, versao, EstadoAtendimento.Cancelado);
+        var cancelado = await OperacaoGuiche.CancelarTravadoAsync(db, guiche.TenantId, atendimento, ct);
+        return cancelado.Avisos;
     }
 
     internal sealed record Pendencia(Guid Id, string Senha);
