@@ -31,6 +31,7 @@ import { CHAVE_ULTIMO_GUICHE, serializarUltimoGuiche, sugerirGuiche } from "@/fe
 import { EncaminharAtendimento } from "@/features/paf/guiche/encaminhar-atendimento";
 import { VipForm } from "@/features/paf/guiche/vip-form";
 import { TeclasAtalhoGuiche } from "@/features/paf/guiche/teclas-atalho-guiche";
+import { EmissaoGuiche } from "@/features/paf/guiche/emissao-guiche";
 
 type Ultimo = { senha: string; estado: string };
 
@@ -370,6 +371,7 @@ export function GuichePage() {
       )}
 
       {etapa === "operar" && <VipForm bloqueado={ocupado || atendimento !== null} executar={executar} />}
+      {etapa === "operar" && <EmissaoGuiche />}
     </div>
   );
 }

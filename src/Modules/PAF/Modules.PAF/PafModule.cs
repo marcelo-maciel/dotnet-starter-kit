@@ -45,6 +45,8 @@ using FSH.Modules.PAF.Features.v1.Fichas.EmitirFicha;
 using FSH.Modules.PAF.Features.v1.Fichas.ListAtendimentosDoDia;
 using FSH.Modules.PAF.Features.v1.Fichas.ObterImpressaoFicha;
 using FSH.Modules.PAF.Features.v1.Fichas.ListFichasEmAtendimento;
+using FSH.Modules.PAF.Features.v1.Fichas.EmitirFichaNoGuiche;
+using FSH.Modules.PAF.Features.v1.Fichas.ObterEmissaoGuiche;
 using FSH.Modules.PAF.Features.v1.Sessao.GetAvisoLicenca;
 using FSH.Modules.PAF.Features.v1.Filas.AddFilaPrioridade;
 using FSH.Modules.PAF.Features.v1.Guiches.LiberarGuiche;
@@ -131,6 +133,8 @@ public sealed class PafModule : IModule
         builder.Services.AddScoped<LeitorParametros>();
         // C10: the single writer of RF06 rows (upsert, hotkey rule, impersonation act).
         builder.Services.AddScoped<GravacaoParametros>();
+        // F12: the emission core shared by the totem and the guichê.
+        builder.Services.AddScoped<EmissaoDeFicha>();
 
         // S14: own PostgreSQL check with a ceiling, and the Valkey as Degraded (route paf/saude, seção 9).
         builder.Services.AddHealthChecks()
@@ -314,6 +318,9 @@ public sealed class PafModule : IModule
         guiche.MapListVipFilasEndpoint();
         // C10: hotkeys under the guichê permission.
         guiche.MapGetTeclasGuicheEndpoint();
+        // F12: manual emission at the guichê and its panel (last ficha for the reprint).
+        guiche.MapIssueFichaNoGuicheEndpoint();
+        guiche.MapGetEmissaoGuicheEndpoint();
     }
 
     // Cadastros and unit scope.
