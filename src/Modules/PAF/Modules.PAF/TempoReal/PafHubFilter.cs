@@ -52,8 +52,9 @@ public sealed partial class PafHubFilter(ILogger<PafHubFilter> logger) : IHubFil
         }
         catch (LicencaRecusadaException)
         {
-            // On a call the connection stays open unless closed here; on connect SignalR closes it itself and sends the
-            // refusal as the close reason, which an Abort before it would race away.
+            // On a call the connection stays open unless closed here. On connect the exception out of OnConnectedAsync
+            // already ends the connection, and SignalR is expected to send it as the close reason, which an Abort
+            // before it could race away (not exercised: in one instance the middleware refuses first).
             invocationContext.Context.Abort();
             throw;
         }

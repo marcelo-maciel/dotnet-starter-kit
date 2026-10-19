@@ -121,7 +121,7 @@ public sealed class PafReocupacaoLicencaTests(FshWebApplicationFactory factory) 
 
         chamada.Erro.ShouldBeAssignableTo<HubException>()!.Message.ShouldBe(Licencas.MensagemLimite);
         chamada.Abortada.ShouldBeTrue("a chamada recusada derruba a conexão");
-        // On connect SignalR closes the connection itself with the exception as the close reason (no reconnect).
+        // On connect there is no Abort: the exception itself ends the connection in SignalR.
         abertura.Erro.ShouldBeAssignableTo<HubException>()!.Message.ShouldBe(Licencas.MensagemLimite);
         (await _tenant.AtividadesAsync(Guid.Parse(ana.UserId))).ShouldHaveSingleItem().UltimaAtividadeEm
             .ShouldBeLessThan(DateTime.UtcNow.AddMinutes(-10), "recusada, a marca vencida não é renovada");
