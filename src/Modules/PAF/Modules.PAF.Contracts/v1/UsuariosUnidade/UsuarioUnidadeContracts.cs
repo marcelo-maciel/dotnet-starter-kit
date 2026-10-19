@@ -17,4 +17,4 @@ public sealed record GetUsuarioUnidadesQuery(Guid UsuarioId) : IQuery<EscopoUsua
 /// Replaces the user's scope; the list order is the persisted order, first = principal. With
 /// <c>EscopoEmpresa</c> the list carries exactly one unidade, the principal.
 /// </summary>
-public sealed record SetUsuarioUnidadesCommand(Guid UsuarioId, IReadOnlyList<Guid> Unidades, bool EscopoEmpresa) : ICommand<Guid>;
+public sealed record SetUsuarioUnidadesCommand(Guid UsuarioId, IReadOnlyList<Guid> Unidades, bool EscopoEmpresa) : ICommand<Guid>, IEscritaDeCadastro;

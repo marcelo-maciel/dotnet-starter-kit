@@ -176,6 +176,9 @@ public sealed class PafModule : IModule
         services.AddScoped<RevogacaoSessao>();
         services.AddScoped<IPipelineBehavior<GenerateTokenCommand, TokenResponse>, GenerateTokenLicenseBehavior>();
         services.AddScoped<IPipelineBehavior<RefreshTokenCommand, RefreshTokenCommandResponse>, RefreshTokenLicenseBehavior>();
+        // S11A (D28): AtoImpersonacao of every write; the open generic only closes over IEscritaDeCadastro commands.
+        services.AddScoped<AtosImpersonacao>();
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(AtoImpersonacaoBehavior<,>));
     }
 
     private static void MapearSessao(IEndpointRouteBuilder sessao)

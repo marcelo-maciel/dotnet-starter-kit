@@ -31,22 +31,22 @@ public sealed record CreateFilaCommand(
     string NomeExibicao,
     TimeOnly? HoraInicial,
     TimeOnly? HoraFinal,
-    IReadOnlyList<FilaPrioridadeItem> Prioridades) : ICommand<Guid>;
+    IReadOnlyList<FilaPrioridadeItem> Prioridades) : ICommand<Guid>, IEscritaDeCadastro;
 
 public sealed record UpdateFilaCommand(
     Guid Id,
     string Nome,
     string NomeExibicao,
     TimeOnly? HoraInicial,
-    TimeOnly? HoraFinal) : ICommand<Guid>;
+    TimeOnly? HoraFinal) : ICommand<Guid>, IEscritaDeCadastro;
 
-public sealed record EnableFilaCommand(Guid Id) : ICommand<Guid>;
+public sealed record EnableFilaCommand(Guid Id) : ICommand<Guid>, IEscritaDeCadastro;
 
-public sealed record DisableFilaCommand(Guid Id) : ICommand<Guid>;
+public sealed record DisableFilaCommand(Guid Id) : ICommand<Guid>, IEscritaDeCadastro;
 
-public sealed record AddFilaPrioridadeCommand(Guid FilaId, Guid PrioridadeId, string Letra, int NumeroInicial, int Ordem) : ICommand<Guid>;
+public sealed record AddFilaPrioridadeCommand(Guid FilaId, Guid PrioridadeId, string Letra, int NumeroInicial, int Ordem) : ICommand<Guid>, IEscritaDeCadastro;
 
-public sealed record UpdateFilaPrioridadeCommand(Guid FilaId, Guid PrioridadeId, string Letra, int NumeroInicial, int Ordem) : ICommand<Guid>;
+public sealed record UpdateFilaPrioridadeCommand(Guid FilaId, Guid PrioridadeId, string Letra, int NumeroInicial, int Ordem) : ICommand<Guid>, IEscritaDeCadastro;
 
 /// <summary>Filas of the current unidade only.</summary>
 public sealed record ListFilasQuery : IQuery<IReadOnlyList<FilaDto>>;

@@ -22,7 +22,7 @@ public sealed record CreateContratoUnidadeCommand(
     DateOnly? FimVigencia,
     string Plano,
     int LimiteSessoes,
-    string Politica) : ICommand<Guid>;
+    string Politica) : ICommand<Guid>, IEscritaDeCadastro;
 
 public sealed record UpdateContratoUnidadeCommand(
     Guid Id,
@@ -30,7 +30,7 @@ public sealed record UpdateContratoUnidadeCommand(
     DateOnly? FimVigencia,
     string Plano,
     int LimiteSessoes,
-    string Politica) : ICommand<Guid>;
+    string Politica) : ICommand<Guid>, IEscritaDeCadastro;
 
 /// <summary>Contracts of the current unidade: the client sees its limit, read-only (RF23).</summary>
 public sealed record ListContratosUnidadeQuery : IQuery<IReadOnlyList<ContratoUnidadeDto>>;
