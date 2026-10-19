@@ -32,6 +32,15 @@ public sealed class OpcoesMidia
     /// </summary>
     public TimeSpan MargemLeitura { get; set; } = TimeSpan.FromMinutes(10);
 
+    /// <summary>
+    /// Prazo de cada chamada do cadastro ao armazenamento (RNF05): com o armazenamento parado, o pedido responde 503
+    /// dentro dele em vez de segurar a requisição pelo prazo do cliente S3.
+    /// </summary>
+    public TimeSpan PrazoArmazenamento { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>Same ceiling as the RNF05 barrier of the PAF tests (<c>RegrasDePrazo.Teto</c>).</summary>
+    public static readonly TimeSpan PrazoArmazenamentoMaximo = TimeSpan.FromSeconds(30);
+
     public long TetoBytes(TipoMidia tipo) => tipo switch
     {
         TipoMidia.Video => TetoVideoBytes,
@@ -50,6 +59,8 @@ public sealed class OpcoesMidia
                 "PAF:Midia: os tetos por tipo precisam ser positivos.")
             .Validate(o => o.MargemLeitura >= TimeSpan.Zero && o.MargemLeitura < ValidadeMaximaAssinatura,
                 "PAF:Midia:MargemLeitura não pode ser negativa nem chegar a 7 dias.")
+            .Validate(o => o.PrazoArmazenamento > TimeSpan.Zero && o.PrazoArmazenamento <= PrazoArmazenamentoMaximo,
+                "PAF:Midia:PrazoArmazenamento precisa ser positivo e no máximo 30 segundos.")
             .Validate<IConfiguration>((_, configuracao) => PrefixoDoKitCompativel(configuracao["Storage:S3:Prefix"]),
                 "Storage:S3:Prefix não pode começar por public/ nem colidir com a raiz paf-midia/ da mídia do PAF.")
             .ValidateOnStart();
