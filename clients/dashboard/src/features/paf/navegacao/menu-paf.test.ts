@@ -34,10 +34,16 @@ test("cada cadastro aparece só com a permissão da sua listagem", () => {
   assert.deepEqual(itensPaf(["Permissions.PAF.Filas.Create", "Permissions.PAF.Estacoes.Update"]), []);
 });
 
+test("consultar ficha aparece só com a permissão de ver fichas do dia", () => {
+  assert.deepEqual(itensPaf(["Permissions.PAF.FichasDoDia.View"]), ["/paf/consultar-ficha"]);
+  assert.deepEqual(itensPaf(["Permissions.PAF.FichasDoDia.Cancelar", "Permissions.PAF.FichasDoDia.Reabilitar"]), []);
+});
+
 test("rotas do PAF abrem a seção do PAF no menu", () => {
   assert.equal(findSectionForPath("/paf/guiche"), "paf");
   assert.equal(findSectionForPath("/paf/unidades"), "paf");
   assert.equal(findSectionForPath("/paf/filas"), "paf");
   assert.equal(findSectionForPath("/paf/estacoes"), "paf");
+  assert.equal(findSectionForPath("/paf/consultar-ficha"), "paf");
   assert.equal(findSectionForPath("/identity/users"), "identity");
 });

@@ -17,7 +17,7 @@ namespace FSH.Modules.PAF.Features.v1.Fichas.ConsultarFicha;
 public sealed class ConsultarFichaQueryHandler(PafDbContext db, IUnidadeCorrente unidadeCorrente)
     : IQueryHandler<ConsultarFichaQuery, IReadOnlyList<FichaConsultadaDto>>
 {
-    public const string MensagemNaoEncontrada = "Nenhuma ficha com essa senha nesta unidade na data informada.";
+    public const string MensagemNaoEncontrada = "Não há ficha com essa senha nesta unidade na data informada.";
 
     // Same folding as the cadastro (LetraDaSenha.Normalizar) applies to the stored letter, so " a12 " finds A12.
     internal static string Normalizar(string senha) => senha.Trim().ToUpperInvariant();

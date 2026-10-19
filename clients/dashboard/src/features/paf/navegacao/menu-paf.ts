@@ -1,4 +1,4 @@
-import { Building2, Layers, ListOrdered, Monitor, MonitorSmartphone } from "lucide-react";
+import { Building2, Layers, ListOrdered, Monitor, MonitorSmartphone, Search } from "lucide-react";
 import type { NavSection } from "@/components/layout/nav-data";
 
 // PAF section of the dashboard menu (ADR 0008, amended 17/10/2026); nav-data.ts only lists it. Each entry is
@@ -18,5 +18,7 @@ export const secaoMenuPaf: NavSection = {
     { to: "/paf/filas", label: "Filas", icon: Layers, perm: "Permissions.PAF.Filas.View" },
     // GET estacoes: Estacoes.View (C04).
     { to: "/paf/estacoes", label: "Estações", icon: Monitor, perm: "Permissions.PAF.Estacoes.View" },
+    // GET fichas/consulta: FichasDoDia.View (F14).
+    { to: "/paf/consultar-ficha", label: "Consultar ficha", icon: Search, perm: "Permissions.PAF.FichasDoDia.View" },
   ],
 };
