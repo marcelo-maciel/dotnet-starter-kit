@@ -73,7 +73,10 @@ try {
   const token = () => pAdmin.evaluate(() => localStorage.getItem("fsh.dashboard.accessToken"));
 
   const linkMenu = pAdmin.locator('aside a[href="/paf/prioridades"]');
-  check("menu: entrada Prioridades para quem tem Prioridades.View", await visivel(linkMenu));
+  check("menu: entrada Prioridades para quem tem Prioridades.View", await linkMenu.waitFor({ state: "attached", timeout: TIMEOUT }).then(() => true, () => false));
+  // The section starts collapsed outside /paf: open it the way a person would.
+  const secao = pAdmin.locator('button[aria-controls="nav-section-paf"]');
+  if ((await secao.getAttribute("aria-expanded")) === "false") await secao.click();
   await linkMenu.click();
   await pAdmin.waitForURL((u) => u.pathname === "/paf/prioridades", { timeout: TIMEOUT });
   check("tela: explica que valor maior é chamado antes", await visivel(pAdmin.getByText("valor maior é chamado antes")));
@@ -117,8 +120,15 @@ try {
     return route.continue({ postData: JSON.stringify({ nome: "", valor: 1 }) });
   });
   await novo.getByLabel("Valor").fill("10");
+  const resposta400 = pAdmin.waitForResponse((r) => r.url().endsWith("/api/v1/paf/prioridades") && r.request().method() === "POST", { timeout: TIMEOUT });
   await cadastrar.click();
-  check("tela: 400 do servidor aparece como erro", await visivel(pAdmin.getByRole("alert").filter({ hasText: "Pedido inválido" })));
+  const status400 = (await resposta400).status();
+  check(
+    "tela: 400 do servidor aparece como erro",
+    // The detail comes localized by the request culture (pt-BR here); without an accent the screen says "Pedido inválido".
+    status400 === 400 && (await visivel(pAdmin.getByRole("alert").filter({ hasText: /erros de validação|Pedido inválido/ }))),
+    `status ${status400}; alertas ${JSON.stringify(await pAdmin.getByRole("alert").allTextContents())}`,
+  );
   await pAdmin.unroute("**/api/v1/paf/prioridades");
   const depoisDaRecusa = await api("GET", "/api/v1/paf/prioridades", await token());
   check("api: nada gravado pelas recusas", depoisDaRecusa.length === antes.length, `${antes.length} -> ${depoisDaRecusa.length}`);
@@ -157,7 +167,12 @@ try {
     filas: guiche.filas,
     prioridades: [...guiche.prioridades, { prioridadeId: preferencial.id, ordem: guiche.prioridades.length }],
     ramal: guiche.ramal,
-    configuracao: guiche.configuracao,
+    // The seeded guichê has no RF04 blocks yet, and the update requires them: the minimal guichê block.
+    configuracao: guiche.configuracao ?? {
+      emissao: null,
+      guiche: { numero: 1, nomeExibicao: null, ladoSeta: null, respeitarOrdemFilas: false, selecionarFicha: false },
+      painel: null,
+    },
   });
   await pAdmin.reload();
   await linhaNova.waitFor({ timeout: TIMEOUT });
@@ -232,7 +247,7 @@ try {
     await seletorUnidade.selectOption({ label: "Loja Demo" });
     await pAdmin.getByRole("button", { name: "Usar esta unidade" }).click();
   }
-  await seletorGuiche.waitFor({ timeout: TIMEOUT });
+  await seletorGuiche.locator("option", { hasText: guiche.nome }).waitFor({ state: "attached", timeout: TIMEOUT });
   const opcao = await seletorGuiche.locator("option").evaluateAll(
     (os, nome) => os.find((o) => o.textContent.includes(nome))?.getAttribute("value"),
     guiche.nome,
