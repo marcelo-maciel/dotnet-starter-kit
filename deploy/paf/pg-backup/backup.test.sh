@@ -79,7 +79,7 @@ backup() {
 alertas() { docker exec "$GANCHO" sh -c 'cat /alertas/log 2>/dev/null' | grep -c 'PAF backup FALHOU' || true; }
 
 copias() {
-  aws_s3 list-objects-v2 --bucket "$BUCKET_BACKUP" --prefix "$AMBIENTE/" --query "Contents[].Key" --output text \
+  aws_s3 list-objects-v2 --bucket "$BUCKET_BACKUP" --prefix "$AMBIENTE/copias/" --query "Contents[].Key" --output text \
     | tr '\t' '\n' | awk '/\/fsh-/' | sort
 }
 
@@ -166,7 +166,7 @@ if [ "$codigo" -eq 0 ] && [ -n "$COPIA" ] && [ "$(copias | grep -c "^$COPIA\.")"
 else
   registrar FAIL "backup feliz: código $codigo, cópia '$COPIA'"; tail -n 5 "$SAIDA"
 fi
-if [[ "$COPIA" =~ ^$AMBIENTE/[0-9]{4}-[0-9]{2}-[0-9]{2}/fsh-[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}$ ]]; then
+if [[ "$COPIA" =~ ^$AMBIENTE/copias/[0-9]{4}-[0-9]{2}-[0-9]{2}/fsh-[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}$ ]]; then
   registrar PASS "chave da cópia com data de Brasília e sem reaproveitamento"
 else
   registrar FAIL "chave da cópia fora do formato: $COPIA"
@@ -233,8 +233,8 @@ fi
 
 # 6. Partial copy: a truncated dump beside the original hash is rejected by the sha256 step, before pg_restore.
 BASE="${COPIA##*/}"
-PARCIAL="$AMBIENTE/2000-01-01/$BASE"
-INCOMPLETA="$AMBIENTE/2999-12-31/fsh-2999-12-31T235959"
+PARCIAL="$AMBIENTE/copias/2000-01-01/$BASE"
+INCOMPLETA="$AMBIENTE/copias/2999-12-31/fsh-2999-12-31T235959"
 aws_baixar() { docker run --rm --network "$REDE" -e AWS_ACCESS_KEY_ID="$S3_USUARIO" \
   -e AWS_SECRET_ACCESS_KEY="$S3_SENHA" -e AWS_DEFAULT_REGION=auto --entrypoint sh "$IMAGEM_BACKUP" -c "$1"; }
 aws_baixar "set -e; E='--endpoint-url http://$S3:9000'; mkdir -p /w

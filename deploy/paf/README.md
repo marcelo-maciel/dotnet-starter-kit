@@ -102,7 +102,7 @@ O serviço `backup` do `compose.yml` roda `paf-backup agendar` (imagem `deploy/p
 - `flock` no volume de trabalho: uma segunda execução simultânea sai com código 75 sem enviar nada;
 - recusa o backup se algum tenant tiver banco próprio (`ConnectionString` preenchida), porque esse banco ficaria fora da cópia;
 - abre uma transação `REPEATABLE READ`, exporta o snapshot, conta as linhas de toda tabela dentro dele e roda `pg_dump -Fc --snapshot` no mesmo snapshot, de modo que as contagens batem exatamente com a cópia;
-- confere o dump com `pg_restore --list`, calcula o sha256 do dump e das contagens e envia, nesta ordem, `.dump`, `.contagens` e `.sha256` para `<projeto>/<AAAA-MM-DD>/fsh-<AAAA-MM-DDTHHMMSS>` no bucket de backup do ambiente. Todo envio é condicional (`If-None-Match: *`): o script nunca sobrescreve objeto. O `.sha256` vai por último; cópia sem ele é envio interrompido, e a restauração a recusa;
+- confere o dump com `pg_restore --list`, calcula o sha256 do dump e das contagens e envia, nesta ordem, `.dump`, `.contagens` e `.sha256` para `<projeto>/copias/<AAAA-MM-DD>/fsh-<AAAA-MM-DDTHHMMSS>` no bucket de backup do ambiente. Todo envio é condicional (`If-None-Match: *`): o script nunca sobrescreve objeto. O `.sha256` vai por último; cópia sem ele é envio interrompido, e a restauração a recusa;
 - qualquer falha: linha JSON no log, POST `{"text": "..."}` em `PAF_BACKUP_ALERTA_URL`, código diferente de zero e healthcheck do contêiner vermelho até o próximo sucesso. O healthcheck também fica vermelho sem sucesso há mais de 26 horas.
 
 Execução manual (depois de todo deploy e sempre que quiser uma cópia agora):
@@ -117,10 +117,11 @@ A garantia contra um host comprometido é o bloqueio do bucket (ARQ l.388), que 
 
 - [ ] Criar o bucket de backup: `npx wrangler r2 bucket create paf-backup-producao` (e `paf-backup-homologacao`), separado do bucket da aplicação.
 - [ ] Bloqueio de 7 dias no bucket inteiro: `npx wrangler r2 bucket lock add paf-backup-producao retencao-7-dias "" --retention-days 7`.
-- [ ] Ciclo de vida que apaga o que passou do prazo e uploads incompletos: `npx wrangler r2 bucket lifecycle add paf-backup-producao expira-7-dias "" --expire-days 7 --abort-multipart-days 1`.
-- [ ] Conferir: `npx wrangler r2 bucket lock list paf-backup-producao` e `npx wrangler r2 bucket lifecycle list paf-backup-producao` mostram as duas regras.
+- [ ] Ciclo de vida só nas cópias, que apaga o que passou do prazo e uploads incompletos: `npx wrangler r2 bucket lifecycle add paf-backup-producao expira-copias "paf-producao/copias/" --expire-days 7 --abort-multipart-days 1` (o prefixo é o `COMPOSE_PROJECT_NAME` do ambiente).
+- [ ] Ciclo de vida dos objetos de prova do bloqueio: `npx wrangler r2 bucket lifecycle add paf-backup-producao expira-provas "paf-producao/verificacao-bloqueio/" --expire-days 7`.
+- [ ] Conferir: `npx wrangler r2 bucket lock list paf-backup-producao` mostra a regra de bloqueio e `npx wrangler r2 bucket lifecycle list paf-backup-producao` as duas de ciclo de vida. Os relatórios de restauração (`paf-producao/restauracoes/`) ficam fora do ciclo de vida de propósito: são o registro do RNF14 e não expiram.
 - [ ] Token de API do R2 com permissão de objeto, leitura e escrita, só nesse bucket; access key e secret em `PAF_BACKUP_ACCESS_KEY` e `PAF_BACKUP_SECRET_KEY` do arquivo do ambiente. Nunca a credencial do Storage da aplicação (o `verificar-ambiente.sh` reprova).
-- [ ] Provar o bloqueio com a credencial do backup: `docker compose -f deploy/paf/compose.yml --env-file <arquivo.env> run --rm backup verificar-bloqueio`. Envia um objeto de prova, tenta sobrescrever e apagar, e só sai com 0 se as duas tentativas forem recusadas. O objeto fica retido 7 dias e sai pelo ciclo de vida.
+- [ ] Provar o bloqueio com a credencial do backup: `docker compose -f deploy/paf/compose.yml --env-file <arquivo.env> run --rm backup verificar-bloqueio`. Envia um objeto de prova, tenta sobrescrever e apagar, e só sai com 0 se as duas tentativas forem recusadas. O objeto fica retido 7 dias e sai pelo ciclo de vida `expira-provas`.
 
 Comandos conferidos na documentação do Wrangler em 19/10/2026 (`r2 bucket lock add <BUCKET> [NAME] [PREFIX] --retention-days`, `r2 bucket lifecycle add <BUCKET> [NAME] [PREFIX] --expire-days --abort-multipart-days`). O bloqueio tem precedência sobre o ciclo de vida, então nada sai antes dos 7 dias.
 

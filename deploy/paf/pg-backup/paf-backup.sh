@@ -8,7 +8,7 @@
 #   paf-backup restaurar <chave|ultima> restore test, part 1 (deploy/paf/restaurar-backup.sh drives it)
 #   paf-backup conferir-restauracao     restore test, part 2, after the migrator ran on the restored database
 #
-# Backup objects, under <PAF_AMBIENTE>/<YYYY-MM-DD>/fsh-<YYYY-MM-DDTHHMMSS> (BRT, never reused):
+# Backup objects, under <PAF_AMBIENTE>/copias/<YYYY-MM-DD>/fsh-<YYYY-MM-DDTHHMMSS> (BRT, never reused):
 #   .dump       pg_dump -Fc taken inside an exported snapshot
 #   .contagens  row count of every table, read inside the same snapshot (the restore compares against it)
 #   .sha256     sha256sum of the two files above; written LAST, so a missing .sha256 means an incomplete upload
@@ -132,7 +132,7 @@ executar_backup() {
   local inicio base dir chave_base
   inicio="$(date +%Y-%m-%dT%H%M%S)"
   base="fsh-$inicio"
-  chave_base="$PAF_AMBIENTE/$(date +%Y-%m-%d)/$base"
+  chave_base="$PAF_AMBIENTE/copias/$(date +%Y-%m-%d)/$base"
   dir="$(mktemp -d "$TRABALHO/execucao.XXXXXX")" || falhar "preparo" "mktemp em $TRABALHO"
   trap "rm -rf '$dir'" EXIT
   log "inicio" "$chave_base"
@@ -252,7 +252,7 @@ verificar_bloqueio() {
 
 ultima_copia_completa() {
   # Only copies whose .sha256 exists: the sidecar is written last, so its absence marks an interrupted upload.
-  s3_backup list-objects-v2 --bucket "$PAF_BACKUP_BUCKET" --prefix "$PAF_AMBIENTE/" \
+  s3_backup list-objects-v2 --bucket "$PAF_BACKUP_BUCKET" --prefix "$PAF_AMBIENTE/copias/" \
     --query "Contents[].Key" --output text >"$TRABALHO/lista" 2>"$TRABALHO/s3.stderr" || return 1
   tr '\t' '\n' <"$TRABALHO/lista" | awk '/\/fsh-[^\/]*\.sha256$/' | sort | tail -n 1
 }
