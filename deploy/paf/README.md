@@ -94,3 +94,11 @@ deploy/paf/smoke-inatividade.sh paf-dashboard:smoke
 ```
 
 O smoke sobe a imagem duas vezes, com e sem a montagem, e confere no `/config.json` servido que o prazo é número igual a 8 horas com o template do PAF e que ele não existe sem a montagem. Código de saída 0 só com tudo verde; remove os contêineres ao sair. Prova negativa: com o valor entre aspas no template, o smoke sai com código 1.
+
+## R2 da aplicação: bloqueio da mídia, CORS e conferência no restore (M11)
+
+Roteiro por ambiente, um passo por linha com estado VERIFICADO ou SKIPPED, em `deploy/paf/r2/ROTEIRO.md`. Ferramentas (aplicativos .NET de arquivo único, `dotnet run <arquivo>.cs`):
+
+- `r2/provar-r2.cs <arquivo .env>`: prova de aceite contra o bucket real (bloqueio de 30 dias em `paf-midia/`, DELETE livre fora dele, GET sem assinatura 403, assinatura de 8 dias recusada, CORS do dashboard). Código 0 só com tudo PASS.
+- `r2/conferir-midias.cs <arquivo .env>` com `PAF_CONFERENCIA_CONEXAO`: HEAD em lote das chaves de `paf."Midias"` no banco restaurado. Código 0 tudo presente, 1 algum ausente, 2 conferência não rodou. É o passo de mídia do teste de restauração do O11.
+- `r2/r2.test.sh`: prova local das duas contra PostgreSQL com as migrações reais e RustFS; remove os contêineres ao sair.
