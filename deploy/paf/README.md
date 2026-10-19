@@ -294,7 +294,7 @@ Sequência, cada passo com código próprio:
 
 Homologação tem uma instância: a drenagem tira o único membro e a API fica fora do ar durante a troca, o que o RNF16 aceita lá. Interrompido (SIGTERM do `timeout 1800`), o deploy reabilita o membro drenado se a instância responde saúde; senão imprime `RESIDUO` e o membro fica drenado até alguém reabilitar em `https://<host da API>/paf-balanceador` a partir do host.
 
-Passo humano antes do primeiro deploy com este script: reaplicar o vhost (`sudo deploy/paf/apache/aplicar-vhost.sh deploy/paf/ambientes/<ambiente>.env`), que agora traz o balancer-manager. O balancer-manager não precisa de `mod_status` (conferido no ensaio). Ele recusa requisição com `X-Forwarded-For` ou `Cf-Connecting-Ip`, para que um túnel que conecte no host por `127.0.0.1` não conte como local.
+Passo humano antes do primeiro deploy com este script: reaplicar o vhost (`sudo deploy/paf/apache/aplicar-vhost.sh deploy/paf/ambientes/<ambiente>.env`), que agora traz o balancer-manager. O balancer-manager não precisa de `mod_status` (conferido em 19/10/2026 num Apache 2.4.52 do Ubuntu 22.04 com `a2dismod status` e `graceful`: a página continuou respondendo 200). Ele recusa requisição com `X-Forwarded-For` ou `Cf-Connecting-Ip`, para que um túnel que conecte no host por `127.0.0.1` não conte como local.
 
 ### ensaio-deploy.sh
 
