@@ -223,8 +223,16 @@ try {
   await pGuiche.getByLabel("Guichê").selectOption({ label: "Guichê 1" });
   await pGuiche.getByRole("button", { name: "Usar este guichê" }).click();
   const chamar = pGuiche.getByRole("button", { name: "Chamar próxima" });
-  await chamar.click();
-  await pGuiche.locator("[data-senha-guiche]").waitFor({ timeout: TIMEOUT });
+  // A ficha younger than 5 s is not callable yet (C20 rule Elegiveis): the guichê retries like an attendant would.
+  const chamarAte = async (senha) => {
+    const naTela = pGuiche.locator("[data-senha-guiche]", { hasText: senha });
+    for (let tentativa = 1; tentativa <= 6 && (await naTela.count()) === 0; tentativa += 1) {
+      await chamar.click();
+      await naTela.waitFor({ timeout: 3_000 }).catch(() => console.log(`guichê: tentativa ${tentativa} sem ${senha} ainda`));
+    }
+    await naTela.waitFor({ timeout: TIMEOUT });
+  };
+  await chamarAte(curta.senha);
   // The guichê login of the same demo user ended the admin's API session (one session per user), and a new token
   // would end the guichê's: the cadastro writes from here on reuse the guichê tab's own token.
   const tokenDoGuiche = () => pGuiche.evaluate(() => localStorage.getItem("fsh.dashboard.accessToken"));
@@ -290,13 +298,7 @@ try {
   check("ficha longa: a ficha inteira cabe na bobina", longa.folha.sw <= longa.folha.cw, `${longa.folha.sw} <= ${longa.folha.cw}`);
   check("ficha longa: senha legível (>= 24px)", Number.parseFloat(longa.ficha.fonte) >= 24, longa.ficha.fonte);
 
-  // A ficha younger than 5 s is not callable yet (C20 rule Elegiveis): the guichê retries like an attendant would.
-  const senhaGuicheLonga = pGuiche.locator("[data-senha-guiche]", { hasText: SENHA_LONGA });
-  for (let tentativa = 0; tentativa < 6 && (await senhaGuicheLonga.count()) === 0; tentativa += 1) {
-    await chamar.click();
-    await senhaGuicheLonga.waitFor({ timeout: 3_000 }).catch(() => console.log(`guichê: tentativa ${tentativa + 1} sem a senha longa ainda`));
-  }
-  await senhaGuicheLonga.waitFor({ timeout: TIMEOUT });
+  await chamarAte(SENHA_LONGA);
   check("painel longo: senha chamada no destaque", await esperarSenha(SENHA_LONGA));
 
   const medirLonga = async (rotulo) => {
