@@ -2,7 +2,7 @@ using FSH.Modules.PAF.Aparencia;
 
 namespace PAF.Tests;
 
-public sealed class ContrasteWcagTests
+public sealed class ContrasteTests
 {
     [Theory]
     [InlineData("#777777", "#FFFFFF", false)] // 4.48:1, just under the floor
@@ -11,14 +11,14 @@ public sealed class ContrasteWcagTests
     [InlineData("#000000", "#FFFF00", true)]
     [InlineData("#FFFFFF", "#FFFFFF", false)]
     public void Suficiente_SoAPartirDe4Virgula5(string texto, string fundo, bool esperado) =>
-        ContrasteWcag.Suficiente(texto, fundo).ShouldBe(esperado);
+        Contraste.Suficiente(texto, fundo).ShouldBe(esperado);
 
     [Fact]
     public void Razao_ExtremosESimetria()
     {
-        ContrasteWcag.Razao("#000000", "#FFFFFF").ShouldBe(21, 0.001);
-        ContrasteWcag.Razao("#ffffff", "#000000").ShouldBe(21, 0.001);
-        ContrasteWcag.Razao("#123456", "#123456").ShouldBe(1, 0.001);
+        Contraste.Razao("#000000", "#FFFFFF").ShouldBe(21, 0.001);
+        Contraste.Razao("#ffffff", "#000000").ShouldBe(21, 0.001);
+        Contraste.Razao("#123456", "#123456").ShouldBe(1, 0.001);
     }
 
     [Theory]
@@ -30,17 +30,17 @@ public sealed class ContrasteWcagTests
     [InlineData("")]
     [InlineData(null)]
     [InlineData("#FFFFF\u0661")] // non-ASCII digit
-    public void FormatoValido_SoRRGGBB(string? cor)
+    public void CorValida_SoRRGGBB(string? cor)
     {
-        ContrasteWcag.FormatoValido(cor).ShouldBeFalse();
+        Contraste.CorValida(cor).ShouldBeFalse();
         if (cor is not null)
         {
-            Should.Throw<ArgumentException>(() => ContrasteWcag.Razao(cor, "#000000"));
+            Should.Throw<ArgumentException>(() => Contraste.Razao(cor, "#000000"));
         }
     }
 
     [Theory]
     [InlineData("#a1B2c3")]
     [InlineData("#000000")]
-    public void FormatoValido_AceitaMaiusculaEMinuscula(string cor) => ContrasteWcag.FormatoValido(cor).ShouldBeTrue();
+    public void CorValida_AceitaMaiusculaEMinuscula(string cor) => Contraste.CorValida(cor).ShouldBeTrue();
 }

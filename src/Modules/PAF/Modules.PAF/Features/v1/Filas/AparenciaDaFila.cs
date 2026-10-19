@@ -19,12 +19,13 @@ namespace FSH.Modules.PAF.Features.v1.Filas;
 internal static class AparenciaDaFila
 {
     public const int FonteMaxLength = 64;
+    public const string MensagemFormato = "Cor no formato #RRGGBB.";
 
     // The message is read by the client's admin in PT-BR, whatever the server culture.
     private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
 
     public static IRuleBuilderOptions<T, string?> CorOpcional<T>(this IRuleBuilder<T, string?> regra) =>
-        regra.Must(c => c is null || ContrasteWcag.FormatoValido(c)).WithMessage(ContrasteWcag.MensagemFormato);
+        regra.Must(c => c is null || Contraste.CorValida(c)).WithMessage(MensagemFormato);
 
 
     /// <summary>400 naming every button color below the floor, or set without a font color to measure against.</summary>
@@ -45,8 +46,8 @@ internal static class AparenciaDaFila
         }
 
         var abaixo = comCor
-            .Select(b => (b.Botao, b.Cor, Razao: ContrasteWcag.Razao(corFonte, b.Cor!)))
-            .Where(b => b.Razao < ContrasteWcag.RazaoMinima)
+            .Select(b => (b.Botao, b.Cor, Razao: Contraste.Razao(corFonte, b.Cor!)))
+            .Where(b => b.Razao < Contraste.RazaoMinima)
             .ToList();
         if (abaixo.Count > 0)
         {

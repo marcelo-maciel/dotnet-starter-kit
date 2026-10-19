@@ -1,5 +1,5 @@
 // Contrast floor of the appearance the client picks (RNF19, REQ 8.1): text over background at least 4.5:1 by the
-// WCAG 2.x relative-luminance formula. Mirror of src/Modules/PAF/Modules.PAF/Aparencia/ContrasteWcag.cs, used for
+// WCAG 2.x relative-luminance formula. Mirror of src/Modules/PAF/Modules.PAF/Aparencia/Contraste.cs, used for
 // the live preview; the server check is the guarantee. Pure module (node --test, D21).
 
 export const RAZAO_MINIMA = 4.5;
