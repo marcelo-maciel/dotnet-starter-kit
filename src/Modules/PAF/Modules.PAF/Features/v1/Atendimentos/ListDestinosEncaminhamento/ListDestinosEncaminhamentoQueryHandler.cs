@@ -40,7 +40,7 @@ public sealed class ListDestinosEncaminhamentoQueryHandler(PafDbContext db, Sess
         var prioridades = await (
                 from fp in db.FilaPrioridades.AsNoTracking()
                 join p in db.Prioridades.AsNoTracking() on fp.PrioridadeId equals p.Id
-                where pares.Any(c => c.FilaId == fp.FilaId && c.PrioridadeId == fp.PrioridadeId)
+                where p.Ativa && pares.Any(c => c.FilaId == fp.FilaId && c.PrioridadeId == fp.PrioridadeId)
                 orderby fp.Ordem
                 select new { fp.FilaId, p.Id, p.Nome })
             .ToListAsync(cancellationToken);

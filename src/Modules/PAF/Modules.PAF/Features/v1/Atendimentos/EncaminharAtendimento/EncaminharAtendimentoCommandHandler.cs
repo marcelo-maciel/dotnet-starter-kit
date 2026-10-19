@@ -88,8 +88,9 @@ public sealed class EncaminharAtendimentoCommandHandler(PafDbContext db, SessaoC
 
     /// <summary>
     /// Every destination is an active fila of the current unit (unit filter) other than the origin, and the
-    /// prioridade is associated to each one with guichê coverage (RF17, decided 03/10/2026). The fila window is
-    /// not checked: forwarding is not emission.
+    /// prioridade is active and associated to each one with guichê coverage (RF17, decided 03/10/2026). An inactive
+    /// prioridade is refused like an inactive fila: its fichas already waiting stay callable, but nothing new enters
+    /// it. The fila window is not checked: forwarding is not emission.
     /// </summary>
     private async Task ExigirDestinosAsync(AtendimentoTravado origem, EncaminharAtendimentoCommand command, CancellationToken ct)
     {
@@ -102,10 +103,12 @@ public sealed class EncaminharAtendimentoCommandHandler(PafDbContext db, SessaoC
         }
 
         var pares = CoberturaGuiche.Pares(db);
-        var comPrioridade = await db.FilaPrioridades.AsNoTracking()
-            .Where(fp => filaIds.Contains(fp.FilaId) && fp.PrioridadeId == command.PrioridadeId)
-            .Where(fp => pares.Any(p => p.FilaId == fp.FilaId && p.PrioridadeId == fp.PrioridadeId))
-            .Select(fp => fp.FilaId)
+        var comPrioridade = await (
+                from fp in db.FilaPrioridades.AsNoTracking()
+                join p in db.Prioridades.AsNoTracking() on fp.PrioridadeId equals p.Id
+                where filaIds.Contains(fp.FilaId) && fp.PrioridadeId == command.PrioridadeId && p.Ativa
+                where pares.Any(c => c.FilaId == fp.FilaId && c.PrioridadeId == fp.PrioridadeId)
+                select fp.FilaId)
             .Distinct()
             .CountAsync(ct);
         if (comPrioridade != filaIds.Count)

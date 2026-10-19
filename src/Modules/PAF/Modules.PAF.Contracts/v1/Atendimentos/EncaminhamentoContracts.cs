@@ -19,7 +19,7 @@ public sealed record DestinosEncaminhamentoDto(
 
 /// <summary>
 /// An active fila of the unit other than the origin. <paramref name="ForaDoHorario"/> marks a closed window without
-/// blocking it (RF17). <paramref name="Prioridades"/> are the ones associated to the fila AND covered by an active
+/// blocking it (RF17). <paramref name="Prioridades"/> are the active ones associated to the fila AND covered by an active
 /// guichê; the screen intersects them over the marked filas.
 /// </summary>
 public sealed record DestinoEncaminhamentoDto(Guid FilaId, string Nome, bool ForaDoHorario, IReadOnlyList<PrioridadeDestinoDto> Prioridades);
