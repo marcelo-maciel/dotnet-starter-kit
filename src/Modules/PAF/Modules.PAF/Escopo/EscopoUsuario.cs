@@ -67,6 +67,22 @@ public sealed class EscopoUsuario(PafDbContext db, ICurrentUser currentUser, IUs
         return [principal, .. demais];
     }
 
+    /// <summary>
+    /// RF08: of <paramref name="unidades"/>, the ones the caller administers. The tenant admin administers all of them;
+    /// anyone else only the unidades of his own effective scope.
+    /// </summary>
+    public async Task<IReadOnlySet<Guid>> AoAlcanceAsync(IEnumerable<Guid> unidades, CancellationToken cancellationToken)
+    {
+        var pedidas = unidades.ToHashSet();
+        if (pedidas.Count == 0 || await AdministraTenantAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return pedidas;
+        }
+
+        pedidas.IntersectWith(await EscopoEfetivoAsync(ObterUsuarioId(), cancellationToken).ConfigureAwait(false));
+        return pedidas;
+    }
+
     public async Task<bool> ContemAsync(Guid usuarioId, Guid unidadeId, CancellationToken cancellationToken) =>
         (await EscopoEfetivoAsync(usuarioId, cancellationToken).ConfigureAwait(false)).Contains(unidadeId);
 

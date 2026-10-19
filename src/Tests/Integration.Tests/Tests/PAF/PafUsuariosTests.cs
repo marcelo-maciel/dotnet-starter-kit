@@ -237,6 +237,32 @@ public sealed class PafUsuariosTests(FshWebApplicationFactory factory) : IAsyncL
         (await EstadoAsync(u1.UnidadeId, emU1)).Estado.ShouldBe(EstadoAtendimento.Chamado, "U1 continua no escopo");
     }
 
+    /// <summary>
+    /// RF08: U2 taken out of the user without cancelling leaves his Chamado there. The user now fits in a filial admin
+    /// of [U1], who must still not see (nor be offered to cancel) the atendimento of U2, a unidade he does not hold.
+    /// </summary>
+    [Fact]
+    public async Task UnidadeRetiradaSemCancelar_AdminDaFilialNaoVeOAtendimentoDeForaDoEscopoDele()
+    {
+        var u1 = await _tenant.CriarUnidadeAsync(limiteSessoes: 5);
+        var u2 = await _tenant.CriarUnidadeAsync(limiteSessoes: 5);
+        var usuario = await _tenant.CriarUsuarioAsync(u1.UnidadeId, u2.UnidadeId);
+        var usuarioId = Guid.Parse(usuario.UserId);
+        var emU2 = await ChamadoPorAsync(u2, usuarioId);
+        var emU1 = await ChamadoPorAsync(u1, usuarioId);
+        await PafApi.OkAsync<Guid>(_tenant.Admin, HttpMethod.Put, $"/usuarios/{usuarioId}/unidades", null,
+            new SetUsuarioUnidadesCommand(usuarioId, [u1.UnidadeId], false) { CancelarAtendimentosEmCurso = false });
+        using var filial = await AdminDaFilialAsync(u1.UnidadeId);
+
+        var vistos = await PafApi.OkAsync<List<AtendimentoEmCursoDoUsuarioDto>>(
+            filial.Cliente, HttpMethod.Get, $"/usuarios/{usuarioId}/atendimentos-em-curso", null, null);
+
+        vistos.Select(a => a.AtendimentoId).ShouldBe([emU1], "a senha de U2 não é do escopo da filial");
+        var doTenant = await PafApi.OkAsync<List<AtendimentoEmCursoDoUsuarioDto>>(
+            _tenant.Admin, HttpMethod.Get, $"/usuarios/{usuarioId}/atendimentos-em-curso", null, null);
+        doTenant.Select(a => a.AtendimentoId).Order().ShouldBe(new[] { emU1, emU2 }.Order(), "o admin do tenant vê todas as unidades");
+    }
+
     [Fact]
     public async Task Desativar_RecusaProximoLoginDerrubaSessoesEConexoesECancelaEmCurso()
     {

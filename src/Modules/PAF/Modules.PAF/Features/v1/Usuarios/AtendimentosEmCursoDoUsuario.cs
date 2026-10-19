@@ -13,10 +13,11 @@ namespace FSH.Modules.PAF.Features.v1.Usuarios;
 /// The Chamado and EmAtendimento atendimentos a user holds, in every unidade, and their RF12 cancel (RF08 scope edit,
 /// RF22 deactivation): the screen shows them and offers to release them in the same act. An explicit cross-unit path
 /// (<c>IgnoreQueryFilters([PafQueryFilters.Unidade])</c>): the unidade taken out, or any unidade of a deactivated user,
-/// is rarely the caller's current one. Callers check first that the user fits in their scope (RF08), which bounds
-/// these unidades to the caller's own.
+/// is rarely the caller's current one. Fitting the user in the caller's scope (RF08) does not bound these unidades: a
+/// unidade taken out without cancelling keeps the user's atendimento there, so only the unidades the caller administers
+/// are listed and cancelled.
 /// </summary>
-public sealed class AtendimentosEmCursoDoUsuario(PafDbContext db, IUnidadeCorrente unidadeCorrente, AtosImpersonacao atos)
+public sealed class AtendimentosEmCursoDoUsuario(PafDbContext db, IUnidadeCorrente unidadeCorrente, AtosImpersonacao atos, EscopoUsuario escopo)
 {
     public async Task<IReadOnlyList<AtendimentoEmCursoDoUsuarioDto>> ListarAsync(Guid usuarioId, CancellationToken ct)
     {
@@ -29,7 +30,8 @@ public sealed class AtendimentosEmCursoDoUsuario(PafDbContext db, IUnidadeCorren
                 select new { a.Id, a.UnidadeId, f.Letra, f.Numero, a.Estado, a.EstacaoId })
             .ToListAsync(ct)
             .ConfigureAwait(false);
-        return [.. linhas.Select(l => new AtendimentoEmCursoDoUsuarioDto(
+        var alcancaveis = await escopo.AoAlcanceAsync(linhas.Select(l => l.UnidadeId), ct).ConfigureAwait(false);
+        return [.. linhas.Where(l => alcancaveis.Contains(l.UnidadeId)).Select(l => new AtendimentoEmCursoDoUsuarioDto(
             l.Id, l.UnidadeId, OperacaoGuiche.Senha(l.Letra, l.Numero), l.Estado.ToString(), l.EstacaoId))];
     }
 
