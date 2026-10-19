@@ -90,6 +90,10 @@ public sealed class SetUnidadeCorrenteCommandHandler(
                 {
                     await RestaurarOrigemAsync(tenantId, sessaoId, unidadeDeOrigem);
                 }
+                else if (valkeyGravado)
+                {
+                    await RemoverDestinoAsync(tenantId, sessaoId);
+                }
 
                 throw;
             }
@@ -114,6 +118,14 @@ public sealed class SetUnidadeCorrenteCommandHandler(
     {
         using var prazo = new CancellationTokenSource(PrazoCompensacao);
         _ = await estado.DefinirUnidadeAsync(tenantId, sessaoId, origem, prazo.Token);
+    }
+
+    // No origin to write back: the destination goes, so the session does not operate there with its seat counted in the
+    // origin. Same false-on-silence contract as RestaurarOrigemAsync: the key then expires with its TTL.
+    private async Task RemoverDestinoAsync(string tenantId, Guid sessaoId)
+    {
+        using var prazo = new CancellationTokenSource(PrazoCompensacao);
+        _ = await estado.RemoverAsync(tenantId, sessaoId, prazo.Token);
     }
 
     // Same rules as the session, on the grant's own link and key: the user's session state is never read or written.

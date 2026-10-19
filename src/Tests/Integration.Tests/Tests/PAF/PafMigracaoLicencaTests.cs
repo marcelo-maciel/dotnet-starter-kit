@@ -128,7 +128,7 @@ public sealed class PafMigracaoLicencaTests(FshWebApplicationFactory factory) : 
         await VincularAsync(origem.GuicheA, s.SessaoId);
 
         using var scope = factory.Services.CreateScope();
-        var handler = Handler(scope, s, origem.UnidadeId, new ConjuntoLicencas([], Prazo, NullLogger<ConjuntoLicencas>.Instance),
+        var handler = Handler(scope, s, origem.UnidadeId, origem.UnidadeId, new ConjuntoLicencas([], Prazo, NullLogger<ConjuntoLicencas>.Instance),
             new EstadoSessao([], NullLogger<EstadoSessao>.Instance));
         var erro = await Should.ThrowAsync<CustomException>(
             () => handler.Handle(new SetUnidadeCorrenteCommand(destino.UnidadeId), CancellationToken.None).AsTask());
@@ -163,8 +163,41 @@ public sealed class PafMigracaoLicencaTests(FshWebApplicationFactory factory) : 
         var destino = await _tenant.CriarUnidadeAsync(limiteSessoes: 2);
         var s = await SessaoAsync(origem.UnidadeId, origem.UnidadeId, destino.UnidadeId);
 
-        // A deferred constraint trigger fails at COMMIT, after the handler already wrote the destination in the
-        // Valkey: the only window where the Valkey and the PostgreSQL can disagree. Only this session trips it.
+        await FalharNoCommitAsync(s, () => TrocarAsync(s, origem.UnidadeId, destino.UnidadeId));
+
+        (await UnidadeDaLinhaAsync(s.SessaoId)).ShouldBe(origem.UnidadeId);
+        (await Estado().LerUnidadeAsync(_tenant.TenantId, s.SessaoId, CancellationToken.None))
+            .ShouldBe(origem.UnidadeId, "o Valkey volta a dizer a origem que o PostgreSQL e a licença dizem");
+        (await MembrosAsync(origem.UnidadeId)).ShouldContain(ConjuntoLicencas.Membro(s.SessaoId));
+        (await MembrosAsync(destino.UnidadeId)).ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Review R2 of wave 4: with no current unidade there is no origin to write back, so the destination the Valkey
+    /// took is removed; left there, the session would operate in the destination with its seat counted in the origin.
+    /// </summary>
+    [Fact]
+    public async Task CommitFalhaDepoisDoValkey_SemUnidadeDeOrigem_EstadoRemovido()
+    {
+        await PrepararModoAsync(Modo.Conjunto);
+        var origem = await _tenant.CriarUnidadeAsync(limiteSessoes: 2);
+        var destino = await _tenant.CriarUnidadeAsync(limiteSessoes: 2);
+        var s = await SessaoAsync(origem.UnidadeId, origem.UnidadeId, destino.UnidadeId);
+        (await Estado().LerUnidadeAsync(_tenant.TenantId, s.SessaoId, CancellationToken.None)).ShouldBeNull();
+
+        await FalharNoCommitAsync(s, () => TrocarSemUnidadeCorrenteAsync(s, origem.UnidadeId, destino.UnidadeId));
+
+        (await UnidadeDaLinhaAsync(s.SessaoId)).ShouldBe(origem.UnidadeId);
+        (await Estado().LerUnidadeAsync(_tenant.TenantId, s.SessaoId, CancellationToken.None))
+            .ShouldBeNull("sem origem, a compensação apaga o destino que o Valkey gravou");
+        (await MembrosAsync(origem.UnidadeId)).ShouldContain(ConjuntoLicencas.Membro(s.SessaoId));
+        (await MembrosAsync(destino.UnidadeId)).ShouldBeEmpty();
+    }
+
+    // A deferred constraint trigger fails at COMMIT, after the handler already wrote the destination in the Valkey: the
+    // only window where the Valkey and the PostgreSQL can disagree. Only this session trips it.
+    private async Task FalharNoCommitAsync(SessaoTeste s, Func<Task> troca)
+    {
         var sufixo = Guid.NewGuid().ToString("N")[..12];
         await _tenant.ExecutarAsync(FormattableStringFactory.Create(
             $"CREATE FUNCTION paf.bx3_commit_{sufixo}() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN " +
@@ -175,19 +208,14 @@ public sealed class PafMigracaoLicencaTests(FshWebApplicationFactory factory) : 
                 $"CREATE CONSTRAINT TRIGGER bx3_commit_{sufixo} AFTER UPDATE ON paf.\"AtividadesSessao\" " +
                 $"DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION paf.bx3_commit_{sufixo}()"));
 
-            await Should.ThrowAsync<Exception>(() => TrocarAsync(s, origem.UnidadeId, destino.UnidadeId));
+            var erro = await Should.ThrowAsync<Exception>(troca);
+            erro.ToString().ShouldContain("falha forcada");
         }
         finally
         {
             await _tenant.ExecutarAsync(FormattableStringFactory.Create($"DROP TRIGGER IF EXISTS bx3_commit_{sufixo} ON paf.\"AtividadesSessao\""));
             await _tenant.ExecutarAsync(FormattableStringFactory.Create($"DROP FUNCTION IF EXISTS paf.bx3_commit_{sufixo}()"));
         }
-
-        (await UnidadeDaLinhaAsync(s.SessaoId)).ShouldBe(origem.UnidadeId);
-        (await Estado().LerUnidadeAsync(_tenant.TenantId, s.SessaoId, CancellationToken.None))
-            .ShouldBe(origem.UnidadeId, "o Valkey volta a dizer a origem que o PostgreSQL e a licença dizem");
-        (await MembrosAsync(origem.UnidadeId)).ShouldContain(ConjuntoLicencas.Membro(s.SessaoId));
-        (await MembrosAsync(destino.UnidadeId)).ShouldBeEmpty();
     }
 
     [Theory]
@@ -341,11 +369,11 @@ public sealed class PafMigracaoLicencaTests(FshWebApplicationFactory factory) : 
     }
 
     private SetUnidadeCorrenteCommandHandler Handler(
-        IServiceScope scope, SessaoTeste s, Guid unidadeCorrente, ConjuntoLicencas conjunto, EstadoSessao estado)
+        IServiceScope scope, SessaoTeste s, Guid? unidadeCorrente, Guid unidadeLicenca, ConjuntoLicencas conjunto, EstadoSessao estado)
     {
         var db = _tenant.Contexto(scope, unidadeCorrente);
         var sessao = new SessaoCorrente();
-        sessao.Definir(_tenant.TenantId, s.SessaoId, s.UsuarioId, unidadeCorrente);
+        sessao.Definir(_tenant.TenantId, s.SessaoId, s.UsuarioId, unidadeLicenca);
         var unidade = scope.ServiceProvider.GetRequiredService<IUnidadeCorrente>();
         var escopo = scope.ServiceProvider.GetRequiredService<EscopoUsuario>();
         var licencas = new Licencas(db, unidade, conjunto, escopo, NullLogger<Licencas>.Instance);
@@ -357,7 +385,15 @@ public sealed class PafMigracaoLicencaTests(FshWebApplicationFactory factory) : 
     private async Task TrocarAsync(SessaoTeste s, Guid origem, Guid destino)
     {
         using var scope = factory.Services.CreateScope();
-        await Handler(scope, s, origem, Conjunto(), Estado()).Handle(new SetUnidadeCorrenteCommand(destino), CancellationToken.None);
+        await Handler(scope, s, origem, origem, Conjunto(), Estado()).Handle(new SetUnidadeCorrenteCommand(destino), CancellationToken.None);
+    }
+
+    // A session whose request carried no current unidade (origem null in the handler); the seat is in the licence unidade.
+    private async Task TrocarSemUnidadeCorrenteAsync(SessaoTeste s, Guid licenca, Guid destino)
+    {
+        using var scope = factory.Services.CreateScope();
+        await Handler(scope, s, unidadeCorrente: null, licenca, Conjunto(), Estado())
+            .Handle(new SetUnidadeCorrenteCommand(destino), CancellationToken.None);
     }
 
     // A new session of the same user through the real reservation and confirmation, releasing the earlier one.
