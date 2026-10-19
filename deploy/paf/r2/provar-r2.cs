@@ -1,7 +1,7 @@
 #:package AWSSDK.S3@4.0.103.4
 
 // Acceptance probe of M11 against the application bucket of one environment (homologação first): the 30-day lock covers
-// paf-midia/ (second PUT and DELETE refused, content intact), objects outside it are deletable, an unsigned GET is 403,
+// paf-midia/ (second PUT and DELETE refused, content intact), objects outside it are deletable, an unsigned GET is refused (4xx),
 // a signature longer than 7 days is refused while the same signer with 1 h is accepted (control), and the bucket CORS
 // answers the dashboard origin for PUT and GET and nobody else.
 //
@@ -91,6 +91,13 @@ async Task<bool> ExisteAsync(string chave)
     {
         return false;
     }
+    catch (AmazonS3Exception ex)
+    {
+        // Any other answer (a credential without access to the bucket) leaves the probe unable to decide: exit 2.
+        Console.Error.WriteLine($"ERRO a conferência de existência não rodou: {(int)ex.StatusCode} {ex.ErrorCode}");
+        Environment.Exit(2);
+        throw;
+    }
 }
 
 async Task<string> DeleteAsync(string chave)
@@ -118,9 +125,11 @@ var lido = await GetAsync(UrlAssinada(chaveTravada, TimeSpan.FromHours(1)));
 var intacto = lido.Status == HttpStatusCode.OK && lido.Corpo.AsSpan().SequenceEqual(original);
 Registrar((int)put2 >= 400 && intacto, $"segundo PUT na mesma chave recusado e conteúdo intacto: PUT {(int)put2}, GET {(int)lido.Status}, intacto={intacto}");
 
-// 3. Unsigned GET refused: the media is served only by short-lived signed URL (ADR 0007).
+// 3. Unsigned GET refused: the media is served only by short-lived signed URL (ADR 0007). R2 refuses with
+// 400 InvalidArgument "Authorization" and other S3 stores with 403, so any 4xx that does not serve the content counts.
 var semAssinatura = await GetAsync($"{servico}{bucket}/{CodificarChave(chaveTravada)}");
-Registrar(semAssinatura.Status == HttpStatusCode.Forbidden, $"GET sem assinatura: {(int)semAssinatura.Status}");
+var semAssinaturaRecusado = (int)semAssinatura.Status is >= 400 and < 500 && !semAssinatura.Corpo.AsSpan().SequenceEqual(original);
+Registrar(semAssinaturaRecusado, $"GET sem assinatura recusado: {(int)semAssinatura.Status}");
 
 // 4. Signature lifetime: the same hand-made signer with 1 h is the control (proves the signer is right), with 8 days it
 // must be refused by the server. Runs before the DELETE steps so the object still exists where the lock is absent.
