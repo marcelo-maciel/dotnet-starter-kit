@@ -15,6 +15,7 @@ using FSH.Modules.PAF.Escopo;
 using FSH.Modules.PAF.Estacoes;
 using FSH.Modules.PAF.Features.v1.Atendimentos.CancelarAtendimento;
 using FSH.Modules.PAF.Features.v1.Atendimentos.ChamarFichaEscolhida;
+using FSH.Modules.PAF.Features.v1.Atendimentos.ChamarFichaVip;
 using FSH.Modules.PAF.Features.v1.Atendimentos.ChamarProximaFicha;
 using FSH.Modules.PAF.Features.v1.Atendimentos.EncerrarAtendimento;
 using FSH.Modules.PAF.Features.v1.Atendimentos.EncaminharAtendimento;
@@ -235,6 +236,8 @@ public sealed class PafModule : IModule
         guiche.MapSendAtendimentoToFilasEndpoint();
         guiche.MapListWaitingFichasEndpoint();
         guiche.MapRequestChosenFichaEndpoint();
+        guiche.MapRequestVipFichaEndpoint();
+        guiche.MapListVipFilasEndpoint();
     }
 
     // Cadastros and unit scope.
