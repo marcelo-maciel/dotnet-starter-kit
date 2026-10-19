@@ -131,6 +131,21 @@ public sealed class PafRegistroConexoesTests(FshWebApplicationFactory factory) :
     }
 
     [Fact]
+    public async Task AvisoQueFalhaNoBackplane_NaoImpedeOFechamentoDaConexao()
+    {
+        var opcoes = Options.Create(new OpcoesSessaoPaf { CarenciaReconexao = Carencia });
+        var semValkey = new RegistroConexoes([], opcoes, new RelogioDeTeste(), NullLogger<RegistroConexoes>.Instance);
+        var conexoes = new ConexoesPaf(new HubQueNaoEntrega(), semValkey, NullLogger<ConexoesPaf>.Instance);
+        var sessaoId = Guid.NewGuid();
+        var contexto = new ContextoDeTeste($"conexao-{sessaoId:N}", new ClaimsPrincipal());
+        await conexoes.RegistrarAsync(contexto, new ConexaoPessoa(_tenant.TenantId, Guid.NewGuid().ToString(), false, sessaoId, null), CancellationToken.None);
+
+        (await conexoes.EncerrarSessaoAsync(_tenant.TenantId, sessaoId, "motivo", CancellationToken.None)).ShouldBe(1);
+
+        contexto.Abortada.ShouldBeTrue("o aviso é a experiência da tela; a revogação fecha a conexão mesmo sem ele");
+    }
+
+    [Fact]
     public async Task InstanciaQueParaDeRenovar_SomeDoRegistroDepoisDaValidade()
     {
         var relogio = new RelogioDeTeste();
@@ -577,5 +592,24 @@ public sealed class PafRegistroConexoesTests(FshWebApplicationFactory factory) :
         public override IFeatureCollection Features { get; } = new FeatureCollection();
         public override CancellationToken ConnectionAborted => CancellationToken.None;
         public override void Abort() => Abortada = true;
+    }
+
+    // A backplane that fails every send, as a stalled Valkey would past the ceiling; groups are never reached here.
+    private sealed class HubQueNaoEntrega : IHubContext<PafHub>, IHubClients, IClientProxy
+    {
+        public IHubClients Clients => this;
+        public IGroupManager Groups => throw new NotSupportedException("o teste não passa por grupos");
+        IClientProxy IHubClients<IClientProxy>.All => this;
+        IClientProxy IHubClients<IClientProxy>.AllExcept(IReadOnlyList<string> excludedConnectionIds) => this;
+        IClientProxy IHubClients<IClientProxy>.Client(string connectionId) => this;
+        IClientProxy IHubClients<IClientProxy>.Clients(IReadOnlyList<string> connectionIds) => this;
+        IClientProxy IHubClients<IClientProxy>.Group(string groupName) => this;
+        IClientProxy IHubClients<IClientProxy>.GroupExcept(string groupName, IReadOnlyList<string> excludedConnectionIds) => this;
+        IClientProxy IHubClients<IClientProxy>.Groups(IReadOnlyList<string> groupNames) => this;
+        IClientProxy IHubClients<IClientProxy>.User(string userId) => this;
+        IClientProxy IHubClients<IClientProxy>.Users(IReadOnlyList<string> userIds) => this;
+
+        public Task SendCoreAsync(string method, object?[] args, CancellationToken cancellationToken = default) =>
+            Task.FromException(new TimeoutException("backplane parado"));
     }
 }

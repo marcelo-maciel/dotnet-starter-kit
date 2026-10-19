@@ -1,4 +1,5 @@
 using FSH.Framework.Eventing.Abstractions;
+using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Contracts.Events;
 using FSH.Modules.PAF.TempoReal;
 using Microsoft.Extensions.Logging;
@@ -32,8 +33,13 @@ public sealed partial class SessaoRevogadaPafHandler(
         }
 
         // A failure propagates: the outbox delivers again, and every step below is idempotent.
-        await licencas.LiberarAsync(@event.TenantId, @event.SessionId, ct).ConfigureAwait(false);
-        await estado.RemoverAsync(@event.TenantId, @event.SessionId, ct).ConfigureAwait(false);
+        // The root tenant holds no licence nor unit state (as EndSessao); its operators' hub connections still close.
+        if (!string.Equals(@event.TenantId, MultitenancyConstants.Root.Id, StringComparison.Ordinal))
+        {
+            await licencas.LiberarAsync(@event.TenantId, @event.SessionId, ct).ConfigureAwait(false);
+            await estado.RemoverAsync(@event.TenantId, @event.SessionId, ct).ConfigureAwait(false);
+        }
+
         var alcancadas = await conexoes.EncerrarSessaoAsync(@event.TenantId, @event.SessionId, MensagemSessaoEncerrada, ct)
             .ConfigureAwait(false);
         LogSessaoRevogada(logger, @event.TenantId, @event.SessionId, alcancadas);

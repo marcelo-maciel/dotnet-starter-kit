@@ -53,8 +53,10 @@ public sealed class PafSessaoInvalidadaTests(FshWebApplicationFactory factory) :
         using var avisosA = new Caixa<SessaoInvalidada>(maquinaA, SessaoInvalidada.Metodo);
         var fechouA = Fechamento(maquinaA);
 
-        var relogio = Stopwatch.StartNew();
+        // Measured from B's login answer, when the revocation is committed: the login's own cost (password hash,
+        // licence) is not the drop latency the criterion bounds.
         var tokenB = (await _tenant.EntrarAsync(usuario)).AccessToken;
+        var relogio = Stopwatch.StartNew();
         (await Task.WhenAny(fechouA, Task.Delay(Espera))).ShouldBe(fechouA, "a sessão única fecha a conexão da máquina A");
         relogio.Stop();
 
