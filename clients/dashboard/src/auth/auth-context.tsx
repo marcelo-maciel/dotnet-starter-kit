@@ -5,6 +5,7 @@ import { decodeJwt, isTokenExpired, type JwtClaims } from "@/auth/jwt";
 import { issueToken } from "@/auth/api";
 import { refreshAccessToken } from "@/lib/api-client";
 import { endImpersonation, getMyPermissions, startImpersonation } from "@/api/identity";
+import { logoutPeloServidor } from "@/features/paf/sessao/logout-pelo-servidor";
 
 export type AuthUser = {
   id: string;
@@ -249,8 +250,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(() => {
-    tokenStore.clear();
-    queryClient.clear();
+    const limpar = () => {
+      tokenStore.clear();
+      queryClient.clear();
+    };
+    // PAF (ADR 0008, "Logout pelo servidor"): revoke the session and release licence and guichê while the
+    // token still exists. Bounded and never rejects; null (impersonation, no session claim) clears at once.
+    const servidor = logoutPeloServidor();
+    if (servidor === null) {
+      limpar();
+      return;
+    }
+    void servidor.then(limpar);
   }, [queryClient]);
 
   const beginImpersonation = useCallback(
