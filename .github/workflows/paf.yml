@@ -133,6 +133,11 @@ jobs:
       - name: Caminhos de falha dos scripts de CI
         run: bash deploy/paf/scripts-ci.test.sh
 
+      # O06: usage errors and the held lock of deploy.sh (flock exists on the runner); drain and rollback are the
+      # local ensaio-deploy.sh.
+      - name: Caminhos de falha do deploy.sh
+        run: bash deploy/paf/deploy.test.sh
+
       - name: Invariantes de ambiente
         run: bash deploy/paf/verificar-ambiente.test.sh
 

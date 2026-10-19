@@ -43,6 +43,19 @@ LogFormat "%h %t \"%m %U %H\" %>s %O %D \"%{User-Agent}i\" worker=%{BALANCER_WOR
     # X-Forwarded-Host: the public host has to arrive as Host.
     ProxyPreserveHost On
     RequestHeader set X-Forwarded-Proto "https"
+
+    # O06: deploy/paf/deploy.sh drains and re-enables one member at a time through this manager (no reload, so no
+    # graceful leaves old processes pinned by open WebSockets). It manages only the balancer of this vhost. Loopback
+    # only, and never a request that came through a proxy on the host (a tunnel connecting from 127.0.0.1 would
+    # otherwise count as local): any X-Forwarded-For or Cf-Connecting-Ip is refused.
+    <Location "/paf-balanceador">
+        SetHandler balancer-manager
+        <RequireAll>
+            Require local
+            Require expr "-z %{HTTP:X-Forwarded-For} && -z %{HTTP:Cf-Connecting-Ip}"
+        </RequireAll>
+    </Location>
+    ProxyPass "/paf-balanceador" "!"
     ProxyPass "/" "balancer://@@PROJETO@@/"
     ProxyPassReverse "/" "balancer://@@PROJETO@@/"
 
