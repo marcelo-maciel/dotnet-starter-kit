@@ -4,6 +4,7 @@ import { ApiRequestError } from "@/lib/api-client";
 import { mensagemAmigavel } from "@/features/paf/paf-erros";
 import { resgatarVinculoEstacao } from "@/features/paf/estacao/resgate-vinculo";
 import type { PapelEstacao } from "@/features/paf/estacao/credencial-estacao";
+import { lerLinkVinculo } from "@/features/paf/estacao/link-vinculo";
 
 type Estado =
   | { tipo: "resgatando" }
@@ -17,11 +18,8 @@ const ROTA_POR_PAPEL: Record<PapelEstacao, { caminho: string; rotulo: string }> 
 
 // Read on the first render, before the effect rewrites the URL: the token lives in the fragment so it
 // never reaches a server or proxy access log, and it is wiped from the address bar right after.
-function lerLink(): { tenant: string; token: string } | null {
-  const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-  const tenant = params.get("tenant")?.trim() ?? "";
-  const token = params.get("token")?.trim() ?? "";
-  return tenant && token ? { tenant, token } : null;
+function lerLink() {
+  return lerLinkVinculo(window.location.hash);
 }
 
 function mensagemDoResgate(erro: unknown): string {

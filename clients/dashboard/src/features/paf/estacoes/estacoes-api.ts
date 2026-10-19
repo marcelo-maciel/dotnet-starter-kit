@@ -1,6 +1,7 @@
 import { apiFetch } from "@/lib/api-client";
 import type { BlocosEstacaoDto, Papel, TipoEstacao } from "@/features/paf/estacoes/estacoes-regras";
 import type { EstacaoDesativadaDto, ImpactoDesativacaoDto } from "@/features/paf/estacoes/desativacao";
+import type { VinculoAtualDto } from "@/features/paf/estacoes/vinculo-estacao";
 
 // Cadastro screen: kit HTTP client and user token, current unit from the session (arquitetura seção 3).
 
@@ -17,7 +18,13 @@ export type EstacaoDto = {
   prioridades: EstacaoPrioridadeItem[];
   ramal: string | null;
   configuracao: BlocosEstacaoDto | null;
+  vinculoAtual: VinculoAtualDto | null;
+  ultimaConexaoEmissaoEm: string | null;
+  ultimaConexaoPainelEm: string | null;
 };
+
+/** The token exists only in this response: the server keeps its hash (VinculoEstacaoGeradoDto). */
+export type VinculoGeradoDto = { vinculoId: string; tenant: string; token: string };
 
 /** Combinations the write left without any guichê (RF02): a warning, never a refusal. */
 export type CombinacaoSemCoberturaDto = { letra: string; fila: string; prioridade: string };
@@ -73,4 +80,14 @@ export function atualizarEstacao(id: string, corpo: EstacaoCorpo) {
     method: "PUT",
     body: JSON.stringify({ ...corpo, id }),
   });
+}
+
+/** Revokes the station's previous link and drops its device in the same act (RF04). */
+export function gerarVinculo(id: string) {
+  return apiFetch<VinculoGeradoDto>(`/api/v1/paf/estacoes/${encodeURIComponent(id)}/vinculo`, { method: "POST" });
+}
+
+/** Idempotent: revoking a station with no live link is not an error. */
+export function revogarVinculo(id: string) {
+  return apiFetch<void>(`/api/v1/paf/estacoes/${encodeURIComponent(id)}/vinculo/revogar`, { method: "POST" });
 }
