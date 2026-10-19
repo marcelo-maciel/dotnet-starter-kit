@@ -216,7 +216,7 @@ public sealed class PafModule : IModule
         fichas.MapVoidAtendimentoDaFichaEndpoint();
         // F06: the RF12 list and the reprint of a stored ficha, under FichasDoDia.View.
         fichas.MapListAtendimentosDoDiaEndpoint();
-        fichas.MapReprintFichaEndpoint();
+        fichas.MapGetFichaImpressaoEndpoint();
     }
 
     private static void MapearSessao(IEndpointRouteBuilder sessao)

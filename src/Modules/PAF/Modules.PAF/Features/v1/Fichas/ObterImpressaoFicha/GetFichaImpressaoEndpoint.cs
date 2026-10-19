@@ -8,13 +8,13 @@ using Microsoft.AspNetCore.Routing;
 
 namespace FSH.Modules.PAF.Features.v1.Fichas.ObterImpressaoFicha;
 
-public static class ReprintFichaEndpoint
+public static class GetFichaImpressaoEndpoint
 {
-    internal static RouteHandlerBuilder MapReprintFichaEndpoint(this IEndpointRouteBuilder endpoints) =>
+    internal static RouteHandlerBuilder MapGetFichaImpressaoEndpoint(this IEndpointRouteBuilder endpoints) =>
         endpoints.MapGet("/fichas/{fichaId:guid}/impressao",
                 async (Guid fichaId, IMediator mediator, CancellationToken ct) =>
                     Results.Ok(await mediator.Send(new ObterImpressaoFichaQuery(fichaId), ct)))
-            .WithName("PafReprintFicha")
+            .WithName("PafGetFichaImpressao")
             .WithSummary("The stored ficha of the current unit as printed, for a reprint; never a new number (RF11, RF12)")
             .RequirePermission(PafPermissions.FichasDoDia.View)
             .Produces<FichaEmitidaDto>(StatusCodes.Status200OK)
