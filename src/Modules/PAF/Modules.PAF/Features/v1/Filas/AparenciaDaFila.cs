@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using FluentValidation;
 using FSH.Framework.Core.Exceptions;
@@ -18,6 +19,9 @@ namespace FSH.Modules.PAF.Features.v1.Filas;
 internal static class AparenciaDaFila
 {
     public const int FonteMaxLength = 64;
+
+    // The message is read by the client's admin in PT-BR, whatever the server culture.
+    private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
 
     public static IRuleBuilderOptions<T, string?> CorOpcional<T>(this IRuleBuilder<T, string?> regra) =>
         regra.Must(c => c is null || ContrasteWcag.FormatoValido(c)).WithMessage(ContrasteWcag.MensagemFormato);
@@ -48,7 +52,7 @@ internal static class AparenciaDaFila
         {
             throw new CustomException(
                 "Contraste insuficiente entre a cor da fonte e a cor do botão (mínimo 4,5:1).",
-                abaixo.Select(b => $"Botão {b.Botao}: {corFonte} sobre {b.Cor} dá {b.Razao:0.00}:1."),
+                abaixo.Select(b => $"Botão {b.Botao}: {corFonte} sobre {b.Cor} dá {b.Razao.ToString("0.00", PtBr)}:1."),
                 HttpStatusCode.BadRequest);
         }
     }
