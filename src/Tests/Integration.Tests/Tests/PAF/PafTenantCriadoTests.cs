@@ -203,7 +203,7 @@ public sealed class PafTenantCriadoTests(FshWebApplicationFactory factory) : IAs
 
         using var selecao = await cliente.PostAsJsonAsync("/api/v1/paf/sessao/guiche", new { estacaoId = cenario.GuicheA });
         selecao.StatusCode.ShouldBe(HttpStatusCode.NoContent, await selecao.Content.ReadAsStringAsync());
-        using var fila = await cliente.PostAsJsonAsync("/api/v1/paf/filas", new CreateFilaCommand("Nova", "Nova", null, null, []));
+        using var fila = await cliente.PostAsJsonAsync("/api/v1/paf/filas", new CreateFilaCommand("Nova", "Nova", null, null, null, PafApi.SemAparencia, []));
         fila.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
         using var totem = await operacao.TotemAsync(cenario);
@@ -227,7 +227,7 @@ public sealed class PafTenantCriadoTests(FshWebApplicationFactory factory) : IAs
         permissoes.ShouldBe(PapeisPadrao.PermissoesGerente, ignoreOrder: true);
         permissoes.ShouldContain(PafPermissions.Guiches.Liberar);
         permissoes.ShouldNotContain(PafPermissions.Parametros.UpdateEmpresa);
-        using var fila = await PafApi.EnviarAsync(cliente, HttpMethod.Post, "/filas", null, new CreateFilaCommand("Nova", "Nova", null, null, []));
+        using var fila = await PafApi.EnviarAsync(cliente, HttpMethod.Post, "/filas", null, new CreateFilaCommand("Nova", "Nova", null, null, null, PafApi.SemAparencia, []));
         fila.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 

@@ -128,7 +128,7 @@ public sealed class PafAtoImpersonacaoTests(FshWebApplicationFactory factory) : 
     // ─── helpers ─────────────────────────────────────────────────────
 
     private static CreateFilaCommand NovaFila(string nome, Guid prioridade, string letra) =>
-        new(nome, nome, HoraInicial: null, HoraFinal: null, [new FilaPrioridadeItem(prioridade, letra, 1, 1)]);
+        new(nome, nome, HoraInicial: null, HoraFinal: null, SetorId: null, PafApi.SemAparencia, [new FilaPrioridadeItem(prioridade, letra, 1, 1, CorBotao: null)]);
 
     private async Task<(UnidadeTeste Unidade, SeededUser Alvo)> AlvoAsync()
     {
