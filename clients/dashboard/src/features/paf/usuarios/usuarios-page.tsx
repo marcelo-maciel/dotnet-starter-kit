@@ -17,6 +17,7 @@ import {
   PAPEIS_PAF,
   type UsuarioPafDto,
 } from "@/features/paf/usuarios/usuarios-api";
+import { PermissoesUsuario } from "@/features/paf/usuarios/permissoes-usuario";
 import { dominioDoEmail, moverUnidade, ROTULO_PRINCIPAL, sugestaoDeEmail, unidadesRetiradas } from "@/features/paf/usuarios/usuarios-regras";
 
 const CHAVE_USUARIOS = ["paf", "usuarios"] as const;
@@ -122,6 +123,7 @@ export function UsuariosPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [aberto, setAberto] = useState<{ id: string; modo: Modo } | null>(null);
+  const [permissoesDe, setPermissoesDe] = useState<string | null>(null);
 
   // Form state of the open panel and of the creation form.
   const [nome, setNome] = useState("");
@@ -409,6 +411,9 @@ export function UsuariosPage() {
                 <Button size="sm" variant="outline" disabled={ocupado} onClick={() => abrir(u, "copiar")}>
                   Copiar perfil
                 </Button>
+                <Button size="sm" variant="outline" disabled={ocupado} onClick={() => setPermissoesDe(permissoesDe === u.id ? null : u.id)}>
+                  Permissões
+                </Button>
                 {u.ativo && (
                   <Button size="sm" variant="destructive" disabled={ocupado} onClick={() => abrir(u, "desativar")}>
                     Desativar
@@ -416,6 +421,7 @@ export function UsuariosPage() {
                 )}
               </div>
             )}
+            {permissoesDe === u.id && <PermissoesUsuario usuarioId={u.id} onFechar={() => setPermissoesDe(null)} />}
           </li>
         ))}
       </ul>
