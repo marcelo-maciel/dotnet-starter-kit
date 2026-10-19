@@ -6,6 +6,7 @@ import {
   ESTADO_INICIAL_PAINEL,
   reduzirPainel,
   type AtendimentoAtualizadoEvento,
+  type ChamadaPainelDto,
   type EstadoPainel,
   type SenhaChamadaEvento,
 } from "./painel-estado.ts";
@@ -104,4 +105,43 @@ test("EmAtendimento continua exibido (regressão: só Cancelado e Aguardando sae
 
   assert.deepEqual(depois.chamadas.map((c) => [c.atendimentoId, c.estado]), [["a1", "EmAtendimento"]]);
   assert.equal(depois.fila.length, 1);
+});
+
+function chamadaDoServidor(atendimentoId: string, versao: number): ChamadaPainelDto {
+  return {
+    atendimentoId,
+    fichaId: `f-${atendimentoId}`,
+    versao,
+    senha: atendimentoId.toUpperCase(),
+    estado: "Encerrado",
+    estacaoId: "g1",
+    nomeEstacao: "Guichê 1",
+    chamadoEm: "2026-10-19T12:00:00Z",
+    ultimaRechamadaEm: null,
+  };
+}
+
+test("a lista guarda a quantidade do RF06 que a reconsulta traz, também quando chegam chamadas novas", () => {
+  const carregado = reduzirPainel(ESTADO_INICIAL_PAINEL, {
+    tipo: "estadoCarregado",
+    estado: { quantidadeChamadas: 3, chamadas: ["a1", "a2", "a3", "a4"].map((id) => chamadaDoServidor(id, 1)) },
+  });
+  assert.equal(carregado.limite, 3);
+  assert.deepEqual(carregado.chamadas.map((c) => c.atendimentoId), ["a1", "a2", "a3"]);
+
+  const depois = reduzirPainel(carregado, { tipo: "senhaChamada", evento: chamada("a9", 1, "A9") });
+  assert.deepEqual(depois.chamadas.map((c) => c.atendimentoId), ["a9", "a1", "a2"]);
+});
+
+test("acima de 10 a lista cresce até a quantidade configurada", () => {
+  const ids = Array.from({ length: 12 }, (_, i) => `b${i}`);
+  let estado = reduzirPainel(ESTADO_INICIAL_PAINEL, {
+    tipo: "estadoCarregado",
+    estado: { quantidadeChamadas: 12, chamadas: [] },
+  });
+  for (const id of ids) estado = reduzirPainel(estado, { tipo: "senhaChamada", evento: chamada(id, 1, id) });
+  assert.equal(estado.chamadas.length, 12);
+  estado = reduzirPainel(estado, { tipo: "senhaChamada", evento: chamada("b99", 1, "B99") });
+  assert.equal(estado.chamadas.length, 12);
+  assert.equal(estado.chamadas[0]?.atendimentoId, "b99");
 });

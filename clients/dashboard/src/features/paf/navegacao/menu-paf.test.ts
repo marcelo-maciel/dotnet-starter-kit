@@ -41,3 +41,9 @@ test("rotas do PAF abrem a seção do PAF no menu", () => {
   assert.equal(findSectionForPath("/paf/estacoes"), "paf");
   assert.equal(findSectionForPath("/identity/users"), "identity");
 });
+
+test("parâmetros (C10) aparecem só com Parametros.View e abrem a seção do PAF", () => {
+  assert.deepEqual(itensPaf(["Permissions.PAF.Parametros.View"]), ["/paf/parametros"]);
+  assert.deepEqual(itensPaf(["Permissions.PAF.Parametros.UpdateUnidade"]), []);
+  assert.equal(findSectionForPath("/paf/parametros"), "paf");
+});

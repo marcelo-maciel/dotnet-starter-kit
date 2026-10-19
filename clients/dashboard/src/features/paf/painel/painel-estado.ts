@@ -7,7 +7,8 @@
 // - a cancel removes that atendimento's pending announcement;
 // - a rehabilitation (RF12) sends the atendimento back to Aguardando with a higher Versao: it leaves the list
 //   and the queue like a cancel, and its next call arrives as a new SenhaChamada above that Versao;
-// - the re-query on (re)connect brings at most 10 calls, so it removes a pending announcement only when it
+// - the list keeps the RF06 size the re-query carries (`quantidadeChamadas`, 10 until the first one arrives);
+// - the re-query on (re)connect brings at most that many calls, so it removes a pending announcement only when it
 //   contradicts it (a state other than Chamado with a Versao above the announced one); an atendimento
 //   absent from the re-query keeps its announcement, in its place in the queue.
 
@@ -23,7 +24,8 @@ export type ChamadaPainelDto = {
   ultimaRechamadaEm: string | null;
 };
 
-export type EstadoPainelDto = { chamadas: ChamadaPainelDto[] };
+/** `quantidadeChamadas`: RF06 "quantidade de fichas chamadas a exibir" of the painel's unidade. */
+export type EstadoPainelDto = { quantidadeChamadas: number; chamadas: ChamadaPainelDto[] };
 
 export type SenhaChamadaEvento = {
   eventoId: string;
@@ -59,6 +61,8 @@ export type Anuncio = { atendimentoId: string; senha: string; nomeEstacao: strin
 export type EstadoPainel = {
   /** Most recent call or recall first. */
   chamadas: ChamadaExibida[];
+  /** How many calls the list shows; the server's parameter, applied on every re-query. */
+  limite: number;
   versoes: Record<string, number>;
   eventosAplicados: string[];
   /** Announcements only queue after the start gesture; before it the list still updates. */
@@ -83,6 +87,7 @@ const LIMITE_EVENTOS_LEMBRADOS = 500;
 
 export const ESTADO_INICIAL_PAINEL: EstadoPainel = {
   chamadas: [],
+  limite: LIMITE_LISTA,
   versoes: {},
   eventosAplicados: [],
   anunciando: false,
@@ -121,7 +126,7 @@ function aplicarChamada(estado: EstadoPainel, evento: SenhaChamadaEvento): Estad
   };
   const chamadas = [exibida, ...estado.chamadas.filter((c) => c.atendimentoId !== evento.atendimentoId)].slice(
     0,
-    LIMITE_LISTA,
+    estado.limite,
   );
   const jaNaFila = estado.fila.some((a) => a.atendimentoId === evento.atendimentoId);
   const anuncio: Anuncio = {
@@ -168,9 +173,10 @@ function aplicarEstadoCarregado(estado: EstadoPainel, dto: EstadoPainelDto): Est
   return {
     ...estado,
     versoes,
+    limite: dto.quantidadeChamadas,
     chamadas: dto.chamadas
       .filter((c) => c.estado !== ESTADO_CANCELADO)
-      .slice(0, LIMITE_LISTA)
+      .slice(0, dto.quantidadeChamadas)
       .map((c) => ({ atendimentoId: c.atendimentoId, senha: c.senha, nomeEstacao: c.nomeEstacao, estado: c.estado })),
     fila: estado.fila.filter((a) => !contradiz(a)),
   };
