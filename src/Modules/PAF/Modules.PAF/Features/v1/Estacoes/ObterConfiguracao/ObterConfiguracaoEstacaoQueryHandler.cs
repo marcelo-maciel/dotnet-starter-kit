@@ -3,6 +3,7 @@ using FSH.Framework.Core.Exceptions;
 using FSH.Modules.PAF.Contracts.v1.Estacoes;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Domain;
+using FSH.Modules.PAF.Estacoes;
 using FSH.Modules.PAF.Features.v1.Filas;
 using FSH.Modules.PAF.Parametros;
 using Mediator;
@@ -28,7 +29,7 @@ public sealed class ObterConfiguracaoEstacaoQueryHandler(PafDbContext db, Leitor
         var botoes = await BotoesAsync(estacao.Id, estacao.UnidadeId, cancellationToken).ConfigureAwait(false);
         return new ConfiguracaoEstacaoDto(estacao.Id, estacao.UnidadeId, estacao.Nome, estacao.Tipo.ToString(), estacao.Configuracao, botoes)
         {
-            AnuncioDaChamada = estacao.Tipo == TipoEstacao.Painel
+            AnuncioDaChamada = PapeisDaEstacao.ComCredencial(estacao.Tipo).Contains(PapelEstacao.Painel)
                 ? await AnuncioDaChamadaAsync(estacao.UnidadeId, cancellationToken).ConfigureAwait(false)
                 : null,
         };

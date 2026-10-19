@@ -9,7 +9,7 @@ public sealed record ObterConfiguracaoEstacaoQuery(Guid EstacaoId) : IQuery<Conf
 public sealed record ConfiguracaoEstacaoDto(
     Guid EstacaoId, Guid UnidadeId, string Nome, string Tipo, string? Configuracao, IReadOnlyList<BotaoEmissaoDto> Botoes)
 {
-    /// <summary>C20: what the painel shows and says with each call (RF06 Geral); null for the other station types.</summary>
+    /// <summary>C20: what the painel shows and says with each call (RF06 Geral); null for a station without the painel role.</summary>
     public AnuncioDaChamadaDto? AnuncioDaChamada { get; init; }
 }
 

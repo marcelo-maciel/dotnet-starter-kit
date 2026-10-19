@@ -2,6 +2,7 @@ using FSH.Modules.PAF.Contracts.Authorization;
 using FSH.Modules.PAF.Contracts.v1.Atendimentos;
 using FSH.Modules.PAF.Contracts.v1.Estacoes;
 using FSH.Modules.PAF.Contracts.v1.Parametros;
+using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Parametros;
 using Integration.Tests.Infrastructure;
 
@@ -56,6 +57,28 @@ public sealed class PafParametrosGeraisTests(FshWebApplicationFactory factory) :
 
         var doTotem = (await totem.GetFromJsonAsync<ConfiguracaoEstacaoDto>("/api/v1/paf/estacao/emissao/configuracao"))!;
         doTotem.AnuncioDaChamada.ShouldBeNull("só o painel anuncia a chamada");
+    }
+
+    [Fact]
+    public async Task Mensagem_ChegaAoTotemPainel_PeloPapelPainel()
+    {
+        // The demo station is an EmissaoPainel: the announcement follows the painel role, not the Painel type alone.
+        var c = await _op.CriarAsync();
+        using var gestor = await GestorAsync(c.UnidadeId);
+        Guid totemPainel;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = _tenant.Contexto(scope, c.UnidadeId);
+            var estacao = Estacao.Criar(c.UnidadeId, "Totem e painel", TipoEstacao.EmissaoPainel);
+            db.Estacoes.Add(estacao);
+            await db.SaveChangesAsync();
+            totemPainel = estacao.Id;
+        }
+
+        await SemConteudoAsync(gestor, HttpMethod.Put, $"/parametros/unidade/{Mensagem}", "Bem-vindo");
+        using var painel = _tenant.Cliente(await _op.CredencialAsync(c.UnidadeId, totemPainel, PafPapeisEstacao.Painel));
+
+        (await AnuncioAsync(painel)).MensagemAoChamar.ShouldBe("Bem-vindo");
     }
 
     [Fact]
