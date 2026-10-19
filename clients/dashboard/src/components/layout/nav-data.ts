@@ -20,6 +20,8 @@ import {
   Wifi,
 } from "lucide-react";
 import { ALL_TRASH_PERMISSIONS } from "@/lib/trash-permissions";
+// PAF (ADR 0008, menu entry amended 17/10/2026).
+import { secaoMenuPaf } from "@/features/paf/navegacao/menu-paf";
 
 export type NavSpec = {
   to: string;
@@ -67,6 +69,7 @@ export const topNavBottom: NavSpec[] = [
 
 // Section accordion. Single-select — only one section open at a time.
 export const sections: NavSection[] = [
+  secaoMenuPaf,
   {
     id: "operations",
     caption: "Operations",
