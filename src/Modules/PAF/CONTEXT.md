@@ -183,6 +183,15 @@ Tests: `Integration.Tests/Tests/PAF/PafMidiaEsquemaTests`, `PAF.Tests/MidiaDomin
 - Store calls go only through `Midias/ArmazenamentoMidia`, each bounded by `PAF:Midia:PrazoArmazenamento` (5 s, at most 30 s): past it, 503 `MensagemSemResposta`. Ponytail: no first-bytes sniffing, the MIME is the one the signed PUT forced.
 - Tests: `Integration.Tests/Tests/PAF/PafMidiaCadastroTests` (RustFS; also `PafMidiaCadastroTenantTests` for 403, other tenant and impersonation acts, `PafMidiaArmazenamentoParadoTests` with a silent TCP store), `PAF.Tests/MidiaCadastroTests`.
 
+## Media schedules (`Features/v1/ProgramacoesMidia`, `Midias/AgendaMidia`, M05, RF10, D13)
+
+- Routes under `api/v1/paf/programacoes-midia`: `POST` (`Programacoes.Create`), `GET` paged search (`Programacoes.View`), `PUT {id}` with the `Versao` read (409 when stale), `POST {id}/enable|disable` (`Programacoes.Update`, both raise `Versao`, no version asked), `DELETE {id}` (`Programacoes.Delete`, physical, 204). Every write locks the programação `FOR UPDATE` (`ProgramacaoTravada`); every command is `IEscritaDeCadastro` (delete is a tracked `Remove`, so the act rides on `SaveChanges`).
+- Only an active mídia of the current unidade with a confirmed envio is programmable: create, edit and enable take it `FOR SHARE` (a concurrent disable or duration edit waits) and answer one 400 for inactive, unconfirmed, other unidade, other tenant or unknown. Disable never checks the mídia.
+- Window = [HoraInicial, HoraInicial + duração da mídia × Repeticoes), São Paulo wall clock, computed on every read from the mídia's current duration (`HoraFinalSegundos` = seconds from midnight, 86400 = ends at midnight). D13: create, edit and enable refuse an end after midnight (400); overlap is accepted and resolved on air.
+- `AgendaMidia` is the single "on air now" rule for M06/M08: `DeHojeAsync(db)` reads today and now from `PafRelogio` (never the C# clock) and today's programações (active, mídia active and confirmed, period and weekday mask); `NoAr` picks the window containing now, latest `HoraInicial` first, then newest `CriadoEm`, then `Id`. An end pushed past midnight by a later mídia edit plays until midnight and never spills into the next day.
+- Search filters (AND, all optional): `nome` ILIKE contains with `%`/`_` escaped (explicit escape char: with the two-argument `ILike` a typed `%` still matched as a wildcard), `dias` any day of the mask, `hora` inside the computed window (end excluded, in SQL so paging counts right), `de`/`ate` overlapping the period, inclusive. Order: name, start, id; `sort` is not read.
+- Tests: `Integration.Tests/Tests/PAF/PafProgramacoesMidiaTests` (also `PafProgramacoesMidiaTenantTests` for 403, other tenant and impersonation acts), `PAF.Tests/AgendaMidiaTests`.
+
 ## Touching the kit
 
 The kit is touched only at module registration points (both host `Program.cs` and `.csproj`, `src/FSH.Starter.slnx`, the migrations project) and at the other items of the closed list in ADR 0008. Any other kit edit requires amending ADR 0008 first.

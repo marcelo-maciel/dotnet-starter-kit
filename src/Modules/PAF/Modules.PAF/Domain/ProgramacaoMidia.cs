@@ -38,12 +38,7 @@ public sealed class ProgramacaoMidia : BaseEntity<Guid>, IEscopoUnidade
         int repeticoes,
         DiasSemana dias)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(nome);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(nome.Length, NomeMaxLength);
-        ArgumentOutOfRangeException.ThrowIfLessThan(dataFinal, dataInicial);
-        ArgumentOutOfRangeException.ThrowIfLessThan(repeticoes, 1);
-        ArgumentOutOfRangeException.ThrowIfLessThan((int)dias, (int)DiasSemana.Domingo);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan((int)dias, (int)DiasSemana.Todos);
+        Validar(nome, dataInicial, dataFinal, repeticoes, dias);
         return new ProgramacaoMidia
         {
             Id = Guid.CreateVersion7(),
@@ -57,5 +52,49 @@ public sealed class ProgramacaoMidia : BaseEntity<Guid>, IEscopoUnidade
             Dias = dias,
             Ativa = true,
         };
+    }
+
+    /// <summary>Every field at once, as the RF10 form sends it; <see cref="Versao"/> moves so a stale edit is refused.</summary>
+    public void Editar(
+        Guid midiaId,
+        string nome,
+        DateOnly dataInicial,
+        DateOnly dataFinal,
+        TimeOnly horaInicial,
+        int repeticoes,
+        DiasSemana dias)
+    {
+        Validar(nome, dataInicial, dataFinal, repeticoes, dias);
+        MidiaId = midiaId;
+        Nome = nome;
+        DataInicial = dataInicial;
+        DataFinal = dataFinal;
+        HoraInicial = horaInicial;
+        Repeticoes = repeticoes;
+        Dias = dias;
+        Versao++;
+    }
+
+    /// <summary>Activation also moves <see cref="Versao"/>, so an edit read before it is refused instead of applied unseen.</summary>
+    public void Ativar()
+    {
+        Ativa = true;
+        Versao++;
+    }
+
+    public void Desativar()
+    {
+        Ativa = false;
+        Versao++;
+    }
+
+    private static void Validar(string nome, DateOnly dataInicial, DateOnly dataFinal, int repeticoes, DiasSemana dias)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nome);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(nome.Length, NomeMaxLength);
+        ArgumentOutOfRangeException.ThrowIfLessThan(dataFinal, dataInicial);
+        ArgumentOutOfRangeException.ThrowIfLessThan(repeticoes, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan((int)dias, (int)DiasSemana.Domingo);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan((int)dias, (int)DiasSemana.Todos);
     }
 }
