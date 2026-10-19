@@ -82,6 +82,8 @@ PORTA_VALKEY="$(docker port "$VALKEY" 6379/tcp | head -n 1 | sed 's/.*://')"
 PORTA_S3="$(docker port "$S3C" 9000/tcp | head -n 1 | sed 's/.*://')"
 URL_S3="http://127.0.0.1:$PORTA_S3"
 aguardar_http "$URL_S3/health" "$LIMITE_PRONTO_S" ""
+# The API does not create its bucket; walks that upload without creating it (paf-logotipo) need it there.
+curl -fsS -o /dev/null --max-time 10 --aws-sigv4 "aws:amz:us-east-1:s3" --user rustfsadmin:rustfsadmin -X PUT "$URL_S3/$BUCKET"
 
 echo "--- 2. build da API e do DbMigrator"
 export MSBUILDDISABLENODEREUSE=1 DOTNET_CLI_USE_MSBUILD_SERVER=0
