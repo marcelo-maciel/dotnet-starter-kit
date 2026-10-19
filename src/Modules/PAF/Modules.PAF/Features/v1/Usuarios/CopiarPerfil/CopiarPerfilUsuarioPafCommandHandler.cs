@@ -1,9 +1,12 @@
 using System.Net;
+using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Core.Exceptions;
+using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.PAF.Contracts.v1.Usuarios;
 using FSH.Modules.PAF.Contracts.v1.UsuariosUnidade;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Escopo;
+using FSH.Modules.PAF.Features.v1.Usuarios.Permissoes;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,8 +16,15 @@ namespace FSH.Modules.PAF.Features.v1.Usuarios.CopiarPerfil;
 /// RF08 "copiar perfil": the target gets the source's PAF product roles and stored scope (kind, list, order). Both
 /// users must fit in the caller's scope, or copying would hand out a scope the caller does not have (RF08). The scope
 /// goes through the scope edit itself, so its grant rules, its revocation and its optional cancel apply unchanged.
+/// The individual permissions (C15) are copied too, so the target ends with the source's exact set.
 /// </summary>
-public sealed class CopiarPerfilUsuarioPafCommandHandler(PafDbContext db, EscopoUsuario escopo, PapeisDoUsuarioPaf papeis, IMediator mediator)
+public sealed class CopiarPerfilUsuarioPafCommandHandler(
+    PafDbContext db,
+    EscopoUsuario escopo,
+    PapeisDoUsuarioPaf papeis,
+    PermissoesIndividuais individuais,
+    IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor,
+    IMediator mediator)
     : ICommandHandler<CopiarPerfilUsuarioPafCommand, Guid>
 {
     public const string MensagemOrigemSemEscopo = "O usuário de origem não tem unidade para copiar.";
@@ -30,6 +40,9 @@ public sealed class CopiarPerfilUsuarioPafCommandHandler(PafDbContext db, Escopo
         {
             await papeis.ExigirConcedivelAsync(papel, cancellationToken).ConfigureAwait(false);
         }
+
+        var individuaisDaOrigem = await individuais.DoUsuarioAsync(command.UsuarioOrigemId, cancellationToken).ConfigureAwait(false);
+        await individuais.ExigirAlteracaoPermitidaAsync(command.UsuarioId, individuaisDaOrigem, cancellationToken).ConfigureAwait(false);
 
         var unidades = await db.UsuariosUnidade.AsNoTracking()
             .Where(u => u.UsuarioId == command.UsuarioOrigemId)
@@ -50,6 +63,15 @@ public sealed class CopiarPerfilUsuarioPafCommandHandler(PafDbContext db, Escopo
 
         // Roles after the scope: a scope the caller may not grant is refused before any role moves.
         await papeis.DefinirAsync(command.UsuarioId, papeisDaOrigem, cancellationToken).ConfigureAwait(false);
+        await CopiarIndividuaisAsync(command.UsuarioId, individuaisDaOrigem, cancellationToken).ConfigureAwait(false);
         return command.UsuarioId;
+    }
+
+    // Same lock and check as the per-user grant: a save racing the copy is either seen or waits.
+    private Task CopiarIndividuaisAsync(Guid usuarioId, IReadOnlyList<string> permissoes, CancellationToken ct)
+    {
+        var tenantId = tenantAccessor.MultiTenantContext?.TenantInfo?.Id
+            ?? throw new InvalidOperationException("Cópia de perfil sem tenant resolvido.");
+        return individuais.DefinirSobTravaAsync(tenantId, usuarioId, permissoes, ct);
     }
 }

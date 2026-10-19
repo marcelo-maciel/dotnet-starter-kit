@@ -89,6 +89,7 @@ using FSH.Modules.PAF.Features.v1.Unidades.ListUnidades;
 using FSH.Modules.PAF.Features.v1.Unidades.ListUnidadesOperador;
 using FSH.Modules.PAF.Features.v1.Unidades.UpdateUnidade;
 using FSH.Modules.PAF.Features.v1.Usuarios;
+using FSH.Modules.PAF.Features.v1.Usuarios.Permissoes;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.GetUsuarioUnidades;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.SetUsuarioUnidades;
@@ -206,6 +207,9 @@ public sealed class PafModule : IModule
 
         // RF08 user cadastro (C12).
         cadastro.MapUsuariosPafEndpoints();
+
+        // RF08 per-user permissions (C15).
+        cadastro.MapPermissoesUsuarioPafEndpoints();
 
         // RF03 (M03): mídia cadastro, upload by presigned URL.
         MapearMidias(cadastro);
@@ -336,6 +340,9 @@ public sealed class PafModule : IModule
         services.AddScoped<ConcessaoDeEscopo>();
         services.AddScoped<PapeisDoUsuarioPaf>();
         services.AddScoped<AtendimentosEmCursoDoUsuario>();
+
+        // RF08 per-user permissions (C15).
+        services.AddScoped<PermissoesIndividuais>();
 
         // RF07 types 1 to 6 (E1).
         services.AddScoped<IConsultaEstatistica, ConsultaAtendimentosPorTempoDeEspera>();
