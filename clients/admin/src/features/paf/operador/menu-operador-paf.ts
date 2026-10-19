@@ -1,4 +1,4 @@
-import { Building } from "lucide-react";
+import { Building, MonitorSmartphone } from "lucide-react";
 import type { NavSection } from "@/components/layout/nav-items";
 import { PermissoesOperadorPaf } from "./api-operador";
 
@@ -12,6 +12,12 @@ export const secaoOperadorPaf: NavSection = {
       to: "/paf/unidades",
       label: "Unidades e contratos",
       icon: Building,
+      perms: [PermissoesOperadorPaf.UnidadesOperar],
+    },
+    {
+      to: "/paf/estacoes",
+      label: "Estações",
+      icon: MonitorSmartphone,
       perms: [PermissoesOperadorPaf.UnidadesOperar],
     },
   ],
