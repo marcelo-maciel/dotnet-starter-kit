@@ -40,3 +40,18 @@ deploy/paf/smoke-fuso.sh paf-api:chiseled   # esperado: SMOKE-FUSO-IMAGEM FALHOU
 ```
 
 A base precisa ir explícita em `ContainerBaseImage`. Com `-p:ContainerFamily=noble-chiseled` o SDK troca sozinho para `noble-chiseled-extra` (a aplicação não é `InvariantGlobalization`), que tem `tzdata` e passa no smoke: não serve como prova negativa.
+
+## Prazo de inatividade do dashboard (O15, D04)
+
+O guarda de inatividade do kit desloga quem fica 20 minutos sem interagir, o que soltaria a licença e o guichê do atendente parado no posto. Pela decisão D04 (Marcelo Maciel, 17/10/2026), o prazo passa a ser um só para todas as telas do dashboard, da ordem de um turno: 8 horas de inatividade (`inactivityIdleMs: 28800000`) mais 1 minuto de aviso (`inactivityWarningMs: 60000`). Risco aceito: uma tela de cadastro esquecida aberta continua logada durante esse prazo.
+
+O valor vem de `deploy/paf/dashboard/config.json.template`, que substitui o template do kit sem editá-lo. Contrato com o compose do PAF (O02): o contêiner do dashboard, em todos os ambientes, monta esse arquivo por volume em `/etc/fsh/config.json.template:ro` e recebe `FSH_API_URL` e `FSH_DEFAULT_TENANT`, que o entrypoint do kit substitui por `envsubst` ao subir.
+
+Os prazos ficam como número literal, nunca como variável de ambiente: uma variável esquecida vira texto vazio ou string, e o `env.ts` do kit cai em silêncio nos 20 minutos para qualquer valor que não seja número positivo. O template também não liga `demoMode`; se a homologação precisar do seletor de conta de demonstração, ela monta um template próprio com a mesma regra.
+
+```bash
+docker build -t paf-dashboard:smoke clients/dashboard
+deploy/paf/smoke-inatividade.sh paf-dashboard:smoke
+```
+
+O smoke sobe a imagem duas vezes, com e sem a montagem, e confere no `/config.json` servido que o prazo é número igual a 8 horas com o template do PAF e que ele não existe sem a montagem. Código de saída 0 só com tudo verde; remove os contêineres ao sair. Prova negativa: com o valor entre aspas no template, o smoke sai com código 1.
