@@ -37,6 +37,22 @@ internal static class VinculosGuiche
     }
 
     /// <summary>
+    /// Trava o vínculo ativo do guichê, seja qual for o dono, até o fim da transação aberta, e o devolve, ou nulo sem
+    /// vínculo. A desativação da estação entra por aqui: uma chamada em voo no guichê ou já confirmou (e o atendimento
+    /// é visto) ou espera e encontra o vínculo solto.
+    /// </summary>
+    public static async Task<VinculoTravado?> TravarAtivoDaEstacaoAsync(PafDbContext db, string tenantId, Guid estacaoId, CancellationToken ct)
+    {
+        ExigirTransacao(db);
+        var vinculos = await db.Database.SqlQuery<VinculoTravado>($"""
+            SELECT "Id", "SessaoId" FROM paf."SessoesEstacao"
+             WHERE "TenantId" = {tenantId} AND "EstacaoId" = {estacaoId} AND "LiberadoEm" IS NULL
+               FOR UPDATE
+            """).ToListAsync(ct);
+        return vinculos.Count == 0 ? null : vinculos[0];
+    }
+
+    /// <summary>
     /// Solta o vínculo do guichê, recusando quando há atendimento chamado ou em atendimento nele. A linha do
     /// vínculo é travada antes da conferência: uma chamada em voo neste guichê ou já confirmou (e é vista) ou
     /// espera e encontra o vínculo solto.
@@ -83,3 +99,6 @@ internal static class VinculosGuiche
         }
     }
 }
+
+/// <summary>Vínculo ativo travado; <see cref="SessaoId"/> é nulo quando o dono é uma concessão de impersonação.</summary>
+internal sealed record VinculoTravado(Guid Id, Guid? SessaoId);

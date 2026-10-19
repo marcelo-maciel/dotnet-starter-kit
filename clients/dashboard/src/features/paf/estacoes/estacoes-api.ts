@@ -1,5 +1,6 @@
 import { apiFetch } from "@/lib/api-client";
 import type { BlocosEstacaoDto, Papel, TipoEstacao } from "@/features/paf/estacoes/estacoes-regras";
+import type { EstacaoDesativadaDto, ImpactoDesativacaoDto } from "@/features/paf/estacoes/desativacao";
 
 // Cadastro screen: kit HTTP client and user token, current unit from the session (arquitetura seção 3).
 
@@ -47,6 +48,23 @@ export function listarPrioridades() {
 
 export function criarEstacao(tipo: TipoEstacao, corpo: EstacaoCorpo) {
   return apiFetch<string>("/api/v1/paf/estacoes", { method: "POST", body: JSON.stringify({ ...corpo, tipo }) });
+}
+
+export function preverDesativacao(id: string) {
+  return apiFetch<ImpactoDesativacaoDto>(`/api/v1/paf/estacoes/${encodeURIComponent(id)}/desativacao`);
+}
+
+/** A null `cancelarAtendimentoId` keeps the atendimento in progress until the attendant ends it. */
+export function desativarEstacao(id: string, cancelarAtendimentoId: string | null) {
+  return apiFetch<EstacaoDesativadaDto>(`/api/v1/paf/estacoes/${encodeURIComponent(id)}/disable`, {
+    method: "POST",
+    body: JSON.stringify({ cancelarAtendimentoId }),
+  });
+}
+
+/** Manager's release of a stuck guichê (Guiches.Liberar); 409 while an atendimento is in progress on it. */
+export function liberarGuiche(id: string) {
+  return apiFetch<void>(`/api/v1/paf/guiches/${encodeURIComponent(id)}/liberar`, { method: "POST" });
 }
 
 /** The type is not sent: it is fixed after creation (D25). */

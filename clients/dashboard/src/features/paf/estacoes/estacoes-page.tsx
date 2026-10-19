@@ -5,9 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiRequestError } from "@/lib/api-client";
 import { mensagemAmigavel } from "@/features/paf/paf-erros";
+import { useAuth } from "@/auth/use-auth";
+import { DialogoDesativacao } from "@/features/paf/estacoes/desativacao-dialogo";
 import {
   atualizarEstacao,
   criarEstacao,
+  liberarGuiche,
   listarEstacoes,
   listarFilas,
   listarPrioridades,
@@ -37,6 +40,7 @@ import {
 } from "@/features/paf/estacoes/estacoes-regras";
 
 const CHAVE_ESTACOES = ["paf", "estacoes"] as const;
+const PERMISSAO_LIBERAR_GUICHE = "Permissions.PAF.Guiches.Liberar";
 const ROTULO_PAPEL: Record<Papel, string> = { Emissao: "Emissão de Fichas", Guiche: "Guichê", Painel: "Painel Chamador" };
 
 type Edicao = {
@@ -180,6 +184,24 @@ export function EstacoesPage() {
   const [erros, setErros] = useState<string[]>([]);
   const [aviso, setAviso] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const [desativando, setDesativando] = useState<EstacaoDto | null>(null);
+  const { user, permissionsHydrated } = useAuth();
+  const podeLiberar = permissionsHydrated && (user?.permissions.includes(PERMISSAO_LIBERAR_GUICHE) ?? false);
+
+  const liberar = async (e: EstacaoDto) => {
+    setOcupado(true);
+    setErros([]);
+    setAviso(null);
+    try {
+      await liberarGuiche(e.id);
+      setAviso(`Guichê ${e.nome} liberado.`);
+    } catch (erro) {
+      // The errors list lives inside the edit form; the list-level notice is where this row's outcome shows.
+      setAviso(mensagemAmigavel(erro));
+    } finally {
+      setOcupado(false);
+    }
+  };
 
   const alterar = (parcial: Partial<Edicao>) => setEdicao((atual) => (atual ? { ...atual, ...parcial } : atual));
   const emissao = (parcial: Partial<EmissaoForm>) => setEdicao((a) => (a ? { ...a, emissao: { ...a.emissao, ...parcial } } : a));
@@ -446,9 +468,32 @@ export function EstacoesPage() {
             >
               Editar
             </Button>
+            {e.ativa && podeLiberar && papeisDoTipo(e.tipo).includes("Guiche") && (
+              <Button size="sm" variant="outline" disabled={ocupado} onClick={() => void liberar(e)}>
+                Liberar guichê
+              </Button>
+            )}
+            {e.ativa && (
+              <Button size="sm" variant="outline" disabled={ocupado} onClick={() => setDesativando(e)}>
+                Desativar
+              </Button>
+            )}
           </li>
         ))}
       </ul>
+
+      {desativando && (
+        <DialogoDesativacao
+          estacao={desativando}
+          onFechar={() => setDesativando(null)}
+          onDesativada={async (avisoDesativacao) => {
+            setErros([]);
+            setAviso(avisoDesativacao ?? `Estação ${desativando.nome} desativada.`);
+            setDesativando(null);
+            await queryClient.invalidateQueries({ queryKey: CHAVE_ESTACOES });
+          }}
+        />
+      )}
     </div>
   );
 }
