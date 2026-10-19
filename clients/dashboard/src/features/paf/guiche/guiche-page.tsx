@@ -28,6 +28,7 @@ import {
 import { decidirAviso, ESTADOS_FINAIS, type AvisoAtendimento } from "@/features/paf/guiche/avisos-guiche";
 import type { EstadoConexao } from "@/features/paf/paf-hub";
 import { CHAVE_ULTIMO_GUICHE, serializarUltimoGuiche, sugerirGuiche } from "@/features/paf/guiche/guiche-sugestao";
+import { VipForm } from "@/features/paf/guiche/vip-form";
 
 type Ultimo = { senha: string; estado: string };
 
@@ -363,6 +364,8 @@ export function GuichePage() {
           </div>
         </section>
       )}
+
+      {etapa === "operar" && <VipForm bloqueado={ocupado || atendimento !== null} executar={executar} />}
     </div>
   );
 }
