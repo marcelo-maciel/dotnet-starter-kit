@@ -6,6 +6,7 @@ using FSH.Modules.PAF.Contracts.v1.Midias;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Escopo;
 using FSH.Modules.PAF.Features.v1.Midias.PedirEnvioMidia;
+using FSH.Modules.PAF.Sessao;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,7 +21,8 @@ public sealed class TrocarArquivoMidiaCommandHandler(
     PafDbContext db,
     IUnidadeCorrente unidadeCorrente,
     IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor,
-    ConfirmacaoEnvioMidia confirmacao)
+    ConfirmacaoEnvioMidia confirmacao,
+    AtosImpersonacao atos)
     : ICommandHandler<TrocarArquivoMidiaCommand, MidiaDto>
 {
     public async ValueTask<MidiaDto> Handle(TrocarArquivoMidiaCommand command, CancellationToken cancellationToken)
@@ -37,6 +39,7 @@ public sealed class TrocarArquivoMidiaCommandHandler(
         if (lida.EnvioId == envio.Id)
         {
             // The same swap sent again after it went through.
+            atos.Descartar();
             return MidiaTravada.ParaDto(lida);
         }
 
@@ -53,6 +56,7 @@ public sealed class TrocarArquivoMidiaCommandHandler(
         var midia = await MidiaTravada.TravarAsync(db, tenantId, unidadeId, command.Id, cancellationToken).ConfigureAwait(false);
         if (midia.EnvioId == envio.Id)
         {
+            atos.Descartar();
             return MidiaTravada.ParaDto(midia);
         }
 

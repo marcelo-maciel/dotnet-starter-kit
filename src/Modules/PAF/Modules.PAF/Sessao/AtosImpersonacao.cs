@@ -61,6 +61,20 @@ public sealed class AtosImpersonacao(PafDbContext db, ICurrentUser usuarioAtual,
     }
 
     /// <summary>
+    /// For a handler that found its write already done (an idempotent repeat) and leaves without writing: the act the
+    /// pipeline noted describes no write, so it leaves the tracker instead of failing the repeat as an unaudited write.
+    /// </summary>
+    public void Descartar()
+    {
+        if (_ato is not null)
+        {
+            db.Entry(_ato).State = EntityState.Detached;
+        }
+
+        _ato = null;
+    }
+
+    /// <summary>
     /// True when this scope noted an act that never reached the database: the write went around the PAF context, so
     /// the act was lost. The pipeline behavior turns that into an error instead of an unaudited write.
     /// </summary>

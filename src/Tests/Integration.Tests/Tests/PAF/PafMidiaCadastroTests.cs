@@ -344,6 +344,50 @@ public sealed class PafMidiaCadastroTenantTests(FshWebApplicationFactory factory
         atos.ShouldAllBe(a => a.UnidadeId == unidade.UnidadeId);
     }
 
+    /// <summary>
+    /// The support repeats a confirmation and a swap that already went through: the handlers leave without writing,
+    /// so each repeat answers with the existing mídia (not 500) and records no act, since nothing was written.
+    /// </summary>
+    [Fact]
+    public async Task CodefiImpersonando_RepeteConfirmacaoETroca_DevolveAMidiaSemNovoAto()
+    {
+        var unidade = await _tenant.CriarUnidadeAsync(limiteSessoes: 5);
+        var alvo = await _tenant.CriarUsuarioAsync(unidade.UnidadeId);
+        await _tenant.DarPapelAsync(alvo.UserId, PafPermissions.Midias.Create, PafPermissions.Midias.Update);
+        using var root = await new AuthHelper(factory).CreateRootAdminClientAsync();
+        var token = await IniciarImpersonacaoAsync(root, alvo.UserId);
+        var concessao = Guid.Parse(new JwtSecurityTokenHandler().ReadJwtToken(token).Id);
+        using var suporte = _tenant.Cliente(token);
+
+        var envio = await PafMidiaCadastroTests.PedirEnvioAsync(suporte, null, "logo.webp", "image/webp");
+        (await PafMidiaCadastroTests.EnviarBytesAsync(envio, PafMidiaCadastroTests.Bytes(16), "image/webp")).ShouldBe(HttpStatusCode.OK);
+        var criar = new CreateMidiaCommand(envio.EnvioId, "Logo", 10);
+        var midia = await PafMidiaCadastroTests.MidiaOkAsync(suporte, HttpMethod.Post, "/midias", null, criar);
+        var aposCriar = await AtosAsync(unidade.UnidadeId, concessao);
+
+        (await PafMidiaCadastroTests.MidiaOkAsync(suporte, HttpMethod.Post, "/midias", null, criar))
+            .ShouldBe(midia, "the repeated confirmation returns the mídia already created");
+        (await AtosAsync(unidade.UnidadeId, concessao)).ShouldBe(aposCriar, "a repeat that writes nothing records no act");
+
+        var troca = await PafApi.OkAsync<EnvioMidiaDto>(suporte, HttpMethod.Post, $"/midias/{midia.Id}/envios", null,
+            new PedirEnvioTrocaMidiaCommand(midia.Id, "logo-novo.webp", "image/webp"));
+        (await PafMidiaCadastroTests.EnviarBytesAsync(troca, PafMidiaCadastroTests.Bytes(16), "image/webp")).ShouldBe(HttpStatusCode.OK);
+        var trocar = new TrocarArquivoMidiaCommand(midia.Id, troca.EnvioId, midia.Versao);
+        var trocada = await PafMidiaCadastroTests.MidiaOkAsync(suporte, HttpMethod.Put, $"/midias/{midia.Id}/arquivo", null, trocar);
+        var aposTrocar = await AtosAsync(unidade.UnidadeId, concessao);
+        aposTrocar.ShouldBe(aposCriar + 2, "one act for the swap's envio, one for its confirmation");
+
+        (await PafMidiaCadastroTests.MidiaOkAsync(suporte, HttpMethod.Put, $"/midias/{midia.Id}/arquivo", null, trocar))
+            .ShouldBe(trocada, "the repeated swap returns the mídia as the first one left it");
+        (await AtosAsync(unidade.UnidadeId, concessao)).ShouldBe(aposTrocar);
+    }
+
+    private async Task<int> AtosAsync(Guid unidade, Guid concessao)
+    {
+        using var scope = factory.Services.CreateScope();
+        return await _tenant.Contexto(scope, unidade).AtosImpersonacao.CountAsync(a => a.ConcessaoId == concessao);
+    }
+
     private static (HttpMethod Metodo, string Rota, object? Corpo)[] Escritas(Guid midiaId, Guid envioId) =>
     [
         (HttpMethod.Post, "/midias/envios", new PedirEnvioMidiaCommand("abertura.mp4", "video/mp4")),

@@ -5,6 +5,7 @@ using FSH.Modules.PAF.Contracts.v1.Midias;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Escopo;
+using FSH.Modules.PAF.Sessao;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,7 +19,8 @@ public sealed class CreateMidiaCommandHandler(
     PafDbContext db,
     IUnidadeCorrente unidadeCorrente,
     IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor,
-    ConfirmacaoEnvioMidia confirmacao)
+    ConfirmacaoEnvioMidia confirmacao,
+    AtosImpersonacao atos)
     : ICommandHandler<CreateMidiaCommand, MidiaDto>
 {
     public async ValueTask<MidiaDto> Handle(CreateMidiaCommand command, CancellationToken cancellationToken)
@@ -30,6 +32,7 @@ public sealed class CreateMidiaCommandHandler(
         var envio = await confirmacao.LerAsync(command.EnvioId, cancellationToken).ConfigureAwait(false);
         if (await DoEnvioAsync(envio.Id, cancellationToken).ConfigureAwait(false) is { } existente)
         {
+            atos.Descartar();
             return existente;
         }
 
