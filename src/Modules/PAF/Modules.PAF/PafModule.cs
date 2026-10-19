@@ -38,6 +38,8 @@ using FSH.Modules.PAF.Features.v1.Estacoes.RevogarVinculo;
 using FSH.Modules.PAF.Features.v1.Estacoes.UpdateEstacao;
 using FSH.Modules.PAF.Features.v1.Fichas.CancelarAtendimentoDaFicha;
 using FSH.Modules.PAF.Features.v1.Fichas.EmitirFicha;
+using FSH.Modules.PAF.Features.v1.Fichas.ListAtendimentosDoDia;
+using FSH.Modules.PAF.Features.v1.Fichas.ObterImpressaoFicha;
 using FSH.Modules.PAF.Features.v1.Filas.AddFilaPrioridade;
 using FSH.Modules.PAF.Features.v1.Guiches.ListGuichesDaUnidade;
 using FSH.Modules.PAF.Features.v1.Guiches.ListMinhasUnidades;
@@ -212,6 +214,9 @@ public sealed class PafModule : IModule
     private static void MapearFichas(IEndpointRouteBuilder fichas)
     {
         fichas.MapVoidAtendimentoDaFichaEndpoint();
+        // F06: the RF12 list and the reprint of a stored ficha, under FichasDoDia.View.
+        fichas.MapListAtendimentosDoDiaEndpoint();
+        fichas.MapReprintFichaEndpoint();
     }
 
     private static void MapearSessao(IEndpointRouteBuilder sessao)
