@@ -183,6 +183,13 @@ Tests: `Integration.Tests/Tests/PAF/PafMidiaEsquemaTests`, `PAF.Tests/MidiaDomin
 - Store calls go only through `Midias/ArmazenamentoMidia`, each bounded by `PAF:Midia:PrazoArmazenamento` (5 s, at most 30 s): past it, 503 `MensagemSemResposta`. Ponytail: no first-bytes sniffing, the MIME is the one the signed PUT forced.
 - Tests: `Integration.Tests/Tests/PAF/PafMidiaCadastroTests` (RustFS; also `PafMidiaCadastroTenantTests` for 403, other tenant and impersonation acts, `PafMidiaArmazenamentoParadoTests` with a silent TCP store), `PAF.Tests/MidiaCadastroTests`.
 
+## Media cleanup (`Midias/LimpezaMidia`, M09, RF03, ADR 0007)
+
+- Hangfire recurring `paf-limpeza-midia` (cron `0 6 * * *` UTC = 03:00 BRT, ponytail), registered in `MapEndpoints` next to S08's; per client tenant in its own scope (`ProvisionamentoTenantPaf.AbrirEscopo`, 2 min per tenant, a failing tenant is logged and skipped). One batch of 200 per run, oldest first: envios with `RemovidoEm` NULL, `CriadoEm` older than 30 days (`lock-midia.json`) + `ValidadeUrlEnvio` (the lock counts from the PUT), no `Midias` row with that `EnvioId` (raw SQL, tenant in every table; the job has no current unit).
+- A still-open envio is closed first (`RecusadoEm = now()`, conditional on still open): a confirmation racing the job then loses its own conditional UPDATE; if the confirmation won, the envio is left alone.
+- Per envio: HEAD, `RemoveAsync`, HEAD; `RemovidoEm` only when the second HEAD is null (conditional, still unreferenced). The kit's S3 provider swallows every error in both calls (the cancellation too, answering null), so: each call has `PrazoArmazenamento` + `WaitAsync`, a null with the deadline fired is "no answer" and stops the tenant pass; and a null first HEAD only proves absence once the store answered with an object in the pass (probe = HEAD of the newest mídia's key), else the envio is `Indeterminados` and retried. Object still there after the remove = `Falhas` (bucket lock, permission), logged by envio id. Never the key in a log.
+- Tests: `Integration.Tests/Tests/PAF/PafLimpezaMidiaTests` (RustFS; refused delete and erroring HEAD by a decorator of the kit storage; the real R2 lock is M11's proof).
+
 ## Touching the kit
 
 The kit is touched only at module registration points (both host `Program.cs` and `.csproj`, `src/FSH.Starter.slnx`, the migrations project) and at the other items of the closed list in ADR 0008. Any other kit edit requires amending ADR 0008 first.

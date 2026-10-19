@@ -153,6 +153,8 @@ public sealed class PafModule : IModule
     {
         services.AddScoped<ArmazenamentoMidia>();
         services.AddScoped<ConfirmacaoEnvioMidia>();
+        // M09: recurring cleanup of unreferenced envio objects.
+        services.AddScoped<LimpezaMidia>();
     }
 
     private static void MapearMidias(IEndpointRouteBuilder midias)
@@ -241,6 +243,13 @@ public sealed class PafModule : IModule
             ManutencaoLicencas.IdRecorrente,
             Job.FromExpression<ManutencaoLicencas>(j => j.ExecutarAsync(default)),
             ManutencaoLicencas.Cron,
+            new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
+
+        // M09: objects of envios no mídia references, after the 30-day bucket lock (RF03, ADR 0007).
+        endpoints.ServiceProvider.GetService<IRecurringJobManager>()?.AddOrUpdate(
+            LimpezaMidia.IdRecorrente,
+            Job.FromExpression<LimpezaMidia>(j => j.ExecutarAsync(default)),
+            LimpezaMidia.Cron,
             new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
     }
 
