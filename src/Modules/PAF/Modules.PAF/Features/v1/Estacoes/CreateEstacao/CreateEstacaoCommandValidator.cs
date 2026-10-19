@@ -10,6 +10,8 @@ public sealed class CreateEstacaoCommandValidator : AbstractValidator<CreateEsta
     public CreateEstacaoCommandValidator()
     {
         RuleFor(x => x.Nome).NotEmpty().MaximumLength(120);
+        RuleFor(x => x.Ramal).MaximumLength(Estacao.RamalMaxLength);
+        RuleFor(x => x.Configuracao).NotNull();
         RuleFor(x => x.Tipo).Must(t => Enum.TryParse<TipoEstacao>(t, ignoreCase: false, out _))
             .WithMessage("Tipo de estação desconhecido.");
 

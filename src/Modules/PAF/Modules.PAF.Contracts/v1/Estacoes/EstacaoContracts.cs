@@ -15,7 +15,9 @@ public sealed record EstacaoDto(
     string Tipo,
     bool Ativa,
     IReadOnlyList<EstacaoFilaItem> Filas,
-    IReadOnlyList<EstacaoPrioridadeItem> Prioridades);
+    IReadOnlyList<EstacaoPrioridadeItem> Prioridades,
+    string? Ramal,
+    BlocosEstacaoDto? Configuracao);
 
 /// <summary>
 /// <paramref name="Tipo"/> is one of the seven RF04 types (Administracao, Emissao, EmissaoGuiche,
@@ -25,14 +27,18 @@ public sealed record CreateEstacaoCommand(
     string Nome,
     string Tipo,
     IReadOnlyList<EstacaoFilaItem> Filas,
-    IReadOnlyList<EstacaoPrioridadeItem> Prioridades) : ICommand<Guid>, IEscritaDeCadastro;
+    IReadOnlyList<EstacaoPrioridadeItem> Prioridades,
+    string? Ramal,
+    BlocosEstacaoDto Configuracao) : ICommand<Guid>, IEscritaDeCadastro;
 
-/// <summary>Replaces the station's filas and prioridades lists.</summary>
+/// <summary>Replaces the station's filas and prioridades lists, its ramal and its blocks; the type stays (D25).</summary>
 public sealed record UpdateEstacaoCommand(
     Guid Id,
     string Nome,
     IReadOnlyList<EstacaoFilaItem> Filas,
-    IReadOnlyList<EstacaoPrioridadeItem> Prioridades) : ICommand<EstacaoAlteradaDto>, IEscritaDeCadastro;
+    IReadOnlyList<EstacaoPrioridadeItem> Prioridades,
+    string? Ramal,
+    BlocosEstacaoDto Configuracao) : ICommand<EstacaoAlteradaDto>, IEscritaDeCadastro;
 
 /// <summary>
 /// <paramref name="CombinacoesSemCobertura"/>: combinations this write left without any guichê (RF02, RF04). A

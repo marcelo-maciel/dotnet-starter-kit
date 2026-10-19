@@ -21,4 +21,6 @@ public sealed record ChamadaPainelDto(
     Guid EstacaoId,
     string NomeEstacao,
     DateTimeOffset ChamadoEm,
-    DateTimeOffset? UltimaRechamadaEm);
+    DateTimeOffset? UltimaRechamadaEm,
+    int? NumeroGuiche,
+    string? NomeExibicaoGuiche);

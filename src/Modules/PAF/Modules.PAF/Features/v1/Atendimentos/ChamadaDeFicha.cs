@@ -112,9 +112,10 @@ internal static partial class ChamadaDeFicha
     {
         var senha = OperacaoGuiche.Senha(candidato.Letra, candidato.Numero);
         var paineis = await OperacaoGuiche.PaineisDaFilaAsync(db, candidato.FilaId, ct).ConfigureAwait(false);
+        var (numeroGuiche, nomeExibicaoGuiche) = Estacoes.ConfiguracaoDaEstacao.IdentidadeDoGuiche(guiche.Estacao.Configuracao);
         var chamada = SenhaChamadaPaf.Criar(guiche.TenantId, OperacaoGuiche.Correlacao(), new SenhaChamada(
             Guid.CreateVersion7(), guiche.Estacao.UnidadeId, candidato.AtendimentoId, candidato.FichaId, versao,
-            senha, guiche.Estacao.Id, guiche.Estacao.Nome), paineis);
+            senha, guiche.Estacao.Id, guiche.Estacao.Nome) { NumeroGuiche = numeroGuiche, NomeExibicaoGuiche = nomeExibicaoGuiche }, paineis);
         var fila = FilaAtualizadaPaf.Criar(guiche.TenantId, OperacaoGuiche.Correlacao(),
             new FilaAtualizada(Guid.CreateVersion7(), guiche.Estacao.UnidadeId, candidato.FilaId));
 

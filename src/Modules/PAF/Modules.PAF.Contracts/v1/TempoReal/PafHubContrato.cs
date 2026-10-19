@@ -37,7 +37,14 @@ public sealed record SenhaChamada(
     int Versao,
     string Senha,
     Guid EstacaoId,
-    string NomeEstacao);
+    string NomeEstacao)
+{
+    /// <summary>Guichê number of the RF04 block, announced by the painel; null for a station saved before C04.</summary>
+    public int? NumeroGuiche { get; init; }
+
+    /// <summary>Display name of the RF04 guichê block; null when not set.</summary>
+    public string? NomeExibicaoGuiche { get; init; }
+}
 
 /// <summary>Same ficha announced again (RF21): the painel moves the existing entry to the top, never duplicates it.</summary>
 public sealed record SenhaRechamada(
@@ -48,7 +55,14 @@ public sealed record SenhaRechamada(
     int Versao,
     string Senha,
     Guid EstacaoId,
-    string NomeEstacao);
+    string NomeEstacao)
+{
+    /// <summary>Guichê number of the RF04 block, announced by the painel; null for a station saved before C04.</summary>
+    public int? NumeroGuiche { get; init; }
+
+    /// <summary>Display name of the RF04 guichê block; null when not set.</summary>
+    public string? NomeExibicaoGuiche { get; init; }
+}
 
 /// <summary>
 /// Any other state change of an atendimento (iniciado, encerrado, cancelado, encaminhado, reabilitado).

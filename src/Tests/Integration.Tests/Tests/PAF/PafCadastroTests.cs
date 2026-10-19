@@ -137,19 +137,19 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
         var filaDeOutra = await PafApi.CriarFilaAsync(root, outra, "Caixa", await PafApi.CriarPrioridadeAsync(root, outra, "Normal"), "A");
 
         using var muda = await PafApi.EnviarAsync(root, HttpMethod.Post, "/estacoes", unidade,
-            new CreateEstacaoCommand("Guichê 1", "Guiche", [new EstacaoFilaItem("Emissao", fila, 0)], [new EstacaoPrioridadeItem(normal, 0)]));
+            new CreateEstacaoCommand("Guichê 1", "Guiche", [new EstacaoFilaItem("Emissao", fila, 0)], [new EstacaoPrioridadeItem(normal, 0)], null, BlocosDeTeste.Guiche(1)));
         muda.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
         using var semPrioridade = await PafApi.EnviarAsync(root, HttpMethod.Post, "/estacoes", unidade,
-            new CreateEstacaoCommand("Guichê 1", "Guiche", [new EstacaoFilaItem("Guiche", fila, 0)], []));
+            new CreateEstacaoCommand("Guichê 1", "Guiche", [new EstacaoFilaItem("Guiche", fila, 0)], [], null, BlocosDeTeste.Guiche(1)));
         semPrioridade.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
         using var tipoDesconhecido = await PafApi.EnviarAsync(root, HttpMethod.Post, "/estacoes", unidade,
-            new CreateEstacaoCommand("Guichê 1", "GuicheComControleRemoto", [], []));
+            new CreateEstacaoCommand("Guichê 1", "GuicheComControleRemoto", [], [], null, BlocosDeTeste.Guiche(1)));
         tipoDesconhecido.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
         using var deOutraUnidade = await PafApi.EnviarAsync(root, HttpMethod.Post, "/estacoes", unidade,
-            new CreateEstacaoCommand("Guichê 1", "Guiche", [new EstacaoFilaItem("Guiche", filaDeOutra, 0)], [new EstacaoPrioridadeItem(normal, 0)]));
+            new CreateEstacaoCommand("Guichê 1", "Guiche", [new EstacaoFilaItem("Guiche", filaDeOutra, 0)], [new EstacaoPrioridadeItem(normal, 0)], null, BlocosDeTeste.Guiche(1)));
         deOutraUnidade.StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
         (await PafApi.OkAsync<List<EstacaoDto>>(root, HttpMethod.Get, "/estacoes", unidade, null)).ShouldBeEmpty();
@@ -168,7 +168,7 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
         var id = await PafApi.OkAsync<Guid>(root, HttpMethod.Post, "/estacoes", unidade, new CreateEstacaoCommand(
             "Guichê e painel", "GuichePainel",
             [new EstacaoFilaItem("Guiche", caixa, 0), new EstacaoFilaItem("Painel", caixa, 0), new EstacaoFilaItem("Painel", protocolo, 1)],
-            [new EstacaoPrioridadeItem(normal, 0)]));
+            [new EstacaoPrioridadeItem(normal, 0)], null, BlocosDeTeste.GuichePainel(1)));
 
         var criada = (await PafApi.OkAsync<List<EstacaoDto>>(root, HttpMethod.Get, "/estacoes", unidade, null)).Single(e => e.Id == id);
         criada.Tipo.ShouldBe("GuichePainel");
@@ -177,7 +177,7 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
 
         await PafApi.OkAsync<EstacaoAlteradaDto>(root, HttpMethod.Put, $"/estacoes/{id}", unidade, new UpdateEstacaoCommand(
             id, "Guichê 3", [new EstacaoFilaItem("Guiche", protocolo, 0), new EstacaoFilaItem("Guiche", caixa, 1)],
-            [new EstacaoPrioridadeItem(idoso, 0), new EstacaoPrioridadeItem(normal, 1)]));
+            [new EstacaoPrioridadeItem(idoso, 0), new EstacaoPrioridadeItem(normal, 1)], null, BlocosDeTeste.GuichePainel(3)));
 
         var atualizada = (await PafApi.OkAsync<List<EstacaoDto>>(root, HttpMethod.Get, "/estacoes", unidade, null)).Single(e => e.Id == id);
         atualizada.Nome.ShouldBe("Guichê 3");
