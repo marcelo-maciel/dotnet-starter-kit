@@ -37,6 +37,7 @@ using FSH.Modules.PAF.Features.v1.Estacoes.ResgatarVinculo;
 using FSH.Modules.PAF.Features.v1.Estacoes.RevogarVinculo;
 using FSH.Modules.PAF.Features.v1.Estacoes.UpdateEstacao;
 using FSH.Modules.PAF.Features.v1.Fichas.CancelarAtendimentoDaFicha;
+using FSH.Modules.PAF.Features.v1.Fichas.ConsultarFicha;
 using FSH.Modules.PAF.Features.v1.Fichas.EmitirFicha;
 using FSH.Modules.PAF.Features.v1.Filas.AddFilaPrioridade;
 using FSH.Modules.PAF.Features.v1.Guiches.ListGuichesDaUnidade;
@@ -212,6 +213,8 @@ public sealed class PafModule : IModule
     private static void MapearFichas(IEndpointRouteBuilder fichas)
     {
         fichas.MapVoidAtendimentoDaFichaEndpoint();
+        // RF18 (F14): read only; its cancel and reabilitar are the F04 and F05 routes.
+        fichas.MapGetFichaBySenhaEndpoint();
     }
 
     private static void MapearSessao(IEndpointRouteBuilder sessao)
