@@ -25,6 +25,7 @@ Finbuckle appends `TenantId` to every unique index; names are explicit.
 | `UX_FilaPrioridades_Letra` | FilaPrioridades | UnidadeId, Letra, TenantId |
 | `UX_SessoesEstacao_EstacaoAtiva` / `_SessaoAtiva` / `_ConcessaoAtiva` | SessoesEstacao | EstacaoId / SessaoId / ConcessaoId, TenantId WHERE LiberadoEm IS NULL |
 | `CK_SessoesEstacao_DonoUnico` | SessoesEstacao | exactly one of SessaoId, ConcessaoId |
+| `UX_Setores_Nome` (slice 2 wave 1, C09) | Setores | UnidadeId, Nome, TenantId (exact name, no case folding) |
 
 Concurrency and fail-closed tests: `src/Tests/Integration.Tests/Tests/PAF/`.
 - `PafDbContext` follows the kit pattern: `base.OnModelCreating` runs LAST, so tenant isolation stays default-ON.
@@ -87,6 +88,8 @@ Concurrency and fail-closed tests: `src/Tests/Integration.Tests/Tests/PAF/`.
 - Painel state: `GET api/v1/paf/estacao/painel/estado` (policy `PafEstacaoPainel`): today's calls of the painel's filas, latest call or recall first, with `Versao`.
 - Notices: emission → `FilaAtualizadaPaf`; call → `SenhaChamadaPaf` (guichê + active painéis listing the fila) and `FilaAtualizadaPaf`; recall → `SenhaRechamadaPaf`; start/close/cancel → `AtendimentoAtualizadoPaf`. Always `GravarAsync` before commit, `EnviarAsync` after.
 - Raw SQL skips global filters: every raw statement carries `"TenantId"` (and `"UnidadeId"` where it selects).
+
+- Fila cadastro (RF02, C09): `Create/UpdateFila` carry `SetorId` (null = "Sem setor") and `Aparencia` (`Fonte`, `CorFonte`, `CorBotaoSelecionado`); each grid line carries `CorBotao`. Colors are `#RRGGBB` only, null = the station's default. Contrast floor (RNF19) is `Aparencia/ContrasteWcag` (single definition, also for the station blocks of C04; front mirror `features/paf/aparencia/contraste.ts`): every button color (selected fila, each prioridade) against `CorFonte` >= 4.5:1, and a button color without `CorFonte` is 400. The pair spans fila and grid, so `Features/v1/Filas/AparenciaDaFila` checks it in the four write handlers against the committed other side (ponytail: no row lock). Setor (`api/v1/paf/setores`, fila permissions, decided 24/08/2026: kept inside the fila cadastro): create, rename, list in the current unit, never deleted; homonym 409 (friendly check, then `UX_Setores_Nome`); a setor of another unit is 404. The totem buttons carry the fila's font and colors and the line's `CorBotao`; the totem screen applies them in C18. Screen: `/paf/filas`.
 
 ## Parameters (`Parametros/`)
 
