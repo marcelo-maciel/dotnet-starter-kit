@@ -6,15 +6,15 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
-namespace FSH.Modules.PAF.Features.v1.Unidades.ObterAdministracaoUnidades;
+namespace FSH.Modules.PAF.Features.v1.Unidades.GetAdministracaoUnidades;
 
-public static class ObterAdministracaoUnidadesEndpoint
+public static class GetAdministracaoUnidadesEndpoint
 {
-    internal static RouteHandlerBuilder MapObterAdministracaoUnidadesEndpoint(this IEndpointRouteBuilder endpoints) =>
+    internal static RouteHandlerBuilder MapGetAdministracaoUnidadesEndpoint(this IEndpointRouteBuilder endpoints) =>
         endpoints.MapGet("/unidades/administracao",
                 async (IMediator mediator, CancellationToken ct) =>
-                    Results.Ok(await mediator.Send(new ObterAdministracaoUnidadesQuery(), ct)))
-            .WithName("PafObterAdministracaoUnidades")
+                    Results.Ok(await mediator.Send(new GetAdministracaoUnidadesQuery(), ct)))
+            .WithName("PafGetAdministracaoUnidades")
             .WithSummary("Whether the caller administers the PAF units of the tenant")
             .RequirePermission(PafPermissions.Unidades.View);
 }

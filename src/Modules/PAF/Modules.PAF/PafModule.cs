@@ -55,8 +55,8 @@ using FSH.Modules.PAF.Features.v1.Sessao.SetUnidadeCorrente;
 using FSH.Modules.PAF.Features.v1.Unidades.CreateUnidade;
 using FSH.Modules.PAF.Features.v1.Unidades.DisableUnidade;
 using FSH.Modules.PAF.Features.v1.Unidades.EnableUnidade;
+using FSH.Modules.PAF.Features.v1.Unidades.GetAdministracaoUnidades;
 using FSH.Modules.PAF.Features.v1.Unidades.ListUnidades;
-using FSH.Modules.PAF.Features.v1.Unidades.ObterAdministracaoUnidades;
 using FSH.Modules.PAF.Features.v1.Unidades.UpdateUnidade;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.GetUsuarioUnidades;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.SetUsuarioUnidades;
@@ -211,7 +211,7 @@ public sealed class PafModule : IModule
         group.MapUpdateUnidadeEndpoint();
         group.MapEnableUnidadeEndpoint();
         group.MapDisableUnidadeEndpoint();
-        group.MapObterAdministracaoUnidadesEndpoint();
+        group.MapGetAdministracaoUnidadesEndpoint();
 
         group.MapCreatePrioridadeEndpoint();
         group.MapListPrioridadesEndpoint();

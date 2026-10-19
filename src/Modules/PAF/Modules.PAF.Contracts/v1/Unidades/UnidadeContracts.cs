@@ -27,4 +27,4 @@ public sealed record ListUnidadesQuery : IQuery<IReadOnlyList<UnidadeDto>>;
 /// <summary>Whether the caller may create, disable and enable unidades (RF23): what the screen uses to show those buttons.</summary>
 public sealed record AdministracaoUnidadesDto(bool AdministraUnidades);
 
-public sealed record ObterAdministracaoUnidadesQuery : IQuery<AdministracaoUnidadesDto>;
+public sealed record GetAdministracaoUnidadesQuery : IQuery<AdministracaoUnidadesDto>;
