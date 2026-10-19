@@ -162,3 +162,26 @@ Configuração do repositório, fora do código:
 - [ ] environments `homologacao` e `producao`, com revisor obrigatório em `producao`, e em cada um os secrets `PAF_SSH_HOST`, `PAF_SSH_USUARIO`, `PAF_SSH_CHAVE`, `PAF_SSH_KNOWN_HOSTS` e `PAF_DIR_HOST`;
 - [ ] `docker login ghcr.io` no host com um token de leitura de pacotes;
 - [ ] tornar o job `PAF CI` verificação obrigatória na proteção das branches.
+
+## Massa demo da homologação (O09, D19, RNF17)
+
+A homologação usa os tenants de demonstração `acme` e `globex`, com a unidade, a fila, a prioridade, as estações e o contrato do `PafDemoSeeder`, criados pelo verbo `seed-demo` do DbMigrator do kit. O guarda do kit (`src/Host/FSH.Starter.DbMigrator/Program.cs`) recusa o verbo fora de `Development` e continua intocado: pela decisão D19, quem roda o seed é `seed-homolog.sh`, que passa `DOTNET_ENVIRONMENT=Development` só para o contêiner do migrador daquela execução. A API e o migrador do `up` continuam em `Production`.
+
+```bash
+docker compose -f deploy/paf/compose.yml --env-file deploy/paf/ambientes/homologacao.env up -d --wait postgres valkey
+PAF_SENHA_DEMO='<senha da massa demo>' deploy/paf/seed-homolog.sh deploy/paf/ambientes/homologacao.env
+```
+
+As guardas rodam antes de qualquer chamada ao `docker`, então um pedido recusado sai com código 2 sem abrir conexão nenhuma:
+
+- o projeto do arquivo tem de ser `paf-homologacao` (ou `paf-ensaio-*`, só no ensaio local): o arquivo de produção, e qualquer arquivo desconhecido, é recusado;
+- a string de conexão tem de apontar para `Host=postgres`, o PostgreSQL do próprio projeto, alcançável só dentro da rede dele: um arquivo editado para chegar ao banco de produção pela porta publicada ou por outro host é recusado;
+- a senha dos usuários demo vem de `PAF_SENHA_DEMO`, nunca de arquivo: obrigatória, com 12 caracteres ou mais, e diferente das senhas padrão do kit (`Password123!` e `123Pa$$word!`, que estão no `appsettings.Development.json` e em todo teste). Ela vai ao contêiner por `-e Seed__DemoPassword` sem valor, então não aparece na linha de comando.
+
+O seed é idempotente: rodar de novo não duplica nada e realinha a senha dos usuários demo para a de `PAF_SENHA_DEMO`. Efeito conhecido de `Development` nesse contêiner: o migrador carrega o `appsettings.Development.json` da API, e o que o arquivo do ambiente não sobrescreve vale só durante o seed (nível de log, `OpenApiOptions`, `Seed:Demo`). Ressalva do kit, fora do escopo de O09: o guarda de `Production` só dispara depois de esperar o banco, tomar a trava e aplicar as migrações do catálogo, então um `seed-demo` recusado ainda migra o catálogo.
+
+```bash
+deploy/paf/seed-homolog.test.sh paf-dbmigrator:<tag>
+```
+
+O teste prova cada guarda com um `docker` falso no `PATH`, que deixa um arquivo marcador se for chamado (código 2 e marcador ausente; a homologação válida é o controle e chega ao `docker`). Depois sobe só PostgreSQL e Valkey no projeto descartável `paf-ensaio-o09` (porta 29432 do PostgreSQL, 29080 a 29083 reservadas, subnet `172.31.29.0/24`), roda o wrapper duas vezes e confere que a contagem exata de linhas de toda tabela é igual nas duas, que o hash do administrador demo confere com `PAF_SENHA_DEMO` e não com a senha padrão, e que o `seed-demo` sem o wrapper, com o `Production` do arquivo, continua recusado pelo kit. Remove o projeto ao sair.
