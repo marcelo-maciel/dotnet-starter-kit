@@ -32,6 +32,7 @@ test("cada cadastro aparece só com a permissão da sua listagem", () => {
   assert.deepEqual(itensPaf(["Permissions.PAF.Unidades.View"]), ["/paf/unidades"]);
   assert.deepEqual(itensPaf(["Permissions.PAF.Filas.View", "Permissions.PAF.Estacoes.View"]), ["/paf/filas", "/paf/estacoes"]);
   assert.deepEqual(itensPaf(["Permissions.PAF.Filas.Create", "Permissions.PAF.Estacoes.Update"]), []);
+  assert.deepEqual(itensPaf(["Permissions.PAF.Prioridades.View", "Permissions.PAF.Prioridades.Update"]), ["/paf/prioridades"]);
 });
 
 test("rotas do PAF abrem a seção do PAF no menu", () => {
@@ -39,5 +40,6 @@ test("rotas do PAF abrem a seção do PAF no menu", () => {
   assert.equal(findSectionForPath("/paf/unidades"), "paf");
   assert.equal(findSectionForPath("/paf/filas"), "paf");
   assert.equal(findSectionForPath("/paf/estacoes"), "paf");
+  assert.equal(findSectionForPath("/paf/prioridades"), "paf");
   assert.equal(findSectionForPath("/identity/users"), "identity");
 });
