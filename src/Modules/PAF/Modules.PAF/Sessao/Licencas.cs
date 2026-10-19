@@ -270,6 +270,10 @@ public sealed class Licencas(
         // put the member back in the origin after it moved.
         await BloquearAsync($"paf-licenca-usuario:{tenantId}:{usuarioId}", ct);
 
+        // Under the user lock, link before row: the order of ConfirmarAsync (user, link, row) and of LiberarAsync
+        // (link, row). A login elsewhere or a logout of this session running alongside waits instead of deadlocking.
+        await VinculosGuiche.TravarAtivoDaSessaoAsync(db, tenantId, sessaoId, ct);
+
         // The row lock keeps the renewal (RenovarMarcaAsync) from restoring the member in the origin before commit.
         var linhas = await db.Database.SqlQuery<Guid>($"""
             SELECT "UnidadeId" AS "Value" FROM paf."AtividadesSessao"

@@ -227,6 +227,40 @@ public sealed class PafMigracaoLicencaTests(FshWebApplicationFactory factory) : 
     }
 
     [Fact]
+    public async Task TrocaELoginDoMesmoUsuarioJuntos_20Rodadas_SemDeadlock()
+    {
+        await PrepararModoAsync(Modo.Conjunto);
+        // Room for every round: each one leaves the new login's session live.
+        var origem = await _tenant.CriarUnidadeAsync(limiteSessoes: 50);
+        var destino = await _tenant.CriarUnidadeAsync(limiteSessoes: 50);
+        var relogio = Stopwatch.StartNew();
+
+        for (var rodada = 0; rodada < 20; rodada++)
+        {
+            var s = await SessaoAsync(origem.UnidadeId, origem.UnidadeId, destino.UnidadeId);
+            await VincularAsync(rodada % 2 == 0 ? origem.GuicheA : origem.GuicheB, s.SessaoId);
+
+            // The login on another machine releases this session's link and row under the user lock (sessão única)
+            // while the switch locks the same link and row: both must take them in the same order.
+            var resultados = await Task.WhenAll(
+                CapturarAsync(() => TrocarAsync(s, origem.UnidadeId, destino.UnidadeId)),
+                CapturarAsync(() => EntrarDeNovoAsync(s)));
+
+            resultados[1].ShouldBeNull();
+            if (resultados[0] is { } erro)
+            {
+                // The login won: the switch finds the row gone and asks for a new login.
+                erro.ShouldBeOfType<UnauthorizedException>();
+            }
+
+            (await VinculosAtivosAsync(s.SessaoId)).ShouldBe(0);
+            (await UnidadeDaLinhaAsync(s.SessaoId)).ShouldBeNull();
+        }
+
+        relogio.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(60));
+    }
+
+    [Fact]
     public async Task OutraAbaDaSessao_RecebeOAviso_EPassaAReceberAUnidadeNova()
     {
         await PrepararModoAsync(Modo.Conjunto);
@@ -287,6 +321,32 @@ public sealed class PafMigracaoLicencaTests(FshWebApplicationFactory factory) : 
     {
         using var scope = factory.Services.CreateScope();
         await Handler(scope, s, origem, Conjunto(), Estado()).Handle(new SetUnidadeCorrenteCommand(destino), CancellationToken.None);
+    }
+
+    // A new session of the same user through the real reservation and confirmation, releasing the earlier one.
+    private async Task EntrarDeNovoAsync(SessaoTeste anterior)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = _tenant.Contexto(scope, unidadeCorrente: null);
+        var licencas = new Licencas(db, scope.ServiceProvider.GetRequiredService<IUnidadeCorrente>(), Conjunto(),
+            scope.ServiceProvider.GetRequiredService<EscopoUsuario>(), NullLogger<Licencas>.Instance);
+        await using var reserva = await licencas.ReservarAsync(_tenant.TenantId, anterior.UsuarioId, CancellationToken.None);
+        reserva.ShouldNotBeNull();
+        await reserva.ConfirmarAsync(Guid.NewGuid(), [anterior.SessaoId], CancellationToken.None);
+    }
+
+    // Any failure is returned, not only the expected ones: a deadlock (40P01) must show up as the wrong type.
+    private static async Task<Exception?> CapturarAsync(Func<Task> acao)
+    {
+        try
+        {
+            await acao();
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return ex;
+        }
     }
 
     private async Task<CustomException?> TentarTrocarAsync(SessaoTeste s, Guid origem, Guid destino)

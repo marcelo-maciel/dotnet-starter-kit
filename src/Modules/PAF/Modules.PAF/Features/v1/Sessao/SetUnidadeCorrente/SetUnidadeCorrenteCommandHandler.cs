@@ -58,9 +58,6 @@ public sealed class SetUnidadeCorrenteCommandHandler(
         MigracaoLicenca migracao;
         await using (var transacao = await db.Database.BeginTransactionAsync(cancellationToken))
         {
-            // Link lock before the licence row, the order of Licencas.LiberarAsync: a logout of this same session
-            // running alongside waits instead of deadlocking.
-            await VinculosGuiche.TravarAtivoDaSessaoAsync(db, tenantId, sessaoId, cancellationToken);
             migracao = await licencas.MigrarAsync(tenantId, usuarioId, sessaoId, command.UnidadeId, cancellationToken);
             try
             {
