@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { mensagemAmigavel } from "@/features/paf/paf-erros";
 import { definirUnidadeCorrente, listarUnidades, obterPosto } from "@/features/paf/guiche/guiche-api";
+import { AvisoLicencaFaixa } from "@/features/paf/sessao/aviso-licenca-faixa";
 import {
   apagarAvisoDeRecarga,
   lerAvisoDeRecarga,
@@ -38,6 +39,7 @@ export function PafLayout() {
           </Button>
         </div>
       )}
+      <AvisoLicencaFaixa />
       <SeletorUnidade />
       <Outlet />
     </div>

@@ -3,6 +3,8 @@ using FSH.Framework.Eventing;
 using FSH.Framework.Persistence;
 using FSH.Framework.Shared.Constants;
 using FSH.Framework.Web.Modules;
+using Hangfire;
+using Hangfire.Common;
 using FSH.Modules.Identity.Contracts.DTOs;
 using FSH.Modules.Identity.Contracts.v1.Tokens.RefreshToken;
 using FSH.Modules.Identity.Contracts.v1.Tokens.TokenGeneration;
@@ -43,6 +45,7 @@ using FSH.Modules.PAF.Features.v1.Fichas.EmitirFicha;
 using FSH.Modules.PAF.Features.v1.Fichas.ListAtendimentosDoDia;
 using FSH.Modules.PAF.Features.v1.Fichas.ObterImpressaoFicha;
 using FSH.Modules.PAF.Features.v1.Fichas.ListFichasEmAtendimento;
+using FSH.Modules.PAF.Features.v1.Sessao.GetAvisoLicenca;
 using FSH.Modules.PAF.Features.v1.Filas.AddFilaPrioridade;
 using FSH.Modules.PAF.Features.v1.Guiches.ListGuichesDaUnidade;
 using FSH.Modules.PAF.Features.v1.Guiches.ListMinhasUnidades;
@@ -183,6 +186,14 @@ public sealed class PafModule : IModule
             .WithTags("PAF Saúde")
             .WithApiVersionSet(versionSet)
             .MapSaudeEndpoint();
+
+        // S08: licence history and the session leftovers nobody else releases (ARQ seções 5 e 9). The migrator host
+        // runs no job server. The CancellationToken argument is a placeholder Hangfire swaps for the server's token.
+        endpoints.ServiceProvider.GetService<IRecurringJobManager>()?.AddOrUpdate(
+            ManutencaoLicencas.IdRecorrente,
+            Job.FromExpression<ManutencaoLicencas>(j => j.ExecutarAsync(default)),
+            ManutencaoLicencas.Cron,
+            new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
     }
 
     // Licença, sessão única, unidade corrente e guichê (RF22, ADR 0006, ADR 0008).
@@ -212,6 +223,8 @@ public sealed class PafModule : IModule
         // S11A (D28): AtoImpersonacao of every write; the open generic only closes over IEscritaDeCadastro commands.
         services.AddScoped<AtosImpersonacao>();
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(AtoImpersonacaoBehavior<,>));
+        // S08: recurring job of ConsumoLicenca, expired marks and orphan guichê links.
+        services.AddScoped<ManutencaoLicencas>();
     }
 
     // RF12 fichas screens (F04): person operations outside the guichê, each under its own FichasDoDia permission.
@@ -232,6 +245,7 @@ public sealed class PafModule : IModule
         sessao.MapSetUnidadeCorrenteEndpoint();
         sessao.MapSetGuicheEndpoint();
         sessao.MapEndSessaoEndpoint();
+        sessao.MapGetAvisoLicencaEndpoint();
     }
 
     private static void MapearGuiche(IEndpointRouteBuilder guiche)

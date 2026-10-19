@@ -73,11 +73,11 @@ public sealed class Licencas(
                 tenantId, membro, candidatas, await SessoesDoUsuarioAsync(tenantId, usuarioId, ct), [], PrazoReserva, ct);
             string? membroReserva = null;
             CandidataLicenca candidata;
+            var ocupadasNoBanco = 0;
             switch (ocupacao.Desfecho)
             {
                 case DesfechoOcupacao.Ocupada:
                     candidata = candidatas.First(c => c.UnidadeId == ocupacao.UnidadeId);
-                    AvisarUltrapassagem(tenantId, candidata, ocupacao.Ocupadas);
                     membroReserva = membro;
                     break;
                 case DesfechoOcupacao.SemSaldo:
@@ -86,12 +86,13 @@ public sealed class Licencas(
                     // S14: a stalled Valkey would still run this occupation when it returns and hold a ghost
                     // reservation for PrazoReserva; the release queued behind it undoes it.
                     conjunto.SoltarOcupacaoSemResposta(tenantId, membro);
-                    candidata = await EscolherNoBancoAsync(tenantId, usuarioId, candidatas, ct);
+                    (candidata, ocupadasNoBanco) = await EscolherNoBancoAsync(tenantId, usuarioId, candidatas, ct);
                     break;
             }
 
             unidadeCorrente.Definir(candidata.UnidadeId);
-            return new ReservaLicenca(this, transacao, tenantId, usuarioId, candidata, membroReserva, ocupacao.Desfecho);
+            return new ReservaLicenca(
+                this, transacao, tenantId, usuarioId, candidata, membroReserva, ocupacao.Desfecho, ocupadasNoBanco);
         }
         catch
         {
@@ -111,6 +112,8 @@ public sealed class Licencas(
         var membro = ConjuntoLicencas.Membro(sessaoId);
         var ocupouAgora = false;
         var restaurar = reserva.Desfecho == DesfechoOcupacao.NaoReconstruido;
+        // Seats of the unit with this occupation; null when the session already held its seat (no new occupation).
+        int? ocupadas = reserva.OcupadasNoBanco;
         if (reserva.MembroReserva is { } membroReserva)
         {
             // The reservation, the user's earlier sessions and the given ones leave in the same script that
@@ -125,18 +128,19 @@ public sealed class Licencas(
             switch (ocupacao.Desfecho)
             {
                 case DesfechoOcupacao.Ocupada:
-                    AvisarUltrapassagem(tenantId, reserva.Candidata, ocupacao.Ocupadas);
                     unidadeId = ocupacao.UnidadeId!.Value;
+                    ocupadas = ocupacao.Ocupadas;
                     ocupouAgora = true;
                     break;
                 case DesfechoOcupacao.JaOcupava:
                     unidadeId = ocupacao.UnidadeId!.Value;
+                    ocupadas = null;
                     break;
                 case DesfechoOcupacao.SemSaldo:
                     // The reservation outlived PrazoReserva and its seat was taken meanwhile.
                     throw new ForbiddenException(MensagemLimite);
                 default:
-                    await EscolherNoBancoAsync(tenantId, reserva.UsuarioId, [reserva.Candidata], ct);
+                    ocupadas = (await EscolherNoBancoAsync(tenantId, reserva.UsuarioId, [reserva.Candidata], ct)).Ocupadas;
                     restaurar = ocupacao.Desfecho == DesfechoOcupacao.NaoReconstruido;
                     break;
             }
@@ -145,6 +149,11 @@ public sealed class Licencas(
         var soltas = sessoesAnteriores.Append(sessaoId).ToArray();
         try
         {
+            if (ocupadas is { } naUnidade && naUnidade > reserva.Candidata.Limite)
+            {
+                await RegistrarExcedenteAsync(tenantId, unidadeId, sessaoId, naUnidade, reserva.Candidata.Limite, ct);
+            }
+
             await db.Database.ExecuteSqlAsync($"""
                 UPDATE paf."SessoesEstacao" SET "LiberadoEm" = now()
                  WHERE "TenantId" = {tenantId} AND "SessaoId" = ANY({soltas}) AND "LiberadoEm" IS NULL
@@ -239,7 +248,7 @@ public sealed class Licencas(
     /// antes de contar qualquer uma, em ordem canônica por id, e seguram até o fim da transação: escopos [A, B] e
     /// [B, A] disputando ao mesmo tempo esperam um pelo outro em vez de travar em ciclo.
     /// </summary>
-    private async Task<CandidataLicenca> EscolherNoBancoAsync(
+    private async Task<EscolhaNoBanco> EscolherNoBancoAsync(
         string tenantId, Guid usuarioId, IReadOnlyList<CandidataLicenca> candidatas, CancellationToken ct)
     {
         var ids = candidatas.Select(c => c.UnidadeId).Order().ToArray();
@@ -262,8 +271,7 @@ public sealed class Licencas(
             var naUnidade = ocupadas.GetValueOrDefault(candidata.UnidadeId);
             if (naUnidade < candidata.Limite || candidata.UltrapassaComAviso)
             {
-                AvisarUltrapassagem(tenantId, candidata, naUnidade + 1);
-                return candidata;
+                return new EscolhaNoBanco(candidata, naUnidade + 1);
             }
         }
 
@@ -282,16 +290,21 @@ public sealed class Licencas(
         .Select(ConjuntoLicencas.Membro)
         .ToList();
 
-    private void AvisarUltrapassagem(string tenantId, CandidataLicenca candidata, int ocupadas)
+    /// <summary>
+    /// Linha de excedente em <see cref="ConsumoLicenca"/> (RF22, ARQ seção 9), na transação da ocupação: a ocupação
+    /// que não for gravada não deixa registro, e a gravada sempre deixa. É também o que a tela lê para avisar o
+    /// usuário que entrou acima do limite (D03).
+    /// </summary>
+    private async Task RegistrarExcedenteAsync(
+        string tenantId, Guid unidadeId, Guid sessaoId, int ocupadas, int limite, CancellationToken ct)
     {
-        if (ocupadas <= candidata.Limite)
-        {
-            return;
-        }
-
+        await db.Database.ExecuteSqlAsync($"""
+            INSERT INTO paf."ConsumosLicenca" ("Id", "UnidadeId", "Tipo", "Ocupadas", "Limite", "SessaoId", "RegistradoEm", "TenantId")
+            VALUES ({Guid.CreateVersion7()}, {unidadeId}, {nameof(TipoConsumoLicenca.Excedente)}, {ocupadas}, {limite}, {sessaoId}, now(), {tenantId})
+            """, ct);
         logger.LogWarning(
             "Licença acima do limite contratado na unidade {UnidadeId} do tenant {TenantId}: {Ocupadas} de {Limite}",
-            candidata.UnidadeId, tenantId, ocupadas, candidata.Limite);
+            unidadeId, tenantId, ocupadas, limite);
     }
 
     /// <summary>Unidade da licença quando a marca de sessão viva está dentro do prazo; nulo caso contrário.</summary>
@@ -383,4 +396,6 @@ public sealed class Licencas(
     private sealed record ContratoVigente(Guid UnidadeId, int LimiteSessoes, string Politica);
 
     private sealed record OcupadasDaUnidade(Guid UnidadeId, int Ocupadas);
+
+    private sealed record EscolhaNoBanco(CandidataLicenca Candidata, int Ocupadas);
 }
