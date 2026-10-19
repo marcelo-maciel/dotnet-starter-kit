@@ -8,14 +8,14 @@ using Microsoft.AspNetCore.Routing;
 
 namespace FSH.Modules.PAF.Features.v1.Atendimentos.EncaminharAtendimento;
 
-public static class ForwardAtendimentoEndpoint
+public static class SendAtendimentoToFilasEndpoint
 {
-    internal static RouteHandlerBuilder MapForwardAtendimentoEndpoint(this IEndpointRouteBuilder endpoints)
+    internal static RouteHandlerBuilder MapSendAtendimentoToFilasEndpoint(this IEndpointRouteBuilder endpoints)
     {
         return endpoints.MapPost("/atendimentos/{atendimentoId:guid}/encaminhar",
                 async (Guid atendimentoId, EncaminharAtendimentoRequest request, IMediator mediator, CancellationToken ct) =>
                     Results.Ok(await mediator.Send(new EncaminharAtendimentoCommand(atendimentoId, request.FilaIds ?? [], request.PrioridadeId), ct)))
-            .WithName("PafForwardAtendimento")
+            .WithName("PafSendAtendimentoToFilas")
             .WithSummary("Forward the started atendimento to one or more filas, same ficha and senha (RF17)")
             .RequirePermission(PafPermissions.Atendimentos.Encaminhar);
     }

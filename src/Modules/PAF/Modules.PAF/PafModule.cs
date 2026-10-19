@@ -213,7 +213,7 @@ public sealed class PafModule : IModule
         guiche.MapListGuichesDaUnidadeEndpoint();
         guiche.MapGetPostoGuicheEndpoint();
         guiche.MapListForwardDestinationsEndpoint();
-        guiche.MapForwardAtendimentoEndpoint();
+        guiche.MapSendAtendimentoToFilasEndpoint();
         guiche.MapListWaitingFichasEndpoint();
         guiche.MapRequestChosenFichaEndpoint();
     }

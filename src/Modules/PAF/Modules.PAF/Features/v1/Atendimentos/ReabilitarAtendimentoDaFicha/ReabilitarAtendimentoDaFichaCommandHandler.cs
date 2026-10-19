@@ -7,6 +7,7 @@ using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Escopo;
 using FSH.Modules.PAF.Parametros;
+using FSH.Modules.PAF.Sessao;
 using FSH.Modules.PAF.TempoReal;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
@@ -27,6 +28,7 @@ public sealed class ReabilitarAtendimentoDaFichaCommandHandler(
     IUnidadeCorrente unidadeCorrente,
     LeitorParametros parametros,
     AvisosTempoReal avisos,
+    AtosImpersonacao atos,
     IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor)
     : ICommandHandler<ReabilitarAtendimentoDaFichaCommand, AtendimentoAlteradoDto>
 {
@@ -72,7 +74,8 @@ public sealed class ReabilitarAtendimentoDaFichaCommandHandler(
             throw OperacaoGuiche.Conflito(MensagemNaoCancelado);
         }
 
-        // AtoImpersonacao (D28) is written here, in this transaction, once S11A's helper exists.
+        // The rewrite is raw SQL, so the impersonation act (D28) is written explicitly in this transaction.
+        await atos.GravarAsync(atendimento.Id, cancellationToken);
         var aviso = OperacaoGuiche.AvisoDeEstado(tenantId, atendimento, versoes[0], EstadoAtendimento.Aguardando);
         // The queue gained a waiting atendimento: guichês and lists re-read it, as after an emission.
         var fila = FilaAtualizadaPaf.Criar(tenantId, OperacaoGuiche.Correlacao(),

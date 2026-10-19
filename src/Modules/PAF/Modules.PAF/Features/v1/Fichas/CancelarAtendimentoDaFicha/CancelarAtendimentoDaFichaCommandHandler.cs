@@ -6,6 +6,7 @@ using FSH.Modules.PAF.Contracts.v1.Fichas;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Features.v1.Atendimentos;
+using FSH.Modules.PAF.Sessao;
 using FSH.Modules.PAF.TempoReal;
 using Mediator;
 
@@ -19,6 +20,7 @@ namespace FSH.Modules.PAF.Features.v1.Fichas.CancelarAtendimentoDaFicha;
 public sealed class CancelarAtendimentoDaFichaCommandHandler(
     PafDbContext db,
     AvisosTempoReal avisos,
+    AtosImpersonacao atos,
     IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor)
     : ICommandHandler<CancelarAtendimentoDaFichaCommand, AtendimentoAlteradoDto>
 {
@@ -29,6 +31,8 @@ public sealed class CancelarAtendimentoDaFichaCommandHandler(
 
         await using var transacao = await db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         var cancelado = await OperacaoGuiche.CancelarAsync(db, tenantId, command.AtendimentoId, cancellationToken).ConfigureAwait(false);
+        // The cancel is raw SQL, so the impersonation act (D28) is written explicitly in this transaction.
+        await atos.GravarAsync(command.AtendimentoId, cancellationToken).ConfigureAwait(false);
         await OperacaoGuiche.ConfirmarEAvisarTodosAsync(transacao, avisos, cancelado.Avisos, cancellationToken).ConfigureAwait(false);
         return new AtendimentoAlteradoDto(cancelado.AtendimentoId, nameof(EstadoAtendimento.Cancelado), cancelado.Versao);
     }
