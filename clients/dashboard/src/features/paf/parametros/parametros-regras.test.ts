@@ -3,7 +3,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ParametroDto } from "./parametros-api.ts";
-import { agruparPorGrupo, escolhasDoCampo, rotuloDoParametro, seloDaOrigem, valorExibido } from "./parametros-regras.ts";
+import {
+  agruparPorGrupo,
+  escolhasDeImagem,
+  escolhasDoCampo,
+  logotipoExibido,
+  rotuloDoParametro,
+  seloDaOrigem,
+  valorExibido,
+} from "./parametros-regras.ts";
 
 function item(chave: string, grupo: string, tipo: ParametroDto["tipo"], opcoes: string[]): ParametroDto {
   return { chave, grupo, tipo, valor: "", origem: "Fabrica", padrao: "", valorEmpresa: null, valorUnidade: null, opcoes };
@@ -47,4 +55,39 @@ test("chave desconhecida aparece pelo nome, e os grupos mantêm a ordem do catá
     ["Geral", ["a", "c"]],
     ["Fichas", ["b"]],
   ]);
+});
+
+// --- C19: logotipo ---
+
+const midia = (id: string, descricao: string, tipo: string, ativa: boolean) => ({ id, descricao, tipo, ativa });
+
+test("logotipo: padrão do sistema primeiro, depois só as imagens ativas por descrição", () => {
+  const midias = [
+    midia("v1", "Abertura", "Video", true),
+    midia("i2", "Marca Sul", "Imagem", true),
+    midia("i3", "antiga", "Imagem", false),
+    midia("i1", "marca centro", "Imagem", true),
+  ];
+  assert.deepEqual(escolhasDeImagem(midias, ""), [
+    ["", "Logotipo padrão do sistema"],
+    ["i1", "marca centro"],
+    ["i2", "Marca Sul"],
+  ]);
+});
+
+test("logotipo: valor atual fora da lista (empresa em outra unidade, inativa) continua selecionável", () => {
+  const escolhas = escolhasDeImagem([midia("i1", "Marca", "Imagem", true)], "de-outra-unidade");
+  assert.deepEqual(escolhas.at(-1), ["de-outra-unidade", "Imagem personalizada"]);
+  assert.equal(escolhasDeImagem([], "").length, 1);
+});
+
+test("logotipo: exibição nunca mostra o id cru", () => {
+  const midias = [midia("i1", "Marca", "Imagem", true)];
+  assert.equal(logotipoExibido(midias, ""), "Logotipo padrão do sistema");
+  assert.equal(logotipoExibido(midias, "i1"), "Imagem personalizada: Marca");
+  assert.equal(logotipoExibido([], "0199f2a4-7b1c-7d3e-8a5b-1234567890ab"), "Imagem personalizada");
+  const item = { tipo: "Imagem" as const, opcoes: [] };
+  assert.deepEqual(escolhasDoCampo(item), [["", "Logotipo padrão do sistema"]]);
+  assert.equal(valorExibido(item, "0199f2a4-7b1c-7d3e-8a5b-1234567890ab"), "Imagem personalizada");
+  assert.equal(rotuloDoParametro("logotipo"), "Logotipo do totem, do painel e da ficha impressa");
 });

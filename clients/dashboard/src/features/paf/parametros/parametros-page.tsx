@@ -10,6 +10,8 @@ import {
   sobrescreverNaUnidade,
   voltarAoHerdado,
   type ParametroDto,
+  listarMidiasDaUnidade,
+  type MidiaDaUnidade,
 } from "@/features/paf/parametros/parametros-api";
 import {
   agruparPorGrupo,
@@ -17,6 +19,8 @@ import {
   rotuloDoParametro,
   seloDaOrigem,
   valorExibido,
+  escolhasDeImagem,
+  logotipoExibido,
 } from "@/features/paf/parametros/parametros-regras";
 
 const CHAVE_PARAMETROS = ["paf", "parametros"] as const;
@@ -33,8 +37,18 @@ function mensagensDoErro(erro: unknown): string[] {
   return [mensagemAmigavel(erro)];
 }
 
-function CampoDeValor({ item, valor, aoMudar }: { item: ParametroDto; valor: string; aoMudar: (v: string) => void }) {
-  const escolhas = escolhasDoCampo(item);
+function CampoDeValor({
+  item,
+  valor,
+  midias,
+  aoMudar,
+}: {
+  item: ParametroDto;
+  valor: string;
+  midias: readonly MidiaDaUnidade[];
+  aoMudar: (v: string) => void;
+}) {
+  const escolhas = item.tipo === "Imagem" ? escolhasDeImagem(midias, valor) : escolhasDoCampo(item);
   const rotulo = `Novo valor de ${rotuloDoParametro(item.chave)}`;
   if (escolhas.length > 0) {
     return (
@@ -61,6 +75,12 @@ function CampoDeValor({ item, valor, aoMudar }: { item: ParametroDto; valor: str
 export function ParametrosPage() {
   const queryClient = useQueryClient();
   const parametros = useQuery({ queryKey: CHAVE_PARAMETROS, queryFn: listarParametros });
+  // C19: the logo picker needs the unidade's images; without Midias.View the list fails and only the system logo is offered.
+  const temImagem = parametros.data?.itens.some((i) => i.tipo === "Imagem") ?? false;
+  const midias = useQuery({ queryKey: ["paf", "midias"], queryFn: listarMidiasDaUnidade, enabled: temImagem });
+  const midiasDaUnidade = midias.data ?? [];
+  const exibido = (item: ParametroDto, valor: string) =>
+    item.tipo === "Imagem" ? logotipoExibido(midiasDaUnidade, valor) : valorExibido(item, valor);
   const [edicao, setEdicao] = useState<Edicao | null>(null);
   const [erros, setErros] = useState<string[]>([]);
   const [ocupado, setOcupado] = useState(false);
@@ -113,7 +133,7 @@ export function ParametrosPage() {
                   <li key={item.chave} className="space-y-2 py-3" data-parametro={item.chave}>
                     <div className="flex flex-wrap items-center gap-3">
                       <span className="min-w-64 font-medium">{rotuloDoParametro(item.chave)}</span>
-                      <span data-valor-efetivo>{valorExibido(item, item.valor)}</span>
+                      <span data-valor-efetivo>{exibido(item, item.valor)}</span>
                       <span
                         data-selo={item.origem}
                         className={
@@ -126,7 +146,7 @@ export function ParametrosPage() {
                       </span>
                       {item.origem === "Unidade" && item.valorEmpresa !== null && (
                         <span className="text-xs text-[var(--color-muted-foreground)]">
-                          Padrão da empresa: {valorExibido(item, item.valorEmpresa)}
+                          Padrão da empresa: {exibido(item, item.valorEmpresa)}
                         </span>
                       )}
                       {(dados.alteraUnidade || dados.alteraEmpresa) && !editando && (
@@ -142,7 +162,12 @@ export function ParametrosPage() {
                     </div>
                     {editando && (
                       <div className="flex flex-wrap items-center gap-2">
-                        <CampoDeValor item={item} valor={editando.valor} aoMudar={(valor) => setEdicao({ chave: item.chave, valor })} />
+                        <CampoDeValor
+                          item={item}
+                          valor={editando.valor}
+                          midias={midiasDaUnidade}
+                          aoMudar={(valor) => setEdicao({ chave: item.chave, valor })}
+                        />
                         {dados.alteraUnidade && (
                           <Button size="sm" disabled={ocupado} onClick={() => void executar(() => sobrescreverNaUnidade(item.chave, editando.valor))}>
                             Salvar nesta unidade

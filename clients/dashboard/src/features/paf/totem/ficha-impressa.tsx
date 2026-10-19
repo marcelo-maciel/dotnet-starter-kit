@@ -2,6 +2,8 @@ import { forwardRef } from "react";
 import { createPortal } from "react-dom";
 import type { FichaEmitidaDto } from "@/features/paf/estacao/estacao-api";
 import { LARGURA_BOBINA_MM, TAMANHO_SENHA_PX } from "@/features/paf/totem/impressao";
+import { ALTURA_LOGOTIPO_FICHA_MM, lerLogotipo } from "@/features/paf/logotipo/logotipo";
+import { LogotipoImagem } from "@/features/paf/logotipo/logotipo-imagem";
 
 const formatoData = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "America/Sao_Paulo",
@@ -42,6 +44,9 @@ export const FichaImpressa = forwardRef<HTMLDivElement, Props>(function FichaImp
           textAlign: "center",
         }}
       >
+        <div data-logotipo-ficha style={{ display: "flex", justifyContent: "center", marginBottom: "2mm" }}>
+          <LogotipoImagem url={lerLogotipo(ficha.logotipo)} altura={`${ALTURA_LOGOTIPO_FICHA_MM}mm`} larguraMaxima="60mm" />
+        </div>
         {ficha.titulo !== "" && (
           <div data-titulo-ficha style={{ fontSize: 17, fontWeight: "bold", marginBottom: "2mm" }}>
             {ficha.titulo}

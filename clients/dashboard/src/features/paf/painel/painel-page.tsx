@@ -23,6 +23,8 @@ import {
   type SenhaChamadaEvento,
 } from "@/features/paf/painel/painel-estado";
 import { carregarVozes, escolherVoz, falar } from "@/features/paf/painel/voz";
+import { lerLogotipo } from "@/features/paf/logotipo/logotipo";
+import { LogotipoImagem } from "@/features/paf/logotipo/logotipo-imagem";
 import {
   ANUNCIO_PADRAO,
   lerAnuncioDaChamada,
@@ -62,6 +64,7 @@ export function PainelPage() {
   const [estado, dispatch] = useReducer(reduzirPainel, ESTADO_INICIAL_PAINEL);
   const [conexao, setConexao] = useState<EstadoConexao>("conectando");
   const [nomeEstacao, setNomeEstacao] = useState("");
+  const [logotipo, setLogotipo] = useState<string | null>(null);
   const [aparencia, setAparencia] = useState<AparenciaPainel>(APARENCIA_PAINEL_PADRAO);
   const [agora, setAgora] = useState(() => new Date());
   const [faseAlternancia, setFaseAlternancia] = useState(0);
@@ -105,6 +108,8 @@ export function PainelPage() {
       setAparencia(lerAparenciaPainel(cfg.configuracao));
       anuncioRef.current = lerAnuncioDaChamada(cfg.anuncioDaChamada);
       setAnuncio(anuncioRef.current);
+      // C19: re-read with the configuration (every call, reconnection, 60 s), well inside the URL's hour.
+      setLogotipo(lerLogotipo(cfg.logotipo));
     }, tratarErro);
   }, [tratarErro]);
 
@@ -214,7 +219,10 @@ export function PainelPage() {
       }}
     >
       <header className="flex items-center justify-between px-8 py-4 text-[1.125em]">
-        <span>{nomeEstacao}</span>
+        <span className="flex items-center gap-4">
+          <LogotipoImagem url={logotipo} altura="3em" larguraMaxima="12em" />
+          <span>{nomeEstacao}</span>
+        </span>
         {aparencia.mostrarDataHora && <span data-data-hora>{formatarDataHora(agora)}</span>}
         <span role="status" aria-label="Conexão" data-conexao={conexao}>
           {ROTULO_CONEXAO[conexao]}

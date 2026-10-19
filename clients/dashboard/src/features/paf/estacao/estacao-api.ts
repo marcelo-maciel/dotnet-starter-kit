@@ -27,6 +27,8 @@ export type ConfiguracaoEstacaoDto = {
   botoes: BotaoEmissao[];
   /** C20: RF06 call message and voice choice, painel only; read through `lerAnuncioDaChamada`. */
   anuncioDaChamada?: unknown;
+  /** C19: RF06 logo of the unidade for the totem and the painel; read through `lerLogotipo` (null = system logo). */
+  logotipo?: unknown;
 };
 
 export type FichaEmitidaDto = {
@@ -45,6 +47,8 @@ export type FichaEmitidaDto = {
   rodape: string;
   /** Read but not printed: the QR waits for the public ficha page (requisitos RF11 l.368). */
   imprimirQr: boolean;
+  /** C19: RF06 logo printed at the top; read through `lerLogotipo` (null = system logo). */
+  logotipo?: unknown;
 };
 
 export function obterConfiguracaoEmissao() {

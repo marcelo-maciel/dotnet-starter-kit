@@ -20,6 +20,8 @@ import { EmissaoTotem, PRAZO_CICLO_PADRAO_S } from "@/features/paf/totem/ciclo-e
 import { emitirFichaNoCiclo } from "@/features/paf/totem/emitir-ficha";
 import { FichaImpressa } from "@/features/paf/totem/ficha-impressa";
 import { ajustarFonteSenha, definirPagina, imprimir, removerPagina } from "@/features/paf/totem/impressao";
+import { lerLogotipo } from "@/features/paf/logotipo/logotipo";
+import { LogotipoImagem } from "@/features/paf/logotipo/logotipo-imagem";
 
 const LIMITE_IMPRESSAO_MS = 15_000;
 const TEMPO_CONFIRMACAO_MS = 4_000;
@@ -58,6 +60,7 @@ export function TotemPage() {
   const [botoes, setBotoes] = useState<BotaoEmissao[] | null>(null);
   const [aparencia, setAparencia] = useState<AparenciaEmissao>(APARENCIA_EMISSAO_PADRAO);
   const [botaoTocado, setBotaoTocado] = useState<string | null>(null);
+  const [logotipo, setLogotipo] = useState<string | null>(null);
   const [erroConfiguracao, setErroConfiguracao] = useState<string | null>(null);
   const [emissao, setEmissao] = useState<Emissao>({ tipo: "ocioso", aviso: null });
   const cicloRef = useRef<EmissaoTotem<BotaoEmissao, FichaEmitidaDto> | null>(null);
@@ -81,6 +84,8 @@ export function TotemPage() {
         setBotoes([...cfg.botoes].sort((a, b) => a.ordem - b.ordem));
         // Re-read with the buttons (FilaAtualizada, reconnection, periodic): a cadastro change applies without reload.
         setAparencia(lerAparenciaEmissao(cfg.configuracao));
+        // C19: the URL lasts about an hour and this re-read runs every minute, so the shown one never expires.
+        setLogotipo(lerLogotipo(cfg.logotipo));
         prazoCicloMsRef.current =
           lerNumeroDaConfiguracao(cfg.configuracao, CHAVE_PRAZO_CICLO, PRAZO_CICLO_PADRAO_S) * 1_000;
       },
@@ -190,6 +195,7 @@ export function TotemPage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center gap-8 bg-white p-8 text-black">
+      <LogotipoImagem url={logotipo} altura="6rem" larguraMaxima="24rem" />
       <h1 className="text-4xl font-bold">{aparencia.titulo ?? "Retire sua senha"}</h1>
 
       {erroConfiguracao && (
