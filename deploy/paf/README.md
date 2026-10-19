@@ -270,6 +270,8 @@ PAF_REGISTRO=ghcr.io/<dono> deploy/paf/deploy.sh <homologacao|producao> <tag>   
 
 O CI chama pelo `implantar-remoto.sh`; à mão, roda no host, nunca de fora. Antes de cada deploy, o rollback é nomeado e confirmado por Marcelo: é o mesmo script com a tag anterior, que o deploy imprime (`rollback: deploy/paf/deploy.sh <ambiente> <tag>`) e grava em `ambientes/<ambiente>.tag-anterior` antes de tocar em qualquer coisa.
 
+A tag anterior é a tag em execução que não é a do deploy. Depois de um deploy parcial (código 7), `api-a` e `api-b` rodam tags diferentes: repetir a tag nova mantém a antiga como rollback, voltar para a antiga grava a nova, e uma terceira tag é recusada com 4, sem tocar em nada. Repetir a tag que já roda nas duas instâncias mantém o rollback que estava gravado.
+
 Sequência, cada passo com código próprio:
 
 1. `flock -n` em `ambientes/<ambiente>.deploy.lock`: o segundo deploy simultâneo do mesmo ambiente sai na hora com 3.

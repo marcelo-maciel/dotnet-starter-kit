@@ -10,7 +10,8 @@
 # Sequence, each step with its own exit code; nothing after a failed step runs:
 #   1. lock per environment (flock -n): a second deploy of the same environment fails at once with 3;
 #   2. pre-flight, no mutation: environment files, verificar-ambiente.sh, balancer-manager of the vhost, the four
-#      images present or pulled; the running tag saved to ambientes/<ambiente>.tag-anterior;
+#      images present or pulled; the running tag that is not <tag> saved to ambientes/<ambiente>.tag-anterior (after
+#      a partial deploy the instances differ: retry or rollback to one of their tags, a third tag fails with 4);
 #   3. PostgreSQL and Valkey started if missing, never recreated; migrator of the new tag (expand only: the O07
 #      barrier refuses any other migration in CI), before any instance changes;
 #   4. per API instance (api-a, then api-b when COMPOSE_PROFILES has duas-instancias): the other instances must be
@@ -333,12 +334,31 @@ principal() {
     garantir_imagem "$imagem" || falhar 5 "imagem indisponível: $imagem"
   done
 
-  local anterior
-  anterior="$(imagem_em_execucao api-a)"
+  # After a partial deploy (exit 7) the instances run different tags; reading api-a alone would record the new tag as
+  # the rollback on a retry and lose the old one. The rollback is the running tag that is not the one being deployed.
+  local servico em_execucao tags="" anterior="" registro_anterior="$DIR/ambientes/$AMBIENTE.tag-anterior"
+  for servico in "${servicos[@]}"; do
+    em_execucao="$(imagem_em_execucao "$servico")"
+    if [ -n "$em_execucao" ]; then
+      tags="$tags $servico=${em_execucao##*:}"
+      if [ "${em_execucao##*:}" != "$TAG" ]; then
+        if [ -n "$anterior" ] && [ "$anterior" != "${em_execucao##*:}" ]; then
+          falhar 4 "instâncias em tags diferentes ($tags ) e nenhuma é $TAG: sem rollback único; implantar primeiro uma das duas"
+        fi
+        anterior="${em_execucao##*:}"
+      fi
+    fi
+  done
   if [ -n "$anterior" ]; then
-    printf '%s\n' "${anterior##*:}" >"$DIR/ambientes/$AMBIENTE.tag-anterior"
-    echo "tag anterior: ${anterior##*:} (de $anterior)"
-    echo "rollback: deploy/paf/deploy.sh $AMBIENTE ${anterior##*:}"
+    printf '%s\n' "$anterior" >"$registro_anterior"
+    echo "tag anterior: $anterior (em execução:$tags)"
+    echo "rollback: deploy/paf/deploy.sh $AMBIENTE $anterior"
+  elif [ -n "$tags" ] && [ -f "$registro_anterior" ]; then
+    # Redeploy of the tag already running everywhere: the recorded rollback stays.
+    echo "tag anterior: $TAG já em execução; rollback continua o registrado"
+    echo "rollback: deploy/paf/deploy.sh $AMBIENTE $(cat "$registro_anterior")"
+  elif [ -n "$tags" ]; then
+    echo "tag anterior: $TAG já em execução e nenhuma registrada; sem rollback para outra tag"
   else
     echo "tag anterior: nenhuma (primeira implantação de $AMBIENTE)"
   fi
