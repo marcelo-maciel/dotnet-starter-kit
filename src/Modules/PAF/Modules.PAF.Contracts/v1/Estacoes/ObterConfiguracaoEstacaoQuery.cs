@@ -9,5 +9,18 @@ public sealed record ObterConfiguracaoEstacaoQuery(Guid EstacaoId) : IQuery<Conf
 public sealed record ConfiguracaoEstacaoDto(
     Guid EstacaoId, Guid UnidadeId, string Nome, string Tipo, string? Configuracao, IReadOnlyList<BotaoEmissaoDto> Botoes);
 
-/// <summary>Um botão do totem (RF04, bloco Emissão de Fichas): fila e prioridade emitidas juntas, com a letra da senha.</summary>
-public sealed record BotaoEmissaoDto(Guid FilaId, string Fila, Guid PrioridadeId, string Prioridade, string Letra, int Ordem);
+/// <summary>
+/// Um botão do totem (RF04, bloco Emissão de Fichas): fila e prioridade emitidas juntas, com a letra da senha, mais a
+/// aparência cadastrada na fila (RF02); cor nula = padrão da estação.
+/// </summary>
+public sealed record BotaoEmissaoDto(
+    Guid FilaId,
+    string Fila,
+    Guid PrioridadeId,
+    string Prioridade,
+    string Letra,
+    int Ordem,
+    string? Fonte,
+    string? CorFonte,
+    string? CorBotao,
+    string? CorBotaoSelecionado);

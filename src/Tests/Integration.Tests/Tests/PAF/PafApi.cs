@@ -19,6 +19,8 @@ internal sealed class PafApi(FshWebApplicationFactory factory)
     public const string Base = "/api/v1/paf";
     public const string CabecalhoUnidade = "X-Paf-Unidade";
 
+    public static readonly AparenciaFilaDto SemAparencia = new(null, null, null);
+
     public Task<HttpClient> RootAsync() => new AuthHelper(factory).CreateRootAdminClientAsync();
 
     public async Task<Guid> RootAdminIdAsync()
@@ -82,7 +84,7 @@ internal sealed class PafApi(FshWebApplicationFactory factory)
 
     public static Task<Guid> CriarFilaAsync(HttpClient client, Guid unidade, string nome, Guid prioridadeId, string letra) =>
         OkAsync<Guid>(client, HttpMethod.Post, "/filas", unidade,
-            new CreateFilaCommand(nome, nome, null, null, [new FilaPrioridadeItem(prioridadeId, letra, 1, 0)]));
+            new CreateFilaCommand(nome, nome, null, null, null, SemAparencia, [new FilaPrioridadeItem(prioridadeId, letra, 1, 0, null)]));
 
     public static Task<List<FilaDto>> FilasAsync(HttpClient client, Guid? unidade) =>
         OkAsync<List<FilaDto>>(client, HttpMethod.Get, "/filas", unidade, null);

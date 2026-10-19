@@ -15,4 +15,11 @@ public sealed class Setor : BaseEntity<Guid>, IEscopoUnidade
         ArgumentException.ThrowIfNullOrWhiteSpace(nome);
         return new Setor { Id = Guid.CreateVersion7(), UnidadeId = unidadeId, Nome = nome };
     }
+
+    /// <summary>No deletion (RF02): a fila keeps pointing at its setor, and the reports group the past by it.</summary>
+    public void Renomear(string nome)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nome);
+        Nome = nome;
+    }
 }

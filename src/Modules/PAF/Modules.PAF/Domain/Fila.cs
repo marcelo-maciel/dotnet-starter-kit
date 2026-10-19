@@ -64,6 +64,20 @@ public sealed class Fila : BaseEntity<Guid>, IEscopoUnidade
         HoraFinal = horaFinal;
     }
 
+    /// <summary>
+    /// The button colors are checked against <see cref="CorFonte"/> by the handlers (RNF19 contrast floor), because the
+    /// priority buttons live in <see cref="FilaPrioridade"/> rows this entity does not hold.
+    /// </summary>
+    public void DefinirAparencia(string? fonte, string? corFonte, string? corBotaoSelecionado)
+    {
+        Fonte = fonte;
+        CorFonte = corFonte;
+        CorBotaoSelecionado = corBotaoSelecionado;
+    }
+
+    /// <summary>Null = "Sem setor", the normal case (RF02): the setor only groups filas in the RF07 reports.</summary>
+    public void DefinirSetor(Guid? setorId) => SetorId = setorId;
+
     public void Ativar() => Ativa = true;
 
     public void Desativar() => Ativa = false;

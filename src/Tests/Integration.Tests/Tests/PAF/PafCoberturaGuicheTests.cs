@@ -131,7 +131,7 @@ public sealed class PafCoberturaGuicheTests(FshWebApplicationFactory factory) : 
         // A one-hour window in the half of the day away from now, by the database clock: never crosses midnight.
         var agora = await AgoraEmSaoPauloAsync();
         var inicio = agora < new TimeOnly(12, 0) ? new TimeOnly(13, 0) : new TimeOnly(1, 0);
-        await EnviarAsync(c, new UpdateFilaCommand(c.Caixa, "Caixa", "Caixa", inicio, inicio.AddHours(1)));
+        await EnviarAsync(c, new UpdateFilaCommand(c.Caixa, "Caixa", "Caixa", inicio, inicio.AddHours(1), null, PafApi.SemAparencia));
 
         (await BotoesAsync(totem)).ShouldBe([(c.Protocolo, c.Normal)]);
         using var recusa = await PafOperacao.EmitirAsync(totem, c.Caixa, c.Normal, Guid.NewGuid().ToString("N"));
@@ -144,7 +144,7 @@ public sealed class PafCoberturaGuicheTests(FshWebApplicationFactory factory) : 
 
         // The window containing now brings the button back.
         var aberta = new TimeOnly(agora.Hour, 0);
-        await EnviarAsync(c, new UpdateFilaCommand(c.Caixa, "Caixa", "Caixa", aberta, aberta.Hour == 23 ? TimeOnly.MaxValue : aberta.AddHours(1)));
+        await EnviarAsync(c, new UpdateFilaCommand(c.Caixa, "Caixa", "Caixa", aberta, aberta.Hour == 23 ? TimeOnly.MaxValue : aberta.AddHours(1), null, PafApi.SemAparencia));
         (await BotoesAsync(totem)).ShouldContain((c.Caixa, c.Normal));
     }
 

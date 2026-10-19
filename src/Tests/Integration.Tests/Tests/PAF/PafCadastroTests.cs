@@ -21,7 +21,7 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
         await PafApi.CriarFilaAsync(root, unidade, "Caixa", normal, "A");
 
         using var response = await PafApi.EnviarAsync(root, HttpMethod.Post, "/filas", unidade,
-            new CreateFilaCommand("Protocolo", "Protocolo", null, null, [new FilaPrioridadeItem(normal, "a", 1, 0)]));
+            new CreateFilaCommand("Protocolo", "Protocolo", null, null, null, PafApi.SemAparencia, [new FilaPrioridadeItem(normal, "a", 1, 0, null)]));
 
         response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         (await response.Content.ReadAsStringAsync()).ShouldContain("A letra A já é usada na fila Caixa");
@@ -52,8 +52,8 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
         var protocolo = await PafApi.CriarFilaAsync(root, unidade, "Protocolo", normal, "B");
 
         var tentativas = await Task.WhenAll(
-            PafApi.EnviarAsync(root, HttpMethod.Post, $"/filas/{caixa}/prioridades", unidade, new AddFilaPrioridadeCommand(caixa, idoso, "Z", 1, 1)),
-            PafApi.EnviarAsync(root, HttpMethod.Post, $"/filas/{protocolo}/prioridades", unidade, new AddFilaPrioridadeCommand(protocolo, idoso, "Z", 1, 1)));
+            PafApi.EnviarAsync(root, HttpMethod.Post, $"/filas/{caixa}/prioridades", unidade, new AddFilaPrioridadeCommand(caixa, idoso, "Z", 1, 1, null)),
+            PafApi.EnviarAsync(root, HttpMethod.Post, $"/filas/{protocolo}/prioridades", unidade, new AddFilaPrioridadeCommand(protocolo, idoso, "Z", 1, 1, null)));
         try
         {
             tentativas.Count(r => r.StatusCode == HttpStatusCode.OK).ShouldBe(1);
@@ -79,15 +79,15 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
         var normal = await PafApi.CriarPrioridadeAsync(root, unidade, "Normal");
 
         using var semPrioridade = await PafApi.EnviarAsync(root, HttpMethod.Post, "/filas", unidade,
-            new CreateFilaCommand("Caixa", "Caixa", null, null, []));
+            new CreateFilaCommand("Caixa", "Caixa", null, null, null, PafApi.SemAparencia, []));
         semPrioridade.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
         using var janelaNoturna = await PafApi.EnviarAsync(root, HttpMethod.Post, "/filas", unidade,
-            new CreateFilaCommand("Caixa", "Caixa", new TimeOnly(22, 0), new TimeOnly(2, 0), [new FilaPrioridadeItem(normal, "A", 1, 0)]));
+            new CreateFilaCommand("Caixa", "Caixa", new TimeOnly(22, 0), new TimeOnly(2, 0), null, PafApi.SemAparencia, [new FilaPrioridadeItem(normal, "A", 1, 0, null)]));
         janelaNoturna.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
         using var soUmaHora = await PafApi.EnviarAsync(root, HttpMethod.Post, "/filas", unidade,
-            new CreateFilaCommand("Caixa", "Caixa", new TimeOnly(8, 0), null, [new FilaPrioridadeItem(normal, "A", 1, 0)]));
+            new CreateFilaCommand("Caixa", "Caixa", new TimeOnly(8, 0), null, null, PafApi.SemAparencia, [new FilaPrioridadeItem(normal, "A", 1, 0, null)]));
         soUmaHora.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
         (await PafApi.FilasAsync(root, unidade)).ShouldBeEmpty();
@@ -102,7 +102,7 @@ public sealed class PafCadastroTests(FshWebApplicationFactory factory)
         var deU2 = await PafApi.CriarPrioridadeAsync(root, u2, "Normal");
 
         using var response = await PafApi.EnviarAsync(root, HttpMethod.Post, "/filas", u1,
-            new CreateFilaCommand("Caixa", "Caixa", null, null, [new FilaPrioridadeItem(deU2, "A", 1, 0)]));
+            new CreateFilaCommand("Caixa", "Caixa", null, null, null, PafApi.SemAparencia, [new FilaPrioridadeItem(deU2, "A", 1, 0, null)]));
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }

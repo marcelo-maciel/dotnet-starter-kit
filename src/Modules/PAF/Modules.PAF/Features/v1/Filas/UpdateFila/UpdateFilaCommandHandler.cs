@@ -20,8 +20,15 @@ public sealed class UpdateFilaCommandHandler(PafDbContext db, IUnidadeCorrente u
             .ConfigureAwait(false)
             ?? throw new NotFoundException($"Fila {command.Id} não encontrada.");
 
+        await AparenciaDaFila.ExigirSetorAsync(db, command.SetorId, cancellationToken).ConfigureAwait(false);
+        var aparencia = command.Aparencia;
+        var grade = await AparenciaDaFila.CoresDaGradeAsync(db, fila.Id, null, cancellationToken).ConfigureAwait(false);
+        AparenciaDaFila.ExigirContraste(aparencia.CorFonte, grade.Prepend(("fila selecionada", aparencia.CorBotaoSelecionado)));
+
         fila.Atualizar(command.Nome.Trim(), command.NomeExibicao.Trim());
         fila.DefinirJanela(command.HoraInicial, command.HoraFinal);
+        fila.DefinirSetor(command.SetorId);
+        fila.DefinirAparencia(aparencia.Fonte?.Trim(), aparencia.CorFonte, aparencia.CorBotaoSelecionado);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         return fila.Id;
     }

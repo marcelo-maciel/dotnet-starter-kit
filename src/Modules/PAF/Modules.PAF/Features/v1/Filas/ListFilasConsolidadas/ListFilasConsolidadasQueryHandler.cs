@@ -30,11 +30,12 @@ public sealed class ListFilasConsolidadasQueryHandler(PafDbContext db, EscopoUsu
             .OrderBy(f => f.UnidadeId)
             .ThenBy(f => f.Nome)
             .Select(f => new FilaDto(
-                f.Id, f.UnidadeId, f.Nome, f.NomeExibicao, f.HoraInicial, f.HoraFinal, f.Ativa,
+                f.Id, f.UnidadeId, f.Nome, f.NomeExibicao, f.HoraInicial, f.HoraFinal, f.Ativa, f.SetorId,
+                new AparenciaFilaDto(f.Fonte, f.CorFonte, f.CorBotaoSelecionado),
                 db.FilaPrioridades.IgnoreQueryFilters(SoOFiltroDeUnidade)
                     .Where(fp => fp.FilaId == f.Id)
                     .OrderBy(fp => fp.Ordem)
-                    .Select(fp => new FilaPrioridadeDto(fp.Id, fp.PrioridadeId, fp.Letra, fp.NumeroInicial, fp.Ordem))
+                    .Select(fp => new FilaPrioridadeDto(fp.Id, fp.PrioridadeId, fp.Letra, fp.NumeroInicial, fp.Ordem, fp.CorBotao))
                     .ToList(),
                 db.FilaPrioridades.IgnoreQueryFilters(SoOFiltroDeUnidade)
                     .Where(fp => fp.FilaId == f.Id && !cobertas.Any(c => c.FilaId == fp.FilaId && c.PrioridadeId == fp.PrioridadeId))

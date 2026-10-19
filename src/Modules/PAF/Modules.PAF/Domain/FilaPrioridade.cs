@@ -15,9 +15,7 @@ public sealed class FilaPrioridade : BaseEntity<Guid>, IEscopoUnidade
     public Guid PrioridadeId { get; private set; }
     public string Letra { get; private set; } = default!;
     public int NumeroInicial { get; private set; }
-#pragma warning disable S1144 // EF Core writes these setters via reflection
     public string? CorBotao { get; private set; }
-#pragma warning restore S1144
     public int Ordem { get; private set; }
 
     private FilaPrioridade() { }
@@ -46,4 +44,7 @@ public sealed class FilaPrioridade : BaseEntity<Guid>, IEscopoUnidade
         NumeroInicial = numeroInicial;
         Ordem = ordem;
     }
+
+    /// <summary>Null = the station's default button color. The contrast against the fila's font color is the handler's check.</summary>
+    public void DefinirCorBotao(string? corBotao) => CorBotao = corBotao;
 }

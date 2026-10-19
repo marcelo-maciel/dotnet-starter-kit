@@ -11,5 +11,6 @@ public sealed class UpdateFilaPrioridadeCommandValidator : AbstractValidator<Upd
         RuleFor(x => x.PrioridadeId).NotEmpty();
         RuleFor(x => x.Letra).LetraDaSenha();
         RuleFor(x => x.NumeroInicial).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.CorBotao).CorOpcional();
     }
 }
