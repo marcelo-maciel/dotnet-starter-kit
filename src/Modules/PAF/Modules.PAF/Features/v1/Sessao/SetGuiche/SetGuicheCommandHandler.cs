@@ -24,6 +24,8 @@ namespace FSH.Modules.PAF.Features.v1.Sessao.SetGuiche;
 public sealed class SetGuicheCommandHandler(
     PafDbContext db,
     SessaoCorrente sessao,
+    ConcessaoCorrente concessao,
+    AtosImpersonacao atos,
     ISessionService sessoes,
     Licencas licencas,
     AvisosTempoReal avisos,
@@ -47,7 +49,10 @@ public sealed class SetGuicheCommandHandler(
     public async ValueTask<Unit> Handle(SetGuicheCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
-        var (tenantId, sessaoId, usuarioId) = sessao.Exigir();
+        // S11: the post's owner is the session or, under the Codefi's impersonation, the grant, whose link is its own:
+        // the real user's link is never released by the support, and a guichê he holds refuses the support with 409.
+        var dono = DonoPosto.Exigir(sessao, concessao);
+        var tenantId = dono.TenantId;
 
         // The unit filter limits the choice to the current unit's stations (ADR 0006).
         var estacao = await db.Estacoes.AsNoTracking().FirstOrDefaultAsync(e => e.Id == command.EstacaoId, cancellationToken)
@@ -58,9 +63,11 @@ public sealed class SetGuicheCommandHandler(
         }
 
         await using var transacao = await db.Database.BeginTransactionAsync(cancellationToken);
-        var atual = await VinculosGuiche.AtivoDaSessaoAsync(db, sessaoId, cancellationToken);
+        var atual = await VinculosGuiche.AtivoDoDonoAsync(db, dono, cancellationToken);
         if (atual?.EstacaoId == estacao.Id)
         {
+            // Same guichê again writes nothing: the act the pipeline noted under impersonation describes no write.
+            atos.Descartar();
             return Unit.Value;
         }
 
@@ -76,17 +83,23 @@ public sealed class SetGuicheCommandHandler(
         }
 
         IReadOnlyList<AvisoPaf>? avisosLiberacao = null;
-        if (await PendenciaDeOutroUsuarioAsync(db, estacao.Id, usuarioId, cancellationToken) is { } pendencia)
+        Guid? pendenciaCancelada = null;
+        if (await PendenciaDeOutroUsuarioAsync(db, estacao.Id, dono.UsuarioId, cancellationToken) is { } pendencia)
         {
             if (!command.LiberarPendencia)
             {
                 throw new CustomException(MensagemPendencia(estacao.Nome, pendencia.Senha), [], HttpStatusCode.Conflict);
             }
 
-            avisosLiberacao = await CancelarPendenciaAsync(new Guiche(tenantId, sessaoId, usuarioId, estacao), pendencia.Id, cancellationToken);
+            avisosLiberacao = await CancelarPendenciaAsync(new Guiche(dono, estacao), pendencia.Id, cancellationToken);
+            pendenciaCancelada = avisosLiberacao is null ? null : pendencia.Id;
         }
 
-        db.SessoesEstacao.Add(SessaoEstacao.CriarParaSessao(estacao.Id, sessaoId));
+        // Raw SQL releases and cancels above: the impersonation act goes in this transaction, naming a cancelled pendência.
+        await atos.GravarAsync(pendenciaCancelada, cancellationToken);
+        db.SessoesEstacao.Add(dono.Concessao is { } concessaoDona
+            ? SessaoEstacao.CriarParaConcessao(estacao.Id, concessaoDona.ConcessaoId, concessaoDona.ExpiraEm)
+            : SessaoEstacao.CriarParaSessao(estacao.Id, dono.SessaoId ?? throw new InvalidOperationException("Dono do posto sem sessão nem concessão.")));
         try
         {
             await db.SaveChangesAsync(cancellationToken);
@@ -116,7 +129,14 @@ public sealed class SetGuicheCommandHandler(
             await conexoes.MoverSessaoParaGuicheAsync(tenantId, solto, null, cancellationToken);
         }
 
-        await conexoes.MoverSessaoParaGuicheAsync(tenantId, sessaoId, estacao.Id, cancellationToken);
+        if (dono.Concessao is { } concessaoMovida)
+        {
+            await conexoes.MoverConcessaoParaGuicheAsync(tenantId, concessaoMovida.ConcessaoId, estacao.Id, cancellationToken);
+        }
+        else if (dono.SessaoId is { } sessaoId)
+        {
+            await conexoes.MoverSessaoParaGuicheAsync(tenantId, sessaoId, estacao.Id, cancellationToken);
+        }
 
         return Unit.Value;
     }

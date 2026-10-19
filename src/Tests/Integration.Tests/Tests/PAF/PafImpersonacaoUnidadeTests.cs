@@ -291,7 +291,7 @@ public sealed class PafImpersonacaoUnidadeTests(FshWebApplicationFactory factory
         var concessaoCorrente = new ConcessaoCorrente();
         concessaoCorrente.Definir(concessao);
         return new SetUnidadeCorrenteCommandHandler(db, new SessaoCorrente(), concessaoCorrente,
-            scope.ServiceProvider.GetRequiredService<IUnidadeCorrente>(), estado, scope.ServiceProvider.GetRequiredService<EscopoUsuario>());
+            scope.ServiceProvider.GetRequiredService<IUnidadeCorrente>(), estado, scope.ServiceProvider.GetRequiredService<EscopoUsuario>(), scope.ServiceProvider.GetRequiredService<AtosImpersonacao>());
     }
 
     private async Task<HubConnection> ConectarAsync(string token)

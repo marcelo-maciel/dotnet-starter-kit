@@ -7,4 +7,4 @@ namespace FSH.Modules.PAF.Contracts.v1.Sessao;
 /// pendente de outro usuário no guichê, a seleção só passa com <paramref name="LiberarPendencia"/>, que cancela
 /// esse atendimento na mesma transação (RF04, RF12); o próprio usuário retoma a pendência sem liberar nada.
 /// </summary>
-public sealed record SetGuicheCommand(Guid EstacaoId, bool LiberarPendencia) : ICommand;
+public sealed record SetGuicheCommand(Guid EstacaoId, bool LiberarPendencia) : ICommand, IEscritaDeCadastro;

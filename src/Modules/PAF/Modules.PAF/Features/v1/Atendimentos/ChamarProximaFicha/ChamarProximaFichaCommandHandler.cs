@@ -22,7 +22,7 @@ namespace FSH.Modules.PAF.Features.v1.Atendimentos.ChamarProximaFicha;
 /// </summary>
 public sealed partial class ChamarProximaFichaCommandHandler(
     PafDbContext db,
-    SessaoCorrente sessao,
+    SessaoCorrente sessao, ConcessaoCorrente concessao, AtosImpersonacao atos,
     AvisosTempoReal avisos,
     LeitorParametros parametros,
     ILogger<ChamarProximaFichaCommandHandler> logger) : ICommandHandler<ChamarProximaFichaCommand, ChamadaDto>
@@ -46,7 +46,7 @@ public sealed partial class ChamarProximaFichaCommandHandler(
     public async ValueTask<ChamadaDto> Handle(ChamarProximaFichaCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
-        var guiche = await OperacaoGuiche.ExigirAsync(db, sessao, cancellationToken);
+        var guiche = await OperacaoGuiche.ExigirAsync(db, DonoPosto.Exigir(sessao, concessao), cancellationToken);
 
         // Refusals that only give the message (seção 8 item 1); the guarantee is UX_Atendimentos_EstacaoEmCurso.
         if (!guiche.Estacao.Ativa)
@@ -84,6 +84,9 @@ public sealed partial class ChamarProximaFichaCommandHandler(
             {
                 // Another guichê put this ficha in progress first; the aborted transaction is gone, the next one
                 // no longer sees the ficha as a candidate.
+                // An impersonation act saved in that transaction went with it while the tracker still holds it as
+                // saved: drop it, so the next attempt writes its own (D28, S11).
+                atos.Descartar();
             }
         }
 
@@ -97,7 +100,7 @@ public sealed partial class ChamarProximaFichaCommandHandler(
 
         // The guichê read before the transaction only feeds the early messages; under this lock a concurrent
         // switch or unit change either released it already (refused here) or waits for this call to commit.
-        var estacaoDoVinculo = await VinculosGuiche.TravarAtivoDaSessaoAsync(db, guiche.TenantId, guiche.SessaoId, ct);
+        var estacaoDoVinculo = await VinculosGuiche.TravarAtivoDoDonoAsync(db, guiche.Dono, ct);
         if (estacaoDoVinculo != guiche.Estacao.Id)
         {
             throw OperacaoGuiche.Conflito(MensagensGuiche.MensagemSemGuiche);
@@ -126,7 +129,7 @@ public sealed partial class ChamarProximaFichaCommandHandler(
                 continue;
             }
 
-            return await ChamadaDeFicha.ConfirmarAsync(db, avisos, transacao, guiche, candidato, versao.Value, ct);
+            return await ChamadaDeFicha.ConfirmarAsync(db, avisos, atos, transacao, guiche, candidato, versao.Value, ct);
         }
 
         throw new CustomException(MensagemDisputa, [], HttpStatusCode.ServiceUnavailable);

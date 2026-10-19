@@ -36,6 +36,36 @@ internal static class VinculosGuiche
         return estacoes.Count == 0 ? null : estacoes[0];
     }
 
+    // ─── S11: dono do posto (sessão ou concessão de impersonação) ──────────────────
+
+    /// <summary>Active link of the post's owner: the session's, or the impersonation grant's own (never the real user's).</summary>
+    public static Task<SessaoEstacao?> AtivoDoDonoAsync(PafDbContext db, DonoPosto dono, CancellationToken ct) =>
+        dono.Concessao is { } concessao
+            ? AtivoDaConcessaoAsync(db, concessao.ConcessaoId, ct)
+            : db.SessoesEstacao.AsNoTracking().FirstOrDefaultAsync(v => v.SessaoId == dono.SessaoId && v.LiberadoEm == null, ct);
+
+    /// <summary>
+    /// <see cref="TravarAtivoDaSessaoAsync"/> for the post's owner: under impersonation the grant's link is the one locked,
+    /// so a release of the grant's guichê (unit switch, manager) waits for the support's call to commit, as the session's does.
+    /// </summary>
+    public static Task<Guid?> TravarAtivoDoDonoAsync(PafDbContext db, DonoPosto dono, CancellationToken ct) =>
+        dono.Concessao is { } concessao
+            ? TravarAtivoDaConcessaoAsync(db, dono.TenantId, concessao.ConcessaoId, ct)
+            : TravarAtivoDaSessaoAsync(db, dono.TenantId, dono.SessaoId ?? throw new InvalidOperationException("Dono do posto sem sessão nem concessão."), ct);
+
+    private static async Task<Guid?> TravarAtivoDaConcessaoAsync(PafDbContext db, string tenantId, Guid concessaoId, CancellationToken ct)
+    {
+        ExigirTransacao(db);
+        var estacoes = await db.Database.SqlQuery<Guid>($"""
+            SELECT "EstacaoId" AS "Value" FROM paf."SessoesEstacao"
+             WHERE "TenantId" = {tenantId} AND "ConcessaoId" = {concessaoId} AND "LiberadoEm" IS NULL
+               FOR UPDATE
+            """).ToListAsync(ct);
+        return estacoes.Count == 0 ? null : estacoes[0];
+    }
+
+    // ─── fim S11 ──────────────────────────────────────────────────────────────────
+
     /// <summary>
     /// Trava o vínculo ativo do guichê, seja qual for o dono, até o fim da transação aberta, e o devolve, ou nulo sem
     /// vínculo. A desativação da estação entra por aqui: uma chamada em voo no guichê ou já confirmou (e o atendimento

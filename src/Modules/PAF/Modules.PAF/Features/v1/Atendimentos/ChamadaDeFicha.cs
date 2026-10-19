@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using FSH.Modules.PAF.Contracts.v1.Atendimentos;
 using FSH.Modules.PAF.Contracts.v1.TempoReal;
 using FSH.Modules.PAF.Data;
+using FSH.Modules.PAF.Sessao;
 using FSH.Modules.PAF.TempoReal;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -106,10 +107,15 @@ internal static partial class ChamadaDeFicha
         return versoes[0];
     }
 
-    /// <summary>Seção 8 item 6: both notices go to the outbox inside the transaction and straight to the hub only after the commit.</summary>
+    /// <summary>
+    /// Seção 8 item 6: both notices go to the outbox inside the transaction and straight to the hub only after the commit.
+    /// Every way of calling ends here, after the row was marked, so the impersonation act (D28, S11) is written here, in
+    /// the same transaction, naming the called atendimento.
+    /// </summary>
     public static async Task<ChamadaDto> ConfirmarAsync(
-        PafDbContext db, AvisosTempoReal avisos, IDbContextTransaction transacao, Guiche guiche, Candidato candidato, int versao, CancellationToken ct)
+        PafDbContext db, AvisosTempoReal avisos, AtosImpersonacao atos, IDbContextTransaction transacao, Guiche guiche, Candidato candidato, int versao, CancellationToken ct)
     {
+        await atos.GravarAsync(candidato.AtendimentoId, ct).ConfigureAwait(false);
         var senha = OperacaoGuiche.Senha(candidato.Letra, candidato.Numero);
         var paineis = await OperacaoGuiche.PaineisDaFilaAsync(db, candidato.FilaId, ct).ConfigureAwait(false);
         var (numeroGuiche, nomeExibicaoGuiche) = Estacoes.ConfiguracaoDaEstacao.IdentidadeDoGuiche(guiche.Estacao.Configuracao);

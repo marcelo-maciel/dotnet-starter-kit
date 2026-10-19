@@ -27,4 +27,10 @@ public sealed class AtoImpersonacao : BaseEntity<Guid>, IEscopoUnidade
             OperadorId = operadorId,
             AtendimentoId = atendimentoId,
         };
+
+    /// <summary>
+    /// The pipeline notes the act before the handler knows its atendimento (S11): the guichê names it once it holds the
+    /// lock, still before the row is written. An act that already names one keeps it.
+    /// </summary>
+    public void NomearAtendimento(Guid atendimentoId) => AtendimentoId ??= atendimentoId;
 }

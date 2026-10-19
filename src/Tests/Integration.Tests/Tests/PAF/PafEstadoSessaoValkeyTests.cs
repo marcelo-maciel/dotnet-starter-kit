@@ -121,7 +121,7 @@ public sealed class PafEstadoSessaoValkeyTests(FshWebApplicationFactory factory)
         sessao.Definir(_tenant.TenantId, sessaoId, usuarioId, origem.UnidadeId);
         estado = Estado();
         return new SetUnidadeCorrenteCommandHandler(db, sessao, new ConcessaoCorrente(), scope.ServiceProvider.GetRequiredService<IUnidadeCorrente>(), estado,
-            scope.ServiceProvider.GetRequiredService<EscopoUsuario>());
+            scope.ServiceProvider.GetRequiredService<EscopoUsuario>(), scope.ServiceProvider.GetRequiredService<AtosImpersonacao>());
     }
 
     private async Task<(UnidadeTeste Origem, UnidadeTeste Destino, Guid SessaoId, Guid UsuarioId)> PrepararAsync()

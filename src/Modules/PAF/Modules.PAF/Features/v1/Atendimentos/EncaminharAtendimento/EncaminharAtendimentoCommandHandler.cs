@@ -16,7 +16,7 @@ namespace FSH.Modules.PAF.Features.v1.Atendimentos.EncaminharAtendimento;
 /// client's hand stays valid. The destinations and the prioridade are re-validated under the locks, because the
 /// screen is not access control.
 /// </summary>
-public sealed class EncaminharAtendimentoCommandHandler(PafDbContext db, SessaoCorrente sessao, AvisosTempoReal avisos)
+public sealed class EncaminharAtendimentoCommandHandler(PafDbContext db, SessaoCorrente sessao, ConcessaoCorrente concessao, AtosImpersonacao atos, AvisosTempoReal avisos)
     : ICommandHandler<EncaminharAtendimentoCommand, AtendimentoEncaminhadoDto>
 {
     public const string MensagemSemAtendimentoIniciado = "Não há atendimento iniciado para ser encaminhado";
@@ -28,7 +28,7 @@ public sealed class EncaminharAtendimentoCommandHandler(PafDbContext db, SessaoC
     public async ValueTask<AtendimentoEncaminhadoDto> Handle(EncaminharAtendimentoCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
-        var guiche = await OperacaoGuiche.ExigirAsync(db, sessao, cancellationToken);
+        var guiche = await OperacaoGuiche.ExigirAsync(db, DonoPosto.Exigir(sessao, concessao), cancellationToken);
 
         await using var transacao = await db.Database.BeginTransactionAsync(cancellationToken);
 
@@ -37,13 +37,13 @@ public sealed class EncaminharAtendimentoCommandHandler(PafDbContext db, SessaoC
         // removes coverage commits between the check below and this commit (same rule as the emission).
         await CoberturaGuiche.TravarParaEmissaoAsync(db, guiche.TenantId, guiche.Estacao.UnidadeId, cancellationToken);
 
-        var estacaoDoVinculo = await VinculosGuiche.TravarAtivoDaSessaoAsync(db, guiche.TenantId, guiche.SessaoId, cancellationToken);
+        var estacaoDoVinculo = await VinculosGuiche.TravarAtivoDoDonoAsync(db, guiche.Dono, cancellationToken);
         if (estacaoDoVinculo != guiche.Estacao.Id)
         {
             throw OperacaoGuiche.Conflito(MensagensGuiche.MensagemSemGuiche);
         }
 
-        var origem = await OperacaoGuiche.TravarAsync(db, guiche, command.AtendimentoId, cancellationToken);
+        var origem = await OperacaoGuiche.TravarAsync(db, atos, guiche, command.AtendimentoId, cancellationToken);
         OperacaoGuiche.ExigirEstado(origem, guiche, EstadoAtendimento.EmAtendimento, MensagemSemAtendimentoIniciado);
         await ExigirDestinosAsync(origem, command, cancellationToken);
 

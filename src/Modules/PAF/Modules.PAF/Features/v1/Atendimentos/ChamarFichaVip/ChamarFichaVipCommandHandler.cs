@@ -24,7 +24,7 @@ namespace FSH.Modules.PAF.Features.v1.Atendimentos.ChamarFichaVip;
 /// </summary>
 public sealed class ChamarFichaVipCommandHandler(
     PafDbContext db,
-    SessaoCorrente sessao,
+    SessaoCorrente sessao, ConcessaoCorrente concessao, AtosImpersonacao atos,
     AvisosTempoReal avisos,
     LeitorParametros parametros) : ICommandHandler<ChamarFichaVipCommand, ChamadaDto>
 {
@@ -36,7 +36,7 @@ public sealed class ChamarFichaVipCommandHandler(
     public async ValueTask<ChamadaDto> Handle(ChamarFichaVipCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
-        var guiche = await OperacaoGuiche.ExigirAsync(db, sessao, cancellationToken);
+        var guiche = await OperacaoGuiche.ExigirAsync(db, DonoPosto.Exigir(sessao, concessao), cancellationToken);
         if (!guiche.Estacao.Ativa)
         {
             throw OperacaoGuiche.Conflito(ChamarProximaFichaCommandHandler.MensagemEstacaoInativa);
@@ -135,7 +135,7 @@ public sealed class ChamarFichaVipCommandHandler(
     {
         await using var transacao = await db.Database.BeginTransactionAsync(ct);
 
-        var estacaoDoVinculo = await VinculosGuiche.TravarAtivoDaSessaoAsync(db, guiche.TenantId, guiche.SessaoId, ct);
+        var estacaoDoVinculo = await VinculosGuiche.TravarAtivoDoDonoAsync(db, guiche.Dono, ct);
         if (estacaoDoVinculo != guiche.Estacao.Id)
         {
             throw OperacaoGuiche.Conflito(MensagensGuiche.MensagemSemGuiche);
@@ -164,7 +164,7 @@ public sealed class ChamarFichaVipCommandHandler(
         var candidato = elegiveis[0];
         var versao = await ChamadaDeFicha.MarcarChamadoAsync(db, guiche, candidato, ct)
             ?? throw OperacaoGuiche.Conflito(ChamarFichaEscolhidaCommandHandler.MensagemJaChamada);
-        return await ChamadaDeFicha.ConfirmarAsync(db, avisos, transacao, guiche, candidato, versao, ct);
+        return await ChamadaDeFicha.ConfirmarAsync(db, avisos, atos, transacao, guiche, candidato, versao, ct);
     }
 
     private async Task RecusarSeEmCursoAsync(Guid fichaId, CancellationToken ct)
