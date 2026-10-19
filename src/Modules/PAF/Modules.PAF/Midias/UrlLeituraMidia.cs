@@ -13,8 +13,8 @@ using Microsoft.Extensions.Options;
 namespace FSH.Modules.PAF.Midias;
 
 /// <summary>
-/// Signed read URL of a mídia (M04, RF03, ADR 0007). The caller passes a mídia it already read through the unit filter,
-/// so the unidade check is the read itself; this class adds the state check (active, envio confirmed), the validity
+/// Signed read URL of a mídia (M04, RF03, ADR 0007). The caller passes a mídia it already read through the unit filter
+/// (or, for C19's empresa logo, by an explicit cross-unit read), so the unidade check is the caller's; this class adds the state check (active, envio confirmed), the validity
 /// and a short HybridCache, because every new URL is a new address for the browser cache and the panel would download
 /// the whole video again on every loop.
 /// </summary>
@@ -85,9 +85,11 @@ public sealed partial class UrlLeituraMidia(
         return folga > TimeSpan.Zero ? folga : opcoes.MargemLeitura;
     }
 
+    // Explicit cross-unit read (CONTEXT.md), pinned to the mídia's own unidade: the caller already decided the mídia may be
+    // shown here (C19's empresa logo is a mídia of another unidade of the tenant), and the envio only confirms its file.
     private Task<bool> EnvioConfirmadoAsync(Midia midia, CancellationToken ct) =>
-        db.EnviosMidia.AsNoTracking().AnyAsync(
-            e => e.Id == midia.EnvioId && e.ChaveObjeto == midia.ChaveObjeto
+        db.EnviosMidia.AsNoTracking().IgnoreQueryFilters([PafQueryFilters.Unidade]).AnyAsync(
+            e => e.Id == midia.EnvioId && e.UnidadeId == midia.UnidadeId && e.ChaveObjeto == midia.ChaveObjeto
                 && e.ConfirmadoEm != null && e.RecusadoEm == null && e.RemovidoEm == null,
             ct);
 

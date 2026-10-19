@@ -1,3 +1,4 @@
+using FSH.Modules.PAF.Contracts.v1.Midias;
 using Mediator;
 
 namespace FSH.Modules.PAF.Contracts.v1.Estacoes;
@@ -11,6 +12,9 @@ public sealed record ConfiguracaoEstacaoDto(
 {
     /// <summary>C20: what the painel shows and says with each call (RF06 Geral); null for a station without the painel role.</summary>
     public AnuncioDaChamadaDto? AnuncioDaChamada { get; init; }
+
+    /// <summary>C19: signed URL of the unidade's RF06 logo for the totem and the painel; null = the system logo (and for a guichê).</summary>
+    public UrlLeituraMidiaDto? Logotipo { get; init; }
 }
 
 /// <summary>

@@ -7,7 +7,7 @@ using Mediator;
 
 namespace FSH.Modules.PAF.Features.v1.Fichas.ObterImpressaoFicha;
 
-public sealed class ObterImpressaoFichaQueryHandler(PafDbContext db, IUnidadeCorrente unidadeCorrente, LeitorParametros parametros)
+public sealed class ObterImpressaoFichaQueryHandler(PafDbContext db, IUnidadeCorrente unidadeCorrente, LeitorParametros parametros, LogotipoEfetivo logotipo)
     : IQueryHandler<ObterImpressaoFichaQuery, FichaEmitidaDto>
 {
     public const string MensagemFichaNaoEncontrada = "Ficha não encontrada.";
@@ -17,7 +17,7 @@ public sealed class ObterImpressaoFichaQueryHandler(PafDbContext db, IUnidadeCor
         ArgumentNullException.ThrowIfNull(query);
         // No current unit = 403 before reading: the unit filter would answer an empty 404 that hides the cause.
         unidadeCorrente.Exigir();
-        return await ImpressaoDaFicha.LerAsync(db, parametros, query.FichaId, cancellationToken).ConfigureAwait(false)
+        return await ImpressaoDaFicha.LerAsync(db, parametros, logotipo, query.FichaId, cancellationToken).ConfigureAwait(false)
             ?? throw new NotFoundException(MensagemFichaNaoEncontrada);
     }
 }

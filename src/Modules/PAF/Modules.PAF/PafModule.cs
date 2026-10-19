@@ -157,6 +157,8 @@ public sealed class PafModule : IModule
         RegistrarCadastroDeMidia(builder.Services);
         // RF03 (M04): signed read URL with the unidade check and a short cache.
         builder.Services.AddScoped<UrlLeituraMidia>();
+        // C19: the effective RF06 logo as a signed read URL, for the totem, the painel and the printed ficha.
+        builder.Services.AddScoped<LogotipoEfetivo>();
         LogSemDadosPessoais.Registrar(builder.Configuration);
     }
 

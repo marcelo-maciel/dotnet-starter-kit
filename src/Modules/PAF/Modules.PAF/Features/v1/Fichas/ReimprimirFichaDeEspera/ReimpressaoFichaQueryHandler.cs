@@ -15,7 +15,7 @@ namespace FSH.Modules.PAF.Features.v1.Fichas.ReimprimirFichaDeEspera;
 /// emission fila, not a forward's), then reads it through the single reprint reader of F06. Unit-filtered, so a
 /// ficha or fila of another unit is the same 404 as an unknown one. Read only: nothing is emitted or stamped.
 /// </summary>
-public sealed class ReimpressaoFichaQueryHandler(PafDbContext db, IUnidadeCorrente unidadeCorrente, LeitorParametros parametros)
+public sealed class ReimpressaoFichaQueryHandler(PafDbContext db, IUnidadeCorrente unidadeCorrente, LeitorParametros parametros, LogotipoEfetivo logotipo)
     : IQueryHandler<ReimpressaoFichaQuery, IReadOnlyList<FichaEmitidaDto>>
 {
     public const string MensagemNaoEncontrada = "Não há ficha com essa senha nessa fila nesta unidade na data informada.";
@@ -44,7 +44,7 @@ public sealed class ReimpressaoFichaQueryHandler(PafDbContext db, IUnidadeCorren
         var fichas = new List<FichaEmitidaDto>(fichaIds.Count);
         foreach (var fichaId in fichaIds)
         {
-            fichas.Add(await ImpressaoDaFicha.LerAsync(db, parametros, fichaId, cancellationToken).ConfigureAwait(false)
+            fichas.Add(await ImpressaoDaFicha.LerAsync(db, parametros, logotipo, fichaId, cancellationToken).ConfigureAwait(false)
                 ?? throw new NotFoundException(MensagemNaoEncontrada));
         }
 

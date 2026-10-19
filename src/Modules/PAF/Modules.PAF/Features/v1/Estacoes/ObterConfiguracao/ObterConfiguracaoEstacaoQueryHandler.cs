@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FSH.Modules.PAF.Features.v1.Estacoes.ObterConfiguracao;
 
-public sealed class ObterConfiguracaoEstacaoQueryHandler(PafDbContext db, LeitorParametros parametros)
+public sealed class ObterConfiguracaoEstacaoQueryHandler(PafDbContext db, LeitorParametros parametros, LogotipoEfetivo logotipo)
     : IQueryHandler<ObterConfiguracaoEstacaoQuery, ConfiguracaoEstacaoDto>
 {
     public async ValueTask<ConfiguracaoEstacaoDto> Handle(ObterConfiguracaoEstacaoQuery query, CancellationToken cancellationToken)
@@ -31,6 +31,10 @@ public sealed class ObterConfiguracaoEstacaoQueryHandler(PafDbContext db, Leitor
         {
             AnuncioDaChamada = PapeisDaEstacao.ComCredencial(estacao.Tipo).Contains(PapelEstacao.Painel)
                 ? await AnuncioDaChamadaAsync(estacao.UnidadeId, cancellationToken).ConfigureAwait(false)
+                : null,
+            Logotipo = PapeisDaEstacao.ComCredencial(estacao.Tipo).Any(p => p is PapelEstacao.Emissao or PapelEstacao.Painel)
+                ? await logotipo.LerAsync(await parametros.CarregarAsync(estacao.UnidadeId, cancellationToken).ConfigureAwait(false), cancellationToken)
+                    .ConfigureAwait(false)
                 : null,
         };
     }

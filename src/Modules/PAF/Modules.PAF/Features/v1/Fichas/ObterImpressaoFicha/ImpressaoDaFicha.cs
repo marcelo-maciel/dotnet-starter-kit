@@ -13,7 +13,8 @@ namespace FSH.Modules.PAF.Features.v1.Fichas.ObterImpressaoFicha;
 /// </summary>
 internal static class ImpressaoDaFicha
 {
-    public static async Task<FichaEmitidaDto?> LerAsync(PafDbContext db, LeitorParametros parametros, Guid fichaId, CancellationToken ct)
+    public static async Task<FichaEmitidaDto?> LerAsync(
+        PafDbContext db, LeitorParametros parametros, LogotipoEfetivo logotipo, Guid fichaId, CancellationToken ct)
     {
         var ficha = await db.Fichas.AsNoTracking().SingleOrDefaultAsync(f => f.Id == fichaId, ct).ConfigureAwait(false);
         if (ficha is null)
@@ -38,6 +39,9 @@ internal static class ImpressaoDaFicha
             ficha.Letra, ficha.Numero, unidade, fila, prioridade, PafRelogio.EmSaoPaulo(ficha.CriadoEm),
             impressao.Ler(CatalogoParametros.TituloFichas),
             impressao.Ler(CatalogoParametros.MensagemRodapeFicha),
-            impressao.Ler(CatalogoParametros.ImprimirQrFicha));
+            impressao.Ler(CatalogoParametros.ImprimirQrFicha))
+        {
+            Logotipo = await logotipo.LerAsync(impressao, ct).ConfigureAwait(false),
+        };
     }
 }

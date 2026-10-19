@@ -10,6 +10,9 @@ public enum TipoParametro
     Texto,
     Opcao,
     Tecla,
+
+    /// <summary>C19: the id of an active image mídia of the unidade, or empty for the system default.</summary>
+    Imagem,
 }
 
 /// <summary>
@@ -36,6 +39,9 @@ public sealed record ParametroCatalogado(
 
     internal static ParametroCatalogado Tecla(DefinicaoParametro<string> definicao, string grupo) =>
         De(definicao, grupo, TipoParametro.Tecla, [], v => v);
+
+    internal static ParametroCatalogado Imagem(DefinicaoParametro<string> definicao, string grupo) =>
+        De(definicao, grupo, TipoParametro.Imagem, [], v => v);
 
     internal static ParametroCatalogado Opcao(DefinicaoParametro<string> definicao, string grupo, IReadOnlyList<string> opcoes) =>
         De(definicao, grupo, TipoParametro.Opcao, opcoes, v => v);

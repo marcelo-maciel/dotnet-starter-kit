@@ -4,6 +4,7 @@ using FSH.Framework.Core.Exceptions;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Domain;
+using FSH.Modules.PAF.Midias;
 using FSH.Modules.PAF.Sessao;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,6 +23,11 @@ public sealed class GravacaoParametros(
     IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor)
 {
     public const string MensagemValorInvalido = "Valor inválido para o parâmetro.";
+    public const string MensagemImagemNaoEncontrada = "imagem não encontrada nesta unidade.";
+    public const string MensagemImagemInativa = "a imagem escolhida está inativa.";
+
+    public static string MensagemNaoEImagem =>
+        $"a mídia escolhida não é uma imagem (formatos aceitos: {string.Join(", ", FormatosMidia.Aceitos.Where(f => f.Tipo == TipoMidia.Imagem).Select(f => f.Extensao))}).";
 
     public static string MensagemTeclaRepetida(TeclaRepetida repetida)
     {
@@ -37,6 +43,10 @@ public sealed class GravacaoParametros(
             ?? throw new CustomException(MensagemValorInvalido, [$"{chave}: {Regra(parametro)}"], HttpStatusCode.BadRequest);
         var tenant = Tenant();
         var nivel = unidadeId is null ? nameof(NivelParametro.Empresa) : nameof(NivelParametro.Unidade);
+        if (parametro.Tipo == TipoParametro.Imagem && normalizado.Length > 0)
+        {
+            await ConferirImagemAsync(chave, Guid.Parse(normalizado), ct).ConfigureAwait(false);
+        }
 
         await using var transacao = await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
         await TravarTenantAsync(tenant, ct).ConfigureAwait(false);
@@ -88,8 +98,34 @@ public sealed class GravacaoParametros(
         TipoParametro.Inteiro => "inteiro maior que zero",
         TipoParametro.Tecla => "tecla de F1 a F12",
         TipoParametro.Opcao => $"uma das opções: {string.Join(", ", parametro.Opcoes)}",
+        TipoParametro.Imagem => "id de uma imagem ativa desta unidade, ou vazio para o padrão do sistema",
         _ => "texto sem caracteres de controle, dentro do tamanho máximo",
     };
+
+    /// <summary>
+    /// C19: the image must be an active image mídia of the current unidade, at either level (the company admin picks one
+    /// uploaded where he operates). The unit filter is the unidade check: another unidade's or tenant's mídia is not
+    /// found, and answers like an unknown id so the 400 reveals nothing about it.
+    /// </summary>
+    private async Task ConferirImagemAsync(string chave, Guid midiaId, CancellationToken ct)
+    {
+        var midia = await db.Midias.AsNoTracking()
+            .Where(m => m.Id == midiaId)
+            .Select(m => new { m.Tipo, m.Ativa })
+            .FirstOrDefaultAsync(ct)
+            .ConfigureAwait(false);
+        var erro = midia switch
+        {
+            null => MensagemImagemNaoEncontrada,
+            { Tipo: not TipoMidia.Imagem } => MensagemNaoEImagem,
+            { Ativa: false } => MensagemImagemInativa,
+            _ => null,
+        };
+        if (erro is not null)
+        {
+            throw new CustomException(MensagemValorInvalido, [$"{chave}: {erro}"], HttpStatusCode.BadRequest);
+        }
+    }
 
     private string Tenant() => tenantAccessor.MultiTenantContext?.TenantInfo?.Id ?? throw new UnauthorizedException();
 
