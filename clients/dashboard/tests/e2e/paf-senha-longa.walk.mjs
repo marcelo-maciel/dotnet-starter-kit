@@ -80,6 +80,8 @@ const STUBS = () => {
   window.__imprimindo = false;
   window.print = () => {
     window.__imprimindo = true;
+    const folhaEl = document.querySelector("[data-ficha-impressa]");
+    window.__ficha = { ficha: window.__medirTexto(folhaEl.querySelector("[data-senha]")), folha: { sw: folhaEl.scrollWidth, cw: folhaEl.clientWidth } };
     window.__liberarImpressao = () => {
       window.__imprimindo = false;
       window.dispatchEvent(new Event("afterprint"));
@@ -173,6 +175,7 @@ try {
 
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await ctx.addInitScript(STUBS);
+  await ctx.addInitScript({ content: `window.__medirTexto = ${medirTexto.toString()};` });
   const pVinculo = await ctx.newPage();
   await pVinculo.goto(`${WEB}/paf/estacao/vinculo#tenant=${link.tenant}&token=${link.token}`);
   await pVinculo.getByRole("link", { name: "Abrir o totem" }).waitFor({ timeout: TIMEOUT });
@@ -187,9 +190,12 @@ try {
 
   const emitir = async (botao) => {
     await botao.click();
-    check("totem: impressão iniciada", await esperarAte(pTotem, () => window.__imprimindo === true));
-    const ficha = await pTotem.locator("[data-ficha-impressa] [data-senha]").evaluate(medirTexto);
-    const folha = await pTotem.locator("[data-ficha-impressa]").evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth }));
+    // Measured inside the print call itself: the totem's print limit unmounts the ticket a few seconds later.
+    check("totem: impressão iniciada", await esperarAte(pTotem, () => window.__ficha !== undefined));
+    const { ficha, folha } = await pTotem.evaluate(() => window.__ficha);
+    await pTotem.evaluate(() => {
+      window.__ficha = undefined;
+    });
     await pTotem.evaluate(() => window.__liberarImpressao());
     const senha = await pTotem.locator("[data-senha-emitida]").textContent({ timeout: TIMEOUT });
     return { ficha, folha, senha };
@@ -219,13 +225,15 @@ try {
   const chamar = pGuiche.getByRole("button", { name: "Chamar próxima" });
   await chamar.click();
   await pGuiche.locator("[data-senha-guiche]").waitFor({ timeout: TIMEOUT });
-  // The guichê login of the same demo user ended the admin's API session (one session per user).
-  admin = (await api("POST", "/api/v1/identity/token/issue", null, { email: EMAIL, password: SENHA_DEMO })).accessToken;
+  // The guichê login of the same demo user ended the admin's API session (one session per user), and a new token
+  // would end the guichê's: the cadastro writes from here on reuse the guichê tab's own token.
+  const tokenDoGuiche = () => pGuiche.evaluate(() => localStorage.getItem("fsh.dashboard.accessToken"));
+  admin = await tokenDoGuiche();
 
   const senhaPainel = pPainel.locator("[data-senha-atual]");
   const esperarSenha = (senha) => esperarAte(pPainel, (s) => document.querySelector("[data-senha-atual]")?.textContent === s, senha);
   const aplicarFonte = async (painel) => {
-    await configurarPainel(admin, painel);
+    await configurarPainel(await tokenDoGuiche(), painel);
     await derrubarHub(pPainel);
     const alvo = `${painel.tamanhoFontePx}px`;
     return esperarAte(pPainel, (px) => getComputedStyle(document.querySelector("main")).fontSize === px, alvo);
@@ -282,8 +290,13 @@ try {
   check("ficha longa: a ficha inteira cabe na bobina", longa.folha.sw <= longa.folha.cw, `${longa.folha.sw} <= ${longa.folha.cw}`);
   check("ficha longa: senha legível (>= 24px)", Number.parseFloat(longa.ficha.fonte) >= 24, longa.ficha.fonte);
 
-  await chamar.click();
-  await pGuiche.locator("[data-senha-guiche]", { hasText: SENHA_LONGA }).waitFor({ timeout: TIMEOUT });
+  // A ficha younger than 5 s is not callable yet (C20 rule Elegiveis): the guichê retries like an attendant would.
+  const senhaGuicheLonga = pGuiche.locator("[data-senha-guiche]", { hasText: SENHA_LONGA });
+  for (let tentativa = 0; tentativa < 6 && (await senhaGuicheLonga.count()) === 0; tentativa += 1) {
+    await chamar.click();
+    await senhaGuicheLonga.waitFor({ timeout: 3_000 }).catch(() => console.log(`guichê: tentativa ${tentativa + 1} sem a senha longa ainda`));
+  }
+  await senhaGuicheLonga.waitFor({ timeout: TIMEOUT });
   check("painel longo: senha chamada no destaque", await esperarSenha(SENHA_LONGA));
 
   const medirLonga = async (rotulo) => {
@@ -304,12 +317,16 @@ try {
   check("painel longo, fonte 8: cabe sem encolher (10em de 8px)", longaMin.fonte === "80px", longaMin.fonte);
   check("painel: fonte padrão (16px) aplicada", await aplicarFonte(painelSemCor(16)));
   await medirLonga("fonte 16");
+  const colunas = () =>
+    pPainel.evaluate(() => getComputedStyle(document.querySelector('section[aria-label="Últimas chamadas"] ol')).gridTemplateColumns.split(" ").length);
+  check("painel, fonte 16: lista mantém as 5 colunas (C18)", (await colunas()) === 5, String(await colunas()));
   await pPainel.setViewportSize({ width: 800, height: 900 });
   check("painel: janela estreita refaz a contenção", await esperarAte(pPainel, () => {
     const el = document.querySelector("[data-senha-atual]");
     return el !== null && el.scrollWidth <= el.clientWidth;
   }));
   await medirLonga("janela de 800px");
+  check("painel, janela de 800px: lista mantém as 5 colunas (C18)", (await colunas()) === 5, String(await colunas()));
 
   await gCtx.close();
   await ctx.close();

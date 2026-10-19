@@ -271,7 +271,9 @@ export function PainelPage() {
       {aparencia.mostrarUltimasChamadas && (
         <section aria-label="Últimas chamadas" className="border-t border-white/20 px-8 py-4">
           <h2 className={cores !== null ? "mb-2 text-[1.25em]" : "mb-2 text-[1.25em] text-white/70"}>Últimas chamadas</h2>
-          <ol className="grid grid-cols-2 gap-2 text-[1.5em] md:grid-cols-5">
+          {/* F20: still 2 and 5 columns, but never narrower than 5em, so at a large cadastro font a glyph of the senha
+              fits its cell and the senha wraps inside it instead of running out. */}
+          <ol className="grid grid-cols-[repeat(auto-fill,minmax(max(calc(50%_-_5px),min(100%,5em)),1fr))] gap-2 text-[1.5em] md:grid-cols-[repeat(auto-fill,minmax(max(calc(20%_-_7px),min(100%,5em)),1fr))]">
             {estado.chamadas.map((c) => (
               <li
                 key={c.atendimentoId}
