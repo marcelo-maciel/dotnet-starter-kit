@@ -2,19 +2,21 @@
 // station link → totem emission + print → guichê call/recall/start/finish/cancel → painel live + reconnect.
 //
 // Run (API and Vite dev server already up, fresh `seed-demo` database):
-//   PAF_API=http://localhost:5391 PAF_WEB=http://localhost:5184 node tests/e2e/paf-primeira-fatia.walk.mjs
-// Exit code 0 only when every check passed; each check prints PASS/FAIL.
+//   PAF_API=http://localhost:5391 PAF_WEB=http://localhost:5184 PAF_SENHA_DEMO=<Seed__DemoPassword of that seed> \
+//     node tests/e2e/paf-primeira-fatia.walk.mjs
+// Exit code 0 only when every check passed; each check prints PASS/FAIL. CI runs it through deploy/paf/walk-ci.sh.
 import { chromium } from "@playwright/test";
 
 const API = process.env.PAF_API;
 const WEB = process.env.PAF_WEB;
-if (!API || !WEB) {
-  console.error("PAF_API and PAF_WEB are required");
+// No fallback to the kit's demo password: CI seeds with its own secret, and a missing one has to fail here.
+const SENHA_DEMO = process.env.PAF_SENHA_DEMO;
+if (!API || !WEB || !SENHA_DEMO) {
+  console.error("PAF_API, PAF_WEB and PAF_SENHA_DEMO are required");
   process.exit(2);
 }
 const TENANT = "acme";
 const EMAIL = "admin@acme.com";
-const SENHA_DEMO = "Password123!";
 const TIMEOUT = 15_000;
 
 let falhas = 0;

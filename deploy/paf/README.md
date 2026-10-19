@@ -94,3 +94,33 @@ deploy/paf/smoke-inatividade.sh paf-dashboard:smoke
 ```
 
 O smoke sobe a imagem duas vezes, com e sem a montagem, e confere no `/config.json` servido que o prazo é número igual a 8 horas com o template do PAF e que ele não existe sem a montagem. Código de saída 0 só com tudo verde; remove os contêineres ao sair. Prova negativa: com o valor entre aspas no template, o smoke sai com código 1.
+
+## CI e promoção (O08, RNF16, RNF17)
+
+`.github/workflows/paf.yml` é arquivo novo, registrado no ADR 0008 ("Workflow de CI do PAF"); os workflows do kit não mudam e continuam só em `main`. Roda em push para `main` e `feat/**` e em todo pull request, sem filtro de branch base, porque os PRs do PAF apontam para branches de feature.
+
+Jobs obrigatórios, todos agregados no job `PAF CI`, que fica vermelho se qualquer um falhar, for cancelado ou pulado:
+
+- `Backend PAF`: build da solução, `Architecture.Tests`, `PAF.Tests`, `PAF.Kestrel.Tests` e `Integration.Tests` com o filtro `FullyQualifiedName~Paf` (Testcontainers sobre o Docker do runner);
+- `Dashboard PAF`: `npm run lint`, `npm run build` (inclui `tsc -b`) e os testes unitários do PAF por `node --test` (D21);
+- `Scripts de implantação`: `exigir-homologacao-verde.test.mjs`, `scripts-ci.test.sh` e `verificar-ambiente.test.sh`;
+- `Walk no Chrome`: `walk-ci.sh` sobe PostgreSQL e Valkey efêmeros, aplica migrações e `seed-demo` com a senha do secret, sobe a API e o servidor do Vite em portas livres e roda `paf-primeira-fatia.walk.mjs` no Google Chrome do runner. O código de saída é o do walk: um `FAIL` deixa o job vermelho. Sem o secret `PAF_SENHA_DEMO`, ou com ele igual à senha demo pública do kit, o job falha antes de subir qualquer coisa.
+
+```bash
+PAF_SENHA_DEMO=<senha> deploy/paf/walk-ci.sh     # o mesmo walk, local; precisa de npm ci em clients/dashboard
+deploy/paf/scripts-ci.test.sh                    # caminhos de falha dos scripts de CI, sem subir nada
+node --test deploy/paf/exigir-homologacao-verde.test.mjs
+```
+
+Promoção:
+
+- `Deploy homologação`: só em push para `main`, depois do `PAF CI` verde, no environment `homologacao`. Publica `paf-api`, `paf-dbmigrator`, `paf-dashboard` e `paf-admin` no GHCR com a tag igual ao SHA completo e chama `implantar-remoto.sh homologacao <sha>`.
+- `Deploy produção`: só manual (`workflow_dispatch` a partir de `main`, com o SHA). O job `Exigir SHA verde em homologação` roda antes do environment `producao` pedir aprovação e falha se a implantação mais recente daquele SHA em homologação não terminou em `success` (`exigir-homologacao-verde.mjs`). A produção usa as mesmas imagens que passaram na homologação, sem rebuild.
+- `implantar-remoto.sh <ambiente> <sha>` confere os segredos, copia `deploy/paf` para o host por SSH (os `ambientes/*.env` do host ficam onde estão) e roda lá `deploy/paf/deploy.sh <ambiente> <sha>` com `PAF_REGISTRO` no ambiente. O `deploy.sh` é da tarefa O06; enquanto ele não existir, os dois deploys falham com essa mensagem.
+
+Configuração do repositório, fora do código:
+
+- [ ] secret de repositório `PAF_SENHA_DEMO` (senha do `seed-demo` do walk, diferente de `Password123!`);
+- [ ] environments `homologacao` e `producao`, com revisor obrigatório em `producao`, e em cada um os secrets `PAF_SSH_HOST`, `PAF_SSH_USUARIO`, `PAF_SSH_CHAVE`, `PAF_SSH_KNOWN_HOSTS` e `PAF_DIR_HOST`;
+- [ ] `docker login ghcr.io` no host com um token de leitura de pacotes;
+- [ ] tornar o job `PAF CI` verificação obrigatória na proteção das branches.
