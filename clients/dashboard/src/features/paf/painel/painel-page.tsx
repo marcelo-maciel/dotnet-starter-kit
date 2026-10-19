@@ -23,6 +23,7 @@ import {
   type SenhaChamadaEvento,
 } from "@/features/paf/painel/painel-estado";
 import { carregarVozes, escolherVoz, falar } from "@/features/paf/painel/voz";
+import { SenhaContida } from "@/features/paf/painel/senha-contida";
 import {
   ANUNCIO_PADRAO,
   lerAnuncioDaChamada,
@@ -239,10 +240,10 @@ export function PainelPage() {
             data-chamada
             className={
               cores !== null
-                ? "rounded-3xl border-[0.1em] px-16 py-10 text-center"
+                ? "max-w-full rounded-3xl border-[0.1em] px-16 py-10 text-center"
                 : destaque !== null
-                  ? "rounded-3xl bg-yellow-400 px-16 py-10 text-center text-black"
-                  : "rounded-3xl px-16 py-10 text-center"
+                  ? "max-w-full rounded-3xl bg-yellow-400 px-16 py-10 text-center text-black"
+                  : "max-w-full rounded-3xl px-16 py-10 text-center"
             }
             style={
               cores === null
@@ -254,9 +255,7 @@ export function PainelPage() {
             }
           >
             <div className="text-[2.25em]">Senha</div>
-            <div className="text-[10em] leading-none font-bold" data-senha-atual>
-              {principal.senha}
-            </div>
+            <SenhaContida senha={principal.senha} className="text-[10em] leading-none font-bold" />
             <div className="mt-4 text-[3em]">{principal.nomeEstacao}</div>
             {destaque !== null && anuncio.mensagemAoChamar !== "" && (
               <div className="mt-4 text-[2em]" data-mensagem-chamada>
@@ -277,7 +276,7 @@ export function PainelPage() {
               <li
                 key={c.atendimentoId}
                 data-atendimento={c.atendimentoId}
-                className={cores !== null ? "rounded-lg border px-3 py-2" : "rounded-lg bg-white/10 px-3 py-2"}
+                className={cores !== null ? "min-w-0 rounded-lg border px-3 py-2 [overflow-wrap:anywhere]" : "min-w-0 rounded-lg bg-white/10 px-3 py-2 [overflow-wrap:anywhere]"}
               >
                 <span className="font-bold">{c.senha}</span>{" "}
                 <span className={cores !== null ? undefined : "text-white/80"}>{c.nomeEstacao}</span>
