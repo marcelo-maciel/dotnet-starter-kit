@@ -54,7 +54,7 @@ export function useMidiasDoPainel(habilitado: boolean, aoPerderCredencial: () =>
         // Two re-reads in flight (notice + reconnection): only the last one asked counts.
         if (leitura !== leituraRef.current) return;
         try {
-          const nova = montarAgenda(dto, enviadoEm, Date.now());
+          const nova = montarAgenda(dto, enviadoEm);
           agendaRef.current = nova;
           setAgenda(nova);
         } catch (e) {

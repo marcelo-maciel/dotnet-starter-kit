@@ -56,19 +56,20 @@ function local(hora: string, adiantadoMs: number): number {
   return Date.parse(`2026-10-19T${hora}-03:00`) + adiantadoMs;
 }
 
-test("montarAgenda: midnight from the São Paulo wall clock, offset from the request midpoint", () => {
-  const agenda = montarAgenda(dto([], []), AGORA_MS - 400, AGORA_MS - 200);
+test("montarAgenda: midnight from the São Paulo wall clock, offset from the request's departure", () => {
+  // The server read its clock as the request arrived; the 1.4 s it then spent signing URLs must not move the offset.
+  const agenda = montarAgenda(dto([], []), AGORA_MS - 400);
   assert.equal(agenda.meiaNoiteMs, MEIA_NOITE_MS);
-  assert.equal(agenda.deslocamentoMs, 300);
+  assert.equal(agenda.deslocamentoMs, 400);
 });
 
 test("montarAgenda: an unreadable instant throws instead of guessing a day", () => {
-  assert.throws(() => montarAgenda({ agora: "ontem", lista: [], programacoes: [] }, 0, 0));
-  assert.throws(() => montarAgenda({ agora: "2026-10-19", lista: [], programacoes: [] }, 0, 0));
+  assert.throws(() => montarAgenda({ agora: "ontem", lista: [], programacoes: [] }, 0));
+  assert.throws(() => montarAgenda({ agora: "2026-10-19", lista: [], programacoes: [] }, 0));
 });
 
 test("switches exactly at 10:00:00 and back at 10:10:00", () => {
-  const agenda = montarAgenda(dto([item("a")], [programacao("x", "10:00:00", "10:10:00")]), AGORA_MS, AGORA_MS);
+  const agenda = montarAgenda(dto([item("a")], [programacao("x", "10:00:00", "10:10:00")]), AGORA_MS);
   assert.equal(programacaoNoAr(agenda, local("09:59:59.999", 0), SEM_FALHAS), null);
   assert.equal(programacaoNoAr(agenda, local("10:00:00", 0), SEM_FALHAS)?.programacao.programacaoId, "p-x");
   assert.equal(programacaoNoAr(agenda, local("10:09:59.999", 0), SEM_FALHAS)?.programacao.programacaoId, "p-x");
@@ -82,7 +83,7 @@ test("switches exactly at 10:00:00 and back at 10:10:00", () => {
 test("a local clock 5 minutes ahead still switches on the server's 10:00:00", () => {
   const adiantado = 5 * 60_000;
   // The request left and came back at local instants 5 min ahead of the server's `agora`.
-  const agenda = montarAgenda(dto([], [programacao("x", "10:00:00", "10:10:00")]), AGORA_MS + adiantado, AGORA_MS + adiantado);
+  const agenda = montarAgenda(dto([], [programacao("x", "10:00:00", "10:10:00")]), AGORA_MS + adiantado);
   assert.equal(agenda.deslocamentoMs, -adiantado);
   assert.equal(programacaoNoAr(agenda, local("09:59:59", adiantado), SEM_FALHAS), null);
   assert.equal(programacaoNoAr(agenda, local("10:00:00", adiantado), SEM_FALHAS)?.programacao.programacaoId, "p-x");
@@ -91,13 +92,13 @@ test("a local clock 5 minutes ahead still switches on the server's 10:00:00", ()
 
 test("a clock 5 minutes behind is corrected the same way", () => {
   const atrasado = -5 * 60_000;
-  const agenda = montarAgenda(dto([], [programacao("x", "10:00:00", "10:10:00")]), AGORA_MS + atrasado, AGORA_MS + atrasado);
+  const agenda = montarAgenda(dto([], [programacao("x", "10:00:00", "10:10:00")]), AGORA_MS + atrasado);
   assert.equal(programacaoNoAr(agenda, local("09:59:59", atrasado), SEM_FALHAS), null);
   assert.equal(programacaoNoAr(agenda, local("10:00:00", atrasado), SEM_FALHAS)?.programacao.programacaoId, "p-x");
 });
 
 test("empty answer: nothing on air, nothing to preload, no URL re-read", () => {
-  const agenda = montarAgenda(dto([], []), AGORA_MS, AGORA_MS);
+  const agenda = montarAgenda(dto([], []), AGORA_MS);
   assert.equal(reavaliar(agenda, null, AGORA_MS, SEM_FALHAS), null);
   assert.equal(proximaParaPrecarga(agenda, null, AGORA_MS, SEM_FALHAS), null);
   assert.equal(proximaReleituraLocalMs(agenda, AGORA_MS), null);
@@ -108,7 +109,7 @@ test("D13: overlapping windows play the first in the server's precedence order",
   // The server lists the latest start first; the screen trusts that order.
   const tarde = programacao("tarde", "10:05:00", "10:08:00");
   const cedo = programacao("cedo", "10:00:00", "10:20:00");
-  const agenda = montarAgenda(dto([], [tarde, cedo]), AGORA_MS, AGORA_MS);
+  const agenda = montarAgenda(dto([], [tarde, cedo]), AGORA_MS);
   assert.equal(programacaoNoAr(agenda, local("10:04:59", 0), SEM_FALHAS)?.programacao.programacaoId, "p-cedo");
   assert.equal(programacaoNoAr(agenda, local("10:05:00", 0), SEM_FALHAS)?.programacao.programacaoId, "p-tarde");
   assert.equal(programacaoNoAr(agenda, local("10:08:00", 0), SEM_FALHAS)?.programacao.programacaoId, "p-cedo");
@@ -116,7 +117,7 @@ test("D13: overlapping windows play the first in the server's precedence order",
 });
 
 test("D12: the loop plays outside the window and the programação covers it inside", () => {
-  const agenda = montarAgenda(dto([item("a"), item("b")], [programacao("x", "10:00:00", "10:10:00")]), AGORA_MS, AGORA_MS);
+  const agenda = montarAgenda(dto([item("a"), item("b")], [programacao("x", "10:00:00", "10:10:00")]), AGORA_MS);
   const antes = reavaliar(agenda, null, local("09:59:30", 0), SEM_FALHAS);
   assert.equal(antes?.origem, "lista");
   assert.equal(antes?.chave, "i-a");
@@ -131,15 +132,15 @@ test("D12: the loop plays outside the window and the programação covers it ins
 });
 
 test("a programação joined mid-window starts at its offset in the file; an image at zero", () => {
-  const agenda = montarAgenda(dto([], [programacao("x", "10:00:00", "10:10:00", 60)]), AGORA_MS, AGORA_MS);
+  const agenda = montarAgenda(dto([], [programacao("x", "10:00:00", "10:10:00", 60)]), AGORA_MS);
   assert.equal(reavaliar(agenda, null, local("10:02:15", 0), SEM_FALHAS)?.inicioNaMidiaSegundos, 15);
   const imagem = { ...programacao("y", "10:00:00", "10:10:00", 60), tipo: "Imagem" as const };
-  const agendaImagem = montarAgenda(dto([], [imagem]), AGORA_MS, AGORA_MS);
+  const agendaImagem = montarAgenda(dto([], [imagem]), AGORA_MS);
   assert.equal(reavaliar(agendaImagem, null, local("10:02:15", 0), SEM_FALHAS)?.inicioNaMidiaSegundos, 0);
 });
 
 test("the loop wraps and a repeated mídia keeps its own rows", () => {
-  const agenda = montarAgenda(dto([item("a"), item("b"), { ...item("a"), itemId: "i-a2" }], []), AGORA_MS, AGORA_MS);
+  const agenda = montarAgenda(dto([item("a"), item("b"), { ...item("a"), itemId: "i-a2" }], []), AGORA_MS);
   let atual = reavaliar(agenda, null, AGORA_MS, SEM_FALHAS);
   const vistos: string[] = [];
   for (let i = 0; i < 4 && atual !== null; i++) {
@@ -150,7 +151,7 @@ test("the loop wraps and a repeated mídia keeps its own rows", () => {
 });
 
 test("a failed URL is skipped, and the loop with every URL failed plays nothing until the quarantine ends", () => {
-  const agenda = montarAgenda(dto([item("a"), item("b")], []), AGORA_MS, AGORA_MS);
+  const agenda = montarAgenda(dto([item("a"), item("b")], []), AGORA_MS);
   const atual = reavaliar(agenda, null, AGORA_MS, SEM_FALHAS);
   const falhas = new Map([["https://s3/a", AGORA_MS]]);
   assert.equal(aposTermino(agenda, atual!, AGORA_MS, falhas)?.chave, "i-b");
@@ -160,14 +161,14 @@ test("a failed URL is skipped, and the loop with every URL failed plays nothing 
 });
 
 test("a programação whose URL failed falls back to the loop", () => {
-  const agenda = montarAgenda(dto([item("a")], [programacao("x", "10:00:00", "10:10:00")]), AGORA_MS, AGORA_MS);
+  const agenda = montarAgenda(dto([item("a")], [programacao("x", "10:00:00", "10:10:00")]), AGORA_MS);
   const agora = local("10:01:00", 0);
   const falhas = new Map([["https://s3/x", agora]]);
   assert.equal(reavaliar(agenda, null, agora, falhas)?.chave, "i-a");
 });
 
 test("a programação that ends restarts from its offset while the window lasts", () => {
-  const agenda = montarAgenda(dto([item("a")], [programacao("x", "10:00:00", "10:10:00", 60)]), AGORA_MS, AGORA_MS);
+  const agenda = montarAgenda(dto([item("a")], [programacao("x", "10:00:00", "10:10:00", 60)]), AGORA_MS);
   const primeira = reavaliar(agenda, null, local("10:00:00", 0), SEM_FALHAS)!;
   const segunda = aposTermino(agenda, primeira, local("10:01:00", 0), SEM_FALHAS);
   assert.equal(segunda?.chave, "p-x");
@@ -176,26 +177,26 @@ test("a programação that ends restarts from its offset while the window lasts"
 });
 
 test("a disabled mídia leaves the re-read list and stops at once; a re-read of the same list keeps the item", () => {
-  const agenda = montarAgenda(dto([item("a"), item("b")], []), AGORA_MS, AGORA_MS);
+  const agenda = montarAgenda(dto([item("a"), item("b")], []), AGORA_MS);
   const tocandoB = aposTermino(agenda, reavaliar(agenda, null, AGORA_MS, SEM_FALHAS)!, AGORA_MS, SEM_FALHAS)!;
   assert.equal(tocandoB.chave, "i-b");
   // New signatures, same rows: nothing restarts.
-  const relida = montarAgenda(dto([{ ...item("a"), url: "https://s3/a?v2" }, { ...item("b"), url: "https://s3/b?v2" }], []), AGORA_MS, AGORA_MS);
+  const relida = montarAgenda(dto([{ ...item("a"), url: "https://s3/a?v2" }, { ...item("b"), url: "https://s3/b?v2" }], []), AGORA_MS);
   assert.equal(reavaliar(relida, tocandoB, AGORA_MS, SEM_FALHAS), tocandoB);
   // A replaced list has new row ids: the mídia still in it keeps playing.
-  const substituida = montarAgenda(dto([{ ...item("b"), itemId: "novo-b" }], []), AGORA_MS, AGORA_MS);
+  const substituida = montarAgenda(dto([{ ...item("b"), itemId: "novo-b" }], []), AGORA_MS);
   assert.equal(reavaliar(substituida, tocandoB, AGORA_MS, SEM_FALHAS)?.id, tocandoB.id);
   // b disabled: it leaves the list and the screen moves on.
-  const semB = montarAgenda(dto([item("a")], []), AGORA_MS, AGORA_MS);
+  const semB = montarAgenda(dto([item("a")], []), AGORA_MS);
   const depois = reavaliar(semB, tocandoB, AGORA_MS, SEM_FALHAS);
   assert.equal(depois?.chave, "i-a");
   assert.notEqual(depois?.id, tocandoB.id);
   // Everything disabled: no media.
-  assert.equal(reavaliar(montarAgenda(dto([], []), AGORA_MS, AGORA_MS), tocandoB, AGORA_MS, SEM_FALHAS), null);
+  assert.equal(reavaliar(montarAgenda(dto([], []), AGORA_MS), tocandoB, AGORA_MS, SEM_FALHAS), null);
 });
 
 test("day turn: stale programações stop at São Paulo midnight and the loop goes on", () => {
-  const agenda = montarAgenda(dto([item("a")], [programacao("noite", "23:00:00", "24:00:00")]), AGORA_MS, AGORA_MS);
+  const agenda = montarAgenda(dto([item("a")], [programacao("noite", "23:00:00", "24:00:00")]), AGORA_MS);
   const quase = Date.parse("2026-10-19T23:59:59.999-03:00");
   const meiaNoite = Date.parse("2026-10-20T00:00:00-03:00");
   assert.equal(diaVirou(agenda, quase), false);
@@ -206,21 +207,24 @@ test("day turn: stale programações stop at São Paulo midnight and the loop go
   assert.equal(proximaTrocaLocalMs(agenda, Date.parse("2026-10-19T23:30:00-03:00")), meiaNoite);
 });
 
-test("URL re-read: two minutes before the first expiry, never sooner than 30 s from now", () => {
+test("URL re-read: 30 s before a URL stops covering a whole exhibition, never sooner than 5 s from now", () => {
+  // Loop item of 30 s expiring 11:00 → due 10:59:30; programação of 60 s × 10 expiring 10:30 → due 10:20.
   const agenda = montarAgenda(
     dto([{ ...item("a"), expiraEm: "2026-10-19T11:00:00-03:00" }], [{ ...programacao("x", "10:00:00", "10:10:00"), expiraEm: "2026-10-19T10:30:00-03:00" }]),
     AGORA_MS,
-    AGORA_MS,
   );
-  assert.equal(proximaReleituraLocalMs(agenda, AGORA_MS), Date.parse("2026-10-19T10:28:00-03:00"));
-  assert.equal(proximaReleituraLocalMs(agenda, Date.parse("2026-10-19T10:29:50-03:00")), Date.parse("2026-10-19T10:30:20-03:00"));
+  assert.equal(proximaReleituraLocalMs(agenda, AGORA_MS), Date.parse("2026-10-19T10:19:30-03:00"));
+  assert.equal(proximaReleituraLocalMs(agenda, Date.parse("2026-10-19T10:19:50-03:00")), Date.parse("2026-10-19T10:19:55-03:00"));
+  // A local clock 5 min ahead moves the local instant by the same 5 min.
+  const adiantada = montarAgenda(dto([{ ...item("a"), expiraEm: "2026-10-19T11:00:00-03:00" }], []), AGORA_MS + 300_000);
+  assert.equal(proximaReleituraLocalMs(adiantada, AGORA_MS + 300_000), Date.parse("2026-10-19T10:59:00-03:00") + 300_000);
 });
 
 test("preload: only the next loop item, never the same file, never during a programação", () => {
-  const agenda = montarAgenda(dto([item("a"), item("b")], [programacao("x", "10:00:00", "10:10:00")]), AGORA_MS, AGORA_MS);
+  const agenda = montarAgenda(dto([item("a"), item("b")], [programacao("x", "10:00:00", "10:10:00")]), AGORA_MS);
   const tocandoA = reavaliar(agenda, null, AGORA_MS, SEM_FALHAS);
   assert.equal(proximaParaPrecarga(agenda, tocandoA, AGORA_MS, SEM_FALHAS)?.itemId, "i-b");
-  const unica = montarAgenda(dto([item("a")], []), AGORA_MS, AGORA_MS);
+  const unica = montarAgenda(dto([item("a")], []), AGORA_MS);
   assert.equal(proximaParaPrecarga(unica, reavaliar(unica, null, AGORA_MS, SEM_FALHAS), AGORA_MS, SEM_FALHAS), null);
   const programada = reavaliar(agenda, null, local("10:00:00", 0), SEM_FALHAS);
   assert.equal(proximaParaPrecarga(agenda, programada, local("10:00:00", 0), SEM_FALHAS), null);

@@ -63,15 +63,21 @@ export type FalhasMidia = ReadonlyMap<string, number>;
 
 const SEGUNDOS_NO_DIA = 86_400;
 export const QUARENTENA_FALHA_MS = 60_000;
-// The URL is re-read this long before the first one expires, so a slow answer still lands in time.
-const ANTECEDENCIA_RELEITURA_MS = 120_000;
-// A URL already close to expiry must not turn the re-read into a tight loop.
-const RELEITURA_MINIMA_MS = 30_000;
+// The URL is re-read this long before it stops covering a whole exhibition, so a slow answer still lands in time.
+const ANTECEDENCIA_RELEITURA_MS = 30_000;
+// The server hands the same cached URL until it no longer covers an exhibition: near that point the re-read repeats,
+// spaced by this much, until a new signature comes.
+const RELEITURA_MINIMA_MS = 5_000;
 
 const HORA_LOCAL = /T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(?:[+-]\d{2}:\d{2}|Z)$/;
 
-/** Builds the agenda from the answer and the local instants the request left and arrived (offset = midpoint). */
-export function montarAgenda(dto: MidiasPainelDto, enviadoEmLocalMs: number, recebidoEmLocalMs: number): AgendaPainel {
+/**
+ * Builds the agenda from the answer and the local instant the request left. The server reads `agora` before any other
+ * work (the URL signing comes after), so the departure is the local instant closest to it: the error is the one-way
+ * trip, not the answer's processing, which a midpoint would split in half. Every read measures again: a clock that
+ * drifts or is corrected (NTP on the kiosk, the server's VM) is followed at the next read.
+ */
+export function montarAgenda(dto: MidiasPainelDto, enviadoEmLocalMs: number): AgendaPainel {
   const agoraMs = Date.parse(dto.agora);
   const hora = HORA_LOCAL.exec(dto.agora);
   if (Number.isNaN(agoraMs) || hora === null) throw new Error(`instante do servidor ilegível: ${dto.agora}`);
@@ -79,7 +85,7 @@ export function montarAgenda(dto: MidiasPainelDto, enviadoEmLocalMs: number, rec
   // The wall-clock part of `agora` is already São Paulo's (the server sends that offset), so midnight is that far back.
   const desdeMeiaNoiteMs = (Number(hora[1]) * 3600 + Number(hora[2]) * 60 + Number(hora[3])) * 1000 + fracaoMs;
   return {
-    deslocamentoMs: agoraMs - (enviadoEmLocalMs + recebidoEmLocalMs) / 2,
+    deslocamentoMs: agoraMs - enviadoEmLocalMs,
     meiaNoiteMs: agoraMs - desdeMeiaNoiteMs,
     lista: dto.lista,
     programacoes: dto.programacoes,
@@ -129,11 +135,18 @@ export function proximaTrocaLocalMs(agenda: AgendaPainel, agoraLocalMs: number):
   return Math.max(agoraLocalMs + 1, proxima - agenda.deslocamentoMs);
 }
 
-/** Local instant to re-read before the first URL expires; null with nothing to play. */
+/**
+ * Local instant to re-read the URLs; null with nothing to play. A URL is due once what is left of it no longer covers
+ * one whole exhibition (duration for a loop item, duration × repetitions for a programação): the server signs and
+ * caches each URL for exactly that, so an exhibition started with a URL never outlives it.
+ */
 export function proximaReleituraLocalMs(agenda: AgendaPainel, agoraLocalMs: number): number | null {
-  const expiracoes = [...agenda.lista, ...agenda.programacoes].map((i) => Date.parse(i.expiraEm));
-  if (expiracoes.length === 0) return null;
-  const primeiraLocalMs = Math.min(...expiracoes) - agenda.deslocamentoMs;
+  const limites = [
+    ...agenda.lista.map((i) => Date.parse(i.expiraEm) - i.duracaoSegundos * 1000),
+    ...agenda.programacoes.map((p) => Date.parse(p.expiraEm) - p.duracaoSegundos * p.repeticoes * 1000),
+  ];
+  if (limites.length === 0) return null;
+  const primeiraLocalMs = Math.min(...limites) - agenda.deslocamentoMs;
   return Math.max(agoraLocalMs + RELEITURA_MINIMA_MS, primeiraLocalMs - ANTECEDENCIA_RELEITURA_MS);
 }
 

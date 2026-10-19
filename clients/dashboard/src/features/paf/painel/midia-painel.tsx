@@ -34,6 +34,7 @@ function ImagemPainel({ execucao, aoTerminar, aoFalhar }: Omit<PropsMidiaPainel,
       src={execucao.url}
       alt=""
       data-midia-painel={execucao.midiaId}
+      data-execucao={execucao.id}
       className="max-h-full max-w-full object-contain"
       onError={() => aoFalhar(execucao.id, execucao.url)}
     />
@@ -85,6 +86,7 @@ function SomPainel({ execucao, pausado, aoTerminar, aoFalhar }: PropsMidiaPainel
     preload: "auto",
     playsInline: true,
     "data-midia-painel": execucao.midiaId,
+    "data-execucao": execucao.id,
     onLoadedMetadata: () => {
       if (ref.current !== null && execucao.inicioNaMidiaSegundos > 0) ref.current.currentTime = execucao.inicioNaMidiaSegundos;
     },
@@ -93,7 +95,11 @@ function SomPainel({ execucao, pausado, aoTerminar, aoFalhar }: PropsMidiaPainel
       if (ref.current !== null && ref.current.currentTime >= execucao.duracaoSegundos) aoTerminar(execucao.id);
     },
     onEnded: () => aoTerminar(execucao.id),
-    onError: () => aoFalhar(execucao.id, execucao.url),
+    onError: () => {
+      // The MediaError code tells a refused URL or missing file (2, network) from a file the browser cannot decode (3, 4).
+      console.warn("[paf-painel] erro de mídia", { execucao: execucao.id, codigo: ref.current?.error?.code ?? null });
+      aoFalhar(execucao.id, execucao.url);
+    },
   } as const;
 
   // ponytail: RF03 stores no caption file, so the track is empty and the painel shows no captions; the calls the
