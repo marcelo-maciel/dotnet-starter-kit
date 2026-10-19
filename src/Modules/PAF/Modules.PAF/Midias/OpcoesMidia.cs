@@ -33,6 +33,12 @@ public sealed class OpcoesMidia
     public TimeSpan MargemLeitura { get; set; } = TimeSpan.FromMinutes(10);
 
     /// <summary>
+    /// Validade mínima da URL de leitura (M04): uma imagem de 10 s não ganha uma URL de 10 min que o painel teria de
+    /// pedir de novo a cada poucos laços, e cada URL nova faz o navegador baixar o arquivo outra vez.
+    /// </summary>
+    public TimeSpan PisoValidadeUrlLeitura { get; set; } = TimeSpan.FromHours(1);
+
+    /// <summary>
     /// Prazo de cada chamada do cadastro ao armazenamento (RNF05): com o armazenamento parado, o pedido responde 503
     /// dentro dele em vez de segurar a requisição pelo prazo do cliente S3.
     /// </summary>
@@ -57,8 +63,10 @@ public sealed class OpcoesMidia
                 "PAF:Midia:ValidadeUrlEnvio precisa ser positiva e no máximo 7 dias.")
             .Validate(o => o.TetoVideoBytes > 0 && o.TetoImagemBytes > 0 && o.TetoAudioBytes > 0,
                 "PAF:Midia: os tetos por tipo precisam ser positivos.")
-            .Validate(o => o.MargemLeitura >= TimeSpan.Zero && o.MargemLeitura < ValidadeMaximaAssinatura,
-                "PAF:Midia:MargemLeitura não pode ser negativa nem chegar a 7 dias.")
+            .Validate(o => o.MargemLeitura > TimeSpan.Zero && o.MargemLeitura < ValidadeMaximaAssinatura,
+                "PAF:Midia:MargemLeitura precisa ser positiva e menor que 7 dias.")
+            .Validate(o => o.PisoValidadeUrlLeitura > TimeSpan.Zero && o.PisoValidadeUrlLeitura <= ValidadeMaximaAssinatura,
+                "PAF:Midia:PisoValidadeUrlLeitura precisa ser positivo e no máximo 7 dias.")
             .Validate(o => o.PrazoArmazenamento > TimeSpan.Zero && o.PrazoArmazenamento <= PrazoArmazenamentoMaximo,
                 "PAF:Midia:PrazoArmazenamento precisa ser positivo e no máximo 30 segundos.")
             .Validate<IConfiguration>((_, configuracao) => PrefixoDoKitCompativel(configuracao["Storage:S3:Prefix"]),

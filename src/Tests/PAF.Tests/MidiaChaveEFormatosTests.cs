@@ -114,6 +114,7 @@ public sealed partial class MidiaChaveEFormatosTests
 
         opcoes.ValidadeUrlEnvio.ShouldBe(TimeSpan.FromMinutes(15));
         opcoes.MargemLeitura.ShouldBe(TimeSpan.FromMinutes(10));
+        opcoes.PisoValidadeUrlLeitura.ShouldBe(TimeSpan.FromHours(1));
         opcoes.TetoBytes(TipoMidia.Video).ShouldBe(500L * 1024 * 1024);
         opcoes.TetoBytes(TipoMidia.Imagem).ShouldBe(20L * 1024 * 1024);
         opcoes.TetoBytes(TipoMidia.Audio).ShouldBe(50L * 1024 * 1024);
@@ -140,6 +141,9 @@ public sealed partial class MidiaChaveEFormatosTests
     [InlineData("PAF:Midia:TetoAudioBytes", "-1", "tetos por tipo")]
     [InlineData("PAF:Midia:MargemLeitura", "-00:00:01", "MargemLeitura")]
     [InlineData("PAF:Midia:MargemLeitura", "7.00:00:00", "MargemLeitura")]
+    [InlineData("PAF:Midia:MargemLeitura", "00:00:00", "MargemLeitura")]
+    [InlineData("PAF:Midia:PisoValidadeUrlLeitura", "00:00:00", "PisoValidadeUrlLeitura")]
+    [InlineData("PAF:Midia:PisoValidadeUrlLeitura", "7.00:00:01", "PisoValidadeUrlLeitura")]
     [InlineData("Storage:S3:Prefix", "paf", "Storage:S3:Prefix")]
     [InlineData("Storage:S3:Prefix", "PAF-midia/x", "Storage:S3:Prefix")]
     [InlineData("Storage:S3:Prefix", "public", "Storage:S3:Prefix")]

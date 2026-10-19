@@ -191,6 +191,15 @@ Tests: `Integration.Tests/Tests/PAF/PafMidiaEsquemaTests`, `PAF.Tests/MidiaDomin
 - Store calls go only through `Midias/ArmazenamentoMidia`, each bounded by `PAF:Midia:PrazoArmazenamento` (5 s, at most 30 s): past it, 503 `MensagemSemResposta`. Ponytail: no first-bytes sniffing, the MIME is the one the signed PUT forced.
 - Tests: `Integration.Tests/Tests/PAF/PafMidiaCadastroTests` (RustFS; also `PafMidiaCadastroTenantTests` for 403, other tenant and impersonation acts, `PafMidiaArmazenamentoParadoTests` with a silent TCP store), `PAF.Tests/MidiaCadastroTests`.
 
+## Media read URL (`Midias/UrlLeituraMidia`, M04, ADR 0007)
+
+- `UrlLeituraMidia.GerarAsync(midia, duracaoTotal, ct)` takes a mídia the caller already read through the unit filter (that read IS the unidade check) and the longest uninterrupted exhibition it will run with the URL (duration × repetitions; the preview passes one duration). Null when the mídia is inactive or its current envio (`EnvioId` + same `ChaveObjeto`) is not confirmed, refused or removed: such a mídia gets no URL. M06 drops those items.
+- Validity = exhibition + `MargemLeitura` (10 min, now > 0), at least `PAF:Midia:PisoValidadeUrlLeitura` (1 h), at most `TetoValidade` = 7 days (R2) minus 15 min: the AWS SDK signs with its clock corrected to the store's, and a URL asked for exactly 7 days came out over 604800 s and silently fell back to SigV2 (`AWSAccessKeyId`/`Expires`/`Signature`), which R2 refuses. `ExpiraEm` is announced 2 s early (SigV4 floors the signing date and `X-Amz-Expires`). Same trap for any other presign near 7 days (`ValidadeUrlEnvio` accepts exactly 7 days).
+- HybridCache key `paf:{t}:midia-url:{unidade}:{midia}:{envio}:{validitySeconds}` (a swap misses without removal), entry = validity − exhibition (a cached URL still covers the whole exhibition; the margin when the cap leaves no slack). The cache call has a 1 s deadline: past it the URL is signed without the cache with a warning (ids only, never the URL). A Valkey that answers within the deadline with an error is absorbed by HybridCache itself (logged at Error as "Cache backend read/write failure").
+- The local store answers a server-relative path; it is resolved against `IRequestContext.Origin` (`OriginOptions:OriginUrl`, else the request host). No origin = exception, never a relative URL to a panel.
+- Route: `GET midias/{id}/url` (`Midias.View`): 404 outside the unidade or tenant, 409 `MensagemSemUrl` for an inactive or unconfirmed mídia.
+- Tests: `Integration.Tests/Tests/PAF/PafMidiaUrlTests` (RustFS: download, `X-Amz-Expires`, cache window, swap, 20 parallel, expiry, cap still SigV4, stalled cache; `PafMidiaUrlTenantTests`), `PafMidiaUrlValkeyTests` (local store + paused Valkey), `PAF.Tests/MidiaUrlLeituraTests`.
+
 ## Touching the kit
 
 The kit is touched only at module registration points (both host `Program.cs` and `.csproj`, `src/FSH.Starter.slnx`, the migrations project) and at the other items of the closed list in ADR 0008. Any other kit edit requires amending ADR 0008 first.

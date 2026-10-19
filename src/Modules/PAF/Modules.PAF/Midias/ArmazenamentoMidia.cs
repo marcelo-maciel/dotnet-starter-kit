@@ -85,6 +85,16 @@ public sealed class ArmazenamentoMidia(IStorageService armazenamento, IOptions<O
         return (pontoEVirgula < 0 ? contentType : contentType[..pontoEVirgula]).Trim();
     }
 
+    /// <summary>
+    /// The signed GET of the mídia's current object (M04). The local provider answers a server-relative path; resolving
+    /// it is the caller's job (<see cref="UrlLeituraMidia"/>).
+    /// </summary>
+    public Task<Uri> GerarUrlLeituraAsync(Midia midia, TimeSpan validade, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(midia);
+        return ComPrazoAsync(limite => armazenamento.GenerateDownloadUrlAsync(midia.ChaveObjeto, validade, null, limite), ct);
+    }
+
     private async Task<T> ComPrazoAsync<T>(Func<CancellationToken, Task<T>> chamada, CancellationToken ct)
     {
         using var limite = CancellationTokenSource.CreateLinkedTokenSource(ct);
