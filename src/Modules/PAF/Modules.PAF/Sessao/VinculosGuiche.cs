@@ -55,9 +55,10 @@ internal static class VinculosGuiche
     /// <summary>
     /// Solta o vínculo do guichê, recusando quando há atendimento chamado ou em atendimento nele. A linha do
     /// vínculo é travada antes da conferência: uma chamada em voo neste guichê ou já confirmou (e é vista) ou
-    /// espera e encontra o vínculo solto.
+    /// espera e encontra o vínculo solto. Verdadeiro só quando esta transação soltou o vínculo; falso quando outro
+    /// escritor já o tinha soltado, e então a sessão pode estar em outro guichê, que não é desta liberação.
     /// </summary>
-    public static async Task SoltarSemAtendimentoEmCursoAsync(PafDbContext db, string tenantId, SessaoEstacao vinculo, CancellationToken ct)
+    public static async Task<bool> SoltarSemAtendimentoEmCursoAsync(PafDbContext db, string tenantId, SessaoEstacao vinculo, CancellationToken ct)
     {
         ExigirTransacao(db);
         var travados = await db.Database.SqlQuery<Guid>($"""
@@ -68,7 +69,7 @@ internal static class VinculosGuiche
         if (travados.Count == 0)
         {
             // Released meanwhile by another writer (logout, manager): nothing left to release.
-            return;
+            return false;
         }
 
         // The station belongs to the unit being left, which may differ from the current one: only the unit filter is lifted.
@@ -82,6 +83,7 @@ internal static class VinculosGuiche
         }
 
         await SoltarAsync(db, tenantId, vinculo.Id, ct);
+        return true;
     }
 
     // Raw SQL skips the global filters: the tenant is explicit.

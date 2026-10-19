@@ -328,7 +328,82 @@ public sealed class PafDesativacaoEstacaoTests(FshWebApplicationFactory factory)
         (await semCorpo.Content.ReadFromJsonAsync<EstacaoDesativadaDto>())!.EmCurso.ShouldHaveSingleItem().AtendimentoId.ShouldBe(chamada.AtendimentoId);
     }
 
+    /// <summary>
+    /// The release reads the link unlocked and only then locks it. A session that lets guichê A go and takes guichê B
+    /// in that window leaves the release nothing to release, and its connections must stay in B's group. The test holds
+    /// the link's row lock to put the session's move exactly there, done as the guichê selection does it.
+    /// </summary>
+    [Fact]
+    public async Task Liberar_SessaoTrocouDeGuicheEntreLeituraETrava_ConexaoContinuaNoGuicheNovo()
+    {
+        var c = await _op.CriarAsync();
+        using var totem = await _op.TotemAsync(c);
+        using var atendente = await _op.AtendenteAsync(c, c.GuicheA);
+        using var gerente = await GerenteAsync(c.UnidadeId);
+        var token = atendente.DefaultRequestHeaders.Authorization!.Parameter!;
+        var sessao = PafTenantCliente.SessaoDoToken(token);
+        var hub = await ConectarAsync(token);
+        using var chamadas = new Caixa<SenhaChamada>(hub, PafHubMetodos.SenhaChamada);
+        var conexoes = factory.Services.GetRequiredService<ConexoesPaf>();
+
+        Task<HttpResponseMessage> liberar;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = _tenant.Contexto(scope, c.UnidadeId);
+            await using var trava = await db.Database.BeginTransactionAsync();
+            var vinculo = await VinculosGuiche.TravarAtivoDaEstacaoAsync(db, _tenant.TenantId, c.GuicheA, CancellationToken.None);
+            vinculo.ShouldNotBeNull().SessaoId.ShouldBe(sessao);
+
+            liberar = gerente.PostAsync(Rota(c.GuicheA), content: null);
+            await EsperarTravaNoVinculoAsync();
+
+            await VinculosGuiche.SoltarAsync(db, _tenant.TenantId, vinculo.Id, CancellationToken.None);
+            db.SessoesEstacao.Add(SessaoEstacao.CriarParaSessao(c.GuicheB, sessao));
+            await db.SaveChangesAsync();
+            await conexoes.MoverSessaoParaGuicheAsync(_tenant.TenantId, sessao, c.GuicheB, CancellationToken.None);
+            await trava.CommitAsync();
+        }
+
+        using (var resposta = await liberar)
+        {
+            resposta.StatusCode.ShouldBe(HttpStatusCode.NoContent, await resposta.Content.ReadAsStringAsync());
+        }
+
+        (await VinculosAtivosAsync(c.GuicheB)).ShouldBe(1, "a liberação do guichê A não toca o vínculo novo");
+        await PafOperacao.EmitirOkAsync(totem, c.Caixa, c.Normal);
+        await PafOperacao.EmitirOkAsync(totem, c.Protocolo, c.Normal);
+        await _op.EnvelhecerFichasAsync(c.UnidadeId);
+        var chamada = await PafOperacao.ChamarOkAsync(atendente);
+
+        (await chamadas.EsperarAsync(s => s.AtendimentoId == chamada.AtendimentoId, TimeSpan.FromSeconds(5)))
+            .ShouldNotBeNull("a conexão da sessão continua no grupo do guichê B");
+    }
+
     // ─── helpers ─────────────────────────────────────────────────────
+
+    // The release is parked on the link's FOR UPDATE once a backend of this database waits on a lock with that query.
+    private async Task EsperarTravaNoVinculoAsync()
+    {
+        var relogio = Stopwatch.StartNew();
+        while (relogio.Elapsed < TimeSpan.FromSeconds(10))
+        {
+            using var scope = factory.Services.CreateScope();
+            var db = _tenant.Contexto(scope, unidadeCorrente: null);
+            var esperando = await db.Database.SqlQuery<int>($"""
+                SELECT count(*)::int AS "Value" FROM pg_stat_activity
+                 WHERE datname = current_database() AND wait_event_type = 'Lock'
+                   AND query LIKE '%SessoesEstacao%FOR UPDATE%'
+                """).SingleAsync();
+            if (esperando > 0)
+            {
+                return;
+            }
+
+            await Task.Delay(50);
+        }
+
+        throw new TimeoutException("A liberação não chegou à trava do vínculo em 10 s.");
+    }
 
     private static string Rota(Guid estacaoId) => $"/api/v1/paf/guiches/{estacaoId}/liberar";
 

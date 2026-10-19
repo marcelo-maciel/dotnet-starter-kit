@@ -39,10 +39,12 @@ public sealed class LiberarGuicheCommandHandler(
         Guid? sessaoSolta = null;
         await using (var transacao = await db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false))
         {
-            if (await VinculosGuiche.AtivoDaEstacaoAsync(db, command.EstacaoId, cancellationToken).ConfigureAwait(false) is { } vinculo)
+            // Locks the link before the in-progress check, as the call takes it: no call commits a Chamado after it.
+            // The link was read unlocked: if its session let it go meanwhile, it may already sit on another guichê,
+            // and moving its connections would pull them out of that one.
+            if (await VinculosGuiche.AtivoDaEstacaoAsync(db, command.EstacaoId, cancellationToken).ConfigureAwait(false) is { } vinculo
+                && await VinculosGuiche.SoltarSemAtendimentoEmCursoAsync(db, tenantId, vinculo, cancellationToken).ConfigureAwait(false))
             {
-                // Locks the link before the in-progress check, as the call takes it: no call commits a Chamado after it.
-                await VinculosGuiche.SoltarSemAtendimentoEmCursoAsync(db, tenantId, vinculo, cancellationToken).ConfigureAwait(false);
                 sessaoSolta = vinculo.SessaoId;
             }
 
