@@ -133,7 +133,7 @@ public sealed class PafTravaFichaTests(FshWebApplicationFactory factory) : IAsyn
 
         travado.ShouldBe(new AtendimentoTravado(
             gravado.Id, c.UnidadeId, fichaId, c.Caixa, c.Normal, null, EstadoAtendimento.Aguardando, "A", 1,
-            gravado.CriadoEm, gravado.DataElegibilidade));
+            gravado.CriadoEm, gravado.DataElegibilidade, null));
     }
 
     [Fact]

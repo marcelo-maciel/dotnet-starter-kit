@@ -133,9 +133,10 @@ public sealed class SetGuicheCommandHandler(
 
     // The RF12 cancel, under the same serialization as the guichê operations: the ficha's rows locked in id order,
     // the state re-read after the lock. Resolved meanwhile by its owner, there is nothing left to release.
+    // TravarFichaAsync, not the guichê's TravarAsync: the pendência is another user's by definition, which TravarAsync refuses.
     private async Task<IReadOnlyList<AvisoPaf>?> CancelarPendenciaAsync(Guiche guiche, Guid atendimentoId, CancellationToken ct)
     {
-        var atendimento = await OperacaoGuiche.TravarAsync(db, guiche, atendimentoId, ct);
+        var atendimento = await OperacaoGuiche.TravarFichaAsync(db, guiche.TenantId, atendimentoId, ct);
         if (atendimento.EstacaoId != guiche.Estacao.Id
             || (atendimento.Estado != EstadoAtendimento.Chamado && atendimento.Estado != EstadoAtendimento.EmAtendimento))
         {
