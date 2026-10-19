@@ -142,7 +142,7 @@ public sealed class PafSessaoLicencaTests(FshWebApplicationFactory factory) : IA
     }
 
     [Fact]
-    public async Task MarcaVencida_RequisicaoRecusadaERenovacaoSemSaldoRecusadaSemRevogar()
+    public async Task MarcaVencidaVagaTomada_RequisicaoERenovacaoRecusadasSemRevogar()
     {
         var unidade = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);
         var dono = await _tenant.CriarUsuarioAsync(unidade.UnidadeId);
@@ -150,13 +150,16 @@ public sealed class PafSessaoLicencaTests(FshWebApplicationFactory factory) : IA
         var tokenDono = await _tenant.EntrarAsync(dono);
         await EnvelhecerMarcaAsync(tokenDono);
 
+        // The expired mark freed the seat, so another user takes it; reviving the first one is now refused, by the
+        // request (S06: re-occupation through the cascade, 401 with the cause) and by the refresh.
+        await _tenant.EntrarAsync(outro);
         using (var cliente = _tenant.Cliente(tokenDono.AccessToken))
         {
-            (await cliente.GetAsync(Perfil)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+            using var requisicao = await cliente.GetAsync(Perfil);
+            requisicao.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+            Detalhe(await requisicao.Content.ReadAsStringAsync()).ShouldBe(Licencas.MensagemLimite);
         }
 
-        // The expired mark freed the seat, so another user takes it; reviving the first one is now refused.
-        await _tenant.EntrarAsync(outro);
         var renovacao = await _tenant.RenovarAsync(tokenDono);
 
         renovacao.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
