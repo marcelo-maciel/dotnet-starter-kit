@@ -337,6 +337,9 @@ public sealed class PafModule : IModule
         // E2: RF07 types 7 and 8, over Fichas.DataOperacional.
         services.AddScoped<IConsultaEstatistica, FichasGeradasPorHorarioDePico>();
         services.AddScoped<IConsultaEstatistica, FichasEmitidasPorGuiche>();
+        // E3: RF07 types 9 and 10, grouped by fila or by setor.
+        services.AddScoped<IConsultaEstatistica, ConsultaTotaisPorTipoDeAtendimento>();
+        services.AddScoped<IConsultaEstatistica, ConsultaTotalDeAtendimentos>();
     }
 
     // Cadastros and unit scope.
