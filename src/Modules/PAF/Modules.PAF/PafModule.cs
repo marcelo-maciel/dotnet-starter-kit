@@ -76,6 +76,7 @@ using FSH.Modules.PAF.Features.v1.Unidades.DisableUnidade;
 using FSH.Modules.PAF.Features.v1.Unidades.EnableUnidade;
 using FSH.Modules.PAF.Features.v1.Unidades.GetAdministracaoUnidades;
 using FSH.Modules.PAF.Features.v1.Unidades.ListUnidades;
+using FSH.Modules.PAF.Features.v1.Unidades.ListUnidadesOperador;
 using FSH.Modules.PAF.Features.v1.Unidades.UpdateUnidade;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.GetUsuarioUnidades;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.SetUsuarioUnidades;
@@ -313,6 +314,7 @@ public sealed class PafModule : IModule
         group.MapCreateContratoUnidadeEndpoint();
         group.MapUpdateContratoUnidadeEndpoint();
         group.MapListContratosUnidadeEndpoint();
+        group.MapListUnidadesOperadorEndpoint();
 
         group.MapGetUsuarioUnidadesEndpoint();
         group.MapSetUsuarioUnidadesEndpoint();
