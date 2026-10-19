@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using FSH.Framework.Core.Exceptions;
 using FSH.Modules.PAF.Contracts.v1.Sessao;
 using FSH.Modules.PAF.Contracts.v1.TempoReal;
@@ -152,6 +153,41 @@ public sealed class PafMigracaoLicencaTests(FshWebApplicationFactory factory) : 
 
         erro.Message.ShouldBe(VinculosGuiche.MensagemAtendimentoEmCurso);
         await IntactaAsync(s, origem, destino, [], Modo.Conjunto);
+    }
+
+    [Fact]
+    public async Task CommitFalhaDepoisDoValkey_EstadoVoltaParaAOrigem_LinhaEMembroNaOrigem()
+    {
+        await PrepararModoAsync(Modo.Conjunto);
+        var origem = await _tenant.CriarUnidadeAsync(limiteSessoes: 2);
+        var destino = await _tenant.CriarUnidadeAsync(limiteSessoes: 2);
+        var s = await SessaoAsync(origem.UnidadeId, origem.UnidadeId, destino.UnidadeId);
+
+        // A deferred constraint trigger fails at COMMIT, after the handler already wrote the destination in the
+        // Valkey: the only window where the Valkey and the PostgreSQL can disagree. Only this session trips it.
+        var sufixo = Guid.NewGuid().ToString("N")[..12];
+        await _tenant.ExecutarAsync(FormattableStringFactory.Create(
+            $"CREATE FUNCTION paf.bx3_commit_{sufixo}() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN " +
+            $"IF NEW.\"SessaoId\" = '{s.SessaoId}' THEN RAISE EXCEPTION 'falha forcada'; END IF; RETURN NULL; END $f$"));
+        try
+        {
+            await _tenant.ExecutarAsync(FormattableStringFactory.Create(
+                $"CREATE CONSTRAINT TRIGGER bx3_commit_{sufixo} AFTER UPDATE ON paf.\"AtividadesSessao\" " +
+                $"DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION paf.bx3_commit_{sufixo}()"));
+
+            await Should.ThrowAsync<Exception>(() => TrocarAsync(s, origem.UnidadeId, destino.UnidadeId));
+        }
+        finally
+        {
+            await _tenant.ExecutarAsync(FormattableStringFactory.Create($"DROP TRIGGER IF EXISTS bx3_commit_{sufixo} ON paf.\"AtividadesSessao\""));
+            await _tenant.ExecutarAsync(FormattableStringFactory.Create($"DROP FUNCTION IF EXISTS paf.bx3_commit_{sufixo}()"));
+        }
+
+        (await UnidadeDaLinhaAsync(s.SessaoId)).ShouldBe(origem.UnidadeId);
+        (await Estado().LerUnidadeAsync(_tenant.TenantId, s.SessaoId, CancellationToken.None))
+            .ShouldBe(origem.UnidadeId, "o Valkey volta a dizer a origem que o PostgreSQL e a licença dizem");
+        (await MembrosAsync(origem.UnidadeId)).ShouldContain(ConjuntoLicencas.Membro(s.SessaoId));
+        (await MembrosAsync(destino.UnidadeId)).ShouldBeEmpty();
     }
 
     [Theory]

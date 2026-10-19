@@ -351,6 +351,9 @@ public sealed class Licencas(
             return;
         }
 
+        // Restored whatever the origin's balance: another login may have taken the seat this move freed, so the origin
+        // can end above its limit with no ConsumosLicenca row for it. Accepted (wave 3 review, R5): refusing would leave
+        // the session licensed nowhere, and the excess lasts until one of the sessions leaves.
         using var prazo = new CancellationTokenSource(PrazoLimpeza);
         await conjunto.RestaurarAsync(
             migracao.TenantId, ConjuntoLicencas.Membro(migracao.SessaoId), migracao.Origem, conjunto.PrazoMembro, prazo.Token);

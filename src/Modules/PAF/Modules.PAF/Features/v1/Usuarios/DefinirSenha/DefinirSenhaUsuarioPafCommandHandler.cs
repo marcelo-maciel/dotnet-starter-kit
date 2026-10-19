@@ -16,7 +16,9 @@ namespace FSH.Modules.PAF.Features.v1.Usuarios.DefinirSenha;
 /// RF08 (C16): the administrator defines the password of a user without e-mail of his own (D14) or who lost it. The
 /// password goes first, so a refusal by the kit's policy or history (400) leaves his sessions alive; then every
 /// session of his is revoked through the PAF path, as in the deactivation, because whoever held the old password may
-/// still be logged in with it.
+/// still be logged in with it. The password is a kit write that cannot join a PAF transaction, so the impersonation act
+/// (D28) goes in its own PAF transaction right after it, before the revocations, as C15 does: a revocation that fails
+/// then answers 500 with the password changed and its act already recorded.
 /// </summary>
 public sealed class DefinirSenhaUsuarioPafCommandHandler(
     PafDbContext db,
@@ -25,6 +27,7 @@ public sealed class DefinirSenhaUsuarioPafCommandHandler(
     IUserPermissionService permissoes,
     ISessionService sessoes,
     RevogacaoSessao revogacao,
+    AtosImpersonacao atos,
     IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor)
     : ICommandHandler<DefinirSenhaUsuarioPafCommand, Guid>
 {
@@ -57,6 +60,12 @@ public sealed class DefinirSenhaUsuarioPafCommandHandler(
 
         await senhas.SetPasswordByAdminAsync(command.UsuarioId.ToString(), command.Senha, cancellationToken).ConfigureAwait(false);
 
+        await using (var transacao = await db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false))
+        {
+            await atos.GravarAsync(null, cancellationToken).ConfigureAwait(false);
+            await transacao.CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         // Kit sessions with no licence row (an expired mark) are revoked too: they would come back by refresh.
         var ativas = (await sessoes.GetUserSessionsForAdminAsync(command.UsuarioId.ToString(), cancellationToken).ConfigureAwait(false))
             .Where(s => s.IsActive)
@@ -72,8 +81,6 @@ public sealed class DefinirSenhaUsuarioPafCommandHandler(
                 .ConfigureAwait(false);
         }
 
-        // The password is a kit write; this flushes the impersonation act (D28) the behavior noted, if any.
-        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         return command.UsuarioId;
     }
 }

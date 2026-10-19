@@ -37,6 +37,9 @@ public sealed class SetUnidadeCorrenteCommandHandler(
     public const string MensagemTrocaIndisponivel =
         "A troca de unidade está indisponível no momento. Tente novamente em instantes.";
 
+    // Same ceiling as the licence undo next to it: the request's token may be the reason the commit failed.
+    private static readonly TimeSpan PrazoCompensacao = TimeSpan.FromSeconds(2);
+
     public async ValueTask<Unit> Handle(SetUnidadeCorrenteCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -56,6 +59,7 @@ public sealed class SetUnidadeCorrenteCommandHandler(
         var aviso = UnidadeCorrenteAlteradaPaf.Criar(
             tenantId, OperacaoGuiche.Correlacao(), usuarioId.ToString(), new UnidadeCorrenteAlterada(Guid.CreateVersion7(), command.UnidadeId));
         var soltouGuiche = false;
+        var valkeyGravado = false;
         MigracaoLicenca migracao;
         await using (var transacao = await db.Database.BeginTransactionAsync(cancellationToken))
         {
@@ -76,11 +80,17 @@ public sealed class SetUnidadeCorrenteCommandHandler(
                     throw new CustomException(MensagemTrocaIndisponivel, [], HttpStatusCode.ServiceUnavailable);
                 }
 
+                valkeyGravado = true;
                 await transacao.CommitAsync(cancellationToken);
             }
             catch
             {
                 await licencas.DesfazerMigracaoAsync(migracao);
+                if (valkeyGravado && origem is { } unidadeDeOrigem)
+                {
+                    await RestaurarOrigemAsync(tenantId, sessaoId, unidadeDeOrigem);
+                }
+
                 throw;
             }
         }
@@ -94,6 +104,16 @@ public sealed class SetUnidadeCorrenteCommandHandler(
 
         await avisos.EnviarAsync(aviso, cancellationToken);
         return Unit.Value;
+    }
+
+    // The commit failed after the Valkey took the destination: the PostgreSQL row and the licence went back to the origin,
+    // so the Valkey goes back too, or the session would operate in the destination with its seat counted in the origin.
+    // A Valkey that does not answer now (false) leaves the destination until the key expires: the commit failure is
+    // what the caller gets either way, and a timeout or Redis error is logged by EstadoSessao.
+    private async Task RestaurarOrigemAsync(string tenantId, Guid sessaoId, Guid origem)
+    {
+        using var prazo = new CancellationTokenSource(PrazoCompensacao);
+        _ = await estado.DefinirUnidadeAsync(tenantId, sessaoId, origem, prazo.Token);
     }
 
     // Same rules as the session, on the grant's own link and key: the user's session state is never read or written.
