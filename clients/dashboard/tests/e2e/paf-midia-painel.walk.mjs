@@ -2,7 +2,11 @@
 // no media element; the station list alternates video and image without reload; nothing plays before the start
 // gesture; a call pauses the video and a burst of 5 calls keeps it paused; an object missing in the store is skipped
 // without a message; a programação takes over at its second and gives the screen back at its end; URLs that really
-// expired are re-read without a reload; disabling a mídia takes it off at once; a network drop resumes.
+// expired are re-read without a reload; disabling a mídia takes it off at once; a network drop resumes. Review fixes:
+// A2, a programação whose file is shorter than its registered duration restarts from 0 without a remount loop; A1,
+// the São Paulo midnight re-reads the agenda once (browser clock moved, the server's has no override).
+//
+// Local runner: deploy/paf/walk-local.sh (header has this walk's invocation).
 //
 // Run (fresh `seed-demo` database; API with Storage:Provider=s3 against RustFS and SHORT read URLs so expiry happens
 // inside the walk: PAF__Midia__MargemLeitura=00:00:40 and PAF__Midia__PisoValidadeUrlLeitura=00:00:01; Vite dev server):
@@ -172,6 +176,21 @@ const STUBS = () => {
   window.__exibicoes = [];
   window.__amostras = [];
   window.__amostrar = false;
+  // Every media element the painel mounts, caught by the DOM itself (no 50 ms gap), with the playhead at its first
+  // "playing": a remount loop or a seek past the file's end shows here even when it is faster than the observer.
+  window.__montagens = [];
+  new MutationObserver((mudancas) => {
+    for (const m of mudancas) {
+      for (const no of m.addedNodes) {
+        if (!(no instanceof Element)) continue;
+        const el = no.matches("[data-midia-painel]") ? no : no.querySelector("[data-midia-painel]");
+        if (el === null) continue;
+        const montagem = { midia: el.getAttribute("data-midia-painel"), exec: el.getAttribute("data-execucao"), em: Date.now(), t0: null };
+        window.__montagens.push(montagem);
+        el.addEventListener("playing", () => (montagem.t0 ??= el.currentTime), { once: true });
+      }
+    }
+  }).observe(document, { childList: true, subtree: true });
   let ultima = "";
   setInterval(() => {
     const el = document.querySelector("[data-midia-painel]");
@@ -496,6 +515,8 @@ try {
 
   // ── 6. A programação takes over at its second and gives the screen back at its end (D12) ──
   const programada = await cadastrar(token, "Programada", "programada.png", "image/png", png(0x20, 0x20, 0xc0, 64), 5);
+  // Every programação the walk creates, so step 10 can take them off the painel's day.
+  const programacoesDoWalk = [];
   const relogio = await medirRelogioServidor();
   console.log(`DIAG relógio do servidor: desvio ${relogio.desvio} ms (ida e volta ${relogio.rtt} ms); leituras do painel (ms): ${temposLeitura.slice(-12).join(",")}`);
   // Server wall-clock second of the start, and the local instants it and the end happen at.
@@ -515,6 +536,7 @@ try {
       repeticoes: 2,
       dias: 127,
     });
+    programacoesDoWalk.push(criada.id);
     console.log(`DIAG programação ${inicio.hora} total=${criada.tempoTotalSegundos} fim=${criada.horaFinalSegundos}`);
     const entrou = await esperarAte(pPainel, (p) => document.querySelector(`[data-midia-painel="${p}"]`) !== null, programada.id, 30_000);
     // Judged on the observer's log, not on the DOM: the switch and the observer's next 50 ms tick are not atomic.
@@ -549,24 +571,74 @@ try {
     check("programação: a lista volta depois da janela", saida !== undefined && (saida.midia === video.id || saida.midia === imagem.id), saida?.midia ?? "nada");
   }
 
+  // ── 6b. Review A2: a programação whose file (4 s) is shorter than its registered duration (7 s) restarts from 0 ──
+  // Before the fix each end joined the window at its offset, past the end of the file: the player remounted in a loop
+  // until the next repetition. Now each end is a new run from 0: in a 2 × 7 s window, at most ceil(14 / 4) runs.
+  const curta = await cadastrar(token, "Programada curta", "programada-curta.webm", "video/webm", webm, 7);
+  const caminhoCurta = new URL((await api("GET", `/api/v1/paf/midias/${curta.id}/url`, token)).url).pathname;
+  const relogioA2 = await medirRelogioServidor();
+  const inicioA2ServidorMs = Math.ceil((Date.now() + relogioA2.desvio + 15_000) / 1000) * 1000;
+  const inicioA2 = emSaoPaulo(inicioA2ServidorMs);
+  const inicioA2Ms = inicioA2ServidorMs - relogioA2.desvio;
+  if (emSaoPaulo(inicioA2ServidorMs + 14_000).data !== inicioA2.data) {
+    check("A2: janela cabe no dia (rode fora da virada da meia-noite)", false, inicioA2.hora);
+  } else {
+    const criadaA2 = await api("POST", "/api/v1/paf/programacoes-midia", token, {
+      midiaId: curta.id,
+      nome: "Walk M08 A2",
+      dataInicial: inicioA2.data,
+      dataFinal: inicioA2.data,
+      horaInicial: inicioA2.hora,
+      repeticoes: 2,
+      dias: 127,
+    });
+    programacoesDoWalk.push(criadaA2.id);
+    const entrouA2 = await esperarAte(pPainel, (p) => document.querySelector(`[data-midia-painel="${p}"]`) !== null, curta.id, 30_000);
+    const saiuA2 =
+      entrouA2 &&
+      (await esperarAte(pPainel, (p) => document.querySelector(`[data-midia-painel="${p}"]`) === null, curta.id, 30_000));
+    const montagensA2 = (await pPainel.evaluate(() => window.__montagens)).filter((m) => m.midia === curta.id);
+    const getsA2 = pedidosS3.filter((r) => new URL(r.url).pathname === caminhoCurta && r.em >= inicioA2Ms - 2_000);
+    console.log(`DIAG A2 montagens ${JSON.stringify(montagensA2.map((m) => [m.exec, m.em - inicioA2Ms, m.t0 === null ? null : Number(m.t0.toFixed(2))]))}; GETs ao armazenamento ${getsA2.length}`);
+    check("A2: a programação curta entra e devolve a tela", entrouA2 && saiuA2);
+    check("A2: sem laço de remontagem (no máximo ceil(14 / 4) = 4 execuções na janela)", montagensA2.length >= 2 && montagensA2.length <= 4, `${montagensA2.length} montagens`);
+    check(
+      "A2: cada repetição recomeça do 0 do arquivo e toca",
+      montagensA2.slice(1).every((m) => m.t0 !== null && m.t0 < 0.5),
+      montagensA2.map((m) => (m.t0 === null ? "não tocou" : m.t0.toFixed(2))).join(","),
+    );
+    check("A2: GETs ao armazenamento sem laço (até 3 por execução)", getsA2.length <= 3 * Math.max(1, montagensA2.length), `${getsA2.length} GETs, ${montagensA2.length} execuções`);
+    check("A2: sem recarregar", (await navegacoes(pPainel)) === 1);
+  }
+
   // ── 7. URLs are renewed before they expire; URLs that really expired are re-read without reload ──
   // With PAF:Midia:MargemLeitura = 40 s a URL lives 43 s: by now the painel must have played with several signatures.
   const assinaturas = new Set(respostasS3.filter((r) => r.status === 200 || r.status === 206).map((r) => new URL(r.url).searchParams.get("X-Amz-Date")));
   check("renovação: a mídia tocou com várias assinaturas sem recarregar", assinaturas.size >= 3 && (await navegacoes(pPainel)) === 1, `${assinaturas.size} assinaturas, ${leiturasMidias.length} leituras, recusas até aqui: ${recusasS3.length}`);
   await pPainel.route("**/api/v1/paf/estacao/painel/midias", (r) => r.abort("connectionrefused"));
   const bloqueadoEm = Date.now();
-  const vencida = await (async () => {
+  // A failed request is not always the store refusing: switching items aborts a video's pending range request
+  // (net::ERR_ABORTED) with a URL still valid. Each candidate is checked outside the browser; the first the store
+  // really refuses (403) is the expired one.
+  const conferidas = [];
+  const { vencida, prova, corpoProva } = await (async () => {
     const limite = Date.now() + 90_000;
     while (Date.now() < limite) {
-      const r = recusasS3.find((x) => x.em > bloqueadoEm);
-      if (r !== undefined) return r;
+      for (const r of recusasS3.filter((x) => x.em > bloqueadoEm && !conferidas.includes(x))) {
+        conferidas.push(r);
+        const resposta = await fetch(r.url, { signal: AbortSignal.timeout(TIMEOUT) });
+        const corpo = await resposta.text();
+        if (resposta.status === 403) return { vencida: r, prova: resposta, corpoProva: corpo };
+      }
       await dormir(250);
     }
-    return null;
+    return { vencida: null, prova: null, corpoProva: "" };
   })();
-  const prova = vencida === null ? null : await fetch(vencida.url, { signal: AbortSignal.timeout(TIMEOUT) });
-  const corpoProva = prova === null ? "" : await prova.text();
-  check("expiração: o armazenamento recusou uma URL vencida (403 real, conferido fora do navegador)", prova !== null && prova.status === 403, `${vencida?.erro} / ${prova?.status} ${corpoProva.slice(0, 120)}`);
+  check(
+    "expiração: o armazenamento recusou uma URL vencida (403 real, conferido fora do navegador)",
+    prova !== null && prova.status === 403,
+    `${vencida?.erro} / ${prova?.status} ${corpoProva.slice(0, 120)}; falhas descartadas por URL ainda válida: ${conferidas.length - (vencida === null ? 0 : 1)}`,
+  );
   await dormir(5_000);
   // An exhibition mounted after the block with a URL the store refused stays under 1.5 s (often under the 50 ms
   // observer); the painel's own skip log proves an expired item did reach its turn.
@@ -594,6 +666,11 @@ try {
     90_000,
   );
   const urlNova = respostasS3.find((r) => r.em > desbloqueadoEm && (r.status === 200 || r.status === 206) && r.url.includes(new URL(vencida?.url ?? S3).pathname));
+  console.log(
+    `DIAG expiração: bloqueado ${(desbloqueadoEm - bloqueadoEm) / 1000} s; leituras após desbloquear em ${leiturasMidias.filter((l) => l > desbloqueadoEm).map((l) => l - desbloqueadoEm).join(",") || "nenhuma"} ms; ` +
+      `S3 após desbloquear ${respostasS3.filter((r) => r.em > desbloqueadoEm).map((r) => r.status).join(",") || "nada"}; ` +
+      `tela ${JSON.stringify((await exibicoes(pPainel)).slice(-4).map((e) => [e.tag, e.exec, e.tocou, e.em - desbloqueadoEm]))}`,
+  );
   check("expiração: releitura traz URL nova e o vídeo volta a tocar sem recarregar", vencida !== null && voltou && urlNova !== undefined && urlNova.url !== vencida.url && (await navegacoes(pPainel)) === 1, `${(Date.now() - desbloqueadoEm) / 1000} s`);
 
   // ── 8. Disabling a mídia takes it off without reload ──
@@ -614,6 +691,67 @@ try {
   const retomouRede = await esperarAte(pPainel, () => document.querySelector("[data-midia-painel]") !== null, undefined, 60_000);
   check("rede: volta conectado", conectado);
   check("rede: a mídia volta a tocar sem recarregar", retomouRede && (await navegacoes(pPainel)) === 1);
+
+  // ── 10. Review A1: crossing the São Paulo midnight re-reads once, never in a loop ──
+  // The server clock has no override (TimeProvider.System, PostgreSQL now()), so the painel's view of it is moved: the
+  // agenda places the server clock at local clock + the offset measured at its read, and a fake browser clock jumped
+  // forward after that read makes the painel believe the server is 10 s before midnight. With no item and no
+  // programação nothing else re-reads on the way (URL renewals need items); a read that still happens during the jump
+  // (hub reconnection after the fake hours) is refused, so the offset stays the one measured before the jump.
+  await api("PUT", `/api/v1/paf/estacoes/${totem.id}/midias`, token, { midias: [] });
+  for (const id of programacoesDoWalk) await api("POST", `/api/v1/paf/programacoes-midia/${id}/disable`, token);
+  await pPainel.close();
+  const pMeiaNoite = await ctx.newPage();
+  await pMeiaNoite.clock.install();
+  const leiturasA1 = [];
+  pMeiaNoite.on("request", (r) => {
+    if (r.url().endsWith("/api/v1/paf/estacao/painel/midias")) leiturasA1.push({ em: Date.now(), r });
+  });
+  await pMeiaNoite.goto(`${WEB}/paf/painel`);
+  await pMeiaNoite.getByRole("button", { name: "Iniciar painel" }).click();
+  // The fake clock replaces `performance` too, so a reload is caught by a mark on the window instead.
+  await pMeiaNoite.evaluate(() => {
+    window.__semRecarregar = true;
+  });
+  await esperarAte(pMeiaNoite, () => document.querySelector('[data-conexao="conectado"]') !== null, undefined, 30_000);
+  await dormir(3_000);
+  const ultimaA1 = leiturasA1.at(-1);
+  const respostaA1 = ultimaA1 === undefined ? null : await ultimaA1.r.response();
+  const corpoA1 = respostaA1 === null ? null : await respostaA1.json();
+  const vazia = corpoA1 !== null && corpoA1.lista.length === 0 && corpoA1.programacoes.length === 0;
+  check("A1 setup: painel leu uma agenda sem itens nem programações", vazia, corpoA1 === null ? "sem leitura" : `${corpoA1.lista.length} itens, ${corpoA1.programacoes.length} programações`);
+  if (corpoA1 !== null) {
+    // Same reading as the painel: the wall-clock part of `agora` is São Paulo's.
+    const [, hh, mm, ss] = /T(\d{2}):(\d{2}):(\d{2})/.exec(corpoA1.agora);
+    const meiaNoiteServidorMs = Date.parse(corpoA1.agora) - (Number(hh) * 3600 + Number(mm) * 60 + Number(ss)) * 1000 + 86_400_000;
+    const desvioA1 = Date.parse(corpoA1.agora) - ultimaA1.em;
+    await pMeiaNoite.route("**/api/v1/paf/estacao/painel/midias", (r) => r.abort("connectionrefused"));
+    const antesDoSalto = leiturasA1.length;
+    const saltoMs = Math.floor(meiaNoiteServidorMs - (Date.now() + desvioA1) - 10_000);
+    const localAntes = await pMeiaNoite.evaluate(() => Date.now());
+    await pMeiaNoite.clock.fastForward(saltoMs);
+    const saltoEm = Date.now();
+    const localDepois = await pMeiaNoite.evaluate(() => Date.now());
+    console.log(`DIAG A1 salto ${saltoMs} ms (relógio do navegador andou ${localDepois - localAntes} ms); leituras recusadas no salto: ${leiturasA1.length - antesDoSalto}`);
+    await dormir(1_000);
+    await pMeiaNoite.unroute("**/api/v1/paf/estacao/painel/midias");
+    const aposSalto = leiturasA1.length;
+    // 10 s to midnight on the painel's view of the server clock, then 20 s past it.
+    await dormir(30_000);
+    const naVirada = leiturasA1.slice(aposSalto);
+    const relogioNavegador = await pMeiaNoite.evaluate(() => Date.now());
+    console.log(`DIAG A1 leituras na virada ${naVirada.length}; navegador ${new Date(relogioNavegador + desvioA1).toISOString()} no relógio do servidor`);
+    check("A1: o relógio do navegador passou a meia-noite de São Paulo do servidor", relogioNavegador + desvioA1 > meiaNoiteServidorMs + 5_000, `${relogioNavegador + desvioA1 - meiaNoiteServidorMs} ms depois`);
+    check("A1: a virada do dia relê as mídias 1 a 2 vezes, sem laço", naVirada.length >= 1 && naVirada.length <= 2, `${naVirada.length} GET estacao/painel/midias em 30 s`);
+    // A read before the painel's midnight (a late hub reconnection) would measure the offset again and hide the turn.
+    check(
+      "A1: a primeira releitura veio da virada, não de uma reconexão antes dela",
+      naVirada.length >= 1 && naVirada[0].em - saltoEm >= 8_000,
+      naVirada.map((l) => `${l.em - saltoEm} ms após o salto`).join(","),
+    );
+    check("A1: sem recarregar", await pMeiaNoite.evaluate(() => window.__semRecarregar === true));
+  }
+  await pMeiaNoite.close();
 
   await ctx.close();
 } catch (erro) {
