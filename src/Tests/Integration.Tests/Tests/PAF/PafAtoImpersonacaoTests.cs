@@ -42,7 +42,7 @@ public sealed class PafAtoImpersonacaoTests(FshWebApplicationFactory factory) : 
 
         // Refused by the handler before SaveChanges: the noted act never reaches the database.
         using (var recusada = await PafApi.EnviarAsync(suporte, HttpMethod.Put, $"/estacoes/{unidade.GuicheA}", unidade.UnidadeId,
-            new UpdateEstacaoCommand(unidade.GuicheA, "Guichê do suporte", [], [])))
+            new UpdateEstacaoCommand(unidade.GuicheA, "Guichê do suporte", [], [], null, BlocosDeTeste.Guiche(1))))
         {
             recusada.StatusCode.ShouldBe(HttpStatusCode.BadRequest, await recusada.Content.ReadAsStringAsync());
         }
@@ -50,7 +50,7 @@ public sealed class PafAtoImpersonacaoTests(FshWebApplicationFactory factory) : 
         (await AtosAsync(unidade.UnidadeId, concessao)).ShouldHaveSingleItem("escrita recusada não grava ato");
 
         await PafApi.OkAsync<EstacaoAlteradaDto>(suporte, HttpMethod.Put, $"/estacoes/{unidade.GuicheA}", unidade.UnidadeId,
-            new UpdateEstacaoCommand(unidade.GuicheA, "Guichê do suporte", [new EstacaoFilaItem("Guiche", fila, 1)], [new EstacaoPrioridadeItem(prioridade, 1)]));
+            new UpdateEstacaoCommand(unidade.GuicheA, "Guichê do suporte", [new EstacaoFilaItem("Guiche", fila, 1)], [new EstacaoPrioridadeItem(prioridade, 1)], null, BlocosDeTeste.Guiche(1)));
 
         var atos = await AtosAsync(unidade.UnidadeId, concessao);
         atos.Count.ShouldBe(2, "um ato por escrita");
