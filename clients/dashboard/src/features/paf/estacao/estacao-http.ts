@@ -37,7 +37,7 @@ async function lerProblema(resposta: Response): Promise<ApiError | undefined> {
   }
 }
 
-async function erroDaResposta(resposta: Response): Promise<ApiRequestError> {
+export async function erroDaResposta(resposta: Response): Promise<ApiRequestError> {
   const problema = await lerProblema(resposta);
   return new ApiRequestError(resposta.status, problema?.title ?? resposta.statusText, problema);
 }
@@ -116,13 +116,20 @@ async function enviar(papel: PapelEstacao, caminho: string, init: RequestInit, t
   });
 }
 
+/**
+ * Authenticated request with the station credential of `papel`; a 401 renews once and retries. Returns the raw
+ * response, status and headers included, for a caller that branches on them (the totem's emission cycle).
+ */
+export async function estacaoResposta(papel: PapelEstacao, caminho: string, init: RequestInit): Promise<Response> {
+  const resposta = await enviar(papel, caminho, init, await obterTokenValido(papel));
+  if (resposta.status !== 401) return resposta;
+  const renovada = await renovarUmaVez(exigirCredencial(papel));
+  return enviar(papel, caminho, init, renovada.accessToken);
+}
+
 /** Authenticated request with the station credential of `papel`; a 401 renews once and retries. */
 export async function estacaoFetch<T>(papel: PapelEstacao, caminho: string, init: RequestInit): Promise<T> {
-  let resposta = await enviar(papel, caminho, init, await obterTokenValido(papel));
-  if (resposta.status === 401) {
-    const renovada = await renovarUmaVez(exigirCredencial(papel));
-    resposta = await enviar(papel, caminho, init, renovada.accessToken);
-  }
+  const resposta = await estacaoResposta(papel, caminho, init);
   if (!resposta.ok) throw await erroDaResposta(resposta);
   if (resposta.status === 204) return undefined as T;
   return (await resposta.json()) as T;

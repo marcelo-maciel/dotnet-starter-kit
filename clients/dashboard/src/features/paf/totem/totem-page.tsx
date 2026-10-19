@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ApiRequestError } from "@/lib/api-client";
 import { lerCredencial } from "@/features/paf/estacao/credencial-estacao";
 import {
-  emitirFicha,
+  lerNumeroDaConfiguracao,
   obterConfiguracaoEmissao,
   type BotaoEmissao,
   type FichaEmitidaDto,
@@ -10,6 +9,8 @@ import {
 import { CredencialEstacaoInvalidaError } from "@/features/paf/estacao/estacao-http";
 import { conectarHubEstacao } from "@/features/paf/estacao/hub-estacao";
 import { mensagemAmigavel } from "@/features/paf/paf-erros";
+import { EmissaoTotem, PRAZO_CICLO_PADRAO_S } from "@/features/paf/totem/ciclo-emissao";
+import { emitirFichaNoCiclo } from "@/features/paf/totem/emitir-ficha";
 import { FichaImpressa } from "@/features/paf/totem/ficha-impressa";
 import { ajustarFonteSenha, definirPagina, imprimir, removerPagina } from "@/features/paf/totem/impressao";
 
@@ -18,8 +19,8 @@ const TEMPO_CONFIRMACAO_MS = 4_000;
 // ponytail: a fila window opening or closing pushes no notice, so the buttons follow it by this periodic
 // re-read (plus FilaAtualizada); the emission refuses outside the window meanwhile. Upgrade: a scheduled notice.
 const RELEITURA_BOTOES_MS = 60_000;
-
-type Pendente = { chave: string; botao: BotaoEmissao };
+const CHAVE_PRAZO_CICLO = "prazoCicloEmissaoSegundos";
+const MENSAGEM_PRAZO_VENCIDO = "Não foi possível emitir a senha agora. Toque de novo ou procure o atendimento.";
 
 type Emissao =
   | { tipo: "ocioso"; aviso: string | null }
@@ -31,19 +32,15 @@ function chaveDoBotao(b: BotaoEmissao): string {
   return `${b.filaId}:${b.prioridadeId}`;
 }
 
-// A failure the server answered for good (validation, closed window, fila not on this station) ends the
-// cycle; a network error, timeout, 429 or 5xx may have reached the server, so the same key is reused
-// on the next tap and the idempotency filter returns the stored ficha instead of a new number.
-function falhaDefinitiva(erro: unknown): boolean {
-  return erro instanceof ApiRequestError && erro.status >= 400 && erro.status < 500 && erro.status !== 408 && erro.status !== 429;
-}
-
 export function TotemPage() {
   const [vinculado, setVinculado] = useState(() => lerCredencial("Emissao") !== null);
   const [botoes, setBotoes] = useState<BotaoEmissao[] | null>(null);
   const [erroConfiguracao, setErroConfiguracao] = useState<string | null>(null);
   const [emissao, setEmissao] = useState<Emissao>({ tipo: "ocioso", aviso: null });
-  const pendenteRef = useRef<Pendente | null>(null);
+  const cicloRef = useRef<EmissaoTotem<BotaoEmissao, FichaEmitidaDto> | null>(null);
+  const prazoCicloMsRef = useRef(PRAZO_CICLO_PADRAO_S * 1_000);
+  // Resolves the cycle's delivery once the screen is back to the initial state (RF11: that ends the cycle).
+  const fimEntregaRef = useRef<(() => void) | null>(null);
   const fichaRef = useRef<HTMLDivElement>(null);
 
   const tratarCredencial = useCallback((erro: unknown): boolean => {
@@ -59,6 +56,8 @@ export function TotemPage() {
       (cfg) => {
         setErroConfiguracao(null);
         setBotoes([...cfg.botoes].sort((a, b) => a.ordem - b.ordem));
+        prazoCicloMsRef.current =
+          lerNumeroDaConfiguracao(cfg.configuracao, CHAVE_PRAZO_CICLO, PRAZO_CICLO_PADRAO_S) * 1_000;
       },
       (erro: unknown) => {
         if (!tratarCredencial(erro)) setErroConfiguracao(mensagemAmigavel(erro));
@@ -84,30 +83,37 @@ export function TotemPage() {
     };
   }, [vinculado, recarregarBotoes]);
 
+  // Created in an effect, not in render: StrictMode's mount-unmount-mount must not leave a closed cycle behind.
+  useEffect(() => {
+    const ciclo = new EmissaoTotem<BotaoEmissao, FichaEmitidaDto>({
+      enviar: (botao, chave) => emitirFichaNoCiclo(botao.filaId, botao.prioridadeId, chave),
+      entregar: (ficha) =>
+        new Promise<void>((resolve) => {
+          fimEntregaRef.current = resolve;
+          setEmissao({ tipo: "imprimindo", ficha });
+        }),
+      esperar: (ms) => new Promise<void>((resolve) => window.setTimeout(resolve, ms)),
+      agora: () => Date.now(),
+      novaChave: () => crypto.randomUUID(),
+    });
+    cicloRef.current = ciclo;
+    return () => ciclo.encerrar();
+  }, []);
+
   const emitir = async (botao: BotaoEmissao) => {
-    const pendente = pendenteRef.current;
-    const chave =
-      pendente !== null && chaveDoBotao(pendente.botao) === chaveDoBotao(botao) ? pendente.chave : crypto.randomUUID();
-    pendenteRef.current = { chave, botao };
+    const ciclo = cicloRef.current;
+    if (ciclo === null || ciclo.ocupada()) return;
+    // Same visible message for the whole attempt: network resends and the in-flight 409 wait are not errors.
     setEmissao({ tipo: "emitindo" });
-    try {
-      const ficha = await emitirFicha(botao.filaId, botao.prioridadeId, chave);
-      pendenteRef.current = null;
-      setEmissao({ tipo: "imprimindo", ficha });
-    } catch (erro) {
-      if (tratarCredencial(erro)) return;
-      if (falhaDefinitiva(erro)) {
-        pendenteRef.current = null;
-        setEmissao({ tipo: "ocioso", aviso: mensagemAmigavel(erro) });
-        // A refusal for the window or for lost coverage means this button is stale.
-        recarregarBotoes();
-        return;
-      }
-      setEmissao({
-        tipo: "ocioso",
-        aviso: `${mensagemAmigavel(erro)} Toque de novo em "${botao.fila} - ${botao.prioridade}".`,
-      });
+    const fim = await ciclo.tocar(botao, prazoCicloMsRef.current);
+    if (fim.tipo === "recusada") {
+      if (tratarCredencial(fim.erro)) return;
+      setEmissao({ tipo: "ocioso", aviso: mensagemAmigavel(fim.erro) });
+      // A refusal for the window or for lost coverage means this button is stale.
+      recarregarBotoes();
+      return;
     }
+    if (fim.tipo === "prazoVencido") setEmissao({ tipo: "ocioso", aviso: MENSAGEM_PRAZO_VENCIDO });
   };
 
   // Measured after layout: the senha font and the page height depend on the rendered ticket.
@@ -118,9 +124,15 @@ export function TotemPage() {
     definirPagina(fichaRef.current);
     let ativo = true;
     const senhaEmitida = emissao.ficha.senha;
-    void imprimir(LIMITE_IMPRESSAO_MS).then(() => {
+    const concluir = () => {
       removerPagina();
       if (ativo) setEmissao({ tipo: "concluido", senha: senhaEmitida });
+    };
+    // A print failure never undoes the ficha (RF11): the senha stays on screen and the cycle still has to end,
+    // or the emission cycle would stay busy and lock every button until a reload.
+    void imprimir(LIMITE_IMPRESSAO_MS).then(concluir, (erro: unknown) => {
+      console.warn("[paf-totem] falha ao imprimir a ficha", erro);
+      concluir();
     });
     return () => {
       ativo = false;
@@ -129,7 +141,11 @@ export function TotemPage() {
 
   useEffect(() => {
     if (emissao.tipo !== "concluido") return;
-    const timer = window.setTimeout(() => setEmissao({ tipo: "ocioso", aviso: null }), TEMPO_CONFIRMACAO_MS);
+    const timer = window.setTimeout(() => {
+      setEmissao({ tipo: "ocioso", aviso: null });
+      fimEntregaRef.current?.();
+      fimEntregaRef.current = null;
+    }, TEMPO_CONFIRMACAO_MS);
     return () => window.clearTimeout(timer);
   }, [emissao]);
 
@@ -143,7 +159,8 @@ export function TotemPage() {
     );
   }
 
-  const ocupado = emissao.tipo === "emitindo" || emissao.tipo === "imprimindo";
+  // The cycle runs until the screen is back to the initial state, confirmation included (RF11).
+  const ocupado = emissao.tipo !== "ocioso";
 
   return (
     <main className="flex min-h-screen flex-col items-center gap-8 bg-white p-8 text-black">
@@ -176,7 +193,7 @@ export function TotemPage() {
       </div>
 
       <div aria-live="polite" className="min-h-16 text-center text-3xl">
-        {emissao.tipo === "emitindo" && <p role="status">Emitindo sua senha…</p>}
+        {emissao.tipo === "emitindo" && <p role="status">Emitindo sua senha… aguarde.</p>}
         {emissao.tipo === "imprimindo" && <p role="status">Imprimindo a senha {emissao.ficha.senha}…</p>}
         {emissao.tipo === "concluido" && (
           <p role="status">
