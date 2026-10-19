@@ -1,0 +1,127 @@
+# PAF V2: one compose file, one project per environment (RNF02, RNF17). Production and homologation share the
+# Contabo VPS, so nothing here carries a fixed name: no top-level `name:`, no `container_name`, and volumes and the
+# network are prefixed by COMPOSE_PROJECT_NAME, which comes from the environment file. `down` of one project
+# therefore never touches the other.
+#
+#   docker compose -f deploy/paf/compose.yml --env-file deploy/paf/ambientes/<ambiente>.env up -d
+#
+# Run deploy/paf/verificar-ambiente.sh on both environment files before every `up` (README).
+#
+# The same environment file is the API's env_file: what verificar-ambiente.sh checks is exactly what the host reads.
+
+x-paf-api: &paf-api
+  image: ${PAF_IMAGEM_API:?PAF_IMAGEM_API is required (deploy/paf/publicar-imagem-api.sh)}
+  restart: unless-stopped
+  env_file: [ "${PAF_ARQUIVO_AMBIENTE:?PAF_ARQUIVO_AMBIENTE is required}" ]
+  depends_on:
+    postgres: { condition: service_healthy }
+    valkey: { condition: service_healthy }
+    migrator: { condition: service_completed_successfully }
+  networks: [ paf ]
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    # RNF10: the instance's own timezone, not only the containers' TZ.
+    command: [ "postgres", "-c", "timezone=America/Sao_Paulo", "-c", "log_timezone=America/Sao_Paulo" ]
+    environment:
+      TZ: America/Sao_Paulo
+      POSTGRES_DB: fsh
+      POSTGRES_USER: fsh
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      # The 18+ images keep PGDATA under /var/lib/postgresql/18/docker and refuse a mount at the old .../data.
+      - pg_data:/var/lib/postgresql
+      - ../docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U fsh -d fsh" ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    # Loopback only: pg_dump and the host-side seed reach it, the internet does not.
+    ports:
+      - "127.0.0.1:${PAF_PORTA_POSTGRES:?PAF_PORTA_POSTGRES is required}:5432"
+    networks: [ paf ]
+
+  # One Valkey per environment, never shared (RNF02, ARQ 367): the backplane channel prefix is a kit constant, so
+  # two environments on one Valkey would announce each other's calls. AOF for the licence set and the sessions.
+  valkey:
+    image: valkey/valkey:9.1.0-alpine
+    restart: unless-stopped
+    command: [ "valkey-server", "--requirepass", "${VALKEY_PASSWORD:?VALKEY_PASSWORD is required}", "--appendonly", "yes" ]
+    environment:
+      VALKEY_PASSWORD: ${VALKEY_PASSWORD}
+    volumes:
+      - valkey_data:/data
+    healthcheck:
+      test: [ "CMD-SHELL", "valkey-cli -a \"$$VALKEY_PASSWORD\" --no-auth-warning PING | grep PONG" ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks: [ paf ]
+
+  migrator:
+    image: ${PAF_IMAGEM_MIGRATOR:?PAF_IMAGEM_MIGRATOR is required (deploy/paf/publicar-imagem-migrator.sh)}
+    restart: "no"
+    env_file: [ "${PAF_ARQUIVO_AMBIENTE}" ]
+    depends_on:
+      postgres: { condition: service_healthy }
+      valkey: { condition: service_healthy }
+    command: [ "apply", "--seed" ]
+    networks: [ paf ]
+
+  api-a:
+    <<: *paf-api
+    ports:
+      - "127.0.0.1:${PAF_PORTA_API_A:?PAF_PORTA_API_A is required}:8080"
+
+  # Second instance for the rolling deploy of RNF16. Off by default: production only runs two instances once S03 and
+  # S04 are merged (plan of slice 2, risk table); then COMPOSE_PROFILES=duas-instancias in the production file.
+  api-b:
+    <<: *paf-api
+    profiles: [ duas-instancias ]
+    ports:
+      - "127.0.0.1:${PAF_PORTA_API_B:?PAF_PORTA_API_B is required}:8080"
+
+  dashboard:
+    image: ${PAF_IMAGEM_DASHBOARD:?PAF_IMAGEM_DASHBOARD is required}
+    build:
+      context: ../../clients/dashboard
+    restart: unless-stopped
+    environment:
+      FSH_API_URL: ${PAF_API_URL:?PAF_API_URL is required}
+      FSH_DEFAULT_TENANT: ${PAF_TENANT_PADRAO:?PAF_TENANT_PADRAO is required}
+      PAF_INATIVIDADE_MS: ${PAF_INATIVIDADE_MS:?PAF_INATIVIDADE_MS is required}
+    # D04: the inactivity timeout per environment comes from a PAF template mounted over the kit's, so the kit
+    # image and its entrypoint (envsubst into /config.json) stay untouched.
+    volumes:
+      - ./dashboard/config.json.template:/etc/fsh/config.json.template:ro
+    ports:
+      - "127.0.0.1:${PAF_PORTA_DASHBOARD:?PAF_PORTA_DASHBOARD is required}:80"
+    networks: [ paf ]
+
+  admin:
+    image: ${PAF_IMAGEM_ADMIN:?PAF_IMAGEM_ADMIN is required}
+    build:
+      context: ../../clients/admin
+    restart: unless-stopped
+    environment:
+      FSH_API_URL: ${PAF_API_URL}
+      FSH_DASHBOARD_URL: ${PAF_DASHBOARD_URL:?PAF_DASHBOARD_URL is required}
+      FSH_DEFAULT_TENANT: root
+    ports:
+      - "127.0.0.1:${PAF_PORTA_ADMIN:?PAF_PORTA_ADMIN is required}:80"
+    networks: [ paf ]
+
+networks:
+  paf:
+    # Fixed subnet: it is the API's TrustedProxyOptions:KnownNetworks (ARQ 380), because Apache on the host reaches
+    # the containers through this network's gateway.
+    ipam:
+      config:
+        - subnet: ${PAF_SUBNET:?PAF_SUBNET is required}
+
+volumes:
+  pg_data:
+  valkey_data:
