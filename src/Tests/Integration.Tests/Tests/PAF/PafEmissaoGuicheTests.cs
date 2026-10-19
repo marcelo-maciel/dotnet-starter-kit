@@ -193,7 +193,7 @@ public sealed class PafEmissaoGuicheTests(FshWebApplicationFactory factory) : IA
     }
 
     [Fact]
-    public async Task Emitir_TotemEGuichesEmParalelo_50NumerosDistintosEConsecutivos()
+    public async Task Emitir_TotemEGuiches_5RajadasDe10_50NumerosDistintosEConsecutivos()
     {
         const int Rajadas = 5;
         var c = await _op.CriarAsync();

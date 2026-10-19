@@ -1,3 +1,6 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Domain;
 using FSH.Modules.PAF.Contracts.Authorization;
@@ -157,6 +160,48 @@ public sealed class PafSenhaUsuarioTests(FshWebApplicationFactory factory) : IAs
     }
 
     [Fact]
+    public async Task Codefi_Impersonando_FalhaNaRevogacao_SenhaTrocadaJaTemOAto()
+    {
+        var u1 = await _tenant.CriarUnidadeAsync(limiteSessoes: 5);
+        var usuario = await _tenant.CriarUsuarioAsync(u1.UnidadeId);
+        await _tenant.EntrarAsync(usuario);
+        var alvo = await _tenant.CriarUsuarioAsync(u1.UnidadeId);
+        await _tenant.DarPapelAsync(alvo.UserId, PafPermissions.Usuarios.View, PafPermissions.Usuarios.Manage);
+        using var root = await new AuthHelper(factory).CreateRootAdminClientAsync();
+        var token = await ImpersonarAsync(root, alvo.UserId);
+        var concessao = Guid.Parse(new JwtSecurityTokenHandler().ReadJwtToken(token).Id);
+        using var suporte = _tenant.Cliente(token);
+        var hashAntes = await HashAsync(usuario.UserId);
+
+        // The revocation releases the licence row in its own transaction; failing that DELETE fails the request after
+        // the kit already wrote the password, which is exactly the window R3 closes. Only this user trips it.
+        var sufixo = Guid.NewGuid().ToString("N")[..12];
+        await _tenant.ExecutarAsync(FormattableStringFactory.Create(
+            $"CREATE FUNCTION paf.bx3_revoga_{sufixo}() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN " +
+            $"IF OLD.\"UsuarioId\" = '{usuario.UserId}' THEN RAISE EXCEPTION 'falha forcada'; END IF; RETURN OLD; END $f$"));
+        try
+        {
+            await _tenant.ExecutarAsync(FormattableStringFactory.Create(
+                $"CREATE TRIGGER bx3_revoga_{sufixo} BEFORE DELETE ON paf.\"AtividadesSessao\" " +
+                $"FOR EACH ROW EXECUTE FUNCTION paf.bx3_revoga_{sufixo}()"));
+
+            using var resposta = await PafApi.EnviarAsync(suporte, HttpMethod.Post, $"/usuarios/{usuario.UserId}/senha", null, Corpo(SenhaNova));
+
+            resposta.IsSuccessStatusCode.ShouldBeFalse(await resposta.Content.ReadAsStringAsync());
+        }
+        finally
+        {
+            await _tenant.ExecutarAsync(FormattableStringFactory.Create($"DROP TRIGGER IF EXISTS bx3_revoga_{sufixo} ON paf.\"AtividadesSessao\""));
+            await _tenant.ExecutarAsync(FormattableStringFactory.Create($"DROP FUNCTION IF EXISTS paf.bx3_revoga_{sufixo}()"));
+        }
+
+        (await HashAsync(usuario.UserId)).ShouldNotBe(hashAntes, "a senha do kit já foi gravada quando a revogação falhou");
+        using var scope = factory.Services.CreateScope();
+        var atos = await _tenant.Contexto(scope, u1.UnidadeId).AtosImpersonacao.AsNoTracking().Where(a => a.ConcessaoId == concessao).ToListAsync();
+        atos.ShouldHaveSingleItem("a senha trocada sob impersonação nunca fica sem o ato (D28)").AtendimentoId.ShouldBeNull();
+    }
+
+    [Fact]
     public async Task PropriaSenha_400()
     {
         var u1 = await _tenant.CriarUnidadeAsync(limiteSessoes: 5);
@@ -183,6 +228,19 @@ public sealed class PafSenhaUsuarioTests(FshWebApplicationFactory factory) : IAs
         await _tenant.DarPapelAsync(admin.UserId, PafPermissions.Usuarios.View, PafPermissions.Usuarios.Manage,
             PafPermissions.UsuariosUnidade.View, PafPermissions.UsuariosUnidade.Update);
         return _tenant.Cliente((await _tenant.EntrarAsync(admin)).AccessToken);
+    }
+
+    private async Task<string> ImpersonarAsync(HttpClient ator, string alvo)
+    {
+        using var resposta = await ator.PostAsJsonAsync($"{TestConstants.IdentityBasePath}/impersonation/start", new
+        {
+            targetUserId = alvo,
+            targetTenantId = _tenant.TenantId,
+            reason = "teste da senha definida pelo administrador",
+        });
+        resposta.StatusCode.ShouldBe(HttpStatusCode.OK, await resposta.Content.ReadAsStringAsync());
+        using var json = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync());
+        return json.RootElement.GetProperty("accessToken").GetString()!;
     }
 
     private static async Task<HttpStatusCode> StatusAsync(HttpClient cliente, string usuarioId, string senha)

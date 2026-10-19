@@ -59,8 +59,9 @@ public sealed class OpcoesMidia
     {
         services.AddOptions<OpcoesMidia>()
             .BindConfiguration(Secao)
-            .Validate(o => o.ValidadeUrlEnvio > TimeSpan.Zero && o.ValidadeUrlEnvio <= ValidadeMaximaAssinatura,
-                "PAF:Midia:ValidadeUrlEnvio precisa ser positiva e no máximo 7 dias.")
+            // Exactly 7 days signs in SigV2, which R2 refuses (M04): the ceiling is the read URL's, with its clock slack.
+            .Validate(o => o.ValidadeUrlEnvio > TimeSpan.Zero && o.ValidadeUrlEnvio <= UrlLeituraMidia.TetoValidade,
+                "PAF:Midia:ValidadeUrlEnvio precisa ser positiva e no máximo 7 dias menos 15 minutos.")
             .Validate(o => o.TetoVideoBytes > 0 && o.TetoImagemBytes > 0 && o.TetoAudioBytes > 0,
                 "PAF:Midia: os tetos por tipo precisam ser positivos.")
             .Validate(o => o.MargemLeitura > TimeSpan.Zero && o.MargemLeitura < ValidadeMaximaAssinatura,

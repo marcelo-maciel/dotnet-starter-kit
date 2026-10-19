@@ -30,9 +30,11 @@ public sealed partial class LimpezaMidia(
 {
     public const string IdRecorrente = "paf-limpeza-midia";
 
-    // Six in the morning UTC is three in America/Sao_Paulo (no DST since 2019), outside store hours. ponytail: fixed cron
-    // and batch; move both to the PAF:Midia options when the swaps of a tenant outgrow one batch a day.
-    public const string Cron = "0 6 * * *";
+    // Three in the morning in Sao Paulo, outside store hours, in the project's time zone like every PAF clock (jobs
+    // included), so a DST rule coming back keeps the hour. ponytail: fixed cron and batch; move both to the PAF:Midia
+    // options when the swaps of a tenant outgrow one batch a day.
+    public const string Cron = "0 3 * * *";
+    public static readonly TimeZoneInfo Fuso = TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
     public const int Lote = 200;
 
     /// <summary>Same retention as <c>deploy/paf/r2/lock-midia.json</c> (maxAgeSeconds 2592000, Age rule on <c>paf-midia/</c>).</summary>
