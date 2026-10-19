@@ -31,7 +31,7 @@ public sealed class ConsultarEstatisticaQueryValidator : AbstractValidator<Consu
             .When(x => x.Tipo is not { } tipo || !TiposComAgrupamento.Contains(tipo))
             .WithMessage("Só os tipos 9 e 10 aceitam agrupamento.");
 
-        RuleFor(x => x.SomenteEstacoesComAtendimento).Equal(false)
+        RuleFor(x => x.SomenteEstacoesComAtendimento).NotEqual(true)
             .When(x => x.Tipo != TipoEstatistica.AtendimentosPorGuiche)
             .WithMessage("Só o tipo 3 aceita filtrar as estações com atendimento.");
 

@@ -75,6 +75,6 @@ public sealed class ConsultarEstatisticaQuery : IQuery<ResultadoEstatisticaDto>
 
     public Guid[]? Prioridades { get; init; }
 
-    /// <summary>RF07 option of type 3: list only the stations that had an atendimento in the period.</summary>
-    public bool SomenteEstacoesComAtendimento { get; init; }
+    /// <summary>RF07 option of type 3: list only the stations that had an atendimento in the period. Absent = off.</summary>
+    public bool? SomenteEstacoesComAtendimento { get; init; }
 }

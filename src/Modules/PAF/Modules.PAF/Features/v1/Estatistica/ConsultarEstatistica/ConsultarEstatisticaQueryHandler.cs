@@ -66,7 +66,7 @@ public sealed class ConsultarEstatisticaQueryHandler(
             unidades,
             filas,
             prioridades,
-            query.SomenteEstacoesComAtendimento);
+            query.SomenteEstacoesComAtendimento == true);
 
         // Single, not First: two registrations for one type is a wiring bug that must fail loud.
         var consulta = consultas.SingleOrDefault(c => c.Tipo == tipo);
