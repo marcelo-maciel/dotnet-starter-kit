@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text.Json;
 using FSH.Framework.Core.Exceptions;
 using FSH.Modules.PAF.Contracts.v1.Atendimentos;
 using FSH.Modules.PAF.Contracts.v1.TempoReal;
@@ -14,9 +13,6 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 
 namespace FSH.Modules.PAF.Features.v1.Atendimentos.ChamarProximaFicha;
-
-/// <summary>Row of the candidate query, materialized by EF from raw SQL.</summary>
-internal sealed record Candidato(Guid AtendimentoId, Guid FichaId, Guid FilaId, Guid PrioridadeId, string Letra, int Numero);
 
 /// <summary>
 /// Calls the next ficha on the session's guichê (RF15, requisitos seção 4, arquitetura seção 8). Selection and
@@ -122,48 +118,18 @@ public sealed partial class ChamarProximaFichaCommandHandler(
                 continue;
             }
 
-            var versoes = await db.Database.SqlQuery<int>($"""
-                UPDATE paf."Atendimentos"
-                   SET "Estado" = 'Chamado', "EstacaoId" = {guiche.Estacao.Id}, "UsuarioId" = {guiche.UsuarioId},
-                       "ChamadoEm" = now(), "Versao" = "Versao" + 1
-                 WHERE "TenantId" = {guiche.TenantId} AND "Id" = {candidato.AtendimentoId} AND "Estado" = 'Aguardando'
-                RETURNING "Versao" AS "Value"
-                """).ToListAsync(ct);
-            if (versoes.Count == 0)
+            var versao = await ChamadaDeFicha.MarcarChamadoAsync(db, guiche, candidato, ct);
+            if (versao is null)
             {
                 await transacao.RollbackToSavepointAsync("candidato", ct);
                 pulados.Add(candidato.FichaId);
                 continue;
             }
 
-            await db.Database.ExecuteSqlAsync($"""
-                UPDATE paf."Filas" SET "UltimaChamadaEm" = now()
-                 WHERE "TenantId" = {guiche.TenantId} AND "Id" = {candidato.FilaId}
-                """, ct);
-
-            return await ConfirmarAsync(transacao, guiche, candidato, versoes[0], ct);
+            return await ChamadaDeFicha.ConfirmarAsync(db, avisos, transacao, guiche, candidato, versao.Value, ct);
         }
 
         throw new CustomException(MensagemDisputa, [], HttpStatusCode.ServiceUnavailable);
-    }
-
-    private async Task<ChamadaDto> ConfirmarAsync(IDbContextTransaction transacao, Guiche guiche, Candidato candidato, int versao, CancellationToken ct)
-    {
-        var senha = OperacaoGuiche.Senha(candidato.Letra, candidato.Numero);
-        var paineis = await OperacaoGuiche.PaineisDaFilaAsync(db, candidato.FilaId, ct);
-        var chamada = SenhaChamadaPaf.Criar(guiche.TenantId, OperacaoGuiche.Correlacao(), new SenhaChamada(
-            Guid.CreateVersion7(), guiche.Estacao.UnidadeId, candidato.AtendimentoId, candidato.FichaId, versao,
-            senha, guiche.Estacao.Id, guiche.Estacao.Nome), paineis);
-        var fila = FilaAtualizadaPaf.Criar(guiche.TenantId, OperacaoGuiche.Correlacao(),
-            new FilaAtualizada(Guid.CreateVersion7(), guiche.Estacao.UnidadeId, candidato.FilaId));
-
-        await avisos.GravarAsync(chamada, ct);
-        await avisos.GravarAsync(fila, ct);
-        await transacao.CommitAsync(ct);
-        await avisos.EnviarAsync(chamada, ct);
-        await avisos.EnviarAsync(fila, ct);
-
-        return new ChamadaDto(candidato.AtendimentoId, candidato.FichaId, senha, candidato.FilaId, candidato.PrioridadeId, versao);
     }
 
     private async Task<Candidato?> CandidatoAsync(Guiche guiche, bool respeitaOrdem, bool somenteDataAtual, List<Guid> pulados, CancellationToken ct)
@@ -174,36 +140,24 @@ public sealed partial class ChamarProximaFichaCommandHandler(
     }
 
     /// <summary>
-    /// Requisitos seção 4: fila of the guichê role (active or not), prioridade enabled on the station, waiting,
-    /// eligible (today only when RF06 "somente fichas da data atual" is on), ficha older than five seconds, no
-    /// other atendimento of the ficha in progress. Order: station's fila order when it respects it, then
-    /// prioridade value descending, then creation order. Public so the plan test runs EXPLAIN on this exact text.
-    /// The date test is a lower bound (">= today", same as "= today" because ElegivelDesde only takes now()) so
-    /// DataElegibilidade stays a range condition on IX_Atendimentos_Candidatos with the parameter on or off.
+    /// The shared eligibility predicate and call order (<see cref="ChamadaDeFicha"/>), minus the fichas skipped in this
+    /// transaction, first row locked without waiting. Public so the plan test runs EXPLAIN on this exact text.
     /// </summary>
     public static FormattableString ConsultaCandidato(
-        string tenantId, Guid unidadeId, Guid estacaoId, bool respeitaOrdem, bool somenteDataAtual, Guid[] fichasPuladas) => $"""
+        string tenantId, Guid unidadeId, Guid estacaoId, bool respeitaOrdem, bool somenteDataAtual, Guid[] fichasPuladas) =>
+        ChamadaDeFicha.Concatenar(
+            $"""
             SELECT a."Id" AS "AtendimentoId", a."FichaId", a."FilaId", a."PrioridadeId", f."Letra", f."Numero"
-              FROM paf."Atendimentos" a
-              JOIN paf."Fichas" f ON f."Id" = a."FichaId"
-              JOIN paf."EstacaoFilas" ef
-                ON ef."EstacaoId" = {estacaoId} AND ef."Papel" = 'Guiche' AND ef."FilaId" = a."FilaId"
-              JOIN paf."EstacaoPrioridades" ep
-                ON ep."EstacaoId" = {estacaoId} AND ep."PrioridadeId" = a."PrioridadeId"
-              JOIN paf."Prioridades" p ON p."Id" = a."PrioridadeId"
-             WHERE a."TenantId" = {tenantId} AND a."UnidadeId" = {unidadeId}
-               AND a."Estado" = 'Aguardando'
-               AND a."DataElegibilidade" >= CASE WHEN {somenteDataAtual}
-                   THEN (now() AT TIME ZONE 'America/Sao_Paulo')::date ELSE '-infinity'::date END
-               AND f."CriadoEm" <= now() - interval '5 seconds'
+            """,
+            ChamadaDeFicha.Elegiveis(tenantId, unidadeId, estacaoId, somenteDataAtual),
+            $"""
                AND a."FichaId" <> ALL({fichasPuladas})
-               AND NOT EXISTS (
-                   SELECT 1 FROM paf."Atendimentos" o
-                    WHERE o."TenantId" = {tenantId} AND o."FichaId" = a."FichaId" AND o."Estado" IN ('Chamado', 'EmAtendimento'))
-             ORDER BY CASE WHEN {respeitaOrdem} THEN ef."Ordem" ELSE 0 END, p."Valor" DESC, a."CriadoEm", a."Id"
+            """,
+            ChamadaDeFicha.OrdemDaChamada(respeitaOrdem),
+            $"""
              LIMIT 1
                FOR UPDATE OF a SKIP LOCKED
-            """;
+            """);
 
     /// <summary>
     /// Locks every atendimento row of the ficha in ascending id order without waiting. Fewer rows locked than
@@ -228,22 +182,8 @@ public sealed partial class ChamarProximaFichaCommandHandler(
             .AnyAsync(a => a.FichaId == fichaId && (a.Estado == EstadoAtendimento.Chamado || a.Estado == EstadoAtendimento.EmAtendimento), ct);
     }
 
-    /// <summary>
-    /// ponytail: the RF04 guichê block has no cadastro screen yet; the option lives in the station's JSON
-    /// configuration and is off when absent. Move it to a column when the block gets its endpoint.
-    /// </summary>
-    internal static bool RespeitaOrdemDasFilas(string? configuracao)
-    {
-        if (string.IsNullOrWhiteSpace(configuracao))
-        {
-            return false;
-        }
-
-        using var json = JsonDocument.Parse(configuracao);
-        return json.RootElement.ValueKind == JsonValueKind.Object
-            && json.RootElement.TryGetProperty(ChaveRespeitarOrdemFilas, out var valor)
-            && valor.ValueKind == JsonValueKind.True;
-    }
+    internal static bool RespeitaOrdemDasFilas(string? configuracao) =>
+        ChamadaDeFicha.OpcaoLigada(configuracao, ChaveRespeitarOrdemFilas);
 
     [LoggerMessage(EventId = 9040, Level = LogLevel.Information,
         Message = "Chamada repetida em transacao nova apos disputa de ficha; tenant={TenantId} guiche={EstacaoId} tentativas={Tentativas}")]
