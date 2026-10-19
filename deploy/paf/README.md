@@ -102,3 +102,33 @@ Roteiro por ambiente, um passo por linha com estado VERIFICADO ou SKIPPED, em `d
 - `r2/provar-r2.cs <arquivo .env>`: prova de aceite contra o bucket real (bloqueio de 30 dias em `paf-midia/`, DELETE livre fora dele, GET sem assinatura 403, assinatura de 8 dias recusada, CORS do dashboard). Código 0 só com tudo PASS.
 - `r2/conferir-midias.cs <arquivo .env>` com `PAF_CONFERENCIA_CONEXAO`: HEAD em lote das chaves de `paf."Midias"` no banco restaurado. Código 0 tudo presente, 1 algum ausente, 2 conferência não rodou. É o passo de mídia do teste de restauração do O11.
 - `r2/r2.test.sh`: prova local das duas contra PostgreSQL com as migrações reais e RustFS; remove os contêineres ao sair.
+
+## Vhost do Apache do host (O03, RNF02, RNF16)
+
+`apache/paf-vhost.conf.template` é o vhost de um ambiente no Apache compartilhado da VPS (layout Debian/Ubuntu). Nunca editar a cópia gerada em `sites-available`: o template é a fonte.
+
+- API: `balancer://<COMPOSE_PROJECT_NAME>` com `api-a` e, só quando `COMPOSE_PROFILES` tem `duas-instancias`, `api-b`, os dois em `127.0.0.1` com `upgrade=websocket` (opção B da ARQ seção 11: WebSockets com `SkipNegotiation`, sem cookie de afinidade), `connectiontimeout=3` e `retry=10` (o padrão de 60 s deixava a instância reiniciada fora do grupo, ARQ l.378); `ProxyTimeout 60`, acima do keepalive de 15 s do SignalR; `ProxyPreserveHost On` e `X-Forwarded-Proto https`.
+- Dashboard e admin: um vhost 443 cada, proxy simples para a porta do ambiente; porta 80 só redireciona para https no mesmo host, caminho e query, para que HTTP desses hosts nunca caia no vhost padrão de outro cliente.
+- Log sem query string em nenhuma rota (`%m %U %H`, nunca `%r`): hub do PAF, hub do kit e `/notifications` levam `?access_token=`.
+- TLS: certificados em `/etc/letsencrypt/live/<host>/`. Sem o certificado, o `configtest` falha e nada é aplicado.
+
+```bash
+sudo deploy/paf/apache/conferir-apache.sh                                  # só leitura
+sudo deploy/paf/apache/aplicar-vhost.sh deploy/paf/ambientes/producao.env  # um ambiente por vez
+```
+
+`conferir-apache.sh` confere versão 2.4.47 ou mais nova, MPM `event` e os módulos `ssl`, `proxy`, `proxy_http`, `proxy_balancer`, `slotmem_shm`, `lbmethod_byrequests` e `headers`, e imprime `Timeout`, `MaxRequestWorkers` e afins. Nunca habilita módulo: o que faltar sai com a linha `a2enmod` a rodar, um módulo por vez, com confirmação de Marcelo, `configtest` e `graceful`, e o p95 dos outros sites medido antes e depois. Rollback de um módulo: `a2dismod`, `configtest`, `graceful`.
+
+`aplicar-vhost.sh` roda o conferir, gera o vhost, guarda o anterior em `<projeto>.conf.anterior`, instala, `a2ensite`, `configtest` e só então `graceful`. `configtest` falho restaura o anterior (ou desabilita o site novo), confere o estado restaurado e sai com código diferente de zero, sem `graceful`. Rollback do vhost: copiar o `.anterior` de volta (ou `a2dissite <projeto>`), `configtest` e `graceful`.
+
+### Limite de conexões: bloqueia produção
+
+No Apache 2.4.x, cada WebSocket aberto pelo túnel do `mod_proxy_http` prende uma thread do worker enquanto durar (a documentação 2.4 não tem diretiva de túnel assíncrono). Medido no ensaio abaixo, Apache 2.4.52 do Ubuntu 22.04 com o `mpm_event.conf` padrão (`MaxRequestWorkers 150`, o mesmo valor da Contabo): 150 WebSockets abriram, os outros 150 foram recusados, o log registrou `AH00484` e o próprio `GET /health` pelo Apache deixou de responder em 10 s, ou seja, os demais sites do host também param. Com `MaxRequestWorkers 600` e `ServerLimit 24` os mesmos 300 WebSockets ficaram 180 s abertos, com `graceful` no meio, sem perda e sem `AH00484`. O volume de D20 (20 unidades com 3 totens, 2 painéis e 8 guichês) dá 260 conexões do `PafHub`, fora as abas de cadastro. Aumentar `MaxRequestWorkers`/`ServerLimit` no Apache compartilhado ou pôr um proxy dedicado ao PAF é decisão de Marcelo antes da produção; o vhost não resolve isso sozinho. Conexões abertas também atravessam um `graceful` presas ao processo antigo, que só sai quando elas fecham; cada `graceful` com o PAF no ar ocupa slots de `ServerLimit` até lá.
+
+### ensaio-apache.sh
+
+```bash
+deploy/paf/apache/ensaio-apache.sh spike-ws-app <conexoes> <segundos>
+```
+
+Ensaio local, nunca na VPS: Apache 2.4.52 do `ubuntu:22.04` em contêiner (`paf-ensaio-apache*`, removidos ao sair), o `aplicar-vhost.sh` rodando dentro dele sobre o vhost gerado do exemplo de produção com duas instâncias, certificados autoassinados e o hub do spike de WebSocket (`PAFV2/spikes/websocket/app`, imagem `spike-ws-app`) nas portas do ambiente. Confere redirecionamento, roteamento por host, handshake 101 em WebSockets, `docker kill` da instância conectada com reconexão na outra e retorno dela ao grupo, N conexões por S segundos com broadcast por minuto e `graceful` no meio, zero `access_token=` e zero marcador do token nos logs (com as linhas 101 do hub presentes como controle), zero `AH00484`/`AH00485`, `configtest` falho sem troca de arquivo nem `graceful`, e módulo ausente abortando antes de tocar no arquivo. Código 0 só com tudo verde. Não cobre: TLS real, Cloudflare ou outro proxy à frente, o Apache no host chegando pela rede do Docker, e o p95 dos outros sites da VPS.
