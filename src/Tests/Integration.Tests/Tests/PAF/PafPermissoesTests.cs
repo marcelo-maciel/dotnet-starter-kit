@@ -14,7 +14,7 @@ public sealed class PafPermissoesTests(FshWebApplicationFactory factory)
     private readonly AuthHelper _auth = new(factory);
 
     [Fact]
-    public async Task AdminDeTenantCliente_CadastraUnidade_MasNaoGravaContrato()
+    public async Task AdminDeTenantClienteSemEscopoEmpresa_NaoCadastraUnidadeNemGravaContrato()
     {
         using var root = await _auth.CreateRootAdminClientAsync();
         string tenantId = $"paf-perm-{Guid.NewGuid():N}"[..20];
@@ -33,10 +33,10 @@ public sealed class PafPermissoesTests(FshWebApplicationFactory factory)
         await TenantProvisioningWait.WaitForProvisioningAsync(root, tenantId);
         using var cliente = await _auth.CreateAuthenticatedClientAsync(adminEmail, TestConstants.DefaultPassword, tenantId);
 
-        var unidade = await PafApi.OkAsync<Guid>(cliente, HttpMethod.Post, "/unidades", null, new CreateUnidadeCommand("Loja 1", null));
-
-        // Creating does not grant: the admin stays out of the unit's scope, so his session, opened without a
-        // licence, keeps working instead of turning into an unlicensed PAF session.
+        // The tenant admin without the escopo empresa profile holds Unidades.Create and is still refused (RF23).
+        using var criacao = await PafApi.EnviarAsync(cliente, HttpMethod.Post, "/unidades", null, new CreateUnidadeCommand("Loja 1", null));
+        criacao.StatusCode.ShouldBe(HttpStatusCode.Forbidden, await criacao.Content.ReadAsStringAsync());
+        var unidade = await new PafApi(factory).InserirUnidadeAsync(tenantId);
         (await PafApi.OkAsync<List<UnidadeDto>>(cliente, HttpMethod.Get, "/unidades", null, null)).ShouldNotContain(u => u.Id == unidade);
 
         using var contrato = await PafApi.EnviarAsync(cliente, HttpMethod.Post, "/contratos", null,

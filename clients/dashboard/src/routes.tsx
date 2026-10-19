@@ -124,6 +124,7 @@ const PafTotemPage = lazyNamed(() => import("@/features/paf/totem/totem-page"), 
 const PafPainelPage = lazyNamed(() => import("@/features/paf/painel/painel-page"), "PainelPage");
 const PafGuichePage = lazyNamed(() => import("@/features/paf/guiche/guiche-page"), "GuichePage");
 const PafLayout = lazyNamed(() => import("@/features/paf/layout/paf-layout"), "PafLayout");
+const PafUnidadesPage = lazyNamed(() => import("@/features/paf/unidades/unidades-page"), "UnidadesPage");
 
 /**
  * RouteFallback — what shows while a lazy chunk is downloading. Mirrors
@@ -247,7 +248,10 @@ export const router = createBrowserRouter([
             // PAF screens of the signed-in user: current-unit selector on top (RF08). Later screens add children.
             path: "paf",
             element: withSuspense(<PafLayout />),
-            children: [{ path: "guiche", element: withSuspense(<PafGuichePage />) }],
+            children: [
+              { path: "guiche", element: withSuspense(<PafGuichePage />) },
+              { path: "unidades", element: withSuspense(<PafUnidadesPage />) },
+            ],
           },
           { path: "tickets", element: withSuspense(<TicketsPage />) },
           { path: "tickets/:ticketId", element: withSuspense(<TicketDetailPage />) },

@@ -56,25 +56,41 @@ internal sealed class PafApi(FshWebApplicationFactory factory)
     }
 
     /// <summary>
-    /// A new unidade through the API, then granted to the caller straight in the database: creation does not
-    /// add the creator to the scope, and granting through the API needs the unidade in the granter's scope.
+    /// A new unidade granted to the caller, both straight in the database: creating through the API is the escopo
+    /// empresa profile's alone (RF23), and the callers of these setups are list-scope users.
     /// </summary>
     public async Task<Guid> CriarUnidadeAsync(HttpClient client)
     {
-        var unidadeId = await OkAsync<Guid>(client, HttpMethod.Post, "/unidades", null, new CreateUnidadeCommand($"Loja {Guid.NewGuid():N}", null));
         var token = new JwtSecurityTokenHandler().ReadJwtToken(client.DefaultRequestHeaders.Authorization!.Parameter);
         var usuarioId = Guid.Parse(token.Subject);
         var tenantId = client.DefaultRequestHeaders.GetValues("tenant").Single();
+        var unidadeId = await InserirUnidadeAsync(tenantId);
 
         using var scope = factory.Services.CreateScope();
-        var tenant = await scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>().GetAsync(tenantId);
-        scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>().MultiTenantContext =
-            new MultiTenantContext<AppTenantInfo>(tenant!);
-        var db = scope.ServiceProvider.GetRequiredService<PafDbContext>();
+        var db = await ContextoAsync(scope, tenantId);
         int? ultimaOrdem = await db.UsuariosUnidade.Where(u => u.UsuarioId == usuarioId).MaxAsync(u => (int?)u.Ordem);
         db.UsuariosUnidade.Add(UsuarioUnidade.Criar(usuarioId, unidadeId, (ultimaOrdem ?? -1) + 1));
         await db.SaveChangesAsync();
         return unidadeId;
+    }
+
+    /// <summary>A new active unidade in the tenant, in nobody's scope.</summary>
+    public async Task<Guid> InserirUnidadeAsync(string tenantId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = await ContextoAsync(scope, tenantId);
+        var unidade = Unidade.Criar($"Loja {Guid.NewGuid():N}", documentoFiscal: null);
+        db.Unidades.Add(unidade);
+        await db.SaveChangesAsync();
+        return unidade.Id;
+    }
+
+    private static async Task<PafDbContext> ContextoAsync(IServiceScope scope, string tenantId)
+    {
+        var tenant = await scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>().GetAsync(tenantId);
+        scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>().MultiTenantContext =
+            new MultiTenantContext<AppTenantInfo>(tenant!);
+        return scope.ServiceProvider.GetRequiredService<PafDbContext>();
     }
 
     public static Task<Guid> CriarPrioridadeAsync(HttpClient client, Guid unidade, string nome) =>

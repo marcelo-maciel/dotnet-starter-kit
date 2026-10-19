@@ -103,4 +103,26 @@ public sealed class EscopoUsuario(PafDbContext db, ICurrentUser currentUser, IUs
             throw new ForbiddenException(MensagemForaDoEscopo);
         }
     }
+
+    public const string MensagemSoAdministradorDaEmpresa = "Só o administrador da empresa cadastra, desativa e reativa unidades.";
+
+    /// <summary>
+    /// RF23: creating, disabling and enabling unidades belong to the escopo empresa profile alone. Unlike
+    /// <see cref="AdministraTenantAsync"/>, holding Unidades.Create is not enough, or a filial admin holding it would
+    /// open or close unidades outside his filial. A profile without its principal row has an empty scope (fail-closed).
+    /// </summary>
+    public async Task<bool> AdministraUnidadesAsync(CancellationToken cancellationToken)
+    {
+        var usuarioId = ObterUsuarioId();
+        return await EscopoEmpresaAsync(usuarioId, cancellationToken).ConfigureAwait(false)
+            && await db.UsuariosUnidade.AsNoTracking().AnyAsync(u => u.UsuarioId == usuarioId, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task ExigirAdministracaoDeUnidadesAsync(CancellationToken cancellationToken)
+    {
+        if (!await AdministraUnidadesAsync(cancellationToken).ConfigureAwait(false))
+        {
+            throw new ForbiddenException(MensagemSoAdministradorDaEmpresa);
+        }
+    }
 }
