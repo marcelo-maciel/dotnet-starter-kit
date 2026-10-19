@@ -40,7 +40,7 @@ public sealed class PafAtoImpersonacaoMatrizTests
         [typeof(EndSessaoCommand)] =
             "logout da sessão do kit: a impersonação não tem sessão própria (seção 9) e não grava nada do PAF por aqui",
         [typeof(SetUnidadeCorrenteCommand)] =
-            "troca a unidade corrente da sessão, estado no Valkey e marca de licença; a impersonação não tem sessão nem licença, e o estado dela chega em S10B",
+            "troca a unidade corrente da sessão, estado no Valkey e marca de licença; sob impersonação (S10B) troca só a chave da concessão no Valkey e solta o vínculo de guichê da própria concessão, sem escrita de atendimento; o ato do guichê chega em S11",
     };
 
     // Slice 1 plus wave 0 already have about three dozen write commands; far fewer means the scan is not seeing them.
