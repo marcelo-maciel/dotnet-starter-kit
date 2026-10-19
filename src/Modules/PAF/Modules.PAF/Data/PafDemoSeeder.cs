@@ -52,11 +52,21 @@ public sealed partial class PafDemoSeeder(IServiceScopeFactory scopeFactory, ILo
         // Demo tenants publish no tenant creation event (RF23), so the seed plays the handler's part: the demo unidade is
         // the initial one, and the three PAF roles are seeded the same way.
         await PapeisPadrao.SemearAsync(services.GetRequiredService<IRoleService>(), cancellationToken).ConfigureAwait(false);
-        var unidade = await db.Unidades.FirstOrDefaultAsync(u => u.Inicial, cancellationToken).ConfigureAwait(false);
+        // A tenant seeded before the Inicial column holds the demo unidade with Inicial = false (the migration's default):
+        // looking up by Inicial alone would add a second demo unidade and hide the first one's data behind the unit filter.
+        var unidade = await db.Unidades
+            .Where(u => u.Inicial || u.Nome == NomeUnidade)
+            .OrderByDescending(u => u.Inicial).ThenBy(u => u.CriadoEm)
+            .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
         if (unidade is null)
         {
             unidade = Unidade.CriarInicial(NomeUnidade);
             db.Unidades.Add(unidade);
+            await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        else if (!unidade.Inicial)
+        {
+            unidade.MarcarComoInicial();
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
 

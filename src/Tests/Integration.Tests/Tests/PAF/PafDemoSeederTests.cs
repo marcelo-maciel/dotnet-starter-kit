@@ -1,9 +1,11 @@
 using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Shared.Multitenancy;
+using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Escopo;
+using FSH.Modules.PAF.Provisionamento;
 using Integration.Tests.Infrastructure;
 
 namespace Integration.Tests.Tests.PAF;
@@ -42,6 +44,61 @@ public sealed class PafDemoSeederTests(FshWebApplicationFactory factory)
             seeder.SemearAsync($"nao-existe-{Guid.NewGuid():N}"[..20], Guid.NewGuid(), CancellationToken.None));
         await Should.ThrowAsync<ArgumentException>(() =>
             seeder.SemearAsync(TestConstants.RootTenantId, Guid.Empty, CancellationToken.None));
+    }
+
+    // A tenant seeded before Unidade.Inicial existed holds the demo unidade with Inicial = false (the column's default).
+    [Fact]
+    public async Task Semear_UnidadeDemoAnteriorAColunaInicial_AdotaASemDuplicar()
+    {
+        var (tenantId, adminEmail) = await CriarTenantAsync();
+        var tenant = await ProvisionamentoTenantPaf.LerTenantAsync(factory.Services.GetRequiredService<IServiceScopeFactory>(), tenantId)
+            ?? throw new InvalidOperationException($"Tenant '{tenantId}' não existe.");
+        Guid antiga;
+        Guid adminId;
+        await using (var escopo = ProvisionamentoTenantPaf.AbrirEscopo(factory.Services.GetRequiredService<IServiceScopeFactory>(), tenant))
+        {
+            var db = escopo.ServiceProvider.GetRequiredService<PafDbContext>();
+            (await db.Unidades.CountAsync()).ShouldBe(0);
+            var unidade = Unidade.Criar(PafDemoSeeder.NomeUnidade, documentoFiscal: null);
+            db.Unidades.Add(unidade);
+            await db.SaveChangesAsync();
+            antiga = unidade.Id;
+            var usuarios = await escopo.ServiceProvider.GetRequiredService<IUserService>().GetListAsync(CancellationToken.None);
+            adminId = Guid.Parse(usuarios.Single(u => u.Email == adminEmail).Id!);
+        }
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<PafDemoSeeder>().SemearAsync(tenantId, adminId, CancellationToken.None);
+        }
+
+        await using (var escopo = ProvisionamentoTenantPaf.AbrirEscopo(factory.Services.GetRequiredService<IServiceScopeFactory>(), tenant))
+        {
+            var db = escopo.ServiceProvider.GetRequiredService<PafDbContext>();
+            var unidades = await db.Unidades.AsNoTracking().Select(u => new { u.Id, u.Inicial }).ToListAsync();
+            unidades.ShouldHaveSingleItem().Id.ShouldBe(antiga);
+            unidades[0].Inicial.ShouldBeTrue();
+            (await db.UsuariosUnidade.CountAsync(u => u.UsuarioId == adminId)).ShouldBe(1);
+        }
+    }
+
+    private async Task<(string TenantId, string AdminEmail)> CriarTenantAsync()
+    {
+        var tenantId = $"paf-seed-{Guid.NewGuid().ToString("N")[..8]}";
+        var adminEmail = $"admin-{tenantId}@paf.test";
+        using var root = await new AuthHelper(factory).CreateRootAdminClientAsync();
+        using var criar = await root.PostAsJsonAsync(TestConstants.TenantsBasePath, new
+        {
+            id = tenantId,
+            name = $"Tenant {tenantId}",
+            connectionString = (string?)null,
+            adminEmail,
+            adminPassword = TestConstants.DefaultPassword,
+            issuer = $"{tenantId}.issuer",
+        });
+        criar.StatusCode.ShouldBe(HttpStatusCode.Created, await criar.Content.ReadAsStringAsync());
+        await TenantProvisioningWait.WaitForProvisioningAsync(root, tenantId);
+        return (tenantId, adminEmail);
     }
 
     private async Task SemearAsync()

@@ -39,6 +39,9 @@ public sealed class Unidade : BaseEntity<Guid>
         return unidade;
     }
 
+    /// <summary>Adota uma unidade anterior à coluna <c>Inicial</c> como a inicial do tenant (seed-demo sobre banco da onda 0).</summary>
+    public void MarcarComoInicial() => Inicial = true;
+
     public void Atualizar(string nome, string? documentoFiscal)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(nome);
