@@ -114,6 +114,39 @@ services:
       - "127.0.0.1:${PAF_PORTA_ADMIN:?PAF_PORTA_ADMIN is required}:80"
     networks: [ paf ]
 
+  # O11 (RNF14, ARQ l.388): one pg_dump a day at 03:00 BRT to this environment's R2 backup bucket, sha256 beside it,
+  # alert and unhealthy on any failure. Gets only the backup token, never the application's Storage credentials.
+  # Restore test: deploy/paf/restaurar-backup.sh. Bucket lock and lifecycle: human step in the README.
+  backup:
+    image: ${PAF_IMAGEM_BACKUP:?PAF_IMAGEM_BACKUP is required (docker build deploy/paf/pg-backup)}
+    build:
+      context: ./pg-backup
+    restart: unless-stopped
+    environment:
+      TZ: America/Sao_Paulo
+      PAF_AMBIENTE: ${COMPOSE_PROJECT_NAME}
+      PGHOST: postgres
+      PGUSER: fsh
+      PGDATABASE: fsh
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGCONNECT_TIMEOUT: "15"
+      PAF_BACKUP_ENDPOINT: ${PAF_BACKUP_ENDPOINT:?PAF_BACKUP_ENDPOINT is required}
+      PAF_BACKUP_BUCKET: ${PAF_BACKUP_BUCKET:?PAF_BACKUP_BUCKET is required}
+      AWS_ACCESS_KEY_ID: ${PAF_BACKUP_ACCESS_KEY:?PAF_BACKUP_ACCESS_KEY is required}
+      AWS_SECRET_ACCESS_KEY: ${PAF_BACKUP_SECRET_KEY:?PAF_BACKUP_SECRET_KEY is required}
+      AWS_DEFAULT_REGION: auto
+      PAF_BACKUP_ALERTA_URL: ${PAF_BACKUP_ALERTA_URL:?PAF_BACKUP_ALERTA_URL is required}
+    volumes:
+      - backup_trabalho:/var/lib/paf-backup
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: [ "CMD", "paf-backup", "saude" ]
+      interval: 5m
+      timeout: 10s
+      retries: 1
+    networks: [ paf ]
+
 networks:
   paf:
     # Fixed subnet: it is the API's TrustedProxyOptions:KnownNetworks (ARQ 380), because Apache on the host reaches
@@ -125,3 +158,4 @@ networks:
 volumes:
   pg_data:
   valkey_data:
+  backup_trabalho:

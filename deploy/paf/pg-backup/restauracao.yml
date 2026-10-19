@@ -1,0 +1,60 @@
+# Restore test of the PAF backup (O11, RNF14): a throwaway project, never the environment's own. Driven by
+# deploy/paf/restaurar-backup.sh, which names the project <ambiente>-restauracao-<epoch>, runs it with
+# --project-directory deploy/paf (so PAF_ARQUIVO_AMBIENTE resolves as in compose.yml) and removes it with `down -v`.
+#
+# Isolation is structural: this project has its own network, where the environment's `postgres` and `valkey` do not
+# resolve, so a wrong connection string fails instead of touching the live database.
+
+x-restauracao-backup: &restauracao-backup
+  image: ${PAF_IMAGEM_BACKUP:?PAF_IMAGEM_BACKUP is required}
+  restart: "no"
+  # The application's Storage credentials are needed for the HEAD of every restored mídia (ARQ l.388).
+  env_file: [ "${PAF_ARQUIVO_AMBIENTE:?PAF_ARQUIVO_AMBIENTE is required}" ]
+  environment:
+    TZ: America/Sao_Paulo
+    PAF_AMBIENTE: ${PAF_AMBIENTE_RESTAURADO:?PAF_AMBIENTE_RESTAURADO is required}
+    PGHOST: postgres-restauracao
+    PGUSER: fsh
+    PGDATABASE: fsh
+    PGPASSWORD: ${PAF_RESTAURACAO_SENHA:?PAF_RESTAURACAO_SENHA is required}
+    PGCONNECT_TIMEOUT: "15"
+    AWS_ACCESS_KEY_ID: ${PAF_BACKUP_ACCESS_KEY:?PAF_BACKUP_ACCESS_KEY is required}
+    AWS_SECRET_ACCESS_KEY: ${PAF_BACKUP_SECRET_KEY:?PAF_BACKUP_SECRET_KEY is required}
+    AWS_DEFAULT_REGION: auto
+  volumes:
+    - trabalho:/var/lib/paf-backup
+  depends_on:
+    postgres-restauracao: { condition: service_healthy }
+
+services:
+  postgres-restauracao:
+    image: postgres:18-alpine
+    restart: "no"
+    command: [ "postgres", "-c", "timezone=America/Sao_Paulo", "-c", "log_timezone=America/Sao_Paulo" ]
+    environment:
+      TZ: America/Sao_Paulo
+      POSTGRES_DB: fsh
+      POSTGRES_USER: fsh
+      POSTGRES_PASSWORD: ${PAF_RESTAURACAO_SENHA}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U fsh -d fsh" ]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  restaurar:
+    <<: *restauracao-backup
+
+  # The environment's own migrator release, pointed at the restored copy: `apply` there must add no history row.
+  migrator:
+    image: ${PAF_IMAGEM_MIGRATOR:?PAF_IMAGEM_MIGRATOR is required}
+    restart: "no"
+    env_file: [ "${PAF_ARQUIVO_AMBIENTE}" ]
+    environment:
+      DatabaseOptions__ConnectionString: Host=postgres-restauracao;Database=fsh;Username=fsh;Password=${PAF_RESTAURACAO_SENHA};Timeout=15;Command Timeout=30;GSS Encryption Mode=Disable
+    command: [ "apply" ]
+    depends_on:
+      postgres-restauracao: { condition: service_healthy }
+
+volumes:
+  trabalho:

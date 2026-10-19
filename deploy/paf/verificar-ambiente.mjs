@@ -108,6 +108,20 @@ function conferirAmbiente({ rotulo, env, modelo, avisos }) {
   conferir(r("dashboard com prazo de inatividade (D04)"), inteiroNoIntervalo(dashboard?.environment?.PAF_INATIVIDADE_MS, 1, Number.MAX_SAFE_INTEGER), dashboard?.environment?.PAF_INATIVIDADE_MS);
   conferir(r("dashboard com template do PAF montado"), (dashboard?.volumes ?? []).some((v) => v.target === "/etc/fsh/config.json.template" && v.read_only === true));
 
+  // O11 (RNF14, ARQ l.388): the backup reads this project's PostgreSQL and writes only to its own backup bucket.
+  const backup = servicos.backup?.environment ?? {};
+  conferir(r("backup presente no modelo"), servicos.backup !== undefined);
+  const exemplosBackup = Object.entries(backup).filter(([, v]) => typeof v === "string" && /<[^>]+>/.test(v)).map(([k]) => k);
+  conferir(r("backup sem valor de exemplo (<...>)"), exemplosBackup.length === 0, exemplosBackup.join(", "));
+  conferir(r("backup com TZ=America/Sao_Paulo (03:00 BRT)"), backup.TZ === FUSO, backup.TZ);
+  conferir(r("backup lê o PostgreSQL do próprio projeto"), backup.PGHOST === "postgres" && backup.PGPASSWORD === postgres?.environment?.POSTGRES_PASSWORD, backup.PGHOST);
+  conferir(r("backup com prefixo = nome do projeto"), backup.PAF_AMBIENTE === modelo.name, `${backup.PAF_AMBIENTE} x ${modelo.name}`);
+  conferir(r("backup com endpoint https"), /^https:\/\//.test(backup.PAF_BACKUP_ENDPOINT ?? ""), backup.PAF_BACKUP_ENDPOINT);
+  conferir(r("backup com alerta https"), /^https:\/\//.test(backup.PAF_BACKUP_ALERTA_URL ?? ""), backup.PAF_BACKUP_ALERTA_URL);
+  const bucketAplicacao = servicos["api-a"]?.environment?.Storage__S3__Bucket;
+  conferir(r("bucket de backup separado do bucket da aplicação"), Boolean(backup.PAF_BACKUP_BUCKET) && backup.PAF_BACKUP_BUCKET !== bucketAplicacao, `${backup.PAF_BACKUP_BUCKET} x ${bucketAplicacao}`);
+  conferir(r("backup sem a credencial do Storage da aplicação"), Object.keys(backup).every((k) => !k.startsWith("Storage__")) && backup.AWS_ACCESS_KEY_ID !== servicos["api-a"]?.environment?.Storage__S3__AccessKey);
+
   for (const nome of SERVICOS_DOTNET) {
     const servico = servicos[nome];
     conferir(r(`${nome} presente no modelo`), servico !== undefined);
@@ -201,6 +215,8 @@ conferir("cruzado: mesmo AccessTokenMinutes", api(prod).JwtOptions__AccessTokenM
 // Same key, issuer and audience would make a homologation token valid in production.
 conferir("cruzado: chaves de assinatura diferentes", api(prod).JwtOptions__SigningKey !== api(homolog).JwtOptions__SigningKey);
 conferir("cruzado: buckets do R2 diferentes", api(prod).Storage__S3__Bucket !== api(homolog).Storage__S3__Bucket, api(prod).Storage__S3__Bucket);
+const bucketBackup = (modelo) => modelo.services?.backup?.environment?.PAF_BACKUP_BUCKET;
+conferir("cruzado: buckets de backup diferentes", bucketBackup(prod) !== bucketBackup(homolog), bucketBackup(prod));
 
 console.log(falhas === 0 ? "VERIFICAR-AMBIENTE OK" : `VERIFICAR-AMBIENTE FALHOU (${falhas})`);
 process.exit(falhas === 0 ? 0 : 1);
