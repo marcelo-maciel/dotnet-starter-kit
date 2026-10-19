@@ -22,5 +22,11 @@ public sealed record ObterPostoGuicheQuery : IQuery<PostoGuicheDto>;
 
 public sealed record PostoGuicheDto(Guid? UnidadeId, string? Unidade, Guid? EstacaoId, string? Guiche, AtendimentoEmCursoDto? Atendimento);
 
+/// <summary>
+/// Manager or unit admin releases a guichê held by a dead or absent session (RF04, seção 5); refused while an
+/// atendimento is in progress on it. A guichê with no active link is a no-op.
+/// </summary>
+public sealed record LiberarGuicheCommand(Guid EstacaoId) : ICommand, IEscritaDeCadastro;
+
 /// <summary><paramref name="Estado"/> is Chamado or EmAtendimento.</summary>
 public sealed record AtendimentoEmCursoDto(Guid AtendimentoId, Guid FichaId, string Senha, string Estado, int Versao);

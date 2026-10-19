@@ -39,6 +39,7 @@ using FSH.Modules.PAF.Features.v1.Estacoes.UpdateEstacao;
 using FSH.Modules.PAF.Features.v1.Fichas.CancelarAtendimentoDaFicha;
 using FSH.Modules.PAF.Features.v1.Fichas.EmitirFicha;
 using FSH.Modules.PAF.Features.v1.Filas.AddFilaPrioridade;
+using FSH.Modules.PAF.Features.v1.Guiches.LiberarGuiche;
 using FSH.Modules.PAF.Features.v1.Guiches.ListGuichesDaUnidade;
 using FSH.Modules.PAF.Features.v1.Guiches.ListMinhasUnidades;
 using FSH.Modules.PAF.Features.v1.Guiches.ObterPosto;
@@ -277,6 +278,8 @@ public sealed class PafModule : IModule
         group.MapUpdateEstacaoEndpoint();
         group.MapEnableEstacaoEndpoint();
         group.MapDisableEstacaoEndpoint();
+        group.MapGetImpactoDesativacaoEstacaoEndpoint();
+        group.MapReleaseGuicheEndpoint();
 
         group.MapCreateContratoUnidadeEndpoint();
         group.MapUpdateContratoUnidadeEndpoint();

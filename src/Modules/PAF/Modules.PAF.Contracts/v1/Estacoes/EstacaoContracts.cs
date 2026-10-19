@@ -48,6 +48,17 @@ public sealed record EstacaoAlteradaDto(Guid Id, IReadOnlyList<CombinacaoFilaPri
 
 public sealed record EnableEstacaoCommand(Guid Id) : ICommand<Guid>, IEscritaDeCadastro;
 
-public sealed record DisableEstacaoCommand(Guid Id) : ICommand<EstacaoAlteradaDto>, IEscritaDeCadastro;
+/// <summary>
+/// Deactivates the station (RF04): revokes its device links, releases its guichê when nothing is in progress on it and,
+/// when <see cref="CancelarAtendimentoId"/> names the atendimento in progress there, cancels it by RF12 in the same act.
+/// </summary>
+public sealed record DisableEstacaoCommand(Guid Id) : ICommand<EstacaoDesativadaDto>, IEscritaDeCadastro
+{
+    /// <summary>
+    /// The in-progress atendimento the deactivation dialog showed; a station holds at most one
+    /// (UX_Atendimentos_EstacaoEmCurso). Null leaves it for the attendant to finish, which then releases the guichê.
+    /// </summary>
+    public Guid? CancelarAtendimentoId { get; init; }
+}
 
 public sealed record ListEstacoesQuery : IQuery<IReadOnlyList<EstacaoDto>>;

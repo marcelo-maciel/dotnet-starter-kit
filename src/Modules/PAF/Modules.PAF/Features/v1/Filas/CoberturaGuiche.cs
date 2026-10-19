@@ -46,9 +46,21 @@ internal static class CoberturaGuiche
     /// Combinations of the current unidade that are covered now. Inside a transaction it sees the transaction's
     /// own flushed writes, which is how a station write compares before and after.
     /// </summary>
-    public static async Task<IReadOnlyList<CombinacaoFilaPrioridadeDto>> CombinacoesCobertasAsync(PafDbContext db, CancellationToken ct)
+    public static Task<IReadOnlyList<CombinacaoFilaPrioridadeDto>> CombinacoesCobertasAsync(PafDbContext db, CancellationToken ct) =>
+        CombinacoesAsync(db, Pares(db), ct);
+
+    /// <summary>
+    /// Combinations that would stay covered with <paramref name="estacaoId"/> deactivated: the preview of a station
+    /// deactivation compares this with <see cref="CombinacoesCobertasAsync"/> without writing anything (RF04).
+    /// </summary>
+    public static Task<IReadOnlyList<CombinacaoFilaPrioridadeDto>> CombinacoesCobertasSemAEstacaoAsync(PafDbContext db, Guid estacaoId, CancellationToken ct)
     {
-        var pares = Pares(db);
+        ArgumentNullException.ThrowIfNull(db);
+        return CombinacoesAsync(db, Pares(db.Estacoes.Where(e => e.Id != estacaoId), db.EstacaoFilas, db.EstacaoPrioridades), ct);
+    }
+
+    private static async Task<IReadOnlyList<CombinacaoFilaPrioridadeDto>> CombinacoesAsync(PafDbContext db, IQueryable<ParFilaPrioridade> pares, CancellationToken ct)
+    {
         return await (
                 from fp in db.FilaPrioridades.AsNoTracking()
                 join f in db.Filas.AsNoTracking() on fp.FilaId equals f.Id
