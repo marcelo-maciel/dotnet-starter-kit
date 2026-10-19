@@ -120,9 +120,12 @@ export function programacaoNoAr(
 
 /**
  * Local instant of the next moment the answer to "what is on air" may change by the clock alone: a window start or
- * end, or the São Paulo midnight (re-read). Never earlier than now + 1 ms.
+ * end, or the São Paulo midnight (re-read). Never earlier than now + 1 ms. Null once the day turned: nothing changes
+ * by the clock until the re-read lands, and a timer re-armed at now + 1 ms would re-read in a loop that discards
+ * every answer for a newer request.
  */
-export function proximaTrocaLocalMs(agenda: AgendaPainel, agoraLocalMs: number): number {
+export function proximaTrocaLocalMs(agenda: AgendaPainel, agoraLocalMs: number): number | null {
+  if (diaVirou(agenda, agoraLocalMs)) return null;
   const fimDoDiaMs = agenda.meiaNoiteMs + SEGUNDOS_NO_DIA * 1000;
   const agoraServidorMs = agoraLocalMs + agenda.deslocamentoMs;
   let proxima = fimDoDiaMs;
@@ -234,7 +237,12 @@ export function aposTermino(
   if (agenda === null) return null;
   const proximoId = atual.id + 1;
   const noAr = programacaoNoAr(agenda, agoraLocalMs, falhas);
-  if (noAr !== null) return daProgramacao(noAr.programacao, noAr.decorridoSegundos, proximoId);
+  if (noAr !== null) {
+    // The same programação ending is a new repetition from the file's start: its window offset would seek past the
+    // end of a file shorter than the registered duration (rounded up, or edited) and remount it until the next one.
+    const repete = atual.origem === "programacao" && atual.chave === noAr.programacao.programacaoId && atual.midiaId === noAr.programacao.midiaId;
+    return daProgramacao(noAr.programacao, repete ? 0 : noAr.decorridoSegundos, proximoId);
+  }
   const posicao = proximaDaLista(agenda.lista, atual.origem === "lista" ? atual.posicao : -1, falhas, agoraLocalMs);
   return posicao === null ? null : daLista(agenda.lista, posicao, proximoId);
 }

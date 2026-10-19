@@ -6,7 +6,6 @@ import { obterMidiasPainel } from "@/features/paf/estacao/estacao-api";
 import { CredencialEstacaoInvalidaError } from "@/features/paf/estacao/estacao-http";
 import {
   aposTermino,
-  diaVirou,
   montarAgenda,
   proximaParaPrecarga,
   proximaReleituraLocalMs,
@@ -89,13 +88,16 @@ export function useMidiasDoPainel(habilitado: boolean, aoPerderCredencial: () =>
     setExecucao((atual) => (habilitado ? reavaliar(agenda, atual, Date.now(), falhasRef.current) : null));
   }, [agenda, habilitado, relogio]);
 
-  // Window start or end, or the São Paulo midnight (then the day's programações are stale: re-read).
+  // Window start or end, or the São Paulo midnight (then the day's programações are stale: re-read once; a failed
+  // read retries on its own 30 s path, and the new agenda re-arms this timer).
   useEffect(() => {
     if (agenda === null) return;
-    const timer = window.setTimeout(() => {
-      if (diaVirou(agenda, Date.now())) reler();
-      setRelogio((r) => r + 1);
-    }, proximaTrocaLocalMs(agenda, Date.now()) - Date.now());
+    const em = proximaTrocaLocalMs(agenda, Date.now());
+    if (em === null) {
+      reler();
+      return;
+    }
+    const timer = window.setTimeout(() => setRelogio((r) => r + 1), em - Date.now());
     return () => window.clearTimeout(timer);
   }, [agenda, relogio, reler]);
 

@@ -229,3 +229,26 @@ test("preload: only the next loop item, never the same file, never during a prog
   const programada = reavaliar(agenda, null, local("10:00:00", 0), SEM_FALHAS);
   assert.equal(proximaParaPrecarga(agenda, programada, local("10:00:00", 0), SEM_FALHAS), null);
 });
+
+test("day turn: no clock switch is due on a stale agenda, so the screen re-reads once instead of re-arming at now + 1 ms", () => {
+  const agenda = montarAgenda(dto([item("a")], [programacao("noite", "23:00:00", "24:00:00")]), AGORA_MS);
+  assert.equal(proximaTrocaLocalMs(agenda, Date.parse("2026-10-20T00:00:00-03:00")), null);
+  assert.equal(proximaTrocaLocalMs(agenda, Date.parse("2026-10-20T00:00:05-03:00")), null);
+});
+
+test("a programação whose file is shorter than its registered duration restarts from 0, not from the window offset", () => {
+  // Registered 60 s, file of 10 s: at 10:00:10 the file ended; joining at the offset (10 s) would seek past its end.
+  const agenda = montarAgenda(dto([item("a")], [programacao("x", "10:00:00", "10:10:00", 60)]), AGORA_MS);
+  const primeira = reavaliar(agenda, null, local("10:00:00", 0), SEM_FALHAS)!;
+  const depois = aposTermino(agenda, primeira, local("10:00:10", 0), SEM_FALHAS);
+  assert.equal(depois?.chave, "p-x");
+  assert.equal(depois?.inicioNaMidiaSegundos, 0);
+  // Another programação joined after one ended still starts at its own offset in the window.
+  const duas = montarAgenda(dto([], [programacao("x", "10:00:00", "10:05:00", 60), { ...programacao("y", "10:00:00", "10:10:00", 60), midiaId: "m-y" }]), AGORA_MS);
+  const x = reavaliar(duas, null, local("10:04:30", 0), SEM_FALHAS)!;
+  assert.equal(x.chave, "p-x");
+  assert.equal(aposTermino(duas, x, local("10:05:20", 0), SEM_FALHAS)?.inicioNaMidiaSegundos, 20);
+  // A loop item ending inside a window joins the programação at its offset too.
+  const lista = reavaliar(agenda, null, local("09:59:50", 0), SEM_FALHAS)!;
+  assert.equal(aposTermino(agenda, lista, local("10:00:15", 0), SEM_FALHAS)?.inicioNaMidiaSegundos, 15);
+});
