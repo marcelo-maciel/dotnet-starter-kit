@@ -76,6 +76,9 @@ public sealed class Licencas(
                 case DesfechoOcupacao.SemSaldo:
                     throw new ForbiddenException(MensagemLimite);
                 default:
+                    // S14: a stalled Valkey would still run this occupation when it returns and hold a ghost
+                    // reservation for PrazoReserva; the release queued behind it undoes it.
+                    conjunto.SoltarOcupacaoSemResposta(tenantId, membro);
                     await ConferirSaldoNoBancoAsync(tenantId, usuarioId, candidata, ct);
                     break;
             }

@@ -240,6 +240,22 @@ public sealed class ConjuntoLicencas(
             db => db.ScriptEvaluateAsync(ScriptLiberar, [ChaveIndice(tenantId, membro)], [Prefixo(tenantId), membro]),
             ct) is not null;
 
+    /// <summary>
+    /// Solta, sem esperar, o membro de uma ocupação que passou do prazo. Um Valkey travado (pausado, rede presa)
+    /// executa o script pendente quando volta; esta liberação vai na mesma conexão, atrás dele, e o desfaz.
+    /// </summary>
+    public void SoltarOcupacaoSemResposta(string tenantId, string membro)
+    {
+        if (_valkey is not { IsConnected: true } valkey)
+        {
+            return;
+        }
+
+        // FireAndForget: queued in order on the same connection, no wait, no reply to observe.
+        _ = valkey.GetDatabase().ScriptEvaluateAsync(
+            ScriptLiberar, [ChaveIndice(tenantId, membro)], [Prefixo(tenantId), membro], CommandFlags.FireAndForget);
+    }
+
     /// <summary>Nulo sem Valkey.</summary>
     public async Task<bool?> ReconstruidoAsync(CancellationToken ct)
     {
@@ -318,19 +334,34 @@ public sealed class ConjuntoLicencas(
     // propagates, because turning it into the degraded mode would hide it.
     private async Task<RedisResult?> TentarAsync(Func<IDatabase, Task<RedisResult>> operacao, CancellationToken ct)
     {
-        if (_valkey is not { IsConnected: true } valkey)
+        if (_valkey is null)
         {
+            return null;
+        }
+
+        if (!_valkey.IsConnected)
+        {
+            Interlocked.Exchange(ref _houveIndisponibilidade, 1);
             return null;
         }
 
         try
         {
-            return await operacao(valkey.GetDatabase()).WaitAsync(PrazoChamada, ct);
+            return await operacao(_valkey.GetDatabase()).WaitAsync(PrazoChamada, ct);
         }
         catch (Exception ex) when (ex is RedisConnectionException or TimeoutException)
         {
+            Interlocked.Exchange(ref _houveIndisponibilidade, 1);
             logger.LogWarning(ex, "Valkey indisponível para o conjunto de licenças; modo degradado");
             return null;
         }
     }
+
+    // S14: a stalled Valkey (paused, network partition) comes back without ConnectionRestored and with the rebuild
+    // mark intact, so the degraded decisions taken meanwhile would never reach the set. Any unavailability seen
+    // here asks for a rebuild.
+    private int _houveIndisponibilidade;
+
+    /// <summary>Verdadeiro uma vez depois de qualquer chamada que caiu no modo degradado com Valkey registrado.</summary>
+    public bool ConsumirIndisponibilidade() => Interlocked.Exchange(ref _houveIndisponibilidade, 0) == 1;
 }

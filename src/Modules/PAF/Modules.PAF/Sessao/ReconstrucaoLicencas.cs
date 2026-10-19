@@ -23,7 +23,8 @@ public sealed class ReconstrucaoLicencas(
     TimeSpan intervalo,
     ILogger<ReconstrucaoLicencas> logger) : BackgroundService
 {
-    // ponytail: fixed polling of the rebuild mark; S14 owns the detection of the Valkey's return.
+    // ponytail: fixed polling; the return of the Valkey (ConnectionRestored, a missing mark, or any degraded call
+    // seen by ConjuntoLicencas) is acted on at the next tick, up to this interval late.
     public static readonly TimeSpan IntervaloVerificacao = TimeSpan.FromSeconds(15);
 
     // Starts pending: an instance that starts may follow logins decided in the degraded mode.
@@ -108,6 +109,12 @@ public sealed class ReconstrucaoLicencas(
         if (reconstruido is null)
         {
             return;
+        }
+
+        // Consumed only with the Valkey answering, so an outage still going on keeps the request for later.
+        if (conjunto.ConsumirIndisponibilidade())
+        {
+            Interlocked.Exchange(ref _reconexaoPendente, 1);
         }
 
         if (reconstruido.Value && Interlocked.Exchange(ref _reconexaoPendente, 0) == 0)
