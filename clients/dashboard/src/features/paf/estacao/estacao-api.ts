@@ -25,6 +25,8 @@ export type ConfiguracaoEstacaoDto = {
   configuracao: string | null;
   /** Empty for the painel. */
   botoes: BotaoEmissao[];
+  /** C20: RF06 call message and voice choice, painel only; read through `lerAnuncioDaChamada`. */
+  anuncioDaChamada?: unknown;
 };
 
 export type FichaEmitidaDto = {

@@ -22,7 +22,13 @@ import {
   type AtendimentoAtualizadoEvento,
   type SenhaChamadaEvento,
 } from "@/features/paf/painel/painel-estado";
-import { carregarVozes, escolherVoz, falar, textoFalado } from "@/features/paf/painel/voz";
+import { carregarVozes, escolherVoz, falar } from "@/features/paf/painel/voz";
+import {
+  ANUNCIO_PADRAO,
+  lerAnuncioDaChamada,
+  textoDoAnuncio,
+  type AnuncioDaChamada,
+} from "@/features/paf/painel/anuncio-chamada";
 
 // The RF04 "tempo de exibição da chamada", written by the station cadastro at the root of the JSON block; 8 s when absent.
 const CHAVE_TEMPO_EXIBICAO = "tempoExibicaoChamadaSegundos";
@@ -61,6 +67,9 @@ export function PainelPage() {
   const [faseAlternancia, setFaseAlternancia] = useState(0);
   // A ref, not state: the config may arrive mid-highlight and must not restart the current announcement.
   const tempoExibicaoMsRef = useRef(TEMPO_EXIBICAO_PADRAO_S * 1_000);
+  // C20: state for the text under the senha, ref for the speech, which is composed once when a highlight starts.
+  const [anuncio, setAnuncio] = useState<AnuncioDaChamada>(ANUNCIO_PADRAO);
+  const anuncioRef = useRef<AnuncioDaChamada>(ANUNCIO_PADRAO);
   const [erro, setErro] = useState<string | null>(null);
   const [avisoVoz, setAvisoVoz] = useState<string | null>(null);
   const vozRef = useRef<SpeechSynthesisVoice | null>(null);
@@ -94,6 +103,8 @@ export function PainelPage() {
       tempoExibicaoMsRef.current =
         lerNumeroDaConfiguracao(cfg.configuracao, CHAVE_TEMPO_EXIBICAO, TEMPO_EXIBICAO_PADRAO_S) * 1_000;
       setAparencia(lerAparenciaPainel(cfg.configuracao));
+      anuncioRef.current = lerAnuncioDaChamada(cfg.anuncioDaChamada);
+      setAnuncio(anuncioRef.current);
     }, tratarErro);
   }, [tratarErro]);
 
@@ -146,7 +157,7 @@ export function PainelPage() {
     // The highlight lasts the configured time even when the voice is shorter, and waits for the
     // voice when it is longer, so a senha is never cut mid-sentence.
     // A synthesis that throws costs only the voice: the highlight still runs its time and the queue moves.
-    const fala = falar(textoFalado(destaque.senha), vozRef.current, LIMITE_FALA_MS).catch((erro: unknown) =>
+    const fala = falar(textoDoAnuncio(destaque.senha, anuncioRef.current), vozRef.current, LIMITE_FALA_MS).catch((erro: unknown) =>
       console.warn("[paf-painel] fala recusada", erro),
     );
     void Promise.all([fala, esperar(tempoExibicaoMsRef.current)]).then(() => {
@@ -247,6 +258,11 @@ export function PainelPage() {
               {principal.senha}
             </div>
             <div className="mt-4 text-[3em]">{principal.nomeEstacao}</div>
+            {destaque !== null && anuncio.mensagemAoChamar !== "" && (
+              <div className="mt-4 text-[2em]" data-mensagem-chamada>
+                {anuncio.mensagemAoChamar}
+              </div>
+            )}
           </div>
         ) : (
           <p className={cores !== null ? "text-[1.875em]" : "text-[1.875em] text-white/60"}>Aguardando chamadas</p>

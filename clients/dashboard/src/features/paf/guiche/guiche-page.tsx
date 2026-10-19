@@ -31,6 +31,7 @@ import { CHAVE_ULTIMO_GUICHE, serializarUltimoGuiche, sugerirGuiche } from "@/fe
 import { EncaminharAtendimento } from "@/features/paf/guiche/encaminhar-atendimento";
 import { VipForm } from "@/features/paf/guiche/vip-form";
 import { TeclasAtalhoGuiche } from "@/features/paf/guiche/teclas-atalho-guiche";
+import { AguardandoGuiche } from "@/features/paf/guiche/aguardando-guiche";
 
 type Ultimo = { senha: string; estado: string };
 
@@ -323,6 +324,7 @@ export function GuichePage() {
               </p>
             )}
           </div>
+          <AguardandoGuiche />
 
           <div className="flex flex-wrap justify-center gap-3">
             <Button size="lg" disabled={ocupado} onClick={() => void chamar()}>

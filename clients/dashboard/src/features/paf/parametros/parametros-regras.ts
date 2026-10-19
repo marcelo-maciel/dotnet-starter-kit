@@ -16,11 +16,16 @@ const ROTULOS: Record<string, string> = {
   ordenacaoFilas: "Ordenação de filas",
   quantidadeChamadasPainel: "Quantidade de fichas chamadas no painel",
   fonteMinimaTotemPx: "Fonte mínima do totem (px)",
+  exibirInformacaoDetalhadaFila: "Exibir informação detalhada de fila no guichê",
+  chamarFichaPorVoz: "Chamar ficha por voz: o que a voz fala",
+  mensagemAoChamar: "Mensagem exibida ao chamar a ficha",
 };
 
 const ROTULOS_OPCAO: Record<string, string> = {
   ordem: "Ordem da estação (prioridade normal)",
   nome: "Nome da fila",
+  senha: "Só a senha",
+  senhaEMensagem: "A senha e a mensagem ao chamar",
 };
 
 export const TECLAS_PERMITIDAS: readonly string[] = Array.from({ length: 12 }, (_, i) => `F${i + 1}`);
