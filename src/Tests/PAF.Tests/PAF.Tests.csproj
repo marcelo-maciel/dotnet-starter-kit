@@ -30,4 +30,9 @@
 		<Content Include="..\..\Host\FSH.Starter.Api\appsettings*.json" Link="host\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 
+	<!-- O10: the logging tests apply the Serilog lines of the deployment environment file. -->
+	<ItemGroup>
+		<Content Include="..\..\..\deploy\paf\ambientes\producao.env.exemplo" Link="ambientes\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+	</ItemGroup>
+
 </Project>

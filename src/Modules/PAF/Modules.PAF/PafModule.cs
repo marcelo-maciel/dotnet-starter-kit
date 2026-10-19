@@ -71,6 +71,7 @@ using FSH.Modules.PAF.Features.v1.Unidades.UpdateUnidade;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.GetUsuarioUnidades;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.SetUsuarioUnidades;
 using FSH.Modules.PAF.Midias;
+using FSH.Modules.PAF.Observabilidade;
 using FSH.Modules.PAF.Parametros;
 using FSH.Modules.PAF.Saude;
 using FSH.Modules.PAF.Sessao;
@@ -115,6 +116,7 @@ public sealed class PafModule : IModule
         AddTempoReal(builder.Services);
         ConfigurarSessao(builder.Services);
         OpcoesMidia.Registrar(builder.Services);
+        LogSemDadosPessoais.Registrar(builder.Configuration);
     }
 
     public void ConfigureMiddleware(IApplicationBuilder app)

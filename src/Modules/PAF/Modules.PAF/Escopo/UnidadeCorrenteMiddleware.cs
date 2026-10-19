@@ -25,6 +25,10 @@ public sealed partial class UnidadeCorrenteMiddleware(RequestDelegate next, ILog
     // client tenant); it goes away when the session state of ADR 0006 covers them too.
     public const string Cabecalho = "X-Paf-Unidade";
 
+    public const string PropriedadeUnidade = "UnidadeId";
+    public const string PropriedadeTenant = "Tenant";
+    public const string PropriedadeUsuario = "UserId";
+
     public async Task InvokeAsync(HttpContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -55,7 +59,34 @@ public sealed partial class UnidadeCorrenteMiddleware(RequestDelegate next, ILog
             unidadeCorrente.Definir(unidadeId);
         }
 
-        await next(context).ConfigureAwait(false);
+        // ARQ l.392: every log written downstream carries tenant, opaque user and unit (whichever source set it; last
+        // PAF middleware, so it is final here). Same names as the kit's enricher, which a hub dispatch never reaches
+        // (no HttpContext there), so its events got neither.
+        using (logger.BeginScope(PropriedadesDeLog(principal, unidadeCorrente.UnidadeId)))
+        {
+            await next(context).ConfigureAwait(false);
+        }
+    }
+
+    private static Dictionary<string, object> PropriedadesDeLog(ClaimsPrincipal principal, Guid? unidadeId)
+    {
+        var propriedades = new Dictionary<string, object>(StringComparer.Ordinal);
+        if (principal.GetTenant() is { } tenant)
+        {
+            propriedades[PropriedadeTenant] = tenant;
+        }
+
+        if (principal.GetUserId() is { } usuario)
+        {
+            propriedades[PropriedadeUsuario] = usuario;
+        }
+
+        if (unidadeId is { } unidade)
+        {
+            propriedades[PropriedadeUnidade] = unidade;
+        }
+
+        return propriedades;
     }
 
     // A station belongs to one unidade and never switches, so a header naming another one is refused,
