@@ -39,5 +39,11 @@ test("rotas do PAF abrem a seção do PAF no menu", () => {
   assert.equal(findSectionForPath("/paf/unidades"), "paf");
   assert.equal(findSectionForPath("/paf/filas"), "paf");
   assert.equal(findSectionForPath("/paf/estacoes"), "paf");
+  assert.equal(findSectionForPath("/paf/fichas-do-dia"), "paf");
   assert.equal(findSectionForPath("/identity/users"), "identity");
+});
+
+test("fichas do dia aparece só com FichasDoDia.View, não com cancelar ou reabilitar", () => {
+  assert.deepEqual(itensPaf(["Permissions.PAF.FichasDoDia.View"]), ["/paf/fichas-do-dia"]);
+  assert.deepEqual(itensPaf(["Permissions.PAF.FichasDoDia.Cancelar", "Permissions.PAF.FichasDoDia.Reabilitar"]), []);
 });
