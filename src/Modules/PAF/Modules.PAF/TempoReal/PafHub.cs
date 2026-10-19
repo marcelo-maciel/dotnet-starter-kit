@@ -43,6 +43,9 @@ public sealed partial class PafHub(ConexoesPaf conexoes, IServiceProvider servic
                     }
 
                     LogEstacaoConectada(logger, Context.ConnectionId, estacao.TenantId, estacao.UnidadeId, estacao.EstacaoId, estacao.Papel);
+
+                    // RNF20: after the registry write, so a quick reconnection is already visible to the old one's drop.
+                    await servicos.GetRequiredService<MonitoramentoEstacoes>().RegistrarConexaoAsync(estacao, Context.ConnectionAborted).ConfigureAwait(false);
                     break;
 
                 // The impersonation token shares the user's sub; in the user group it would receive the
@@ -97,6 +100,13 @@ public sealed partial class PafHub(ConexoesPaf conexoes, IServiceProvider servic
         // ConnectionAborted is already cancelled here; the registry write gets its own short ceiling.
         using var limite = new CancellationTokenSource(LimiteDesconexao);
         await conexoes.RemoverAsync(Context.ConnectionId, limite.Token).ConfigureAwait(false);
+
+        // RNF20: after the removal, so the check for another live connection of the role no longer sees this one.
+        if (ConexaoPaf.Ler(Context.User) is ConexaoEstacao estacao)
+        {
+            await servicos.GetRequiredService<MonitoramentoEstacoes>().RegistrarQuedaAsync(estacao, limite.Token).ConfigureAwait(false);
+        }
+
         await base.OnDisconnectedAsync(exception).ConfigureAwait(false);
     }
 

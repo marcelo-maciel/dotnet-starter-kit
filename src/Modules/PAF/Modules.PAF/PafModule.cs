@@ -34,6 +34,7 @@ using FSH.Modules.PAF.Features.v1.Estacoes.DisableEstacao;
 using FSH.Modules.PAF.Features.v1.Estacoes.EnableEstacao;
 using FSH.Modules.PAF.Features.v1.Estacoes.GerarVinculo;
 using FSH.Modules.PAF.Features.v1.Estacoes.ListEstacoes;
+using FSH.Modules.PAF.Features.v1.Estacoes.ListEstacoesOperador;
 using FSH.Modules.PAF.Features.v1.Estacoes.ObterConfiguracao;
 using FSH.Modules.PAF.Features.v1.Estacoes.RenovarCredencial;
 using FSH.Modules.PAF.Features.v1.Estacoes.ResgatarVinculo;
@@ -379,6 +380,8 @@ public sealed class PafModule : IModule
         group.MapUpdateContratoUnidadeEndpoint();
         group.MapListContratosUnidadeEndpoint();
         group.MapListUnidadesOperadorEndpoint();
+        // O13: RNF20 station monitoring (Codefi operator).
+        group.MapListEstacoesOperadorEndpoint();
 
         group.MapGetUsuarioUnidadesEndpoint();
         group.MapSetUsuarioUnidadesEndpoint();
@@ -445,6 +448,8 @@ public sealed class PafModule : IModule
         services.AddSingleton<RegistroConexoes>();
         services.AddSingleton<RenovacaoPelaConexao>();
         services.AddHostedService(sp => sp.GetRequiredService<RenovacaoPelaConexao>());
+        // O13: RNF20 last connection and last drop per station role, written by PafHub.
+        services.AddSingleton<MonitoramentoEstacoes>();
     }
 
     private static void MapTempoReal(IEndpointRouteBuilder endpoints)
