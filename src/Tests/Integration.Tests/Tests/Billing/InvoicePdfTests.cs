@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Integration.Tests.Infrastructure;
+using Integration.Tests.Tests.PAF;
 
 namespace Integration.Tests.Tests.Billing;
 
@@ -39,6 +40,9 @@ public sealed class InvoicePdfTests
         // dispatch cycle rather than inside the create request.
         await OutboxDrain.DrainAsync(_factory.Services);
 
+        // PAF: the tenant admin logs in through the initial unidade, which needs a contract (ADR 0008).
+        await PafTenantCliente.PrepararAdministradorAsync(_factory, tenantId, PafTenantCliente.LimiteDaUnidadeInicial);
+
         // The subscription invoice was issued on create; grab its id from the operator list.
         var invoiceId = await GetFirstInvoiceIdAsync(rootClient, tenantId);
 
@@ -63,6 +67,7 @@ public sealed class InvoicePdfTests
         var otherEmail = $"pdf-other-{otherUnique}@tenant.com";
         await CreateTenantAsync(rootClient, otherTenantId, otherEmail, planKey);
         await TenantProvisioningWait.WaitForProvisioningAsync(rootClient, otherTenantId);
+        await PafTenantCliente.PrepararAdministradorAsync(_factory, otherTenantId, PafTenantCliente.LimiteDaUnidadeInicial);
         using var otherClient = await CreateTenantAdminClientWithRetryAsync(
             otherEmail, TestConstants.DefaultPassword, otherTenantId);
 
