@@ -1,15 +1,19 @@
 // F18 walk against a REAL API: the guichê screen pre-marks the last guichê chosen on this machine (RF04),
 // never calls SetGuiche by itself, and does not carry the suggestion into another unidade.
 //
-// Run (API and Vite dev server already up, fresh `seed-demo` database):
-//   PAF_API=http://localhost:5391 PAF_WEB=http://localhost:5184 node tests/e2e/paf-ultimo-guiche.walk.mjs
+// Run (API and Vite dev server already up, fresh `seed-demo` database, its PostgreSQL in a docker container only to give
+// the new unidade a contract, which the unit switch needs):
+//   PAF_API=http://localhost:5391 PAF_WEB=http://localhost:5184 PAF_PG_CONTAINER=<pg> node tests/e2e/paf-ultimo-guiche.walk.mjs
+// or PAF_WALK=tests/e2e/paf-ultimo-guiche.walk.mjs PAF_SENHA_DEMO=<secret> deploy/paf/walk-local.sh
 // Exit code 0 only when every check passed; each check prints PASS/FAIL.
+import { execFileSync } from "node:child_process";
 import { chromium } from "@playwright/test";
 
 const API = process.env.PAF_API;
 const WEB = process.env.PAF_WEB;
-if (!API || !WEB) {
-  console.error("PAF_API and PAF_WEB are required");
+const PG = process.env.PAF_PG_CONTAINER;
+if (!API || !WEB || !PG) {
+  console.error("PAF_API, PAF_WEB and PAF_PG_CONTAINER are required");
   process.exit(2);
 }
 const TENANT = "acme";
@@ -53,7 +57,8 @@ async function entrar(page) {
 
 async function escolherUnidade(page, nome) {
   const trocar = page.getByRole("button", { name: "Trocar" });
-  const unidade = page.getByLabel("Unidade");
+  // The guichê screen's own selector, not the PAF layout's current-unit selector (also labelled Unidade).
+  const unidade = page.getByLabel("Unidade").and(page.locator(":not([data-paf-seletor-unidade] *)"));
   await Promise.race([trocar.waitFor({ timeout: TIMEOUT }), unidade.waitFor({ timeout: TIMEOUT })]);
   if (await trocar.isVisible()) await trocar.click();
   await unidade.selectOption({ label: nome });
@@ -86,6 +91,11 @@ async function botaoPronto(page) {
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 try {
   // ── Setup through the admin API: a second guichê in Loja Demo and a second unidade ──
+  // Only the company admin creates a unidade (RF23): the demo admin is made one first, as paf-logotipo.walk.mjs does.
+  const inicial = await api("POST", "/api/v1/identity/token/issue", null, { email: EMAIL, password: SENHA_DEMO });
+  const demo = (await api("GET", "/api/v1/paf/unidades", inicial.accessToken)).find((u) => u.nome === UNIDADE_DEMO);
+  const adminId = JSON.parse(Buffer.from(inicial.accessToken.split(".")[1], "base64url").toString("utf8")).sub;
+  await api("PUT", `/api/v1/paf/usuarios/${adminId}/unidades`, inicial.accessToken, { usuarioId: adminId, unidades: [demo.id], escopoEmpresa: true });
   const admin = await api("POST", "/api/v1/identity/token/issue", null, { email: EMAIL, password: SENHA_DEMO });
   const estacoes = await api("GET", "/api/v1/paf/estacoes", admin.accessToken);
   const g1 = estacoes.find((e) => e.tipo === "Guiche");
@@ -94,8 +104,16 @@ try {
     tipo: "Guiche",
     filas: g1.filas,
     prioridades: g1.prioridades,
+    ramal: null,
+    // A station is created with its type's block (D25).
+    configuracao: { emissao: null, painel: null, guiche: { numero: 2, nomeExibicao: null, ladoSeta: null, respeitarOrdemFilas: false, selecionarFicha: false } },
   });
   const unidadeNovaId = await api("POST", "/api/v1/paf/unidades", admin.accessToken, { nome: UNIDADE_NOVA, documentoFiscal: null });
+  // The switch migrates the licence: the new unidade gets a copy of the demo contract. Ids are Guids the API returned.
+  execFileSync("docker", ["exec", PG, "psql", "-U", "fsh", "-d", "fsh", "-v", "ON_ERROR_STOP=1", "-tAc",
+    `INSERT INTO paf."ContratosUnidade" ("Id", "UnidadeId", "InicioVigencia", "FimVigencia", "Plano", "LimiteSessoes", "Politica", "TenantId")
+     SELECT gen_random_uuid(), '${unidadeNovaId}', "InicioVigencia", "FimVigencia", "Plano", "LimiteSessoes", "Politica", "TenantId"
+     FROM paf."ContratosUnidade" WHERE "UnidadeId" = '${demo.id}' LIMIT 1`], { timeout: TIMEOUT });
   // The selection lists only the user's scope (RF08): put the new unidade in it unless the scope is the company.
   const claims = JSON.parse(Buffer.from(admin.accessToken.split(".")[1], "base64url").toString("utf8"));
   const usuarioId = claims.sub ?? claims["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"];
