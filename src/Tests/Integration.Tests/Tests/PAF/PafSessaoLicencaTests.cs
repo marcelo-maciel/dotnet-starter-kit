@@ -210,17 +210,20 @@ public sealed class PafSessaoLicencaTests(FshWebApplicationFactory factory) : IA
     }
 
     [Fact]
-    public async Task UsuarioSemUnidade_EntraSemLicencaENaoSelecionaGuiche()
+    public async Task UsuarioDeTenantClienteSemUnidade_LoginRecusadoComMensagemPropria()
     {
-        var unidade = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);
         var usuario = await _tenant.CriarUsuarioAsync();
-        using var cliente = _tenant.Cliente((await _tenant.EntrarAsync(usuario)).AccessToken);
 
-        (await cliente.GetAsync(Perfil)).StatusCode.ShouldBe(HttpStatusCode.OK);
-        var guiche = await cliente.PostAsJsonAsync("/api/v1/paf/sessao/guiche", new { estacaoId = unidade.GuicheA });
+        var resposta = await _tenant.LoginAsync(usuario.Email, usuario.Password);
 
-        guiche.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        resposta.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        var corpo = await resposta.Content.ReadAsStringAsync();
+        Detalhe(corpo).ShouldBe(GenerateTokenLicenseBehavior.MensagemSemUnidade);
+        corpo.ShouldNotContain("accessToken", Case.Insensitive);
+        await SessoesDoKitAsync(usuario.UserId).ShouldBeAsync(0);
         (await _tenant.AtividadesAsync(Guid.Parse(usuario.UserId))).ShouldBeEmpty();
+        // The refusal comes after the password check (RF01): a wrong password still gets the generic 401.
+        (await _tenant.LoginAsync(usuario.Email, "Senha@Errada1")).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     // Records which runs first, the kit's ValidationBehavior or the PAF login behavior (ADR 0008 asked to confirm).

@@ -25,6 +25,9 @@ internal sealed class GenerateTokenLicenseBehavior(
 {
     public const string MotivoSessaoUnica = "PAF: login em outra máquina (sessão única)";
 
+    public const string MensagemSemUnidade =
+        "Seu usuário não tem unidade de atendimento. Procure o administrador da empresa.";
+
     public async ValueTask<TokenResponse> Handle(
         GenerateTokenCommand message,
         MessageHandlerDelegate<GenerateTokenCommand, TokenResponse> next,
@@ -45,11 +48,10 @@ internal sealed class GenerateTokenLicenseBehavior(
             ?? throw new UnauthorizedException("Invalid credentials.");
         var subject = credencial.Subject;
 
-        await using var reserva = await licencas.ReservarAsync(tenantId, Guid.Parse(subject), cancellationToken);
-        if (reserva is null)
-        {
-            return await next(message, cancellationToken);
-        }
+        // A client-tenant user with no unidade would get a token with no licence and no unit (RF23, C03): the
+        // tenant creation gives the initial admin his unidade, and every other user gets one from the cadastro.
+        await using var reserva = await licencas.ReservarAsync(tenantId, Guid.Parse(subject), cancellationToken)
+            ?? throw new ForbiddenException(MensagemSemUnidade);
 
         var token = await next(message, cancellationToken);
         var sessaoId = ClaimDeSessao.DoToken(token.AccessToken)
