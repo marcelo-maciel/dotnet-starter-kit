@@ -30,7 +30,14 @@ test("lê o bloco Emissão gravado pelo cadastro", () => {
     tamanhoFontePx: 32,
     tamanhoBotaoPx: 150,
     cores: { fundo: "#003366", fonte: "#FFFFFF", descricao: "#FFFF00" },
+    corTexto: null,
   });
+});
+
+test("C17: cor do texto da tela lida do bloco, inválida cai no preto padrão", () => {
+  assert.equal(lerAparenciaEmissao(JSON.stringify({ emissao: { corTexto: "#FFFFFF" } })).corTexto, "#FFFFFF");
+  assert.equal(lerAparenciaEmissao(JSON.stringify({ emissao: { corTexto: "#FFF" } })).corTexto, null);
+  assert.equal(lerAparenciaEmissao(JSON.stringify({ emissao: {} })).corTexto, null);
 });
 
 test("estação sem configuração, JSON malformado ou sem bloco mantém o padrão", () => {
@@ -47,7 +54,7 @@ test("cada campo ausente ou inválido cai no padrão sem derrubar os outros", ()
   const a = lerAparenciaEmissao(
     JSON.stringify({ emissao: { titulo: "  ", tamanhoFontePx: "32", tamanhoBotaoPx: -5, corFundoBotao: "#003366" } }),
   );
-  assert.deepEqual(a, { titulo: null, tamanhoFontePx: null, tamanhoBotaoPx: null, cores: null });
+  assert.deepEqual(a, { titulo: null, tamanhoFontePx: null, tamanhoBotaoPx: null, cores: null, corTexto: null });
   const b = lerAparenciaEmissao(JSON.stringify({ emissao: { tamanhoBotaoPx: 44 } }));
   assert.equal(b.tamanhoBotaoPx, 44);
   assert.equal(b.titulo, null);

@@ -28,7 +28,14 @@ public sealed record BlocoEmissaoDto(
     string? CorFundoBotao,
     string? CorFonteBotao,
     string? CorDescricaoBotao,
-    int? PrazoCicloEmissaoSegundos);
+    int? PrazoCicloEmissaoSegundos)
+{
+    /// <summary>C17: color of the totem texts drawn straight on the screen background (title, messages); null = black.</summary>
+    public string? CorTexto { get; init; }
+
+    /// <summary>C17: background image of the totem; null = none.</summary>
+    public ImagemFundoDto? ImagemFundo { get; init; }
+}
 
 /// <summary>
 /// Guichê block. <paramref name="Numero"/> is what the painel announces; <paramref name="LadoSeta"/> is Esquerda or
@@ -52,4 +59,18 @@ public sealed record BlocoPainelDto(
     string? CorFonteFilas,
     string? CorFonteChamada,
     string? CorFonteAlternada,
-    string? Modo);
+    string? Modo)
+{
+    /// <summary>C17: background image of the painel; null = none. Requires the four colors of the block.</summary>
+    public ImagemFundoDto? ImagemFundo { get; init; }
+}
+
+/// <summary>
+/// C17 (RF04, REQUISITOS 8.1 l.990, D16): an image mídia of the current unidade as a block background.
+/// <paramref name="VersaoMidia"/> is the mídia <c>Versao</c> the sample was measured on (a file swap raises it, so a stale
+/// sample is refused). <paramref name="Luminancias"/> is the luminance sample the cadastro measured in the browser: 64 hex
+/// digits = 256 bits, bit i (most significant bit of each digit first) set when some sampled point of the image, composed
+/// over the block background (totem white, painel <c>CorFundo</c>), has WCAG relative luminance in [i/256, (i+1)/256].
+/// </summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record ImagemFundoDto(Guid MidiaId, int VersaoMidia, string Luminancias);

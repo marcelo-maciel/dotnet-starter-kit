@@ -88,6 +88,9 @@ export type EmissaoForm = {
   corFonteBotao: string;
   corDescricaoBotao: string;
   prazoCicloEmissaoSegundos: string;
+  /** C17: title and messages on the screen background; empty = black. */
+  corTexto: string;
+  imagemFundo: ImagemFundoDto | null;
 };
 
 export type GuicheForm = {
@@ -107,7 +110,14 @@ export type PainelForm = {
   corFonteChamada: string;
   corFonteAlternada: string;
   modo: "" | "Normal" | "Informativo";
+  imagemFundo: ImagemFundoDto | null;
 };
+
+/**
+ * C17: an image mídia as block background, with the luminance sample measured in the browser (`contraste-imagem.ts`)
+ * on the mídia at `versaoMidia`. The server refuses a sample of an older version.
+ */
+export type ImagemFundoDto = { midiaId: string; versaoMidia: number; luminancias: string };
 
 export type BlocoEmissaoDto = {
   titulo: string | null;
@@ -117,6 +127,8 @@ export type BlocoEmissaoDto = {
   corFonteBotao: string | null;
   corDescricaoBotao: string | null;
   prazoCicloEmissaoSegundos: number | null;
+  corTexto?: string | null;
+  imagemFundo?: ImagemFundoDto | null;
 };
 
 export type BlocoGuicheDto = {
@@ -136,6 +148,7 @@ export type BlocoPainelDto = {
   corFonteChamada: string | null;
   corFonteAlternada: string | null;
   modo: string | null;
+  imagemFundo?: ImagemFundoDto | null;
 };
 
 export type BlocosEstacaoDto = {
@@ -152,6 +165,8 @@ export const EMISSAO_VAZIA: EmissaoForm = {
   corFonteBotao: "",
   corDescricaoBotao: "",
   prazoCicloEmissaoSegundos: "",
+  corTexto: "",
+  imagemFundo: null,
 };
 
 export const GUICHE_VAZIO: GuicheForm = {
@@ -171,6 +186,7 @@ export const PAINEL_VAZIO: PainelForm = {
   corFonteChamada: "",
   corFonteAlternada: "",
   modo: "",
+  imagemFundo: null,
 };
 
 function texto(valor: string): string | null {
@@ -203,6 +219,8 @@ export function montarBlocos(
           corFonteBotao: texto(emissao.corFonteBotao),
           corDescricaoBotao: texto(emissao.corDescricaoBotao),
           prazoCicloEmissaoSegundos: inteiro(emissao.prazoCicloEmissaoSegundos),
+          corTexto: texto(emissao.corTexto),
+          imagemFundo: emissao.imagemFundo,
         }
       : null,
     guiche: papeis.includes("Guiche")
@@ -224,6 +242,7 @@ export function montarBlocos(
           corFonteChamada: texto(painel.corFonteChamada),
           corFonteAlternada: texto(painel.corFonteAlternada),
           modo: painel.modo === "" ? null : painel.modo,
+          imagemFundo: painel.imagemFundo,
         }
       : null,
   };
@@ -252,6 +271,8 @@ export function formularios(blocos: BlocosEstacaoDto | null): {
           corFonteBotao: textoDe(e.corFonteBotao),
           corDescricaoBotao: textoDe(e.corDescricaoBotao),
           prazoCicloEmissaoSegundos: textoDe(e.prazoCicloEmissaoSegundos),
+          corTexto: textoDe(e.corTexto),
+          imagemFundo: e.imagemFundo ?? null,
         }
       : EMISSAO_VAZIA,
     guiche: g
@@ -273,6 +294,7 @@ export function formularios(blocos: BlocosEstacaoDto | null): {
           corFonteChamada: textoDe(p.corFonteChamada),
           corFonteAlternada: textoDe(p.corFonteAlternada),
           modo: p.modo === "Normal" || p.modo === "Informativo" ? p.modo : "",
+          imagemFundo: p.imagemFundo ?? null,
         }
       : PAINEL_VAZIO,
   };

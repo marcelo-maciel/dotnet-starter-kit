@@ -27,7 +27,12 @@ export type ConfiguracaoEstacaoDto = {
   botoes: BotaoEmissao[];
   /** C20: RF06 call message and voice choice, painel only; read through `lerAnuncioDaChamada`. */
   anuncioDaChamada?: unknown;
+  /** C17: signed read URL of each block's background image; null = no image (none, inactive, or swapped since measured). */
+  imagemFundoEmissao?: UrlLeituraDto | null;
+  imagemFundoPainel?: UrlLeituraDto | null;
 };
+
+export type UrlLeituraDto = { url: string; expiraEm: string };
 
 export type FichaEmitidaDto = {
   fichaId: string;

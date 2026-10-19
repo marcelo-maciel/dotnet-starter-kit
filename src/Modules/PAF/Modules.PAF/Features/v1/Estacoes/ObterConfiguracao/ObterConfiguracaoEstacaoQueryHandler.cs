@@ -5,13 +5,14 @@ using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Estacoes;
 using FSH.Modules.PAF.Features.v1.Filas;
+using FSH.Modules.PAF.Midias;
 using FSH.Modules.PAF.Parametros;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
 namespace FSH.Modules.PAF.Features.v1.Estacoes.ObterConfiguracao;
 
-public sealed class ObterConfiguracaoEstacaoQueryHandler(PafDbContext db, LeitorParametros parametros)
+public sealed class ObterConfiguracaoEstacaoQueryHandler(PafDbContext db, LeitorParametros parametros, UrlLeituraMidia urlLeitura)
     : IQueryHandler<ObterConfiguracaoEstacaoQuery, ConfiguracaoEstacaoDto>
 {
     public async ValueTask<ConfiguracaoEstacaoDto> Handle(ObterConfiguracaoEstacaoQuery query, CancellationToken cancellationToken)
@@ -27,10 +28,18 @@ public sealed class ObterConfiguracaoEstacaoQueryHandler(PafDbContext db, Leitor
             ?? throw new NotFoundException($"Estacao {query.EstacaoId} not found.");
 
         var botoes = await BotoesAsync(estacao.Id, estacao.UnidadeId, cancellationToken).ConfigureAwait(false);
+        var papeis = PapeisDaEstacao.ComCredencial(estacao.Tipo);
+        var (fundoEmissao, fundoPainel) = ConfiguracaoDaEstacao.ImagensDeFundo(estacao.Configuracao);
         return new ConfiguracaoEstacaoDto(estacao.Id, estacao.UnidadeId, estacao.Nome, estacao.Tipo.ToString(), estacao.Configuracao, botoes)
         {
             AnuncioDaChamada = PapeisDaEstacao.ComCredencial(estacao.Tipo).Contains(PapelEstacao.Painel)
                 ? await AnuncioDaChamadaAsync(estacao.UnidadeId, cancellationToken).ConfigureAwait(false)
+                : null,
+            ImagemFundoEmissao = papeis.Contains(PapelEstacao.Emissao)
+                ? await ImagemDeFundoDaEstacao.UrlAsync(db, urlLeitura, fundoEmissao, cancellationToken).ConfigureAwait(false)
+                : null,
+            ImagemFundoPainel = papeis.Contains(PapelEstacao.Painel)
+                ? await ImagemDeFundoDaEstacao.UrlAsync(db, urlLeitura, fundoPainel, cancellationToken).ConfigureAwait(false)
                 : null,
         };
     }

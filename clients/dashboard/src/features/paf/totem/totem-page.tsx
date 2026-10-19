@@ -18,6 +18,7 @@ import {
 } from "@/features/paf/totem/aparencia-totem";
 import { EmissaoTotem, PRAZO_CICLO_PADRAO_S } from "@/features/paf/totem/ciclo-emissao";
 import { emitirFichaNoCiclo } from "@/features/paf/totem/emitir-ficha";
+import { estiloImagemDeFundo, useImagemDeFundo } from "@/features/paf/estacao/imagem-fundo";
 import { FichaImpressa } from "@/features/paf/totem/ficha-impressa";
 import { ajustarFonteSenha, definirPagina, imprimir, removerPagina } from "@/features/paf/totem/impressao";
 
@@ -58,6 +59,7 @@ export function TotemPage() {
   const [botoes, setBotoes] = useState<BotaoEmissao[] | null>(null);
   const [aparencia, setAparencia] = useState<AparenciaEmissao>(APARENCIA_EMISSAO_PADRAO);
   const [botaoTocado, setBotaoTocado] = useState<string | null>(null);
+  const [urlFundo, setUrlFundo] = useState<string | null>(null);
   const [erroConfiguracao, setErroConfiguracao] = useState<string | null>(null);
   const [emissao, setEmissao] = useState<Emissao>({ tipo: "ocioso", aviso: null });
   const cicloRef = useRef<EmissaoTotem<BotaoEmissao, FichaEmitidaDto> | null>(null);
@@ -81,6 +83,7 @@ export function TotemPage() {
         setBotoes([...cfg.botoes].sort((a, b) => a.ordem - b.ordem));
         // Re-read with the buttons (FilaAtualizada, reconnection, periodic): a cadastro change applies without reload.
         setAparencia(lerAparenciaEmissao(cfg.configuracao));
+        setUrlFundo(cfg.imagemFundoEmissao?.url ?? null);
         prazoCicloMsRef.current =
           lerNumeroDaConfiguracao(cfg.configuracao, CHAVE_PRAZO_CICLO, PRAZO_CICLO_PADRAO_S) * 1_000;
       },
@@ -89,6 +92,8 @@ export function TotemPage() {
       },
     );
   }, [tratarCredencial]);
+
+  const fundo = useImagemDeFundo(urlFundo, recarregarBotoes);
 
   useEffect(() => {
     if (!vinculado) return;
@@ -189,11 +194,15 @@ export function TotemPage() {
   const ocupado = emissao.tipo !== "ocioso";
 
   return (
-    <main className="flex min-h-screen flex-col items-center gap-8 bg-white p-8 text-black">
+    <main
+      className="flex min-h-screen flex-col items-center gap-8 bg-white p-8 text-black"
+      style={{ color: aparencia.corTexto ?? undefined, ...estiloImagemDeFundo(fundo) }}
+      data-imagem-fundo={fundo ?? undefined}
+    >
       <h1 className="text-4xl font-bold">{aparencia.titulo ?? "Retire sua senha"}</h1>
 
       {erroConfiguracao && (
-        <p role="alert" className="text-2xl text-red-700">
+        <p role="alert" className="rounded-md bg-white px-3 text-2xl text-red-700">
           {erroConfiguracao}
         </p>
       )}
@@ -241,7 +250,7 @@ export function TotemPage() {
           </p>
         )}
         {emissao.tipo === "ocioso" && emissao.aviso && (
-          <p role="alert" className="text-red-700">
+          <p role="alert" className="rounded-md bg-white px-3 text-red-700">
             {emissao.aviso}
           </p>
         )}

@@ -70,6 +70,22 @@ test("formulários: ida e volta preserva os blocos gravados", () => {
   assert.deepEqual(formularios(null).guiche, GUICHE_VAZIO);
 });
 
+test("C17: imagem de fundo e cor do texto vão e voltam; sem imagem vai null", () => {
+  const imagem = { midiaId: "m1", versaoMidia: 3, luminancias: "0".repeat(63) + "1" };
+  const gravados = montarBlocos(
+    "EmissaoPainel",
+    { ...EMISSAO_VAZIA, corTexto: " #000000 ", imagemFundo: imagem },
+    GUICHE_VAZIO,
+    { ...PAINEL_VAZIO, imagemFundo: imagem },
+  );
+  assert.equal(gravados.emissao?.corTexto, "#000000");
+  assert.deepEqual(gravados.painel?.imagemFundo, imagem);
+  const f = formularios(gravados);
+  assert.deepEqual(montarBlocos("EmissaoPainel", f.emissao, f.guiche, f.painel), gravados);
+  const sem = montarBlocos("Painel", EMISSAO_VAZIA, GUICHE_VAZIO, PAINEL_VAZIO);
+  assert.equal(sem.painel?.imagemFundo, null);
+});
+
 test("ordem: alternar acrescenta no fim e mover troca vizinhos sem sair da lista", () => {
   assert.deepEqual(alternar(["a"], "b"), ["a", "b"]);
   assert.deepEqual(alternar(["a", "b"], "a"), ["b"]);

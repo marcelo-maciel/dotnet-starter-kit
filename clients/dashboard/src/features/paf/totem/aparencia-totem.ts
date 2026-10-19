@@ -10,6 +10,8 @@ export type AparenciaEmissao = {
   tamanhoBotaoPx: number | null;
   /** All three or none: the cadastro checked each text color against this background only as a set. */
   cores: { fundo: string; fonte: string; descricao: string } | null;
+  /** C17: title and messages, drawn straight on the screen background (white or the image); null = black. */
+  corTexto: string | null;
 };
 
 export type AparenciaDoBotao = {
@@ -34,6 +36,7 @@ export const APARENCIA_EMISSAO_PADRAO: AparenciaEmissao = {
   tamanhoFontePx: null,
   tamanhoBotaoPx: null,
   cores: null,
+  corTexto: null,
 };
 
 function objeto(valor: unknown): Record<string, unknown> | null {
@@ -71,6 +74,7 @@ export function lerAparenciaEmissao(configuracao: string | null): AparenciaEmiss
     tamanhoFontePx: numeroPositivo(bloco.tamanhoFontePx),
     tamanhoBotaoPx: numeroPositivo(bloco.tamanhoBotaoPx),
     cores: fundo !== null && fonte !== null && descricao !== null ? { fundo, fonte, descricao } : null,
+    corTexto: cor(bloco.corTexto),
   };
 }
 

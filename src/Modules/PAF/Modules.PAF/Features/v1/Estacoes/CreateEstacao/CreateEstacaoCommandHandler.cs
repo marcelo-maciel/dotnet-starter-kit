@@ -19,10 +19,11 @@ public sealed class CreateEstacaoCommandHandler(PafDbContext db, IUnidadeCorrent
         var fonteMinima = await parametros.LerAsync(CatalogoParametros.FonteMinimaTotemPx, unidadeId, cancellationToken).ConfigureAwait(false);
         ConfiguracaoDaEstacao.Validar(tipo, command.Configuracao, fonteMinima);
         await ListasDaEstacao.ValidarAsync(db, tipo, command.Filas, command.Prioridades, cancellationToken).ConfigureAwait(false);
+        var enviosDasImagens = await ImagemDeFundoDaEstacao.ConferirAsync(db, command.Configuracao, cancellationToken).ConfigureAwait(false);
 
         var estacao = Estacao.Criar(unidadeId, command.Nome.Trim(), tipo);
         estacao.DefinirRamal(command.Ramal);
-        estacao.DefinirConfiguracao(ConfiguracaoDaEstacao.Serializar(command.Configuracao));
+        estacao.DefinirConfiguracao(ConfiguracaoDaEstacao.Serializar(command.Configuracao, enviosDasImagens));
         db.Estacoes.Add(estacao);
         await ListasDaEstacao.SincronizarAsync(db, estacao, command.Filas, command.Prioridades, cancellationToken).ConfigureAwait(false);
 

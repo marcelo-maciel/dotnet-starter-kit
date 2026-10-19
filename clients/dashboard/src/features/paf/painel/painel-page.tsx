@@ -23,6 +23,7 @@ import {
   type SenhaChamadaEvento,
 } from "@/features/paf/painel/painel-estado";
 import { carregarVozes, escolherVoz, falar } from "@/features/paf/painel/voz";
+import { estiloImagemDeFundo, useImagemDeFundo } from "@/features/paf/estacao/imagem-fundo";
 import {
   ANUNCIO_PADRAO,
   lerAnuncioDaChamada,
@@ -63,6 +64,7 @@ export function PainelPage() {
   const [conexao, setConexao] = useState<EstadoConexao>("conectando");
   const [nomeEstacao, setNomeEstacao] = useState("");
   const [aparencia, setAparencia] = useState<AparenciaPainel>(APARENCIA_PAINEL_PADRAO);
+  const [urlFundo, setUrlFundo] = useState<string | null>(null);
   const [agora, setAgora] = useState(() => new Date());
   const [faseAlternancia, setFaseAlternancia] = useState(0);
   // A ref, not state: the config may arrive mid-highlight and must not restart the current announcement.
@@ -103,10 +105,13 @@ export function PainelPage() {
       tempoExibicaoMsRef.current =
         lerNumeroDaConfiguracao(cfg.configuracao, CHAVE_TEMPO_EXIBICAO, TEMPO_EXIBICAO_PADRAO_S) * 1_000;
       setAparencia(lerAparenciaPainel(cfg.configuracao));
+      setUrlFundo(cfg.imagemFundoPainel?.url ?? null);
       anuncioRef.current = lerAnuncioDaChamada(cfg.anuncioDaChamada);
       setAnuncio(anuncioRef.current);
     }, tratarErro);
   }, [tratarErro]);
+
+  const fundo = useImagemDeFundo(urlFundo, recarregarConfiguracao);
 
   useEffect(() => {
     if (!vinculado) return;
@@ -211,7 +216,9 @@ export function PainelPage() {
         backgroundColor: cores?.fundo,
         color: cores?.filas,
         fontSize: aparencia.tamanhoFontePx ?? undefined,
+        ...estiloImagemDeFundo(fundo),
       }}
+      data-imagem-fundo={fundo ?? undefined}
     >
       <header className="flex items-center justify-between px-8 py-4 text-[1.125em]">
         <span>{nomeEstacao}</span>
