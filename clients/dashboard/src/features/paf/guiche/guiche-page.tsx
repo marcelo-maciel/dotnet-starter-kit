@@ -28,6 +28,7 @@ import {
 import { decidirAviso, ESTADOS_FINAIS, type AvisoAtendimento } from "@/features/paf/guiche/avisos-guiche";
 import type { EstadoConexao } from "@/features/paf/paf-hub";
 import { CHAVE_ULTIMO_GUICHE, serializarUltimoGuiche, sugerirGuiche } from "@/features/paf/guiche/guiche-sugestao";
+import { EncaminharAtendimento } from "@/features/paf/guiche/encaminhar-atendimento";
 
 type Ultimo = { senha: string; estado: string };
 
@@ -352,6 +353,7 @@ export function GuichePage() {
             <Button size="lg" variant="secondary" disabled={ocupado} onClick={() => void encerrarEChamarProxima()}>
               Encerrar e chamar
             </Button>
+            <EncaminharAtendimento estado={atendimento?.estado ?? null} desabilitado={ocupado} aoEncaminhar={(senha) => { setUltimo({ senha, estado: "Encerrado" }); void queryClient.invalidateQueries({ queryKey: CHAVE_POSTO }); }} />
             <Button
               size="lg"
               variant="destructive"
