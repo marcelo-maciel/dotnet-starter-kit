@@ -12,6 +12,7 @@ using FSH.Modules.PAF.Contracts.v1.TempoReal;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Escopo;
+using FSH.Modules.PAF.Features.v1.Usuarios;
 using FSH.Modules.PAF.Observabilidade;
 using Integration.Tests.Infrastructure;
 using Integration.Tests.Tests.Sessions;
@@ -120,6 +121,45 @@ public sealed partial class PafLogSemDadosPessoaisTests(PafHostValkey host) : IA
             string assinatura = segredo.Split('.')[^1];
             eventos.Where(l => l.Contains(assinatura, StringComparison.Ordinal)).ShouldBeEmpty("token em nenhum log");
         }
+    }
+
+    // C16: the password an administrator defines, accepted or refused, and the login with it leave no trace in the log.
+    [Fact]
+    public async Task SenhaDefinidaPeloAdministrador_AceitaOuRecusada_NenhumEventoTemASenha()
+    {
+        long inicio = TamanhoDoLog();
+        var c = await CenarioAsync();
+        var usuario = await UsuarioAsync(c.UnidadeId);
+        string sufixo = Guid.NewGuid().ToString("N")[..10];
+        string fraca = $"c16fraca{sufixo}";
+        string forte = $"C16Forte{sufixo}!";
+        string rota = $"/usuarios/{usuario.UserId}/senha";
+
+        using (var recusada = await PafApi.EnviarAsync(_admin, HttpMethod.Post, rota, null, new DefinirSenhaUsuarioPafRequest(fraca, fraca)))
+        {
+            recusada.StatusCode.ShouldBe(HttpStatusCode.BadRequest, await recusada.Content.ReadAsStringAsync());
+        }
+
+        using (var diferente = await PafApi.EnviarAsync(_admin, HttpMethod.Post, rota, null, new DefinirSenhaUsuarioPafRequest(forte, fraca)))
+        {
+            diferente.StatusCode.ShouldBe(HttpStatusCode.BadRequest, await diferente.Content.ReadAsStringAsync());
+        }
+
+        await PafApi.OkAsync<Guid>(_admin, HttpMethod.Post, rota, null, new DefinirSenhaUsuarioPafRequest(forte, forte));
+        using (var repetida = await PafApi.EnviarAsync(_admin, HttpMethod.Post, rota, null, new DefinirSenhaUsuarioPafRequest(forte, forte)))
+        {
+            repetida.StatusCode.ShouldBe(HttpStatusCode.BadRequest, await repetida.Content.ReadAsStringAsync());
+        }
+
+        await TokenAsync(_tenantId, usuario.Email, forte);
+
+        // The kit logs the change at Information: once it is in the file, the requests above were all written too.
+        await EsperarEventoAsync(inicio, e =>
+            e.GetProperty("@mt").GetString()!.StartsWith("Password changed for user", StringComparison.Ordinal)
+            && e.TryGetProperty("UserId", out var u) && u.ToString() == usuario.UserId);
+        string[] eventos = LerLogDesde(inicio).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        eventos.Where(l => l.Contains(fraca, StringComparison.Ordinal) || l.Contains(forte, StringComparison.Ordinal))
+            .ShouldBeEmpty("senha em nenhum log");
     }
 
     // ─── log ─────────────────────────────────────────────────────

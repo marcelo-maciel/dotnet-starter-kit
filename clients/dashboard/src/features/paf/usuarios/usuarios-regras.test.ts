@@ -48,3 +48,12 @@ test("sem nome ou sem domínio não há sugestão", () => {
   assert.equal(sugestaoDeEmail("!!!", "", "loja.com.br"), null);
   assert.equal(sugestaoDeEmail("Ana", "Silva", null), null);
 });
+
+test("definir senha só libera com senha preenchida e confirmação idêntica", async () => {
+  const { senhaProntaParaDefinir } = await import("./usuarios-regras.ts");
+  assert.equal(senhaProntaParaDefinir("Nova@5678!", "Nova@5678!"), true);
+  assert.equal(senhaProntaParaDefinir("", ""), false);
+  assert.equal(senhaProntaParaDefinir("   ", "   "), false);
+  assert.equal(senhaProntaParaDefinir("Nova@5678!", "nova@5678!"), false, "maiúscula conta");
+  assert.equal(senhaProntaParaDefinir("Nova@5678!", "Nova@5678! "), false, "espaço no fim conta");
+});

@@ -67,3 +67,13 @@ public sealed record AtendimentoEmCursoDoUsuarioDto(
     Guid? EstacaoId);
 
 public sealed record ListAtendimentosEmCursoDoUsuarioQuery(Guid UsuarioId) : IQuery<IReadOnlyList<AtendimentoEmCursoDoUsuarioDto>>;
+
+/// <summary>
+/// RF08 (C16): the administrator sets another user's password, under the kit's password policy and history, and every
+/// session of that user is revoked. Same reach rule as the other user operations: his whole scope fits in the caller's.
+/// </summary>
+public sealed record DefinirSenhaUsuarioPafCommand(Guid UsuarioId, string Senha, string ConfirmacaoSenha) : ICommand<Guid>, IEscritaDeCadastro
+{
+    // The record's generated ToString would print the password into any log or exception message that formats it.
+    public override string ToString() => $"{nameof(DefinirSenhaUsuarioPafCommand)} {{ UsuarioId = {UsuarioId} }}";
+}
