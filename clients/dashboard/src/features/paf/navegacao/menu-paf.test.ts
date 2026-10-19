@@ -74,3 +74,10 @@ test("parâmetros (C10) aparecem só com Parametros.View e abrem a seção do PA
   assert.deepEqual(itensPaf(["Permissions.PAF.Parametros.UpdateUnidade"]), []);
   assert.equal(findSectionForPath("/paf/parametros"), "paf");
 });
+
+test("estatística (E5) aparece só com Estatisticas.View e abre a seção do PAF", () => {
+  assert.deepEqual(itensPaf(["Permissions.PAF.Estatisticas.View"]), ["/paf/estatistica"]);
+  // ViewPorAtendente only widens type 4; without View the endpoint is a 403, so no menu entry.
+  assert.deepEqual(itensPaf(["Permissions.PAF.Estatisticas.ViewPorAtendente"]), []);
+  assert.equal(findSectionForPath("/paf/estatistica"), "paf");
+});
