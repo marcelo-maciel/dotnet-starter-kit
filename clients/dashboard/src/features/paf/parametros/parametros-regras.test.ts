@@ -6,6 +6,7 @@ import type { ParametroDto } from "./parametros-api.ts";
 import {
   agruparPorGrupo,
   escolhasDeImagem,
+  logotipoGravavel,
   escolhasDoCampo,
   logotipoExibido,
   rotuloDoParametro,
@@ -79,6 +80,16 @@ test("logotipo: valor atual fora da lista (empresa em outra unidade, inativa) co
   const escolhas = escolhasDeImagem([midia("i1", "Marca", "Imagem", true)], "de-outra-unidade");
   assert.deepEqual(escolhas.at(-1), ["de-outra-unidade", "Imagem personalizada"]);
   assert.equal(escolhasDeImagem([], "").length, 1);
+});
+
+test("logotipo: só o padrão ou uma imagem ativa desta unidade pode ser salvo (R4)", () => {
+  const midias = [midia("i1", "Marca", "Imagem", true), midia("i2", "Antiga", "Imagem", false), midia("v1", "Abertura", "Video", true)];
+  assert.equal(logotipoGravavel(midias, ""), true);
+  assert.equal(logotipoGravavel(midias, "i1"), true);
+  assert.equal(logotipoGravavel(midias, "de-outra-unidade"), false, "herdado da empresa, imagem de outra unidade");
+  assert.equal(logotipoGravavel(midias, "i2"), false, "inativa");
+  assert.equal(logotipoGravavel(midias, "v1"), false, "vídeo");
+  assert.equal(logotipoGravavel([], "i1"), false, "sem a lista de mídias, só o padrão");
 });
 
 test("logotipo: exibição nunca mostra o id cru", () => {

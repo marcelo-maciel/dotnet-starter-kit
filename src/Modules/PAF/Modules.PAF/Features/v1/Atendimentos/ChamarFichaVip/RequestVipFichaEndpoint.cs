@@ -15,6 +15,6 @@ public static class RequestVipFichaEndpoint
                 async (ChamarFichaVipCommand command, IMediator mediator, CancellationToken ct) =>
                     Results.Ok(await mediator.Send(command, ct)))
             .WithName("PafRequestVipFicha")
-            .WithSummary("Call the ficha named by senha, date and fila on the session guichê, out of queue order (RF19 VIP)")
+            .WithSummary("Call the ficha picked from the VIP search, in the given fila, on the session guichê, out of queue order (RF19)")
             .RequirePermission(PafPermissions.Atendimentos.Vip);
 }

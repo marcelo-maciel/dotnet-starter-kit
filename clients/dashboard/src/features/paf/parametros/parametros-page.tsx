@@ -20,6 +20,8 @@ import {
   seloDaOrigem,
   valorExibido,
   escolhasDeImagem,
+  logotipoGravavel,
+  MENSAGEM_LOGOTIPO_NAO_GRAVAVEL,
   logotipoExibido,
 } from "@/features/paf/parametros/parametros-regras";
 
@@ -129,6 +131,7 @@ export function ParametrosPage() {
               {itens.map((item) => {
                 const selo = seloDaOrigem(item.origem);
                 const editando = edicao?.chave === item.chave ? edicao : null;
+                const naoGravavel = editando !== null && item.tipo === "Imagem" && !logotipoGravavel(midiasDaUnidade, editando.valor);
                 return (
                   <li key={item.chave} className="space-y-2 py-3" data-parametro={item.chave}>
                     <div className="flex flex-wrap items-center gap-3">
@@ -169,7 +172,11 @@ export function ParametrosPage() {
                           aoMudar={(valor) => setEdicao({ chave: item.chave, valor })}
                         />
                         {dados.alteraUnidade && (
-                          <Button size="sm" disabled={ocupado} onClick={() => void executar(() => sobrescreverNaUnidade(item.chave, editando.valor))}>
+                          <Button
+                            size="sm"
+                            disabled={ocupado || naoGravavel}
+                            onClick={() => void executar(() => sobrescreverNaUnidade(item.chave, editando.valor))}
+                          >
                             Salvar nesta unidade
                           </Button>
                         )}
@@ -177,7 +184,7 @@ export function ParametrosPage() {
                           <Button
                             size="sm"
                             variant="secondary"
-                            disabled={ocupado}
+                            disabled={ocupado || naoGravavel}
                             onClick={() => void executar(() => gravarPadraoDaEmpresa(item.chave, editando.valor))}
                           >
                             Salvar como padrão da empresa
@@ -186,6 +193,7 @@ export function ParametrosPage() {
                         <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => setEdicao(null)}>
                           Cancelar
                         </Button>
+                        {naoGravavel && <p className="w-full text-sm text-[var(--color-muted-foreground)]">{MENSAGEM_LOGOTIPO_NAO_GRAVAVEL}</p>}
                       </div>
                     )}
                   </li>

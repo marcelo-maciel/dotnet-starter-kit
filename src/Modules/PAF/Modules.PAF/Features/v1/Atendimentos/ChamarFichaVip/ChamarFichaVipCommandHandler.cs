@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Net;
 using FSH.Framework.Core.Exceptions;
 using FSH.Modules.PAF.Contracts.v1.Atendimentos;
@@ -16,10 +15,10 @@ using Microsoft.EntityFrameworkCore;
 namespace FSH.Modules.PAF.Features.v1.Atendimentos.ChamarFichaVip;
 
 /// <summary>
-/// RF19 "atendimento VIP": the guichê calls the ficha named by its printed senha (D02), date and fila, out of the queue
-/// order and nothing else (requisitos RF19, 8.1 l.1030). The ficha is found by its operational date; whether its
-/// atendimento is still callable follows the atendimento's eligibility date, through the same predicate as every other
-/// call (ChamadaDeFicha). A ficha in progress on another guichê is refused naming that guichê. Same lock order as
+/// RF19 "atendimento VIP": the guichê calls the ficha the attendant picked from the VIP search (printed senha and
+/// date, D02, ListFichasVipQueryHandler) in the given fila, out of the queue order and nothing else (requisitos RF19,
+/// 8.1 l.1030). Whether its atendimento is still callable follows the atendimento's eligibility date, through the same
+/// predicate as every other call (ChamadaDeFicha). A ficha in progress on another guichê is refused naming that guichê. Same lock order as
 /// chamar-próximo and the chosen call (guichê link, then ficha rows), waiting for the ficha lock like the chosen call.
 /// </summary>
 public sealed class ChamarFichaVipCommandHandler(
@@ -28,7 +27,7 @@ public sealed class ChamarFichaVipCommandHandler(
     AvisosTempoReal avisos,
     LeitorParametros parametros) : ICommandHandler<ChamarFichaVipCommand, ChamadaDto>
 {
-    public const string MensagemNaoEncontrada = "Nenhuma ficha aguardando com esta senha, data e fila nesta unidade.";
+    public const string MensagemNaoEncontrada = "Esta ficha não está aguardando nesta fila nesta unidade.";
 
     public static string MensagemEmCurso(string nomeEstacao) =>
         $"A ficha está em atendimento no guichê {nomeEstacao}.";
@@ -51,7 +50,7 @@ public sealed class ChamarFichaVipCommandHandler(
             throw OperacaoGuiche.Conflito(ChamarProximaFichaCommandHandler.MensagemGuicheEmCurso);
         }
 
-        var atendimentoId = await LocalizarAsync(Normalizar(command.Senha), command.Data, command.FilaId, cancellationToken);
+        var atendimentoId = await LocalizarAsync(command.FichaId, command.FilaId, cancellationToken);
         var somenteDataAtual = await parametros.LerAsync(CatalogoParametros.SomenteFichasDaDataAtual, guiche.Estacao.UnidadeId, cancellationToken);
         try
         {
@@ -71,53 +70,14 @@ public sealed class ChamarFichaVipCommandHandler(
         }
     }
 
-    // Same normalization as the letter at the cadastro (LetraDaSenha), so a lower-case or padded entry finds the senha.
-    private static string Normalizar(string senha) => senha.Trim().ToUpperInvariant();
-
     /// <summary>
-    /// Every way to read the senha as a letter (1 to LetraMaxLength characters) followed by the printed number (digits,
-    /// no zero padding, seção 4.1). A letter may itself hold digits, so the split is never guessed: all readings are
-    /// tried and more than one matching ficha is ambiguous.
+    /// Unit-filtered reads, so another unit's or tenant's ficha id is simply not found. Exactly one waiting atendimento
+    /// of the ficha in the fila, else 404.
     /// </summary>
-    public static IReadOnlyList<(string Letra, int Numero)> Leituras(string senha)
+    private async Task<Guid> LocalizarAsync(Guid fichaId, Guid filaId, CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(senha);
-        var leituras = new List<(string, int)>();
-        for (var tamanho = 1; tamanho <= Math.Min(FilaPrioridade.LetraMaxLength, senha.Length - 1); tamanho++)
-        {
-            var digitos = senha[tamanho..];
-            if (digitos[0] != '0' && digitos.All(char.IsAsciiDigit)
-                && int.TryParse(digitos, NumberStyles.None, CultureInfo.InvariantCulture, out var numero))
-            {
-                leituras.Add((senha[..tamanho], numero));
-            }
-        }
-
-        return leituras;
-    }
-
-    /// <summary>
-    /// Unit-filtered reads, so another unit's ficha is simply not found. A senha that matches no ficha, or more than
-    /// one, is 404. Exactly one waiting atendimento of the ficha in the fila, else 404.
-    /// </summary>
-    private async Task<Guid> LocalizarAsync(string senha, DateOnly data, Guid filaId, CancellationToken ct)
-    {
-        var leituras = Leituras(senha);
-        var letras = leituras.Select(l => l.Letra).ToList();
-        var numeros = leituras.Select(l => l.Numero).ToList();
-        // The two lists cross in SQL (a few rows of one unit and day); the exact pair is kept here.
-        var candidatas = await db.Fichas.AsNoTracking()
-            .Where(f => f.DataOperacional == data && letras.Contains(f.Letra) && numeros.Contains(f.Numero))
-            .Select(f => new { f.Id, f.Letra, f.Numero })
-            .ToListAsync(ct);
-        var fichas = candidatas.Where(f => leituras.Contains((f.Letra, f.Numero))).Select(f => f.Id).ToList();
-        if (fichas.Count != 1)
-        {
-            throw new NotFoundException(MensagemNaoEncontrada);
-        }
-
         var aguardando = await db.Atendimentos.AsNoTracking()
-            .Where(a => a.FichaId == fichas[0] && a.FilaId == filaId && a.Estado == EstadoAtendimento.Aguardando)
+            .Where(a => a.FichaId == fichaId && a.FilaId == filaId && a.Estado == EstadoAtendimento.Aguardando)
             .Select(a => a.Id)
             .Take(2)
             .ToListAsync(ct);
@@ -127,7 +87,7 @@ public sealed class ChamarFichaVipCommandHandler(
         }
 
         // Nothing waiting in that fila: when the ficha is being served somewhere, say where instead of "not found" (RF19).
-        await RecusarSeEmCursoAsync(fichas[0], ct);
+        await RecusarSeEmCursoAsync(fichaId, ct);
         throw new NotFoundException(MensagemNaoEncontrada);
     }
 
