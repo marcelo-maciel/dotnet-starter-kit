@@ -202,6 +202,52 @@ namespace FSH.Starter.Migrations.PostgreSQL.PAF
                     b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
+            modelBuilder.Entity("FSH.Modules.PAF.Domain.ConsumoLicenca", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Limite")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Ocupadas")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("RegistradoEm")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid?>("SessaoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<Guid>("UnidadeId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SessaoId")
+                        .HasDatabaseName("IX_ConsumosLicenca_Sessao");
+
+                    b.HasIndex("UnidadeId", "RegistradoEm", "TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ConsumosLicenca_Amostra")
+                        .HasFilter("\"Tipo\" = 'Amostra'");
+
+                    b.ToTable("ConsumosLicenca", "paf");
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
             modelBuilder.Entity("FSH.Modules.PAF.Domain.ContratoUnidade", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1169,6 +1215,15 @@ namespace FSH.Starter.Migrations.PostgreSQL.PAF
                         .HasForeignKey("AtendimentoId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("FSH.Modules.PAF.Domain.Unidade", null)
+                        .WithMany()
+                        .HasForeignKey("UnidadeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FSH.Modules.PAF.Domain.ConsumoLicenca", b =>
+                {
                     b.HasOne("FSH.Modules.PAF.Domain.Unidade", null)
                         .WithMany()
                         .HasForeignKey("UnidadeId")
