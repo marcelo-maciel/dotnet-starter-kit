@@ -16,7 +16,9 @@ using FSH.Modules.PAF.Estacoes;
 using FSH.Modules.PAF.Features.v1.Atendimentos.CancelarAtendimento;
 using FSH.Modules.PAF.Features.v1.Atendimentos.ChamarProximaFicha;
 using FSH.Modules.PAF.Features.v1.Atendimentos.EncerrarAtendimento;
+using FSH.Modules.PAF.Features.v1.Atendimentos.EncaminharAtendimento;
 using FSH.Modules.PAF.Features.v1.Atendimentos.IniciarAtendimento;
+using FSH.Modules.PAF.Features.v1.Atendimentos.ListDestinosEncaminhamento;
 using FSH.Modules.PAF.Features.v1.Atendimentos.RechamarAtendimento;
 using FSH.Modules.PAF.Features.v1.Atendimentos.ReabilitarAtendimentoDaFicha;
 using FSH.Modules.PAF.Features.v1.Contratos.CreateContratoUnidade;
@@ -208,6 +210,8 @@ public sealed class PafModule : IModule
         guiche.MapListMinhasUnidadesEndpoint();
         guiche.MapListGuichesDaUnidadeEndpoint();
         guiche.MapGetPostoGuicheEndpoint();
+        guiche.MapListForwardDestinationsEndpoint();
+        guiche.MapForwardAtendimentoEndpoint();
     }
 
     // Cadastros and unit scope.
