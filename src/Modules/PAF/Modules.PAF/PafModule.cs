@@ -40,6 +40,7 @@ using FSH.Modules.PAF.Features.v1.Fichas.CancelarAtendimentoDaFicha;
 using FSH.Modules.PAF.Features.v1.Fichas.EmitirFicha;
 using FSH.Modules.PAF.Features.v1.Fichas.ListAtendimentosDoDia;
 using FSH.Modules.PAF.Features.v1.Fichas.ObterImpressaoFicha;
+using FSH.Modules.PAF.Features.v1.Fichas.ListFichasEmAtendimento;
 using FSH.Modules.PAF.Features.v1.Filas.AddFilaPrioridade;
 using FSH.Modules.PAF.Features.v1.Guiches.ListGuichesDaUnidade;
 using FSH.Modules.PAF.Features.v1.Guiches.ListMinhasUnidades;
@@ -217,6 +218,8 @@ public sealed class PafModule : IModule
         // F06: the RF12 list and the reprint of a stored ficha, under FichasDoDia.View.
         fichas.MapListAtendimentosDoDiaEndpoint();
         fichas.MapGetFichaImpressaoEndpoint();
+        // RF13 (F07): FichasEmAtendimento.View; its cancel button reuses the F04 route above.
+        fichas.MapListFichasInProgressEndpoint();
     }
 
     private static void MapearSessao(IEndpointRouteBuilder sessao)

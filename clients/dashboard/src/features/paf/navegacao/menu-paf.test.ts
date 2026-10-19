@@ -47,3 +47,9 @@ test("fichas do dia aparece só com FichasDoDia.View, não com cancelar ou reabi
   assert.deepEqual(itensPaf(["Permissions.PAF.FichasDoDia.View"]), ["/paf/fichas-do-dia"]);
   assert.deepEqual(itensPaf(["Permissions.PAF.FichasDoDia.Cancelar", "Permissions.PAF.FichasDoDia.Reabilitar"]), []);
 });
+
+test("fichas em atendimento aparece só com FichasEmAtendimento.View (F07)", () => {
+  assert.deepEqual(itensPaf(["Permissions.PAF.FichasEmAtendimento.View"]), ["/paf/fichas-em-atendimento"]);
+  assert.deepEqual(itensPaf(["Permissions.PAF.FichasDoDia.Cancelar"]), []);
+  assert.equal(findSectionForPath("/paf/fichas-em-atendimento"), "paf");
+});
