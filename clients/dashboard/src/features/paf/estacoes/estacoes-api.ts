@@ -91,3 +91,15 @@ export function gerarVinculo(id: string) {
 export function revogarVinculo(id: string) {
   return apiFetch<void>(`/api/v1/paf/estacoes/${encodeURIComponent(id)}/vinculo/revogar`, { method: "POST" });
 }
+
+/** C17: the unidade's mídias (M03), from which the cadastro offers the active images as block background. */
+export type MidiaResumoDto = { id: string; descricao: string; tipo: string; ativa: boolean; versao: number };
+
+export function listarMidias() {
+  return apiFetch<MidiaResumoDto[]>("/api/v1/paf/midias");
+}
+
+/** Signed read URL of a mídia (M04, `Midias.View`), used to measure the image in the browser. */
+export function obterUrlMidia(id: string) {
+  return apiFetch<{ url: string; expiraEm: string }>(`/api/v1/paf/midias/${encodeURIComponent(id)}/url`);
+}

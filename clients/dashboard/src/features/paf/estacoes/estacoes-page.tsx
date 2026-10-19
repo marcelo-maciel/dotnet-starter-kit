@@ -10,6 +10,8 @@ import { DialogoDesativacao } from "@/features/paf/estacoes/desativacao-dialogo"
 import { LinkGerado } from "@/features/paf/estacoes/link-gerado";
 import { avisosDoLinkGerado, linhasDoVinculo, usaLink } from "@/features/paf/estacoes/vinculo-estacao";
 import { montarLinkVinculo } from "@/features/paf/estacao/link-vinculo";
+import { avisosContraImagem } from "@/features/paf/aparencia/contraste-imagem";
+import { ImagemFundoCampo } from "@/features/paf/estacoes/imagem-fundo-campo";
 import {
   atualizarEstacao,
   criarEstacao,
@@ -19,6 +21,7 @@ import {
   listarEstacoes,
   listarFilas,
   listarPrioridades,
+  listarMidias,
   type EstacaoCorpo,
   type EstacaoDto,
 } from "@/features/paf/estacoes/estacoes-api";
@@ -186,6 +189,9 @@ export function EstacoesPage() {
   const estacoes = useQuery({ queryKey: CHAVE_ESTACOES, queryFn: listarEstacoes });
   const filas = useQuery({ queryKey: ["paf", "filas"], queryFn: listarFilas });
   const prioridades = useQuery({ queryKey: ["paf", "prioridades"], queryFn: listarPrioridades });
+  // C17: without Midias.View the list is refused and the image pickers say so.
+  const listaMidias = useQuery({ queryKey: ["paf", "midias"], queryFn: listarMidias, retry: false });
+  const midias = listaMidias.isError ? null : (listaMidias.data ?? []);
 
   const [edicao, setEdicao] = useState<Edicao | null>(null);
   const [erros, setErros] = useState<string[]>([]);
@@ -385,6 +391,27 @@ export function EstacoesPage() {
                   ["Descrição", edicao.emissao.corDescricaoBotao],
                 ])}
               />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Campo rotulo="Cor do texto da tela (título e mensagens)">
+                  {(id) => <Input id={id} placeholder="#000000" value={edicao.emissao.corTexto} onChange={(e) => emissao({ corTexto: e.target.value })} />}
+                </Campo>
+                <ImagemFundoCampo
+                  rotulo="Imagem de fundo do totem"
+                  valor={edicao.emissao.imagemFundo}
+                  fundo="#FFFFFF"
+                  midias={midias}
+                  onChange={(imagemFundo) => emissao({ imagemFundo })}
+                />
+              </div>
+              <Avisos
+                avisos={
+                  edicao.emissao.imagemFundo
+                    ? avisosContraImagem(edicao.emissao.imagemFundo.luminancias, [["Texto da tela", edicao.emissao.corTexto.trim() || "#000000"]])
+                    : edicao.emissao.corTexto.trim() === ""
+                      ? []
+                      : avisosDeCor(["Fundo branco", "#FFFFFF"], [["Texto da tela", edicao.emissao.corTexto]])
+                }
+              />
             </fieldset>
           )}
 
@@ -477,6 +504,22 @@ export function EstacoesPage() {
                   ["Fonte alternada", edicao.painel.corFonteAlternada],
                 ])}
               />
+              <ImagemFundoCampo
+                rotulo="Imagem de fundo do painel"
+                valor={edicao.painel.imagemFundo}
+                fundo={edicao.painel.corFundo}
+                midias={midias}
+                onChange={(imagemFundo) => painel({ imagemFundo })}
+              />
+              {edicao.painel.imagemFundo && (
+                <Avisos
+                  avisos={avisosContraImagem(edicao.painel.imagemFundo.luminancias, [
+                    ["Fonte das filas", edicao.painel.corFonteFilas],
+                    ["Fonte da chamada", edicao.painel.corFonteChamada],
+                    ["Fonte alternada", edicao.painel.corFonteAlternada],
+                  ])}
+                />
+              )}
             </fieldset>
           )}
 
