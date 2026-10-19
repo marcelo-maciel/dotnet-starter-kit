@@ -46,6 +46,8 @@ using FSH.Modules.PAF.Features.v1.Filas.CreateFila;
 using FSH.Modules.PAF.Features.v1.Filas.DisableFila;
 using FSH.Modules.PAF.Features.v1.Filas.EnableFila;
 using FSH.Modules.PAF.Features.v1.Filas.ListFilas;
+using FSH.Modules.PAF.Features.v1.Estatistica;
+using FSH.Modules.PAF.Features.v1.Estatistica.Atendimentos;
 using FSH.Modules.PAF.Features.v1.Estatistica.ConsultarEstatistica;
 using FSH.Modules.PAF.Features.v1.Filas.ListFilasConsolidadas;
 using FSH.Modules.PAF.Features.v1.Filas.UpdateFila;
@@ -242,6 +244,14 @@ public sealed class PafModule : IModule
     {
         services.AddScoped<EscopoUsuario>();
         services.AddScoped<PafDemoSeeder>();
+
+        // RF07 types 1 to 6 (E1).
+        services.AddScoped<IConsultaEstatistica, ConsultaAtendimentosPorTempoDeEspera>();
+        services.AddScoped<IConsultaEstatistica, ConsultaAtendimentosPorTempoDeAtendimento>();
+        services.AddScoped<IConsultaEstatistica, ConsultaAtendimentosPorGuiche>();
+        services.AddScoped<IConsultaEstatistica, ConsultaAtendimentosPorAtendente>();
+        services.AddScoped<IConsultaEstatistica, ConsultaAtendimentosPorHorarioDePico>();
+        services.AddScoped<IConsultaEstatistica, ConsultaAtendimentosNaoEfetuadosOuCancelados>();
     }
 
     // Cadastros and unit scope.
