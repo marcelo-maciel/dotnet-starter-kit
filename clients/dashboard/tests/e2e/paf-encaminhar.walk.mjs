@@ -21,7 +21,7 @@ const TENANT = "acme";
 const EMAIL = "admin@acme.com";
 // The attendant runs the screen: one session per user, so the admin's API token survives her sign-in.
 const OPERADORA = "alice@acme.com";
-const SENHA_DEMO = "Password123!";
+const SENHA_DEMO = process.env.PAF_SENHA_DEMO ?? "Password123!";
 const TIMEOUT = 15_000;
 const SUFIXO = Date.now().toString().slice(-6);
 const CAIXA = `Caixa F09 ${SUFIXO}`;

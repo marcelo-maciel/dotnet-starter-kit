@@ -17,7 +17,7 @@ if (!API || !WEB || !PG) {
   process.exit(2);
 }
 const TENANT = "acme";
-const SENHA_DEMO = "Password123!";
+const SENHA_DEMO = process.env.PAF_SENHA_DEMO ?? "Password123!";
 const TIMEOUT = 15_000;
 
 let falhas = 0;

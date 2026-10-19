@@ -18,7 +18,7 @@ if (!API || !WEB || !PG) {
 }
 const TENANT = "acme";
 const EMAIL = "admin@acme.com";
-const SENHA_DEMO = "Password123!";
+const SENHA_DEMO = process.env.PAF_SENHA_DEMO ?? "Password123!";
 const TIMEOUT = 15_000;
 const LOGOUT_PATH = "/api/v1/paf/sessao/logout";
 

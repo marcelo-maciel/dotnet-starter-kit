@@ -171,6 +171,19 @@ Configuração do repositório, fora do código:
 - [ ] `docker login ghcr.io` no host com um token de leitura de pacotes;
 - [ ] tornar o job `PAF CI` verificação obrigatória na proteção das branches.
 
+### Walks locais
+
+Os outros walks (`clients/dashboard/tests/e2e/paf-*.walk.mjs`) ficam fora do CI por decisão do dono e rodam localmente, um por vez, por `walk-local.sh`: a receita do `walk-ci.sh` mais RustFS com `Storage:Provider=s3`, e o walk recebe `PAF_API`, `PAF_WEB`, `PAF_S3`, `PAF_S3_BUCKET`, `PAF_SENHA_DEMO`, `PAF_PG` e `PAF_PG_CONTAINER`. Recusa senha ausente ou igual à do kit e `PAF_WALK` ausente com saída 2, sem subir nada; não deixa processo nem contêiner ao sair.
+
+```bash
+PAF_SENHA_DEMO=<senha> PAF_WALK=tests/e2e/paf-vip.walk.mjs deploy/paf/walk-local.sh
+PAF_WEB_BUILD=1 PAF_SENHA_DEMO=<senha> PAF_WALK=tests/e2e/paf-navegacao.walk.mjs deploy/paf/walk-local.sh   # build de produção + vite preview
+PAF__Midia__MargemLeitura=00:00:40 PAF__Midia__PisoValidadeUrlLeitura=00:00:01 \
+  PAF_SENHA_DEMO=<senha> PAF_WALK=tests/e2e/paf-midia-painel.walk.mjs deploy/paf/walk-local.sh             # M08: URLs curtas
+```
+
+`PAF_WEB_BUILD=1` vale para os walks que pedem o build de produção no cabeçalho (`paf-navegacao`, `paf-fichas-do-dia`, `paf-selecionar-ficha`); `PAF_PULAR_BUILD=1` pula o build do .NET quando os binários Release já são desta árvore.
+
 ## Massa demo da homologação (O09, D19, RNF17)
 
 A homologação usa os tenants de demonstração `acme` e `globex`, com a unidade, a fila, a prioridade, as estações e o contrato do `PafDemoSeeder`, criados pelo verbo `seed-demo` do DbMigrator do kit. O guarda do kit (`src/Host/FSH.Starter.DbMigrator/Program.cs`) recusa o verbo fora de `Development` e continua intocado: pela decisão D19, quem roda o seed é `seed-homolog.sh`, que passa `DOTNET_ENVIRONMENT=Development` só para o contêiner do migrador daquela execução. A API e o migrador do `up` continuam em `Production`.
