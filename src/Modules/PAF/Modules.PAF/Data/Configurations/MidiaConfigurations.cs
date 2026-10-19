@@ -1,4 +1,5 @@
 using FSH.Modules.PAF.Domain;
+using FSH.Modules.PAF.Midias;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 

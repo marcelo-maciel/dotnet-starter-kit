@@ -46,14 +46,6 @@ public enum PoliticaLimiteLicenca
     UltrapassarComAviso,
 }
 
-// Persisted as strings: CK_Midias_Tipo and CK_EnviosMidia_Tipo list the literal names.
-public enum TipoMidia
-{
-    Audio,
-    Imagem,
-    Video,
-}
-
 /// <summary>Bit de cada dia na máscara de <see cref="ProgramacaoMidia"/>, na ordem de <see cref="DayOfWeek"/>.</summary>
 [Flags]
 public enum DiasSemana

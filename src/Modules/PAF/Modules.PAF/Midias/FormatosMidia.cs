@@ -1,6 +1,7 @@
 namespace FSH.Modules.PAF.Midias;
 
 /// <summary>Tipo da mídia do RF03: o que o painel toca e qual teto de tamanho vale para o envio.</summary>
+// Persisted as strings: CK_Midias_Tipo and CK_EnviosMidia_Tipo list the literal names.
 public enum TipoMidia
 {
     Video,

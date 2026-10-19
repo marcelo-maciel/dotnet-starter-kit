@@ -1,4 +1,5 @@
 using FSH.Framework.Core.Domain;
+using FSH.Modules.PAF.Midias;
 
 namespace FSH.Modules.PAF.Domain;
 

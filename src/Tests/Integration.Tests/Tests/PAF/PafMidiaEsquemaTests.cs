@@ -1,5 +1,6 @@
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Domain;
+using FSH.Modules.PAF.Midias;
 using Integration.Tests.Infrastructure;
 using Npgsql;
 
