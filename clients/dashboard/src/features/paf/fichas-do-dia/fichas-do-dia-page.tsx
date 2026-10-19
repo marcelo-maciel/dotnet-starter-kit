@@ -7,6 +7,16 @@ import { useAuth } from "@/auth/use-auth";
 import type { FichaEmitidaDto } from "@/features/paf/estacao/estacao-api";
 import { mensagemAmigavel } from "@/features/paf/paf-erros";
 import { FichaImpressa } from "@/features/paf/totem/ficha-impressa";
+import { ApiRequestError } from "@/lib/api-client";
+import { obterPosto, operarAtendimento } from "@/features/paf/guiche/guiche-api";
+import { chamarProxima, type AtendimentoNaTela } from "@/features/paf/guiche/guiche-fluxo";
+import { chamarFichaEscolhida, listarFichasEmEspera } from "@/features/paf/fichas-do-dia/fichas-do-dia-api";
+import {
+  passosParaEscolhida,
+  PERMISSAO_SELECIONAR_FICHA,
+  posicaoNaChamada,
+  selecaoIndisponivel,
+} from "@/features/paf/fichas-do-dia/selecionar-ficha";
 import { ajustarFonteSenha, definirPagina, imprimir, removerPagina } from "@/features/paf/totem/impressao";
 import {
   cancelarAtendimento,
@@ -46,6 +56,23 @@ export function FichasDoDiaPage() {
   // ponytail: no realtime here; the operator refreshes. Subscribe to FilaAtualizada/AtendimentoAtualizado if asked.
   const consulta = useQuery({ queryKey: chave, queryFn: () => listarFichasDoDia(filtro) });
 
+  // F21: "Chamar esta" exists only on the session's guichê with the selecionarFicha option (REQ seção 4). No retry:
+  // the 409 of an option that is off is an answer, not a transient failure.
+  const podeSelecionar = permissoes.includes(PERMISSAO_SELECIONAR_FICHA);
+  const posto = useQuery({ queryKey: ["paf", "guiche", "posto"], queryFn: obterPosto, enabled: podeSelecionar, retry: false });
+  const estacaoDoPosto = posto.data?.estacaoId ?? null;
+  const emEspera = useQuery({
+    queryKey: ["paf", "fichas-do-dia", "em-espera", estacaoDoPosto],
+    queryFn: listarFichasEmEspera,
+    enabled: podeSelecionar && estacaoDoPosto !== null,
+    retry: false,
+  });
+  const posicoes = posicaoNaChamada(emEspera.data ?? []);
+  const falhaSelecao = posto.error ?? emEspera.error;
+  const mostrarFalhaSelecao =
+    falhaSelecao !== null && !selecaoIndisponivel(falhaSelecao instanceof ApiRequestError ? falhaSelecao.status : null);
+  const [aviso, setAviso] = useState<string | null>(null);
+
   const [erro, setErro] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [paraImprimir, setParaImprimir] = useState<FichaEmitidaDto | null>(null);
@@ -65,12 +92,33 @@ export function FichasDoDiaPage() {
       setOcupado(false);
       // Refetch after a refusal too: a 409 usually means the line changed under the operator.
       await queryClient.invalidateQueries({ queryKey: ["paf", "fichas-do-dia"] });
+      await queryClient.invalidateQueries({ queryKey: ["paf", "guiche", "posto"] });
     }
   };
 
   const cancelar = (linha: AtendimentoDoDiaDto) => {
     if (!window.confirm(`Cancelar o atendimento da senha ${linha.senha} na fila ${linha.fila}?`)) return;
     void executar(() => cancelarAtendimento(linha.atendimentoId));
+  };
+
+  // RF15 questions through F13's composition; the guichê's atendimento is read fresh at click time, so a question
+  // never rests on a stale screen. A 409 from another guichê lands in `erro` and the refetch drops the line.
+  const chamarEsta = (linha: AtendimentoDoDiaDto) => {
+    setAviso(null);
+    void executar(async () => {
+      const atual: AtendimentoNaTela | null = (await obterPosto()).atendimento;
+      await chamarProxima(
+        atual,
+        passosParaEscolhida<AtendimentoNaTela>(linha.atendimentoId, {
+          confirmar: (pergunta) => window.confirm(pergunta),
+          operar: (emCurso, operacao) => operarAtendimento(emCurso.atendimentoId, operacao),
+          chamarEscolhida: async (atendimentoId) => {
+            const chamada = await chamarFichaEscolhida(atendimentoId);
+            setAviso(`Senha ${chamada.senha} chamada neste guichê.`);
+          },
+        }),
+      );
+    });
   };
 
   const reimprimir = async (linha: AtendimentoDoDiaDto) => {
@@ -167,6 +215,19 @@ export function FichasDoDiaPage() {
         </p>
       )}
 
+      {aviso && (
+        <p role="status" data-aviso-selecao className="rounded-md border border-[var(--color-border)] px-4 py-3">
+          {aviso}
+        </p>
+      )}
+      {mostrarFalhaSelecao && <p role="alert">{mensagemAmigavel(falhaSelecao)}</p>}
+      {emEspera.data && (
+        <p data-selecao-ficha className="text-sm text-[var(--color-muted-foreground)]">
+          {posto.data?.guiche ?? "Este guichê"} pode chamar uma ficha fora da ordem. O número em "Chamar esta" é a posição dela na
+          chamada: a 1ª é a que "Chamar próxima" chamaria.
+        </p>
+      )}
+
       {consulta.isPending && <p className="text-[var(--color-muted-foreground)]">Carregando…</p>}
       {consulta.isError && <p role="alert">{mensagemAmigavel(consulta.error)}</p>}
 
@@ -202,6 +263,7 @@ export function FichasDoDiaPage() {
                 <tbody>
                   {dados.atendimentos.map((linha) => {
                     const acoes = acoesDoAtendimento(linha.estado, permissoes);
+                    const posicao = posicoes.get(linha.atendimentoId);
                     return (
                       <tr key={linha.atendimentoId} data-atendimento={linha.atendimentoId} className="border-t border-[var(--color-border)]">
                         <td className="px-3 py-2 font-semibold">
@@ -221,6 +283,11 @@ export function FichasDoDiaPage() {
                             <Button size="sm" variant="outline" disabled={ocupado} onClick={() => void reimprimir(linha)}>
                               Reimprimir
                             </Button>
+                            {posicao !== undefined && (
+                              <Button size="sm" disabled={ocupado} data-chamar-esta onClick={() => chamarEsta(linha)}>
+                                Chamar esta ({posicao}ª)
+                              </Button>
+                            )}
                             {acoes.cancelar && (
                               <Button size="sm" variant="destructive" disabled={ocupado} onClick={() => cancelar(linha)}>
                                 Cancelar

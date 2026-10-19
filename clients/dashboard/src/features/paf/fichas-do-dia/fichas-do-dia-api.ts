@@ -1,6 +1,7 @@
 import { apiFetch } from "@/lib/api-client";
 import type { FichaEmitidaDto } from "@/features/paf/estacao/estacao-api";
 import type { AtendimentoAlteradoDto } from "@/features/paf/guiche/guiche-api";
+import type { ChamadaDto } from "@/features/paf/guiche/guiche-api";
 import { consultaDosFiltros, type FiltroFichasDoDia } from "@/features/paf/fichas-do-dia/fichas-do-dia-regras";
 
 // RF12 fichas do dia (F06): list and reprint under FichasDoDia.View; cancel (F04) and reabilitar (F05) under
@@ -49,3 +50,19 @@ export const cancelarAtendimento = (atendimentoId: string) =>
 
 export const reabilitarAtendimento = (atendimentoId: string) =>
   apiFetch<AtendimentoAlteradoDto>(`${BASE}/atendimentos/${atendimentoId}/reabilitar`, { method: "POST" });
+
+// F21 (RF04 selecionar ficha): what the session guichê could call, in call order, and the call of the chosen one.
+// Both 409 when the guichê has the option off; the guichê comes from the session, never from the screen.
+export type FichaEmEsperaDto = {
+  atendimentoId: string;
+  fichaId: string;
+  senha: string;
+  filaId: string;
+  prioridadeId: string;
+  elegivelDesde: string;
+};
+
+export const listarFichasEmEspera = () => apiFetch<FichaEmEsperaDto[]>("/api/v1/paf/guiche/fichas-em-espera");
+
+export const chamarFichaEscolhida = (atendimentoId: string) =>
+  apiFetch<ChamadaDto>(`/api/v1/paf/guiche/atendimentos/${atendimentoId}/chamar`, { method: "POST" });
