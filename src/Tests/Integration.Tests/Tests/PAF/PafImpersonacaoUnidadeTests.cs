@@ -223,6 +223,65 @@ public sealed class PafImpersonacaoUnidadeTests(FshWebApplicationFactory factory
         (await estado.LerUnidadeDaConcessaoAsync(_tenant.TenantId, concessao.ConcessaoId, CancellationToken.None)).ShouldBeNull();
     }
 
+    // Revisão da onda 3, R2: the switch releases the grant's guichê, and its connections leave that guichê's group with it.
+    [Fact]
+    public async Task ComValkey_TrocaDoSuporte_TiraAConexaoDaConcessaoDoGrupoDoGuicheSolto()
+    {
+        var op = new PafOperacao(factory, _tenant);
+        try
+        {
+            var c = await op.CriarAsync();
+            var b = await _tenant.CriarUnidadeAsync(limiteSessoes: 5);
+            var alvo = await _tenant.CriarUsuarioAsync(c.UnidadeId, b.UnidadeId);
+            using var totem = await op.TotemAsync(c);
+            await PafOperacao.EmitirOkAsync(totem, c.Caixa, c.Normal);
+            await PafOperacao.EmitirOkAsync(totem, c.Caixa, c.Normal);
+            await op.EnvelhecerFichasAsync(c.UnidadeId);
+            var token = await IniciarAsync(alvo.UserId);
+            var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
+            using var suporte = _tenant.Cliente(token);
+            var hub = await ConectarAsync(token);
+            using var chamadasDoSuporte = new Caixa<SenhaChamada>(hub, PafHubMetodos.SenhaChamada);
+            using (var selecao = await suporte.PostAsJsonAsync("/api/v1/paf/sessao/guiche", new { estacaoId = c.GuicheA, liberarPendencia = false }))
+            {
+                selecao.StatusCode.ShouldBe(HttpStatusCode.NoContent, await selecao.Content.ReadAsStringAsync());
+            }
+
+            var propria = await PafOperacao.ChamarOkAsync(suporte);
+            (await chamadasDoSuporte.EsperarAsync(s => s.AtendimentoId == propria.AtendimentoId, Espera))
+                .ShouldNotBeNull("antes da troca a conexão do suporte está no grupo do guichê A");
+            await PafOperacao.AgirOkAsync(suporte, propria.AtendimentoId, "iniciar");
+            await PafOperacao.AgirOkAsync(suporte, propria.AtendimentoId, "encerrar");
+
+            var concessao = new ConcessaoImpersonacao(
+                _tenant.TenantId, Guid.Parse(jwt.Id), Guid.Parse(alvo.UserId), new DateTimeOffset(DateTime.SpecifyKind(jwt.ValidTo, DateTimeKind.Utc)));
+            using (var scope = factory.Services.CreateScope())
+            {
+                await HandlerDaConcessao(scope, c.UnidadeId, concessao, Estado()).Handle(new SetUnidadeCorrenteCommand(b.UnidadeId), CancellationToken.None);
+            }
+
+            (await VinculosAtivosDaConcessaoAsync(concessao.ConcessaoId)).ShouldBe(0, "a troca solta o guichê da concessão");
+            var colegaToken = (await _tenant.EntrarAsync(await _tenant.CriarUsuarioAsync(c.UnidadeId))).AccessToken;
+            using var colega = _tenant.Cliente(colegaToken);
+            using var chamadasDoColega = new Caixa<SenhaChamada>(await ConectarAsync(colegaToken), PafHubMetodos.SenhaChamada);
+            using (var selecao = await colega.PostAsJsonAsync("/api/v1/paf/sessao/guiche", new { estacaoId = c.GuicheA, liberarPendencia = false }))
+            {
+                selecao.StatusCode.ShouldBe(HttpStatusCode.NoContent, await selecao.Content.ReadAsStringAsync());
+            }
+
+            var chamada = await PafOperacao.ChamarOkAsync(colega);
+
+            (await chamadasDoColega.EsperarAsync(s => s.AtendimentoId == chamada.AtendimentoId, Espera))
+                .ShouldNotBeNull("o grupo do guichê A recebe a chamada do colega");
+            await Task.Delay(SilencioEsperado);
+            chamadasDoSuporte.Recebidos.ShouldNotContain(s => s.AtendimentoId == chamada.AtendimentoId, "a troca tirou a conexão do suporte do grupo do guichê A");
+        }
+        finally
+        {
+            await op.DrenarCaixaDeSaidaAsync();
+        }
+    }
+
     // ─── helpers ─────────────────────────────────────────────────────
 
     /// <summary>Usuário com escopo A (principal) e B, licença em A, e uma prioridade nomeada em cada unidade.</summary>

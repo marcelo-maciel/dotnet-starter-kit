@@ -53,11 +53,15 @@ public sealed class DisableEstacaoCommandHandler(
 
         await OperacaoGuiche.ConfirmarEAvisarTodosAsync(transacao, avisos, guiche.Avisos, cancellationToken).ConfigureAwait(false);
         await conexoes.EncerrarEstacaoAsync(tenantId, entidade.Id, cancellationToken).ConfigureAwait(false);
-        // ponytail: a grant-owned link is released in the database but its connections stay in the guichê group until
-        // the grant's next selection or end; a grant-scoped move arrives with the guichê impersonation (S11).
         if (guiche.SessaoSolta is { } sessaoSolta)
         {
             await conexoes.MoverSessaoParaGuicheAsync(tenantId, sessaoSolta, null, cancellationToken).ConfigureAwait(false);
+        }
+
+        // EncerrarEstacaoAsync reaches station connections only; the support holding the guichê is a person.
+        if (guiche.ConcessaoSolta is { } concessaoSolta)
+        {
+            await conexoes.MoverConcessaoParaGuicheAsync(tenantId, concessaoSolta, null, cancellationToken).ConfigureAwait(false);
         }
 
         return new EstacaoDesativadaDto(

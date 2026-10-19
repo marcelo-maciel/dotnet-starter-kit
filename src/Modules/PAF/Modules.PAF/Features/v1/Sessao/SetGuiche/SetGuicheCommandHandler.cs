@@ -29,7 +29,9 @@ public sealed class SetGuicheCommandHandler(
     ISessionService sessoes,
     Licencas licencas,
     AvisosTempoReal avisos,
-    ConexoesPaf conexoes) : ICommandHandler<SetGuicheCommand>
+    ConexoesPaf conexoes,
+    IImpersonationGrantService concessoes,
+    TimeProvider relogio) : ICommandHandler<SetGuicheCommand>
 {
     public const string RestricaoEstacaoAtiva = "UX_SessoesEstacao_EstacaoAtiva";
     public const string MensagemNaoEncontrado = "Guichê não encontrado na unidade corrente.";
@@ -37,6 +39,9 @@ public sealed class SetGuicheCommandHandler(
     public const string MensagemEmUsoPeloSuporte = "O guichê está em uso pelo suporte.";
     public const string MensagemAtendimentoEmCurso = VinculosGuiche.MensagemAtendimentoEmCurso;
     public const string MensagemEscolhidoAgora = "O guichê acabou de ser escolhido por outra pessoa.";
+
+    // The kit's grant check sits on the selection path: a stuck grant service must not hold the guichê lock long.
+    private static readonly TimeSpan PrazoConcessao = TimeSpan.FromSeconds(2);
 
     internal static readonly TipoEstacao[] TiposComGuiche = [TipoEstacao.Guiche, TipoEstacao.EmissaoGuiche, TipoEstacao.GuichePainel];
 
@@ -76,7 +81,7 @@ public sealed class SetGuicheCommandHandler(
             await VinculosGuiche.SoltarSemAtendimentoEmCursoAsync(db, tenantId, atual, cancellationToken);
         }
 
-        Guid? ocupanteSolto = null;
+        SessaoEstacao? ocupanteSolto = null;
         if (await VinculosGuiche.AtivoDaEstacaoAsync(db, estacao.Id, cancellationToken) is { } ocupante)
         {
             ocupanteSolto = await SoltarOcupanteMortoAsync(tenantId, estacao, ocupante, cancellationToken);
@@ -124,9 +129,13 @@ public sealed class SetGuicheCommandHandler(
         }
 
         // After the commit: the hub groups follow the links just written (seção 7).
-        if (ocupanteSolto is { } solto)
+        if (ocupanteSolto?.SessaoId is { } sessaoSolta)
         {
-            await conexoes.MoverSessaoParaGuicheAsync(tenantId, solto, null, cancellationToken);
+            await conexoes.MoverSessaoParaGuicheAsync(tenantId, sessaoSolta, null, cancellationToken);
+        }
+        else if (ocupanteSolto?.ConcessaoId is { } concessaoSolta)
+        {
+            await conexoes.MoverConcessaoParaGuicheAsync(tenantId, concessaoSolta, null, cancellationToken);
         }
 
         if (dono.Concessao is { } concessaoMovida)
@@ -169,13 +178,13 @@ public sealed class SetGuicheCommandHandler(
 
     internal sealed record Pendencia(Guid Id, string Senha);
 
-    /// <summary>Releases a dead session's link and returns that session; a live owner refuses the choice.</summary>
-    private async Task<Guid> SoltarOcupanteMortoAsync(string tenantId, Estacao estacao, SessaoEstacao ocupante, CancellationToken ct)
+    /// <summary>Releases a dead owner's link (session or impersonation grant) and returns it; a live owner refuses the choice.</summary>
+    private async Task<SessaoEstacao> SoltarOcupanteMortoAsync(string tenantId, Estacao estacao, SessaoEstacao ocupante, CancellationToken ct)
     {
-        // ponytail: a grant-owned link follows the grant's life (impersonation slice); refused here until then.
         if (ocupante.SessaoId is not { } dono)
         {
-            throw new CustomException(MensagemEmUsoPeloSuporte, [], HttpStatusCode.Conflict);
+            await SoltarConcessaoTerminadaAsync(tenantId, ocupante, ct);
+            return ocupante;
         }
 
         var sessaoDona = await sessoes.GetSessionAsync(dono, ct);
@@ -188,6 +197,27 @@ public sealed class SetGuicheCommandHandler(
         }
 
         await VinculosGuiche.SoltarAsync(db, tenantId, ocupante.Id, ct);
-        return dono;
+        return ocupante;
+    }
+
+    /// <summary>
+    /// A grant expired by the exp kept in the link, or ended or revoked in the kit (an unknown grant counts as ended, as
+    /// in the kit), no longer holds the guichê: the real user takes it now instead of waiting for the licence sweep.
+    /// </summary>
+    private async Task SoltarConcessaoTerminadaAsync(string tenantId, SessaoEstacao ocupante, CancellationToken ct)
+    {
+        var concessaoId = ocupante.ConcessaoId ?? throw new InvalidOperationException("Vínculo de guichê sem sessão nem concessão.");
+        var vencida = ocupante.ConcessaoExpiraEm <= relogio.GetUtcNow();
+        if (!vencida)
+        {
+            using var limite = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            limite.CancelAfter(PrazoConcessao);
+            if (!await concessoes.IsRevokedOrEndedAsync(concessaoId.ToString("N"), limite.Token))
+            {
+                throw new CustomException(MensagemEmUsoPeloSuporte, [], HttpStatusCode.Conflict);
+            }
+        }
+
+        await VinculosGuiche.SoltarAsync(db, tenantId, ocupante.Id, ct);
     }
 }

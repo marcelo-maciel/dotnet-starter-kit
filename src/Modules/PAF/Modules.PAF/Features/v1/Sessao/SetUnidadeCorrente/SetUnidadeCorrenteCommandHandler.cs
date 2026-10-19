@@ -106,10 +106,11 @@ public sealed class SetUnidadeCorrenteCommandHandler(
             return;
         }
 
+        var soltouGuiche = false;
         await using var transacao = await db.Database.BeginTransactionAsync(ct);
         if (await VinculosGuiche.AtivoDaConcessaoAsync(db, concessao.ConcessaoId, ct) is { } vinculo)
         {
-            await VinculosGuiche.SoltarSemAtendimentoEmCursoAsync(db, concessao.TenantId, vinculo, ct);
+            soltouGuiche = await VinculosGuiche.SoltarSemAtendimentoEmCursoAsync(db, concessao.TenantId, vinculo, ct);
         }
 
         // S11: the grant's guichê release is raw SQL, so its impersonation act is written here, in the same transaction.
@@ -121,6 +122,10 @@ public sealed class SetUnidadeCorrenteCommandHandler(
         }
 
         await transacao.CommitAsync(ct);
+        if (soltouGuiche)
+        {
+            await conexoes.MoverConcessaoParaGuicheAsync(concessao.TenantId, concessao.ConcessaoId, null, ct);
+        }
     }
 
     /// <summary>Falso when the unidade is already the current one (nothing to do); throws when it is refused.</summary>

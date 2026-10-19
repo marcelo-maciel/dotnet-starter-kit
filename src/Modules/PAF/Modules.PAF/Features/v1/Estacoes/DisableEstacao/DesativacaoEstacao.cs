@@ -8,8 +8,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FSH.Modules.PAF.Features.v1.Estacoes.DisableEstacao;
 
-/// <summary>What the deactivation did to the guichê: notices of the cancel, the session whose link was released, what stays in progress.</summary>
-internal sealed record DesfechoDoGuiche(IReadOnlyList<AvisoPaf> Avisos, Guid? SessaoSolta, bool Liberado, IReadOnlyList<AtendimentoEmCursoDto> EmCurso);
+/// <summary>
+/// What the deactivation did to the guichê: notices of the cancel, the session or impersonation grant whose link was
+/// released, what stays in progress.
+/// </summary>
+internal sealed record DesfechoDoGuiche(
+    IReadOnlyList<AvisoPaf> Avisos, Guid? SessaoSolta, Guid? ConcessaoSolta, bool Liberado, IReadOnlyList<AtendimentoEmCursoDto> EmCurso);
 
 /// <summary>
 /// Guichê side of the station deactivation (RF04, decided 03/10/2026): the link is released at once when nothing is in
@@ -53,7 +57,7 @@ internal static class DesativacaoEstacao
         var emCurso = await EmCursoAsync(db, estacaoId, ct).ConfigureAwait(false);
         if (vinculo is null)
         {
-            return new DesfechoDoGuiche(avisos, null, false, emCurso);
+            return new DesfechoDoGuiche(avisos, null, null, false, emCurso);
         }
 
         if (emCurso.Count == 0)
@@ -64,7 +68,7 @@ internal static class DesativacaoEstacao
         var liberado = await db.SessoesEstacao.AsNoTracking()
             .AnyAsync(v => v.Id == vinculo.Id && v.LiberadoEm != null, ct)
             .ConfigureAwait(false);
-        return new DesfechoDoGuiche(avisos, liberado ? vinculo.SessaoId : null, liberado, emCurso);
+        return new DesfechoDoGuiche(avisos, liberado ? vinculo.SessaoId : null, liberado ? vinculo.ConcessaoId : null, liberado, emCurso);
     }
 
     // The dialog's choice may be stale: ended, cancelled or never on this station by now. Under the ficha lock the

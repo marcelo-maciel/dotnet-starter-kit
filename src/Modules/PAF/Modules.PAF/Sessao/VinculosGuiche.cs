@@ -75,7 +75,7 @@ internal static class VinculosGuiche
     {
         ExigirTransacao(db);
         var vinculos = await db.Database.SqlQuery<VinculoTravado>($"""
-            SELECT "Id", "SessaoId" FROM paf."SessoesEstacao"
+            SELECT "Id", "SessaoId", "ConcessaoId" FROM paf."SessoesEstacao"
              WHERE "TenantId" = {tenantId} AND "EstacaoId" = {estacaoId} AND "LiberadoEm" IS NULL
                FOR UPDATE
             """).ToListAsync(ct);
@@ -132,5 +132,5 @@ internal static class VinculosGuiche
     }
 }
 
-/// <summary>Vínculo ativo travado; <see cref="SessaoId"/> é nulo quando o dono é uma concessão de impersonação.</summary>
-internal sealed record VinculoTravado(Guid Id, Guid? SessaoId);
+/// <summary>Vínculo ativo travado: o dono é a sessão ou a concessão de impersonação, nunca as duas.</summary>
+internal sealed record VinculoTravado(Guid Id, Guid? SessaoId, Guid? ConcessaoId);

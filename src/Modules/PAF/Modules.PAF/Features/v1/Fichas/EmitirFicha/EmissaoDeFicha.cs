@@ -107,6 +107,8 @@ public sealed partial class EmissaoDeFicha(
     {
         // A failed attempt leaves its Added entities tracked; the next attempt starts clean.
         db.ChangeTracker.Clear();
+        // A collided attempt's act names the atendimento its rollback took away; this attempt notes its own below.
+        atos.Descartar();
         await using var transacao = await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
 
         var agora = await PafRelogio.AgoraEmSaoPauloAsync(db, ct).ConfigureAwait(false);
@@ -140,7 +142,7 @@ public sealed partial class EmissaoDeFicha(
         var atendimento = Atendimento.Criar(emissao.Unidade.Id, ficha.Id, pedido.FilaId, pedido.PrioridadeId, atendimentoOrigemId: null);
         db.Fichas.Add(ficha);
         db.Atendimentos.Add(atendimento);
-        // The Clear above dropped the act the pipeline noted; noting it again puts it in this attempt's SaveChanges,
+        // The act was dropped above; noting it here puts it in this attempt's SaveChanges, naming this atendimento,
         // so it commits or rolls back with the ficha. Without impersonation (every totem) this is a no-op.
         atos.Anotar(atendimento.Id);
         try

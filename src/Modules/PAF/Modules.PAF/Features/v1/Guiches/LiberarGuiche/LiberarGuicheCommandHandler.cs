@@ -37,6 +37,7 @@ public sealed class LiberarGuicheCommandHandler(
         }
 
         Guid? sessaoSolta = null;
+        Guid? concessaoSolta = null;
         await using (var transacao = await db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false))
         {
             // Locks the link before the in-progress check, as the call takes it: no call commits a Chamado after it.
@@ -45,7 +46,7 @@ public sealed class LiberarGuicheCommandHandler(
             if (await VinculosGuiche.AtivoDaEstacaoAsync(db, command.EstacaoId, cancellationToken).ConfigureAwait(false) is { } vinculo
                 && await VinculosGuiche.SoltarSemAtendimentoEmCursoAsync(db, tenantId, vinculo, cancellationToken).ConfigureAwait(false))
             {
-                sessaoSolta = vinculo.SessaoId;
+                (sessaoSolta, concessaoSolta) = (vinculo.SessaoId, vinculo.ConcessaoId);
             }
 
             // Raw SQL leaves no tracked entity: the impersonation act is written here, also for the no-op release.
@@ -53,10 +54,14 @@ public sealed class LiberarGuicheCommandHandler(
             await transacao.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        // ponytail: a grant-owned link leaves the database only; its connections follow at the grant's next selection (S11).
         if (sessaoSolta is { } sessao)
         {
             await conexoes.MoverSessaoParaGuicheAsync(tenantId, sessao, null, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (concessaoSolta is { } concessao)
+        {
+            await conexoes.MoverConcessaoParaGuicheAsync(tenantId, concessao, null, cancellationToken).ConfigureAwait(false);
         }
 
         return Unit.Value;
