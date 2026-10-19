@@ -9,6 +9,14 @@ import {
 import { CredencialEstacaoInvalidaError } from "@/features/paf/estacao/estacao-http";
 import { mensagemAmigavel } from "@/features/paf/paf-erros";
 import {
+  APARENCIA_PAINEL_PADRAO,
+  INTERVALO_ALTERNANCIA_MS,
+  corDaChamada,
+  formatarDataHora,
+  lerAparenciaPainel,
+  type AparenciaPainel,
+} from "@/features/paf/painel/aparencia-painel";
+import {
   ESTADO_INICIAL_PAINEL,
   reduzirPainel,
   type AtendimentoAtualizadoEvento,
@@ -16,10 +24,13 @@ import {
 } from "@/features/paf/painel/painel-estado";
 import { carregarVozes, escolherVoz, falar, textoFalado } from "@/features/paf/painel/voz";
 
-// ponytail: the RF04 "tempo de exibição da chamada" has no cadastro yet; read from the station JSON
-// block under this key, 8 s when absent. Upgrade: the panel appearance cadastro writes it.
+// The RF04 "tempo de exibição da chamada", written by the station cadastro at the root of the JSON block; 8 s when absent.
 const CHAVE_TEMPO_EXIBICAO = "tempoExibicaoChamadaSegundos";
 const TEMPO_EXIBICAO_PADRAO_S = 8;
+// ponytail: a station cadastro change pushes no notice, so the appearance follows it by this periodic re-read
+// (plus FilaAtualizada and reconnection), like the totem's buttons. Upgrade: a station-updated notice.
+const RELEITURA_CONFIGURACAO_MS = 60_000;
+const RELOGIO_MS = 1_000;
 const LIMITE_FALA_MS = 15_000;
 const ESPERA_VOZES_MS = 3_000;
 
@@ -45,6 +56,9 @@ export function PainelPage() {
   const [estado, dispatch] = useReducer(reduzirPainel, ESTADO_INICIAL_PAINEL);
   const [conexao, setConexao] = useState<EstadoConexao>("conectando");
   const [nomeEstacao, setNomeEstacao] = useState("");
+  const [aparencia, setAparencia] = useState<AparenciaPainel>(APARENCIA_PAINEL_PADRAO);
+  const [agora, setAgora] = useState(() => new Date());
+  const [faseAlternancia, setFaseAlternancia] = useState(0);
   // A ref, not state: the config may arrive mid-highlight and must not restart the current announcement.
   const tempoExibicaoMsRef = useRef(TEMPO_EXIBICAO_PADRAO_S * 1_000);
   const [erro, setErro] = useState<string | null>(null);
@@ -74,27 +88,49 @@ export function PainelPage() {
     );
   }, [tratarErro]);
 
-  useEffect(() => {
-    if (!vinculado) return;
+  const recarregarConfiguracao = useCallback(() => {
     obterConfiguracaoPainel().then((cfg) => {
       setNomeEstacao(cfg.nome);
       tempoExibicaoMsRef.current =
         lerNumeroDaConfiguracao(cfg.configuracao, CHAVE_TEMPO_EXIBICAO, TEMPO_EXIBICAO_PADRAO_S) * 1_000;
+      setAparencia(lerAparenciaPainel(cfg.configuracao));
     }, tratarErro);
+  }, [tratarErro]);
 
-    return conectarHubEstacao({
+  useEffect(() => {
+    if (!vinculado) return;
+    recarregarConfiguracao();
+    const timer = window.setInterval(recarregarConfiguracao, RELEITURA_CONFIGURACAO_MS);
+
+    const pararHub = conectarHubEstacao({
       papel: "Painel",
       handlers: {
+        FilaAtualizada: () => recarregarConfiguracao(),
         SenhaChamada: (p) => dispatch({ tipo: "senhaChamada", evento: p as SenhaChamadaEvento }),
         SenhaRechamada: (p) => dispatch({ tipo: "senhaRechamada", evento: p as SenhaChamadaEvento }),
         AtendimentoAtualizado: (p) =>
           dispatch({ tipo: "atendimentoAtualizado", evento: p as AtendimentoAtualizadoEvento }),
       },
-      aoConectar: recarregarEstado,
+      aoConectar: () => {
+        recarregarEstado();
+        recarregarConfiguracao();
+      },
       aoMudarEstado: setConexao,
       aoPerderCredencial: perderCredencial,
     });
-  }, [vinculado, recarregarEstado, tratarErro, perderCredencial]);
+    return () => {
+      window.clearInterval(timer);
+      pararHub();
+    };
+  }, [vinculado, recarregarEstado, recarregarConfiguracao, perderCredencial]);
+
+  const mostrarDataHora = aparencia.mostrarDataHora;
+  useEffect(() => {
+    if (!mostrarDataHora) return;
+    setAgora(new Date());
+    const timer = window.setInterval(() => setAgora(new Date()), RELOGIO_MS);
+    return () => window.clearInterval(timer);
+  }, [mostrarDataHora]);
 
   // One announcement at a time: the next one leaves the queue only when the highlight ends.
   useEffect(() => {
@@ -121,6 +157,15 @@ export function PainelPage() {
     };
   }, [destaque]);
 
+  // The legacy attention cue: the highlighted call alternates its text color, only when the cadastro set the colors.
+  const alternar = destaque !== null && aparencia.cores !== null;
+  useEffect(() => {
+    setFaseAlternancia(0);
+    if (!alternar) return;
+    const timer = window.setInterval(() => setFaseAlternancia((f) => f + 1), INTERVALO_ALTERNANCIA_MS);
+    return () => window.clearInterval(timer);
+  }, [alternar, destaque]);
+
   const iniciar = async () => {
     const voz = escolherVoz(await carregarVozes(ESPERA_VOZES_MS));
     vozRef.current = voz;
@@ -143,11 +188,23 @@ export function PainelPage() {
   }
 
   const principal = destaque ?? estado.ultimoDestaque ?? estado.chamadas[0] ?? null;
+  // Every text below is sized in em, so the cadastro's font size scales the whole screen; absent, the base is the
+  // page's 16 px and the screen looks as before. With the cadastro colors, only those colors are used: the
+  // translucent whites and the yellow highlight box were never checked against the chosen background (RNF19).
+  const cores = aparencia.cores;
 
   return (
-    <main className="flex min-h-screen flex-col bg-black text-white">
-      <header className="flex items-center justify-between px-8 py-4 text-lg">
+    <main
+      className="flex min-h-screen flex-col bg-black text-white"
+      style={{
+        backgroundColor: cores?.fundo,
+        color: cores?.filas,
+        fontSize: aparencia.tamanhoFontePx ?? undefined,
+      }}
+    >
+      <header className="flex items-center justify-between px-8 py-4 text-[1.125em]">
         <span>{nomeEstacao}</span>
+        {aparencia.mostrarDataHora && <span data-data-hora>{formatarDataHora(agora)}</span>}
         <span role="status" aria-label="Conexão" data-conexao={conexao}>
           {ROTULO_CONEXAO[conexao]}
         </span>
@@ -168,34 +225,55 @@ export function PainelPage() {
         {principal ? (
           <div
             data-destaque={destaque !== null ? "sim" : "nao"}
+            data-chamada
             className={
-              destaque !== null
-                ? "rounded-3xl bg-yellow-400 px-16 py-10 text-center text-black"
-                : "rounded-3xl px-16 py-10 text-center"
+              cores !== null
+                ? "rounded-3xl border-[0.1em] px-16 py-10 text-center"
+                : destaque !== null
+                  ? "rounded-3xl bg-yellow-400 px-16 py-10 text-center text-black"
+                  : "rounded-3xl px-16 py-10 text-center"
+            }
+            style={
+              cores === null
+                ? undefined
+                : {
+                    color: corDaChamada(cores, destaque !== null, faseAlternancia),
+                    borderColor: destaque !== null ? "currentcolor" : "transparent",
+                  }
             }
           >
-            <div className="text-4xl">Senha</div>
-            <div className="text-[10rem] leading-none font-bold" data-senha-atual>
+            <div className="text-[2.25em]">Senha</div>
+            <div className="text-[10em] leading-none font-bold" data-senha-atual>
               {principal.senha}
             </div>
-            <div className="mt-4 text-5xl">{principal.nomeEstacao}</div>
+            <div className="mt-4 text-[3em]">{principal.nomeEstacao}</div>
           </div>
         ) : (
-          <p className="text-3xl text-white/60">Aguardando chamadas</p>
+          <p className={cores !== null ? "text-[1.875em]" : "text-[1.875em] text-white/60"}>Aguardando chamadas</p>
         )}
       </section>
 
-      <section aria-label="Últimas chamadas" className="border-t border-white/20 px-8 py-4">
-        <h2 className="mb-2 text-xl text-white/70">Últimas chamadas</h2>
-        <ol className="grid grid-cols-2 gap-2 text-2xl md:grid-cols-5">
-          {estado.chamadas.map((c) => (
-            <li key={c.atendimentoId} data-atendimento={c.atendimentoId} className="rounded-lg bg-white/10 px-3 py-2">
-              <span className="font-bold">{c.senha}</span> <span className="text-white/80">{c.nomeEstacao}</span>
-              <span className="block text-base text-white/60">{ROTULO_ESTADO[c.estado] ?? c.estado}</span>
-            </li>
-          ))}
-        </ol>
-      </section>
+      {aparencia.mostrarUltimasChamadas && (
+        <section aria-label="Últimas chamadas" className="border-t border-white/20 px-8 py-4">
+          <h2 className={cores !== null ? "mb-2 text-[1.25em]" : "mb-2 text-[1.25em] text-white/70"}>Últimas chamadas</h2>
+          <ol className="grid grid-cols-2 gap-2 text-[1.5em] md:grid-cols-5">
+            {estado.chamadas.map((c) => (
+              <li
+                key={c.atendimentoId}
+                data-atendimento={c.atendimentoId}
+                className={cores !== null ? "rounded-lg border px-3 py-2" : "rounded-lg bg-white/10 px-3 py-2"}
+              >
+                <span className="font-bold">{c.senha}</span>{" "}
+                <span className={cores !== null ? undefined : "text-white/80"}>{c.nomeEstacao}</span>
+                {/* 16 px at the default base: 1 / 1.5 of the list's size. */}
+                <span className={cores !== null ? "block text-[0.6667em]" : "block text-[0.6667em] text-white/60"}>
+                  {ROTULO_ESTADO[c.estado] ?? c.estado}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
       {!estado.anunciando && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/80">

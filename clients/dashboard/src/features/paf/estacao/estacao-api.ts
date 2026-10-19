@@ -9,6 +9,11 @@ export type BotaoEmissao = {
   prioridade: string;
   letra: string;
   ordem: number;
+  /** The fila's appearance (RF02, C09); null = the station's default (C18 applies the pair rule). */
+  fonte: string | null;
+  corFonte: string | null;
+  corBotao: string | null;
+  corBotaoSelecionado: string | null;
 };
 
 export type ConfiguracaoEstacaoDto = {
