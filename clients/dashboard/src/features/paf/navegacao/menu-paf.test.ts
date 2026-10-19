@@ -32,10 +32,14 @@ test("cada cadastro aparece só com a permissão da sua listagem", () => {
   assert.deepEqual(itensPaf(["Permissions.PAF.Unidades.View"]), ["/paf/unidades"]);
   assert.deepEqual(itensPaf(["Permissions.PAF.Filas.View", "Permissions.PAF.Estacoes.View"]), ["/paf/filas", "/paf/estacoes"]);
   assert.deepEqual(itensPaf(["Permissions.PAF.Filas.Create", "Permissions.PAF.Estacoes.Update"]), []);
+  assert.deepEqual(itensPaf(["Permissions.PAF.Usuarios.View"]), ["/paf/usuarios"]);
+  // Managing without listing shows nothing: the page lists first (C12).
+  assert.deepEqual(itensPaf(["Permissions.PAF.Usuarios.Manage", "Permissions.PAF.UsuariosUnidade.Update"]), []);
 });
 
 test("consultar ficha aparece só com a permissão de ver fichas do dia", () => {
-  assert.deepEqual(itensPaf(["Permissions.PAF.FichasDoDia.View"]), ["/paf/consultar-ficha"]);
+  // F06 and F14 share FichasDoDia.View, so that permission opens both screens.
+  assert.deepEqual(itensPaf(["Permissions.PAF.FichasDoDia.View"]), ["/paf/fichas-do-dia", "/paf/consultar-ficha"]);
   assert.deepEqual(itensPaf(["Permissions.PAF.FichasDoDia.Cancelar", "Permissions.PAF.FichasDoDia.Reabilitar"]), []);
 });
 
@@ -46,11 +50,13 @@ test("rotas do PAF abrem a seção do PAF no menu", () => {
   assert.equal(findSectionForPath("/paf/estacoes"), "paf");
   assert.equal(findSectionForPath("/paf/fichas-do-dia"), "paf");
   assert.equal(findSectionForPath("/paf/consultar-ficha"), "paf");
+  assert.equal(findSectionForPath("/paf/usuarios"), "paf");
   assert.equal(findSectionForPath("/identity/users"), "identity");
 });
 
 test("fichas do dia aparece só com FichasDoDia.View, não com cancelar ou reabilitar", () => {
-  assert.deepEqual(itensPaf(["Permissions.PAF.FichasDoDia.View"]), ["/paf/fichas-do-dia"]);
+  // F06 and F14 share FichasDoDia.View, so that permission opens both screens.
+  assert.deepEqual(itensPaf(["Permissions.PAF.FichasDoDia.View"]), ["/paf/fichas-do-dia", "/paf/consultar-ficha"]);
   assert.deepEqual(itensPaf(["Permissions.PAF.FichasDoDia.Cancelar", "Permissions.PAF.FichasDoDia.Reabilitar"]), []);
 });
 

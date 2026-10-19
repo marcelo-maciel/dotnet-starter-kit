@@ -3,6 +3,7 @@ import { ClipboardList } from "lucide-react";
 import { Hourglass } from "lucide-react";
 import { Search } from "lucide-react";
 import { SlidersHorizontal } from "lucide-react";
+import { Users } from "lucide-react";
 import type { NavSection } from "@/components/layout/nav-data";
 
 // PAF section of the dashboard menu (ADR 0008, amended 17/10/2026); nav-data.ts only lists it. Each entry is
@@ -30,5 +31,7 @@ export const secaoMenuPaf: NavSection = {
     { to: "/paf/consultar-ficha", label: "Consultar ficha", icon: Search, perm: "Permissions.PAF.FichasDoDia.View" },
     // GET parametros: Parametros.View (C10).
     { to: "/paf/parametros", label: "Parâmetros", icon: SlidersHorizontal, perm: "Permissions.PAF.Parametros.View" },
+    // GET usuarios: Usuarios.View (C12).
+    { to: "/paf/usuarios", label: "Usuários", icon: Users, perm: "Permissions.PAF.Usuarios.View" },
   ],
 };

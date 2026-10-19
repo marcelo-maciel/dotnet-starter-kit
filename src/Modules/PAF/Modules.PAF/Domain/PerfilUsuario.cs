@@ -15,10 +15,9 @@ public sealed class PerfilUsuario
     /// <summary>Sees every unidade of the tenant, including the ones created later; keeps one principal row.</summary>
     public bool EscopoEmpresa { get; private set; }
 
-    // Free-text job title (D15) and extension, edited by the user cadastro (C12); EF fills these get-only
-    // properties through their backing fields.
-    public string? Funcao { get; }
-    public string? Ramal { get; }
+    // Free-text job title (D15) and extension, edited by the user cadastro (C12).
+    public string? Funcao { get; private set; }
+    public string? Ramal { get; private set; }
 
     private PerfilUsuario() { }
 
@@ -27,4 +26,11 @@ public sealed class PerfilUsuario
     public void DefinirEscopoEmpresa() => EscopoEmpresa = true;
 
     public void DefinirEscopoUnidadesSelecionadas() => EscopoEmpresa = false;
+
+    /// <summary>Blank is stored as null, so the screen never shows an empty title as a value.</summary>
+    public void DefinirFuncaoERamal(string? funcao, string? ramal)
+    {
+        Funcao = string.IsNullOrWhiteSpace(funcao) ? null : funcao.Trim();
+        Ramal = string.IsNullOrWhiteSpace(ramal) ? null : ramal.Trim();
+    }
 }

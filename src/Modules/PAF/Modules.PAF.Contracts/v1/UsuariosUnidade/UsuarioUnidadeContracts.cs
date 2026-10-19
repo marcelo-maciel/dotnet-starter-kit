@@ -17,4 +17,11 @@ public sealed record GetUsuarioUnidadesQuery(Guid UsuarioId) : IQuery<EscopoUsua
 /// Replaces the user's scope; the list order is the persisted order, first = principal. With
 /// <c>EscopoEmpresa</c> the list carries exactly one unidade, the principal.
 /// </summary>
-public sealed record SetUsuarioUnidadesCommand(Guid UsuarioId, IReadOnlyList<Guid> Unidades, bool EscopoEmpresa) : ICommand<Guid>, IEscritaDeCadastro;
+public sealed record SetUsuarioUnidadesCommand(Guid UsuarioId, IReadOnlyList<Guid> Unidades, bool EscopoEmpresa) : ICommand<Guid>, IEscritaDeCadastro
+{
+    /// <summary>
+    /// RF08 (C12): cancels, by the RF12 cancel and in the same transaction, the user's Chamado and EmAtendimento
+    /// atendimentos in the unidades this edit takes out of his scope. False leaves them where they are.
+    /// </summary>
+    public bool CancelarAtendimentosEmCurso { get; init; }
+}
