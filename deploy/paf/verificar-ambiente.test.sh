@@ -84,6 +84,9 @@ caso "chave de exemplo" "chave de assinatura não é o exemplo" trocar "$PROD" J
 caso "mesma chave nos dois" "chaves de assinatura diferentes" trocar "$HOMOLOG" JwtOptions__SigningKey "JwtOptions__SigningKey=paf-producao-signing-key-ascii-0123456789abcdef"
 caso "KnownNetworks vazio" "KnownNetworks não vazio" trocar "$PROD" TrustedProxyOptions__KnownNetworks__0 "TrustedProxyOptions__KnownNetworks__0="
 caso "KnownNetworks de outra rede" "KnownNetworks = subnet da rede do projeto" trocar "$PROD" TrustedProxyOptions__KnownNetworks__0 "TrustedProxyOptions__KnownNetworks__0=172.17.0.0/16"
+caso "limite auth do kit" "limite de taxa Auth >= 15" trocar "$PROD" RateLimitingOptions__Auth__PermitLimit "RateLimitingOptions__Auth__PermitLimit=10"
+caso "limite por IP ausente" "limite de taxa Ip >= 387" trocar "$HOMOLOG" RateLimitingOptions__Ip__PermitLimit ""
+caso "limite do tenant do kit" "limite de taxa Tenant >= 7740" trocar "$PROD" RateLimitingOptions__Tenant__PermitLimit "RateLimitingOptions__Tenant__PermitLimit=1000"
 caso "mesmo Valkey nos dois" "Valkey do próprio projeto" trocar "$HOMOLOG" CachingOptions__Redis 'CachingOptions__Redis=host.docker.internal:16379,password=vk-producao-1,connectTimeout=5000,syncTimeout=5000,asyncTimeout=5000'
 caso "tempo de token diferente" "mesmo AccessTokenMinutes" trocar "$HOMOLOG" JwtOptions__AccessTokenMinutes "JwtOptions__AccessTokenMinutes=45"
 caso "tempo de token ausente" "AccessTokenMinutes explícito" trocar "$PROD" JwtOptions__AccessTokenMinutes ""
