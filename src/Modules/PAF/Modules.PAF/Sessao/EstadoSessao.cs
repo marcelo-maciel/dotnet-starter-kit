@@ -45,7 +45,10 @@ public sealed class EstadoSessao(IEnumerable<IConnectionMultiplexer> multiplexer
         {
             return await operacao(valkey.GetDatabase()).WaitAsync(PrazoChamada, ct);
         }
-        catch (Exception ex) when (ex is RedisException or TimeoutException)
+        // A stalled Valkey makes the client drop the connection and cancel its pending commands: a cancellation
+        // the caller did not ask for is the same unavailability as a timeout.
+        catch (Exception ex) when (ex is RedisException or TimeoutException
+            || (ex is OperationCanceledException && !ct.IsCancellationRequested))
         {
             logger.LogWarning(ex, "Valkey indisponível para o estado da sessão {SessaoId}; modo degradado", sessaoId);
             return seIndisponivel;
