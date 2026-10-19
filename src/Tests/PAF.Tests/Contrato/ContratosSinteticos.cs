@@ -5,14 +5,20 @@ namespace PAF.Tests.Contrato.SemSenha
 {
     public sealed record FichaEmitidaDto(
         Guid FichaId, Guid AtendimentoId, Guid IdentificadorPublico, string Letra, int Numero, string Unidade, string Fila,
-        string Prioridade, DateTimeOffset EmitidaEm, string Titulo, string Rodape, bool ImprimirQr);
+        string Prioridade, DateTimeOffset EmitidaEm, string Titulo, string Rodape, bool ImprimirQr)
+    {
+        public FSH.Modules.PAF.Contracts.v1.Midias.UrlLeituraMidiaDto? Logotipo { get; init; }
+    }
 }
 
 namespace PAF.Tests.Contrato.SenhaAnulavel
 {
     public sealed record FichaEmitidaDto(
         Guid FichaId, Guid AtendimentoId, Guid IdentificadorPublico, string? Senha, string Letra, int Numero, string Unidade,
-        string Fila, string Prioridade, DateTimeOffset EmitidaEm, string Titulo, string Rodape, bool ImprimirQr);
+        string Fila, string Prioridade, DateTimeOffset EmitidaEm, string Titulo, string Rodape, bool ImprimirQr)
+    {
+        public FSH.Modules.PAF.Contracts.v1.Midias.UrlLeituraMidiaDto? Logotipo { get; init; }
+    }
 }
 
 namespace PAF.Tests.Contrato.ComCampoNovo
@@ -20,7 +26,10 @@ namespace PAF.Tests.Contrato.ComCampoNovo
     public sealed record FichaEmitidaDto(
         Guid FichaId, Guid AtendimentoId, Guid IdentificadorPublico, string Senha, string Letra, int Numero, string Unidade,
         string Fila, string Prioridade, DateTimeOffset EmitidaEm, string Titulo, string Rodape, bool ImprimirQr,
-        string Canal);
+        string Canal)
+    {
+        public FSH.Modules.PAF.Contracts.v1.Midias.UrlLeituraMidiaDto? Logotipo { get; init; }
+    }
 }
 
 namespace PAF.Tests.Contrato.PedidoObrigatorio
