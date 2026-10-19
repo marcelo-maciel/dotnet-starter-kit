@@ -26,6 +26,46 @@ internal sealed class PafTenantCliente(FshWebApplicationFactory factory, string 
 
     public HttpClient Admin { get; private set; } = default!;
 
+    public const int LimiteDaUnidadeInicial = 50;
+
+    /// <summary>The unidade the tenant creation handler wrote (RF23), where the admin is principal.</summary>
+    public Guid UnidadeInicial { get; private set; }
+
+    /// <summary>
+    /// Runs what a new tenant gets in production after its creation: the outbox delivers the tenant creation event
+    /// (initial unidade), the Hangfire job attaches the admin, and Codefi writes the contract the admin needs to log
+    /// in (C08's part, written straight to the table here). Returns the initial unidade.
+    /// </summary>
+    public static async Task<Guid> PrepararAdministradorAsync(FshWebApplicationFactory factory, string tenantId, int limiteSessoes)
+    {
+        await OutboxDrain.DrainAsync(factory.Services);
+        var limite = DateTime.UtcNow.AddSeconds(30);
+        while (true)
+        {
+            using var scope = factory.Services.CreateScope();
+            var tenant = await scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>().GetAsync(tenantId)
+                ?? throw new InvalidOperationException($"Tenant '{tenantId}' não existe.");
+            scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>().MultiTenantContext =
+                new MultiTenantContext<AppTenantInfo>(tenant);
+            var db = scope.ServiceProvider.GetRequiredService<PafDbContext>();
+            var inicial = await db.Unidades.Where(u => u.Inicial).Select(u => (Guid?)u.Id).SingleOrDefaultAsync();
+            if (inicial is { } unidadeId && await db.UsuariosUnidade.AnyAsync(u => u.UnidadeId == unidadeId && u.Ordem == 0))
+            {
+                var inicio = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-2));
+                db.ContratosUnidade.Add(ContratoUnidade.Criar(unidadeId, inicio, null, "Teste", limiteSessoes, PoliticaLimiteLicenca.Recusar));
+                await db.SaveChangesAsync();
+                return unidadeId;
+            }
+
+            if (DateTime.UtcNow > limite)
+            {
+                throw new TimeoutException($"Tenant '{tenantId}': unidade inicial ou associação do administrador não apareceu em 30 s.");
+            }
+
+            await Task.Delay(250);
+        }
+    }
+
     public async Task InicializarAsync()
     {
         using var root = await _auth.CreateRootAdminClientAsync();
@@ -42,7 +82,9 @@ internal sealed class PafTenantCliente(FshWebApplicationFactory factory, string 
         criar.StatusCode.ShouldBe(HttpStatusCode.Created, await criar.Content.ReadAsStringAsync());
         await TenantProvisioningWait.WaitForProvisioningAsync(root, TenantId);
 
-        // The admin has no UsuarioUnidade: he is not a PAF user and takes no licence.
+        // The admin is a PAF user from the tenant creation on (C03): escopo empresa in the initial unidade, which
+        // gets a contract here so he can log in, with room for the tests' own users of that unidade.
+        UnidadeInicial = await PrepararAdministradorAsync(factory, TenantId, LimiteDaUnidadeInicial);
         var token = await LoginAsync(adminEmail, TestConstants.DefaultPassword);
         token.StatusCode.ShouldBe(HttpStatusCode.OK, await token.Content.ReadAsStringAsync());
         Admin = Cliente((await token.Content.ReadFromJsonAsync<TokenResult>())!.AccessToken);

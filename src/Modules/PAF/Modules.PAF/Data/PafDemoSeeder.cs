@@ -1,8 +1,10 @@
 using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Shared.Multitenancy;
+using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Escopo;
+using FSH.Modules.PAF.Provisionamento;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -47,10 +49,13 @@ public sealed partial class PafDemoSeeder(IServiceScopeFactory scopeFactory, ILo
         services.GetRequiredService<IMultiTenantContextSetter>().MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenant);
 
         var db = services.GetRequiredService<PafDbContext>();
-        var unidade = await db.Unidades.FirstOrDefaultAsync(u => u.Nome == NomeUnidade, cancellationToken).ConfigureAwait(false);
+        // Demo tenants publish no tenant creation event (RF23), so the seed plays the handler's part: the demo unidade is
+        // the initial one, and the three PAF roles are seeded the same way.
+        await PapeisPadrao.SemearAsync(services.GetRequiredService<IRoleService>(), cancellationToken).ConfigureAwait(false);
+        var unidade = await db.Unidades.FirstOrDefaultAsync(u => u.Inicial, cancellationToken).ConfigureAwait(false);
         if (unidade is null)
         {
-            unidade = Unidade.Criar(NomeUnidade, documentoFiscal: null);
+            unidade = Unidade.CriarInicial(NomeUnidade);
             db.Unidades.Add(unidade);
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }

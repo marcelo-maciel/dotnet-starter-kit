@@ -39,6 +39,13 @@ public sealed class Licencas(
         "O limite de licenças foi atingido em todas as unidades do seu acesso. Aguarde outro usuário sair ou procure o administrador.";
 
     /// <summary>
+    /// Whether the PAF has reached the tenant: its initial unidade exists (RF23). Until then no user of the tenant can
+    /// have a unidade, the kit's login stands as it is, and refusing it would lock the initial admin out (plano L23).
+    /// </summary>
+    public Task<bool> PafProvisionadoAsync(CancellationToken ct) =>
+        db.Unidades.AsNoTracking().AnyAsync(u => u.Inicial, ct);
+
+    /// <summary>
     /// Abre a transação da ocupação e reserva a vaga na primeira candidata da cascata: no conjunto do Valkey por um
     /// membro provisório, que a confirmação troca pela sessão, ou, no modo degradado, contando sob os bloqueios das
     /// candidatas. Nulo quando o usuário não tem unidade no PAF: ele não opera o PAF, e o filtro de unidade continua

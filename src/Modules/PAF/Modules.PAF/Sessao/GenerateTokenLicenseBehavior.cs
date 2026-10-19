@@ -25,6 +25,9 @@ internal sealed class GenerateTokenLicenseBehavior(
 {
     public const string MotivoSessaoUnica = "PAF: login em outra máquina (sessão única)";
 
+    public const string MensagemSemUnidade =
+        "Seu usuário não tem unidade de atendimento. Procure o administrador da empresa.";
+
     public async ValueTask<TokenResponse> Handle(
         GenerateTokenCommand message,
         MessageHandlerDelegate<GenerateTokenCommand, TokenResponse> next,
@@ -48,6 +51,14 @@ internal sealed class GenerateTokenLicenseBehavior(
         await using var reserva = await licencas.ReservarAsync(tenantId, Guid.Parse(subject), cancellationToken);
         if (reserva is null)
         {
+            // Once the PAF has reached the tenant, a user with no unidade would get a token with no licence and no
+            // unit (RF23, C03, L23): the initial admin got his unidade then, and every other user gets one from the
+            // cadastro. Before that (tenant event not delivered yet) nobody has a unidade, and the kit login stands.
+            if (await licencas.PafProvisionadoAsync(cancellationToken))
+            {
+                throw new ForbiddenException(MensagemSemUnidade);
+            }
+
             return await next(message, cancellationToken);
         }
 
