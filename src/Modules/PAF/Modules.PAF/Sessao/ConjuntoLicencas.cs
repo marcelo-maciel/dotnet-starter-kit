@@ -334,34 +334,19 @@ public sealed class ConjuntoLicencas(
     // propagates, because turning it into the degraded mode would hide it.
     private async Task<RedisResult?> TentarAsync(Func<IDatabase, Task<RedisResult>> operacao, CancellationToken ct)
     {
-        if (_valkey is null)
+        if (_valkey is not { IsConnected: true } valkey)
         {
-            return null;
-        }
-
-        if (!_valkey.IsConnected)
-        {
-            Interlocked.Exchange(ref _houveIndisponibilidade, 1);
             return null;
         }
 
         try
         {
-            return await operacao(_valkey.GetDatabase()).WaitAsync(PrazoChamada, ct);
+            return await operacao(valkey.GetDatabase()).WaitAsync(PrazoChamada, ct);
         }
         catch (Exception ex) when (ex is RedisConnectionException or TimeoutException)
         {
-            Interlocked.Exchange(ref _houveIndisponibilidade, 1);
             logger.LogWarning(ex, "Valkey indisponível para o conjunto de licenças; modo degradado");
             return null;
         }
     }
-
-    // S14: a stalled Valkey (paused, network partition) comes back without ConnectionRestored and with the rebuild
-    // mark intact, so the degraded decisions taken meanwhile would never reach the set. Any unavailability seen
-    // here asks for a rebuild.
-    private int _houveIndisponibilidade;
-
-    /// <summary>Verdadeiro uma vez depois de qualquer chamada que caiu no modo degradado com Valkey registrado.</summary>
-    public bool ConsumirIndisponibilidade() => Interlocked.Exchange(ref _houveIndisponibilidade, 0) == 1;
 }
