@@ -3,6 +3,7 @@ using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Core.Exceptions;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.PAF.Contracts.v1.Fichas;
+using FSH.Modules.PAF.Contracts.v1.Midias;
 using FSH.Modules.PAF.Contracts.v1.TempoReal;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Domain;
@@ -33,6 +34,7 @@ public sealed partial class EmissaoDeFicha(
     IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor,
     AvisosTempoReal avisos,
     LeitorParametros parametros,
+    LogotipoEfetivo logotipo,
     AtosImpersonacao atos,
     ILogger<EmissaoDeFicha> logger)
 {
@@ -100,7 +102,8 @@ public sealed partial class EmissaoDeFicha(
         return new Emissao(unidade, fila, prioridade, associacao, new ImpressaoFicha(
             impressao.Ler(CatalogoParametros.TituloFichas),
             impressao.Ler(CatalogoParametros.MensagemRodapeFicha),
-            impressao.Ler(CatalogoParametros.ImprimirQrFicha)));
+            impressao.Ler(CatalogoParametros.ImprimirQrFicha),
+            await logotipo.LerAsync(impressao, ct).ConfigureAwait(false)));
     }
 
     private async Task<Tentativa> TentarAsync(PedidoEmissao pedido, Emissao emissao, string tenantId, CancellationToken ct)
@@ -193,11 +196,14 @@ public sealed partial class EmissaoDeFicha(
     private static FichaEmitidaDto Dto(Ficha ficha, Guid atendimentoId, Emissao emissao) =>
         new(ficha.Id, atendimentoId, ficha.IdentificadorPublico, OperacaoGuiche.Senha(ficha.Letra, ficha.Numero), ficha.Letra, ficha.Numero,
             emissao.Unidade.Nome, emissao.Fila.NomeExibicao, emissao.Prioridade.Nome, PafRelogio.EmSaoPaulo(ficha.CriadoEm),
-            emissao.Impressao.Titulo, emissao.Impressao.Rodape, emissao.Impressao.ImprimirQr);
+            emissao.Impressao.Titulo, emissao.Impressao.Rodape, emissao.Impressao.ImprimirQr)
+        {
+            Logotipo = emissao.Impressao.Logotipo,
+        };
 
     private sealed record Emissao(Unidade Unidade, Fila Fila, Prioridade Prioridade, FilaPrioridade Associacao, ImpressaoFicha Impressao);
 
-    private sealed record ImpressaoFicha(string Titulo, string Rodape, bool ImprimirQr);
+    private sealed record ImpressaoFicha(string Titulo, string Rodape, bool ImprimirQr, UrlLeituraMidiaDto? Logotipo);
 
     private abstract record Tentativa
     {

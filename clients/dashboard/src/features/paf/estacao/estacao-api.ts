@@ -30,6 +30,8 @@ export type ConfiguracaoEstacaoDto = {
   /** C17: signed read URL of each block's background image; null = no image (none, inactive, or swapped since measured). */
   imagemFundoEmissao?: UrlLeituraDto | null;
   imagemFundoPainel?: UrlLeituraDto | null;
+  /** C19: RF06 logo of the unidade for the totem and the painel; read through `lerLogotipo` (null = system logo). */
+  logotipo?: unknown;
 };
 
 export type UrlLeituraDto = { url: string; expiraEm: string };
@@ -50,6 +52,8 @@ export type FichaEmitidaDto = {
   rodape: string;
   /** Read but not printed: the QR waits for the public ficha page (requisitos RF11 l.368). */
   imprimirQr: boolean;
+  /** C19: RF06 logo printed at the top; read through `lerLogotipo` (null = system logo). */
+  logotipo?: unknown;
 };
 
 export function obterConfiguracaoEmissao() {

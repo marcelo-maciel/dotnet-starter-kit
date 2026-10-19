@@ -107,6 +107,28 @@ public static class CatalogoParametros
     public static readonly DefinicaoParametro<bool> ExibirInformacaoDetalhadaFila =
         new("exibirInformacaoDetalhadaFila", Padrao: false, InterpretarBooleano);
 
+    // --- C19: RF06 "Logotipo" (requisitos l.229; overridable by the unidade like any key, l.224 and 8.1 l.920). ---
+
+    /// <summary>
+    /// RF06 "logotipo padrão do sistema ou logotipo personalizado": empty = the system logo, else the id of an image mídia
+    /// uploaded by the mídia cadastro (M03). Storing the mídia, not a file key, makes a file swap or a deactivation reach
+    /// the totem, the painel and the ficha without touching the parameter. The write checks the mídia (GravacaoParametros).
+    /// </summary>
+    public static readonly DefinicaoParametro<string> Logotipo = new("logotipo", Padrao: string.Empty, InterpretarIdDeImagem);
+
+    /// <summary>Empty, or a Guid stored in the "D" lowercase form, so equal ids are equal texts.</summary>
+    public static (bool Valido, string Valor) InterpretarIdDeImagem(string valor)
+    {
+        ArgumentNullException.ThrowIfNull(valor);
+        var texto = valor.Trim();
+        if (texto.Length == 0)
+        {
+            return (true, string.Empty);
+        }
+
+        return Guid.TryParseExact(texto, "D", out var id) && id != Guid.Empty ? (true, id.ToString("D")) : (false, string.Empty);
+    }
+
     /// <summary>The six guichê hotkeys; no two may hold the same key in the effective set of any unidade.</summary>
     public static IReadOnlyList<DefinicaoParametro<string>> Teclas { get; } =
         [TeclaChamarProxima, TeclaEncaminhar, TeclaEncerrar, TeclaEncerrarEChamar, TeclaIniciar, TeclaChamarNovamente];
@@ -118,6 +140,7 @@ public static class CatalogoParametros
         ParametroCatalogado.Booleano(ExibirInformacaoDetalhadaFila, "Geral"),
         ParametroCatalogado.Opcao(ChamarFichaPorVoz, "Geral", [FalaSoSenha, FalaSenhaEMensagem]),
         ParametroCatalogado.Texto(MensagemAoChamar, "Geral"),
+        ParametroCatalogado.Imagem(Logotipo, "Logotipo"),
         ParametroCatalogado.Texto(TituloFichas, "Fichas"),
         ParametroCatalogado.Texto(MensagemRodapeFicha, "Fichas"),
         ParametroCatalogado.Booleano(ImprimirQrFicha, "Fichas"),

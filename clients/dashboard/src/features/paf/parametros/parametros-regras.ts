@@ -1,6 +1,6 @@
 // RF06 screen rules (pure, node --test per D21): labels, the inherited or overridden badge and the choices of each
 // field. The server validates and stores; this only says what the screen shows and offers.
-import type { ParametroDto } from "./parametros-api.ts";
+import type { MidiaDaUnidade, ParametroDto } from "./parametros-api.ts";
 
 const ROTULOS: Record<string, string> = {
   somenteFichasDaDataAtual: "Chamar somente fichas da data atual",
@@ -19,6 +19,7 @@ const ROTULOS: Record<string, string> = {
   exibirInformacaoDetalhadaFila: "Exibir informação detalhada de fila no guichê",
   chamarFichaPorVoz: "Chamar ficha por voz: o que a voz fala",
   mensagemAoChamar: "Mensagem exibida ao chamar a ficha",
+  logotipo: "Logotipo do totem, do painel e da ficha impressa",
 };
 
 const ROTULOS_OPCAO: Record<string, string> = {
@@ -60,6 +61,9 @@ export function escolhasDoCampo(item: Pick<ParametroDto, "tipo" | "opcoes">): [s
       return TECLAS_PERMITIDAS.map((t) => [t, t]);
     case "Opcao":
       return item.opcoes.map((o) => [o, ROTULOS_OPCAO[o] ?? o]);
+    // C19: the images of the unidade are appended by `escolhasDeImagem`; the system logo is always offered.
+    case "Imagem":
+      return [["", LOGOTIPO_DO_SISTEMA]];
     case "Inteiro":
     case "Texto":
       return [];
@@ -70,7 +74,34 @@ export function escolhasDoCampo(item: Pick<ParametroDto, "tipo" | "opcoes">): [s
 export function valorExibido(item: Pick<ParametroDto, "tipo" | "opcoes">, valor: string): string {
   const escolha = escolhasDoCampo(item).find(([v]) => v === valor);
   if (escolha) return escolha[1];
+  if (item.tipo === "Imagem") return IMAGEM_PERSONALIZADA;
   return valor === "" ? "(vazio)" : valor;
+}
+
+// --- C19: RF06 "Logotipo" ---
+
+export const LOGOTIPO_DO_SISTEMA = "Logotipo padrão do sistema";
+export const IMAGEM_PERSONALIZADA = "Imagem personalizada";
+
+/**
+ * The logo picker: the system logo, then the active images of the unidade by description. A current value outside
+ * them (the empresa's image lives in another unidade, or it was deactivated) stays selectable as is, so the select
+ * never shows a value it does not have; the server decides whether it may be stored here.
+ */
+export function escolhasDeImagem(midias: readonly MidiaDaUnidade[], valorAtual: string): [string, string][] {
+  const imagens: [string, string][] = midias
+    .filter((m) => m.tipo === "Imagem" && m.ativa)
+    .sort((a, b) => a.descricao.localeCompare(b.descricao, "pt-BR", { sensitivity: "base" }))
+    .map((m) => [m.id, m.descricao]);
+  const conhecida = valorAtual === "" || imagens.some(([id]) => id === valorAtual);
+  return [["", LOGOTIPO_DO_SISTEMA], ...imagens, ...(conhecida ? [] : [[valorAtual, IMAGEM_PERSONALIZADA] as [string, string]])];
+}
+
+/** The logo value as the screen shows it: the image's description when it is one of the unidade's. */
+export function logotipoExibido(midias: readonly MidiaDaUnidade[], valor: string): string {
+  if (valor === "") return LOGOTIPO_DO_SISTEMA;
+  const midia = midias.find((m) => m.id === valor);
+  return midia ? `${IMAGEM_PERSONALIZADA}: ${midia.descricao}` : IMAGEM_PERSONALIZADA;
 }
 
 /** Groups in the catalog's order, each with its items in the same order. */

@@ -22,7 +22,8 @@ public sealed class ObterEmissaoGuicheQueryHandler(
     SessaoCorrente sessao,
     ConcessaoCorrente concessao,
     IUnidadeCorrente unidadeCorrente,
-    LeitorParametros parametros) : IQueryHandler<ObterEmissaoGuicheQuery, EmissaoGuicheDto>
+    LeitorParametros parametros,
+    LogotipoEfetivo logotipo) : IQueryHandler<ObterEmissaoGuicheQuery, EmissaoGuicheDto>
 {
     public async ValueTask<EmissaoGuicheDto> Handle(ObterEmissaoGuicheQuery query, CancellationToken cancellationToken)
     {
@@ -95,7 +96,7 @@ public sealed class ObterEmissaoGuicheQueryHandler(
             .FirstOrDefaultAsync(ct)
             .ConfigureAwait(false);
         return fichaId is { } id
-            ? await ImpressaoDaFicha.LerAsync(db, parametros, id, ct).ConfigureAwait(false)
+            ? await ImpressaoDaFicha.LerAsync(db, parametros, logotipo, id, ct).ConfigureAwait(false)
             : null;
     }
 }

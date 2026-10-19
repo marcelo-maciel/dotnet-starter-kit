@@ -4,6 +4,8 @@
 // - the longest senha (5 letters + 4 digits) does not fit 55 px on 80 mm: the font shrinks until it
 //   fits (about 39 px for "WWWWW9999").
 
+import { aguardarImagens, PRAZO_LOGOTIPO_IMPRESSAO_MS } from "@/features/paf/logotipo/logotipo";
+
 export const LARGURA_BOBINA_MM = 80;
 export const TAMANHO_SENHA_PX = 55;
 const TAMANHO_SENHA_MINIMO_PX = 12;
@@ -44,7 +46,9 @@ export function removerPagina(): void {
  * Prints and resolves on `afterprint` or after `limiteMs`. With `--kiosk-printing` print() returns
  * without a dialog; without it the dialog blocks, and the limit keeps the totem from hanging.
  */
-export function imprimir(limiteMs: number): Promise<boolean> {
+export async function imprimir(limiteMs: number): Promise<boolean> {
+  // C19: window.print() snapshots the page at once, so a logo still loading would print blank.
+  await aguardarImagens([...document.querySelectorAll<HTMLImageElement>("[data-ficha-impressa] img")], PRAZO_LOGOTIPO_IMPRESSAO_MS);
   return new Promise((resolve) => {
     const controle = new AbortController();
     const timer = window.setTimeout(() => {

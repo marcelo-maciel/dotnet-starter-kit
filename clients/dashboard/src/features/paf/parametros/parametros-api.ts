@@ -7,7 +7,7 @@ import { apiFetch } from "@/lib/api-client";
 export type ParametroDto = {
   chave: string;
   grupo: string;
-  tipo: "Booleano" | "Inteiro" | "Texto" | "Opcao" | "Tecla";
+  tipo: "Booleano" | "Inteiro" | "Texto" | "Opcao" | "Tecla" | "Imagem";
   valor: string;
   origem: "Fabrica" | "Empresa" | "Unidade";
   padrao: string;
@@ -36,6 +36,14 @@ export function gravarPadraoDaEmpresa(chave: string, valor: string) {
 
 export function sobrescreverNaUnidade(chave: string, valor: string) {
   return apiFetch<void>(`${BASE}/unidade/${encodeURIComponent(chave)}`, { method: "PUT", body: JSON.stringify({ valor }) });
+}
+
+/** C19: a mídia of the current unidade as `GET midias` lists it (only what the logo picker needs). */
+export type MidiaDaUnidade = { id: string; descricao: string; tipo: string; ativa: boolean };
+
+// ponytail: the logo picker lists the mídias itself; upload and the full list live in the mídia screens (M10, wave 5).
+export function listarMidiasDaUnidade() {
+  return apiFetch<MidiaDaUnidade[]>("/api/v1/paf/midias");
 }
 
 export function voltarAoHerdado(chave: string) {

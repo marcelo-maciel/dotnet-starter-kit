@@ -1,3 +1,4 @@
+using FSH.Modules.PAF.Contracts.v1.Midias;
 using Mediator;
 
 namespace FSH.Modules.PAF.Contracts.v1.Fichas;
@@ -31,4 +32,8 @@ public sealed record FichaEmitidaDto(
     DateTimeOffset EmitidaEm,
     string Titulo,
     string Rodape,
-    bool ImprimirQr);
+    bool ImprimirQr)
+{
+    /// <summary>C19: signed URL of the unidade's RF06 logo, printed at the top; null = the system logo.</summary>
+    public UrlLeituraMidiaDto? Logotipo { get; init; }
+}

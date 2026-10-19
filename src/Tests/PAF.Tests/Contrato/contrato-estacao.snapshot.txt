@@ -47,6 +47,7 @@ resposta ConfiguracaoEstacaoDto.AnuncioDaChamada: AnuncioDaChamadaDto?
 resposta ConfiguracaoEstacaoDto.Botoes: IReadOnlyList<BotaoEmissaoDto>
 resposta ConfiguracaoEstacaoDto.Configuracao: String?
 resposta ConfiguracaoEstacaoDto.EstacaoId: Guid
+resposta ConfiguracaoEstacaoDto.Logotipo: UrlLeituraMidiaDto?
 resposta ConfiguracaoEstacaoDto.Nome: String
 resposta ConfiguracaoEstacaoDto.Tipo: String
 resposta ConfiguracaoEstacaoDto.UnidadeId: Guid
@@ -64,6 +65,7 @@ resposta FichaEmitidaDto.Fila: String
 resposta FichaEmitidaDto.IdentificadorPublico: Guid
 resposta FichaEmitidaDto.ImprimirQr: Boolean
 resposta FichaEmitidaDto.Letra: String
+resposta FichaEmitidaDto.Logotipo: UrlLeituraMidiaDto?
 resposta FichaEmitidaDto.Numero: Int32
 resposta FichaEmitidaDto.Prioridade: String
 resposta FichaEmitidaDto.Rodape: String

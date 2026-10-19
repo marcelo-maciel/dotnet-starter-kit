@@ -18,6 +18,9 @@ public sealed record ConfiguracaoEstacaoDto(
 
     /// <summary>C17: same for the Painel block.</summary>
     public UrlLeituraMidiaDto? ImagemFundoPainel { get; init; }
+
+    /// <summary>C19: signed URL of the unidade's RF06 logo for the totem and the painel; null = the system logo (and for a guichê).</summary>
+    public UrlLeituraMidiaDto? Logotipo { get; init; }
 }
 
 /// <summary>
