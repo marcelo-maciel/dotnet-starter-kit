@@ -35,6 +35,13 @@ public sealed class AtosImpersonacao(PafDbContext db, ICurrentUser usuarioAtual,
         }
 
         _ato ??= Criar(principal, atendimentoId);
+
+        // The behavior noted the act with no atendimento; a write not yet saved takes the one its handler names now.
+        if (atendimentoId is { } id && db.Entry(_ato).State is EntityState.Added or EntityState.Detached)
+        {
+            _ato.NomearAtendimento(id);
+        }
+
         if (db.Entry(_ato).State == EntityState.Detached)
         {
             db.AtosImpersonacao.Add(_ato);

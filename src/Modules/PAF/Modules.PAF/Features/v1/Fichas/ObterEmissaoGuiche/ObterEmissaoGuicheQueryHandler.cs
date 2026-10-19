@@ -20,13 +20,14 @@ namespace FSH.Modules.PAF.Features.v1.Fichas.ObterEmissaoGuiche;
 public sealed class ObterEmissaoGuicheQueryHandler(
     PafDbContext db,
     SessaoCorrente sessao,
+    ConcessaoCorrente concessao,
     IUnidadeCorrente unidadeCorrente,
     LeitorParametros parametros) : IQueryHandler<ObterEmissaoGuicheQuery, EmissaoGuicheDto>
 {
     public async ValueTask<EmissaoGuicheDto> Handle(ObterEmissaoGuicheQuery query, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(query);
-        var guiche = await OperacaoGuiche.ExigirAsync(db, sessao, cancellationToken).ConfigureAwait(false);
+        var guiche = await OperacaoGuiche.ExigirAsync(db, DonoPosto.Exigir(sessao, concessao), cancellationToken).ConfigureAwait(false);
         var unidadeId = unidadeCorrente.Exigir();
         var agora = await PafRelogio.AgoraEmSaoPauloAsync(db, cancellationToken).ConfigureAwait(false);
 

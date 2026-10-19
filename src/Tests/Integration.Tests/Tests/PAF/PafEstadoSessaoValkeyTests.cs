@@ -123,7 +123,8 @@ public sealed class PafEstadoSessaoValkeyTests(FshWebApplicationFactory factory)
         estado = Estado();
         return new SetUnidadeCorrenteCommandHandler(db, sessao, new ConcessaoCorrente(), scope.ServiceProvider.GetRequiredService<IUnidadeCorrente>(), estado,
             scope.ServiceProvider.GetRequiredService<EscopoUsuario>(),
-            NovasLicencas(scope, db), scope.ServiceProvider.GetRequiredService<AvisosTempoReal>(), scope.ServiceProvider.GetRequiredService<ConexoesPaf>());
+            NovasLicencas(scope, db), scope.ServiceProvider.GetRequiredService<AvisosTempoReal>(), scope.ServiceProvider.GetRequiredService<ConexoesPaf>(),
+            scope.ServiceProvider.GetRequiredService<AtosImpersonacao>());
     }
 
     // The set is not rebuilt in this container: the licence move takes the degraded count, the unit state goes to the Valkey.

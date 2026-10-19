@@ -314,7 +314,8 @@ public sealed class PafMigracaoLicencaTests(FshWebApplicationFactory factory) : 
         var escopo = scope.ServiceProvider.GetRequiredService<EscopoUsuario>();
         var licencas = new Licencas(db, unidade, conjunto, escopo, NullLogger<Licencas>.Instance);
         return new SetUnidadeCorrenteCommandHandler(db, sessao, new ConcessaoCorrente(), unidade, estado, escopo, licencas,
-            scope.ServiceProvider.GetRequiredService<AvisosTempoReal>(), factory.Services.GetRequiredService<ConexoesPaf>());
+            scope.ServiceProvider.GetRequiredService<AvisosTempoReal>(), factory.Services.GetRequiredService<ConexoesPaf>(),
+            scope.ServiceProvider.GetRequiredService<AtosImpersonacao>());
     }
 
     private async Task TrocarAsync(SessaoTeste s, Guid origem, Guid destino)

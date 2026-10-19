@@ -14,12 +14,12 @@ namespace FSH.Modules.PAF.Features.v1.Atendimentos.ListDestinosEncaminhamento;
 /// except its fila, each marked when outside its window by the PostgreSQL clock, and the prioridades associated
 /// to it with guichê coverage (<see cref="CoberturaGuiche"/>). A read only: the forwarding re-validates all of it.
 /// </summary>
-public sealed class ListDestinosEncaminhamentoQueryHandler(PafDbContext db, SessaoCorrente sessao)
+public sealed class ListDestinosEncaminhamentoQueryHandler(PafDbContext db, SessaoCorrente sessao, ConcessaoCorrente concessao)
     : IQueryHandler<ListDestinosEncaminhamentoQuery, DestinosEncaminhamentoDto>
 {
     public async ValueTask<DestinosEncaminhamentoDto> Handle(ListDestinosEncaminhamentoQuery query, CancellationToken cancellationToken)
     {
-        var guiche = await OperacaoGuiche.ExigirAsync(db, sessao, cancellationToken);
+        var guiche = await OperacaoGuiche.ExigirAsync(db, DonoPosto.Exigir(sessao, concessao), cancellationToken);
         var origem = await (
                 from a in db.Atendimentos.AsNoTracking()
                 join f in db.Fichas.AsNoTracking() on a.FichaId equals f.Id

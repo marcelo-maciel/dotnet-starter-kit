@@ -293,7 +293,7 @@ public sealed class PafImpersonacaoUnidadeTests(FshWebApplicationFactory factory
         return new SetUnidadeCorrenteCommandHandler(db, new SessaoCorrente(), concessaoCorrente,
             scope.ServiceProvider.GetRequiredService<IUnidadeCorrente>(), estado, scope.ServiceProvider.GetRequiredService<EscopoUsuario>(),
             scope.ServiceProvider.GetRequiredService<Licencas>(), scope.ServiceProvider.GetRequiredService<AvisosTempoReal>(),
-            scope.ServiceProvider.GetRequiredService<ConexoesPaf>());
+            scope.ServiceProvider.GetRequiredService<ConexoesPaf>(), scope.ServiceProvider.GetRequiredService<AtosImpersonacao>());
     }
 
     private async Task<HubConnection> ConectarAsync(string token)

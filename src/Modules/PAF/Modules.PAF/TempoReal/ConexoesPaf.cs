@@ -83,6 +83,21 @@ public sealed partial class ConexoesPaf(IHubContext<PafHub> hub, RegistroConexoe
         MoverAsync(tenantId, connectionId, PafGrupos.Guiche(tenantId, estacaoId), ct);
 
     /// <summary>
+    /// <see cref="MoverSessaoParaGuicheAsync"/> for the connections of an impersonation grant (S11), keyed by the token
+    /// <c>jti</c> as the kit writes it ("N"): the support's guichê group follows the grant's own link, never the user's.
+    /// </summary>
+    public async Task MoverConcessaoParaGuicheAsync(string tenantId, Guid concessaoId, Guid? estacaoId, CancellationToken ct)
+    {
+        var concessao = concessaoId.ToString("N");
+        var grupo = estacaoId is { } id ? PafGrupos.Guiche(tenantId, id) : null;
+        var locais = Filtrar(c => c is ConexaoPessoa p && p.TenantId == tenantId && p.Concessao == concessao);
+        foreach (var connectionId in Unir(locais, await registro.DaConcessaoAsync(tenantId, concessao, ct).ConfigureAwait(false)))
+        {
+            await MoverAsync(tenantId, connectionId, grupo, ct).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
     /// Takes every connection of the session, on any instance, out of every PAF group: from now on it receives no
     /// event. Returns how many connections were reached.
     /// </summary>

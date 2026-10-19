@@ -20,7 +20,7 @@ namespace FSH.Modules.PAF.Features.v1.Atendimentos.ChamarFichaEscolhida;
 /// </summary>
 public sealed class ChamarFichaEscolhidaCommandHandler(
     PafDbContext db,
-    SessaoCorrente sessao,
+    SessaoCorrente sessao, ConcessaoCorrente concessao, AtosImpersonacao atos,
     AvisosTempoReal avisos,
     LeitorParametros parametros) : ICommandHandler<ChamarFichaEscolhidaCommand, ChamadaDto>
 {
@@ -30,7 +30,7 @@ public sealed class ChamarFichaEscolhidaCommandHandler(
     public async ValueTask<ChamadaDto> Handle(ChamarFichaEscolhidaCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
-        var guiche = await OperacaoGuiche.ExigirAsync(db, sessao, cancellationToken);
+        var guiche = await OperacaoGuiche.ExigirAsync(db, DonoPosto.Exigir(sessao, concessao), cancellationToken);
         if (!guiche.Estacao.Ativa)
         {
             throw OperacaoGuiche.Conflito(ChamarProximaFichaCommandHandler.MensagemEstacaoInativa);
@@ -74,7 +74,7 @@ public sealed class ChamarFichaEscolhidaCommandHandler(
         await using var transacao = await db.Database.BeginTransactionAsync(ct);
 
         // Same lock order as chamar-próximo (guichê link, then ficha rows), so the two never deadlock each other.
-        var estacaoDoVinculo = await VinculosGuiche.TravarAtivoDaSessaoAsync(db, guiche.TenantId, guiche.SessaoId, ct);
+        var estacaoDoVinculo = await VinculosGuiche.TravarAtivoDoDonoAsync(db, guiche.Dono, ct);
         if (estacaoDoVinculo != guiche.Estacao.Id)
         {
             throw OperacaoGuiche.Conflito(MensagensGuiche.MensagemSemGuiche);
@@ -98,7 +98,7 @@ public sealed class ChamarFichaEscolhidaCommandHandler(
         var candidato = elegiveis[0];
         var versao = await ChamadaDeFicha.MarcarChamadoAsync(db, guiche, candidato, ct)
             ?? throw OperacaoGuiche.Conflito(MensagemJaChamada);
-        return await ChamadaDeFicha.ConfirmarAsync(db, avisos, transacao, guiche, candidato, versao, ct);
+        return await ChamadaDeFicha.ConfirmarAsync(db, avisos, atos, transacao, guiche, candidato, versao, ct);
     }
 
     private Task<bool> FichaEmCursoAsync(Guid fichaId, CancellationToken ct) =>

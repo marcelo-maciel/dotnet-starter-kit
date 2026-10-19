@@ -29,7 +29,8 @@ public sealed class SetUnidadeCorrenteCommandHandler(
     EscopoUsuario escopo,
     Licencas licencas,
     AvisosTempoReal avisos,
-    ConexoesPaf conexoes) : ICommandHandler<SetUnidadeCorrenteCommand>
+    ConexoesPaf conexoes,
+    AtosImpersonacao atos) : ICommandHandler<SetUnidadeCorrenteCommand>
 {
     public const string MensagemForaDoEscopo = "Esta unidade não faz parte do seu acesso.";
     public const string MensagemUnidadeInativa = "Esta unidade está inativa.";
@@ -100,6 +101,8 @@ public sealed class SetUnidadeCorrenteCommandHandler(
     {
         if (!await DestinoValidoAsync(concessao.UsuarioId, unidadeId, ct))
         {
+            // Already the grant's unit: nothing is written, so the act the pipeline noted describes no write.
+            atos.Descartar();
             return;
         }
 
@@ -108,6 +111,9 @@ public sealed class SetUnidadeCorrenteCommandHandler(
         {
             await VinculosGuiche.SoltarSemAtendimentoEmCursoAsync(db, concessao.TenantId, vinculo, ct);
         }
+
+        // S11: the grant's guichê release is raw SQL, so its impersonation act is written here, in the same transaction.
+        await atos.GravarAsync(atendimentoId: null, ct);
 
         if (!await estado.DefinirUnidadeDaConcessaoAsync(concessao.TenantId, concessao.ConcessaoId, unidadeId, concessao.ExpiraEm, ct))
         {

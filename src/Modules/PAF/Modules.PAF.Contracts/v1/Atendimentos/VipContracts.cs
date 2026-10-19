@@ -10,7 +10,7 @@ namespace FSH.Modules.PAF.Contracts.v1.Atendimentos;
 /// callable follows its own eligibility date (RF19, 03/10/2026). <paramref name="FilaId"/> picks the ficha's waiting
 /// atendimento when forwarding left it in more than one fila.
 /// </summary>
-public sealed record ChamarFichaVipCommand(string Senha, DateOnly Data, Guid FilaId) : ICommand<ChamadaDto>;
+public sealed record ChamarFichaVipCommand(string Senha, DateOnly Data, Guid FilaId) : ICommand<ChamadaDto>, IEscritaDeCadastro;
 
 /// <summary>The filas the session's guichê serves, the only ones a VIP call can reach.</summary>
 public sealed record ListFilasVipQuery : IQuery<IReadOnlyList<FilaVipDto>>;

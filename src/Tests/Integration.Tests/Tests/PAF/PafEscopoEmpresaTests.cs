@@ -274,7 +274,8 @@ public sealed class PafEscopoEmpresaTests(FshWebApplicationFactory factory) : IA
         var estado = new EstadoSessao([_multiplexer], NullLogger<EstadoSessao>.Instance);
         var handler = new SetUnidadeCorrenteCommandHandler(db, sessao, new ConcessaoCorrente(), scope.ServiceProvider.GetRequiredService<IUnidadeCorrente>(), estado,
             scope.ServiceProvider.GetRequiredService<EscopoUsuario>(),
-            NovasLicencas(scope, db), scope.ServiceProvider.GetRequiredService<AvisosTempoReal>(), scope.ServiceProvider.GetRequiredService<ConexoesPaf>());
+            NovasLicencas(scope, db), scope.ServiceProvider.GetRequiredService<AvisosTempoReal>(), scope.ServiceProvider.GetRequiredService<ConexoesPaf>(),
+            scope.ServiceProvider.GetRequiredService<AtosImpersonacao>());
         return (handler, estado);
     }
 

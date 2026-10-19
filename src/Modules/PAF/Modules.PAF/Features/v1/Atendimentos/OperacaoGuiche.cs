@@ -22,8 +22,14 @@ public static class MensagensGuiche
     public const string MensagemDeOutroUsuario = "Este atendimento foi chamado por outro usuário e só ele pode operá-lo.";
 }
 
-/// <summary>The guichê of the session and the atendimento it acts on.</summary>
-internal sealed record Guiche(string TenantId, Guid SessaoId, Guid UsuarioId, Estacao Estacao);
+/// <summary>The guichê of the post's owner (session, or impersonation grant since S11) and the station it holds.</summary>
+internal sealed record Guiche(DonoPosto Dono, Estacao Estacao)
+{
+    public string TenantId => Dono.TenantId;
+
+    /// <summary>Who the atendimento is recorded for: the impersonated user (<c>sub</c>) under impersonation.</summary>
+    public Guid UsuarioId => Dono.UsuarioId;
+}
 
 /// <summary>Atendimento re-read after its ficha's rows were locked; the state check runs on this, never on a read from before the lock.</summary>
 internal sealed record AtendimentoTravado(
@@ -49,23 +55,24 @@ internal sealed record AtendimentoCancelado(Guid AtendimentoId, int Versao, IRea
 /// </summary>
 internal static class OperacaoGuiche
 {
-    public static async Task<Guiche> ExigirAsync(PafDbContext db, SessaoCorrente sessao, CancellationToken ct)
+    public static async Task<Guiche> ExigirAsync(PafDbContext db, DonoPosto dono, CancellationToken ct)
     {
-        var (tenantId, sessaoId, usuarioId) = sessao.Exigir();
-        var vinculo = await VinculosGuiche.AtivoDaSessaoAsync(db, sessaoId, ct).ConfigureAwait(false)
+        var vinculo = await VinculosGuiche.AtivoDoDonoAsync(db, dono, ct).ConfigureAwait(false)
             ?? throw Conflito(MensagensGuiche.MensagemSemGuiche);
 
         // Unit-filtered: a guichê of a unit the session left is not operable from here.
         var estacao = await db.Estacoes.AsNoTracking().FirstOrDefaultAsync(e => e.Id == vinculo.EstacaoId, ct).ConfigureAwait(false)
             ?? throw Conflito(MensagensGuiche.MensagemSemGuiche);
-        return new Guiche(tenantId, sessaoId, usuarioId, estacao);
+        return new Guiche(dono, estacao);
     }
 
     /// <summary>
     /// The guichê's entry to <see cref="TravarFichaAsync"/>: an atendimento this guichê does not hold answers 404
-    /// before any lock, so a guichê never waits on a ficha that is not its own.
+    /// before any lock, so a guichê never waits on a ficha that is not its own. Every guichê write on an existing
+    /// atendimento enters here, so this is where the impersonation act (D28, S11) is written, inside the caller's
+    /// transaction: a refusal after it rolls the act back with the rest.
     /// </summary>
-    public static async Task<AtendimentoTravado> TravarAsync(PafDbContext db, Guiche guiche, Guid atendimentoId, CancellationToken ct)
+    public static async Task<AtendimentoTravado> TravarAsync(PafDbContext db, AtosImpersonacao atos, Guiche guiche, Guid atendimentoId, CancellationToken ct)
     {
         var doGuiche = await db.Atendimentos.AsNoTracking()
             .AnyAsync(a => a.Id == atendimentoId && a.EstacaoId == guiche.Estacao.Id, ct)
@@ -86,6 +93,7 @@ internal static class OperacaoGuiche
             throw Conflito(MensagensGuiche.MensagemDeOutroUsuario);
         }
 
+        await atos.GravarAsync(travado.Id, ct).ConfigureAwait(false);
         return travado;
     }
 

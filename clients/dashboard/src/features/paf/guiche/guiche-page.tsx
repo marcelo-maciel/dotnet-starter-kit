@@ -33,6 +33,10 @@ import { VipForm } from "@/features/paf/guiche/vip-form";
 import { TeclasAtalhoGuiche } from "@/features/paf/guiche/teclas-atalho-guiche";
 import { EmissaoGuiche } from "@/features/paf/guiche/emissao-guiche";
 
+// S11: impersonation badge.
+import { useAuth } from "@/auth/use-auth";
+import { textoSeloImpersonacao } from "@/features/paf/guiche/selo-impersonacao";
+
 type Ultimo = { senha: string; estado: string };
 
 // The server holds unit, guichê and atendimento (GET posto): a reload asks it again. Only the step of a
@@ -97,6 +101,10 @@ export function GuichePage() {
   const hub = useRef<HubGuiche | null>(null);
   const idUnidade = useId();
   const idGuiche = useId();
+
+  // S11: impersonation badge.
+  const { impersonation, user } = useAuth();
+  const seloImpersonacao = textoSeloImpersonacao(impersonation, user?.name);
 
   const posto = useQuery({ queryKey: CHAVE_POSTO, queryFn: obterPosto });
   const etapa: Etapa | null = posto.data
@@ -222,6 +230,14 @@ export function GuichePage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Guichê</h1>
+
+        {/* S11: impersonation badge. */}
+        {seloImpersonacao && (
+          <p role="status" className="rounded-md border border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {seloImpersonacao}
+          </p>
+        )}
+
         {posto.data?.unidade && (
           <p className="text-sm text-[var(--color-muted-foreground)]">
             {posto.data.unidade}

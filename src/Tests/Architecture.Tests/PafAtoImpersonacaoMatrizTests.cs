@@ -18,30 +18,17 @@ namespace Architecture.Tests;
 /// </summary>
 public sealed class PafAtoImpersonacaoMatrizTests
 {
-    private const string GuicheChegaEmS11 = "guichê sob impersonação chega em S11";
-
     private const string CredencialDeEstacao =
         "credencial de estação: o token traz paf_papel e nunca act_sub, então não há impersonação a registrar";
 
-    // Only S11 (wave 3) removes the guichê entries; any new entry needs its reason approved in the PR.
-    private static readonly IReadOnlyDictionary<Type, string> Exclusoes = new Dictionary<Type, string>
+    // S11 (wave 3) emptied the guichê entries: they carry IEscritaDeCadastro now. Any new entry needs its reason approved in the PR.
+    private static readonly Dictionary<Type, string> Exclusoes = new()
     {
-        [typeof(ChamarProximaFichaCommand)] = GuicheChegaEmS11,
-        [typeof(RechamarAtendimentoCommand)] = GuicheChegaEmS11,
-        [typeof(IniciarAtendimentoCommand)] = GuicheChegaEmS11,
-        [typeof(EncerrarAtendimentoCommand)] = GuicheChegaEmS11,
-        [typeof(CancelarAtendimentoCommand)] = GuicheChegaEmS11,
-        [typeof(SetGuicheCommand)] = GuicheChegaEmS11,
-        [typeof(EncaminharAtendimentoCommand)] = GuicheChegaEmS11,
-        [typeof(ChamarFichaEscolhidaCommand)] = GuicheChegaEmS11,
-        [typeof(ChamarFichaVipCommand)] = GuicheChegaEmS11,
         [typeof(EmitirFichaCommand)] = CredencialDeEstacao,
         [typeof(RenovarCredencialEstacaoCommand)] = "renovação anônima pelo segredo da estação: sem token, não há act_sub",
         [typeof(ResgatarVinculoEstacaoCommand)] = "resgate anônimo do link da estação: sem token, não há act_sub",
         [typeof(EndSessaoCommand)] =
             "logout da sessão do kit: a impersonação não tem sessão própria (seção 9) e não grava nada do PAF por aqui",
-        [typeof(SetUnidadeCorrenteCommand)] =
-            "troca a unidade corrente da sessão, estado no Valkey e marca de licença; sob impersonação (S10B) troca só a chave da concessão no Valkey e solta o vínculo de guichê da própria concessão, sem escrita de atendimento; o ato do guichê chega em S11",
     };
 
     // Slice 1 plus wave 0 already have about three dozen write commands; far fewer means the scan is not seeing them.
@@ -58,6 +45,23 @@ public sealed class PafAtoImpersonacaoMatrizTests
         falhas.ShouldBeEmpty(
             "Every PAF write command implements IEscritaDeCadastro or is excluded with a reason " +
             $"(D28):{Environment.NewLine}{string.Join(Environment.NewLine, falhas)}");
+    }
+
+    // S11: the support operates the guichê in full (ARQ seção 9), so no guichê write may go back to the exclusion list.
+    [Fact]
+    public void ComandosDoGuiche_TodosMarcados_NenhumNaListaDeExclusoes()
+    {
+        Type[] guiche =
+        [
+            typeof(SetGuicheCommand), typeof(SetUnidadeCorrenteCommand), typeof(ChamarProximaFichaCommand),
+            typeof(ChamarFichaEscolhidaCommand), typeof(ChamarFichaVipCommand), typeof(RechamarAtendimentoCommand),
+            typeof(IniciarAtendimentoCommand), typeof(EncerrarAtendimentoCommand), typeof(CancelarAtendimentoCommand),
+            typeof(EncaminharAtendimentoCommand),
+        ];
+
+        guiche.Where(t => !typeof(IEscritaDeCadastro).IsAssignableFrom(t) || Exclusoes.ContainsKey(t))
+            .Select(t => t.Name)
+            .ShouldBeEmpty();
     }
 
     [Fact]

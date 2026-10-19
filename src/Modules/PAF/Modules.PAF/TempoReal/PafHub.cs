@@ -75,6 +75,13 @@ public sealed partial class PafHub(ConexoesPaf conexoes, IServiceProvider servic
                         await EntrarAsync(pessoa.TenantId, PafGrupos.Unidade(pessoa.TenantId, unidadeImpersonada)).ConfigureAwait(false);
                     }
 
+                    // S11: the grant's own guichê link, as the session's above (reload, second window).
+                    if (await GuicheDaConcessaoAsync().ConfigureAwait(false) is { } guicheDaConcessao)
+                    {
+                        await conexoes.MoverConexaoParaGuicheAsync(Context.ConnectionId, pessoa.TenantId, guicheDaConcessao, Context.ConnectionAborted)
+                            .ConfigureAwait(false);
+                    }
+
                     LogPessoaConectada(logger, Context.ConnectionId, pessoa.TenantId, pessoa.UsuarioId);
                     break;
 
@@ -107,7 +114,16 @@ public sealed partial class PafHub(ConexoesPaf conexoes, IServiceProvider servic
     /// </summary>
     public async Task<Guid?> EntrarNoGuiche()
     {
-        // Impersonation has no kit session to read SessaoEstacao by; its guichê group is not covered yet.
+        // S11: impersonation has no kit session; its guichê is the grant's own SessaoEstacao (ConcessaoId = jti).
+        if (ConexaoPaf.Ler(Context.User) is ConexaoPessoa { Impersonacao: true } suporte
+            && ConcessaoImpersonacao.DoToken(Context.User) is { } concessao)
+        {
+            var guicheDaConcessao = await GuicheDaConcessaoAsync().ConfigureAwait(false);
+            await conexoes.MoverConcessaoParaGuicheAsync(suporte.TenantId, concessao.ConcessaoId, guicheDaConcessao, Context.ConnectionAborted)
+                .ConfigureAwait(false);
+            return guicheDaConcessao;
+        }
+
         if (ConexaoPaf.Ler(Context.User) is not ConexaoPessoa { Impersonacao: false, SessaoId: { } sessaoId } pessoa)
         {
             throw new HubException("Só a sessão de um atendente tem guichê.");
@@ -116,6 +132,19 @@ public sealed partial class PafHub(ConexoesPaf conexoes, IServiceProvider servic
         var guicheId = await GuicheDaSessaoAsync(sessaoId).ConfigureAwait(false);
         await conexoes.MoverSessaoParaGuicheAsync(pessoa.TenantId, sessaoId, guicheId, Context.ConnectionAborted).ConfigureAwait(false);
         return guicheId;
+    }
+
+    // The grant's active link, null when the token is not a well-formed grant or holds no guichê.
+    private async Task<Guid?> GuicheDaConcessaoAsync()
+    {
+        if (ConcessaoImpersonacao.DoToken(Context.User) is not { } concessao)
+        {
+            return null;
+        }
+
+        var db = servicos.GetRequiredService<PafDbContext>();
+        var vinculo = await VinculosGuiche.AtivoDaConcessaoAsync(db, concessao.ConcessaoId, Context.ConnectionAborted).ConfigureAwait(false);
+        return vinculo?.EstacaoId;
     }
 
     // Resolved here, after PafHubFilter installed the tenant: the DbContext reads it when built.

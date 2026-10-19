@@ -13,16 +13,16 @@ namespace FSH.Modules.PAF.Features.v1.Atendimentos.RechamarAtendimento;
 /// and UltimaRechamadaEm, which the painel uses to reorder its list on reconnect. A recall that waited on a
 /// cancellation finds the atendimento cancelled and announces nothing (seção 4).
 /// </summary>
-public sealed class RechamarAtendimentoCommandHandler(PafDbContext db, SessaoCorrente sessao, AvisosTempoReal avisos)
+public sealed class RechamarAtendimentoCommandHandler(PafDbContext db, SessaoCorrente sessao, ConcessaoCorrente concessao, AtosImpersonacao atos, AvisosTempoReal avisos)
     : ICommandHandler<RechamarAtendimentoCommand, AtendimentoAlteradoDto>
 {
     public async ValueTask<AtendimentoAlteradoDto> Handle(RechamarAtendimentoCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
-        var guiche = await OperacaoGuiche.ExigirAsync(db, sessao, cancellationToken);
+        var guiche = await OperacaoGuiche.ExigirAsync(db, DonoPosto.Exigir(sessao, concessao), cancellationToken);
 
         await using var transacao = await db.Database.BeginTransactionAsync(cancellationToken);
-        var atendimento = await OperacaoGuiche.TravarAsync(db, guiche, command.AtendimentoId, cancellationToken);
+        var atendimento = await OperacaoGuiche.TravarAsync(db, atos, guiche, command.AtendimentoId, cancellationToken);
         OperacaoGuiche.ExigirEstado(atendimento, guiche, EstadoAtendimento.Chamado, MensagensGuiche.MensagemNaoChamado);
 
         db.Rechamadas.Add(Rechamada.Criar(atendimento.UnidadeId, atendimento.Id, guiche.Estacao.Id, guiche.UsuarioId));

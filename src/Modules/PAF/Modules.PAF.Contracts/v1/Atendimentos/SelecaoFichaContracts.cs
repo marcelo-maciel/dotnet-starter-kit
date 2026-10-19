@@ -11,4 +11,4 @@ public sealed record ListFichasEmEsperaQuery : IQuery<IReadOnlyList<FichaEmEsper
 public sealed record FichaEmEsperaDto(Guid AtendimentoId, Guid FichaId, string Senha, Guid FilaId, Guid PrioridadeId, DateTimeOffset ElegivelDesde);
 
 /// <summary>Calls the chosen atendimento on the session's guichê instead of the next one; every condition of the call applies except the order.</summary>
-public sealed record ChamarFichaEscolhidaCommand(Guid AtendimentoId) : ICommand<ChamadaDto>;
+public sealed record ChamarFichaEscolhidaCommand(Guid AtendimentoId) : ICommand<ChamadaDto>, IEscritaDeCadastro;

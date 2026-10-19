@@ -16,7 +16,7 @@ internal sealed record FichaEmEspera(Guid AtendimentoId, Guid FichaId, Guid Fila
 /// atendimentos aguardando na ordem em que a chamada os escolheria"). Same predicate and order as the call, so the
 /// first row is the next one; a plain read, no lock, so a row may be gone by the time it is chosen (the call re-validates).
 /// </summary>
-public sealed class ListFichasEmEsperaQueryHandler(PafDbContext db, SessaoCorrente sessao, LeitorParametros parametros)
+public sealed class ListFichasEmEsperaQueryHandler(PafDbContext db, SessaoCorrente sessao, ConcessaoCorrente concessao, LeitorParametros parametros)
     : IQueryHandler<ListFichasEmEsperaQuery, IReadOnlyList<FichaEmEsperaDto>>
 {
     // ponytail: a fixed cap instead of paging; a guichê queue is tens of fichas. Page by (order key) when a client needs more.
@@ -24,7 +24,7 @@ public sealed class ListFichasEmEsperaQueryHandler(PafDbContext db, SessaoCorren
 
     public async ValueTask<IReadOnlyList<FichaEmEsperaDto>> Handle(ListFichasEmEsperaQuery query, CancellationToken cancellationToken)
     {
-        var guiche = await OperacaoGuiche.ExigirAsync(db, sessao, cancellationToken);
+        var guiche = await OperacaoGuiche.ExigirAsync(db, DonoPosto.Exigir(sessao, concessao), cancellationToken);
         if (!ChamadaDeFicha.OpcaoLigada(guiche.Estacao.Configuracao, ChamadaDeFicha.ChaveSelecionarFicha))
         {
             throw OperacaoGuiche.Conflito(ChamadaDeFicha.MensagemSemSelecao);

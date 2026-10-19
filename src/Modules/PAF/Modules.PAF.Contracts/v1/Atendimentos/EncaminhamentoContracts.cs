@@ -31,7 +31,7 @@ public sealed record EncaminharAtendimentoRequest(IReadOnlyList<Guid> FilaIds, G
 
 /// <summary>Closes the started atendimento and opens one atendimento per destination fila on the same ficha (RF17).</summary>
 public sealed record EncaminharAtendimentoCommand(Guid AtendimentoId, IReadOnlyList<Guid> FilaIds, Guid PrioridadeId)
-    : ICommand<AtendimentoEncaminhadoDto>;
+    : ICommand<AtendimentoEncaminhadoDto>, IEscritaDeCadastro;
 
 /// <summary><paramref name="Versao"/> is the closed origin's; <paramref name="Destinos"/> the atendimentos created, in request order.</summary>
 public sealed record AtendimentoEncaminhadoDto(Guid AtendimentoId, int Versao, IReadOnlyList<AtendimentoDestinoDto> Destinos);

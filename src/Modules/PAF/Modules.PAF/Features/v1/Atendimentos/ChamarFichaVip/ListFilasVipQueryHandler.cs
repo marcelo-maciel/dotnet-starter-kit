@@ -11,12 +11,12 @@ namespace FSH.Modules.PAF.Features.v1.Atendimentos.ChamarFichaVip;
 /// The filas of the session guichê's role, in the station's order: the VIP form's choices. The attendant has no
 /// Filas.View, and a fila outside the guichê role would be refused by the call's predicate anyway.
 /// </summary>
-public sealed class ListFilasVipQueryHandler(PafDbContext db, SessaoCorrente sessao)
+public sealed class ListFilasVipQueryHandler(PafDbContext db, SessaoCorrente sessao, ConcessaoCorrente concessao)
     : IQueryHandler<ListFilasVipQuery, IReadOnlyList<FilaVipDto>>
 {
     public async ValueTask<IReadOnlyList<FilaVipDto>> Handle(ListFilasVipQuery query, CancellationToken cancellationToken)
     {
-        var guiche = await OperacaoGuiche.ExigirAsync(db, sessao, cancellationToken);
+        var guiche = await OperacaoGuiche.ExigirAsync(db, DonoPosto.Exigir(sessao, concessao), cancellationToken);
         return await (
                 from ef in db.EstacaoFilas.AsNoTracking()
                 join f in db.Filas.AsNoTracking() on ef.FilaId equals f.Id

@@ -19,6 +19,7 @@ namespace FSH.Modules.PAF.Features.v1.Fichas.EmitirFichaNoGuiche;
 public sealed class EmitirFichaNoGuicheCommandHandler(
     PafDbContext db,
     SessaoCorrente sessao,
+    ConcessaoCorrente concessao,
     IUnidadeCorrente unidadeCorrente,
     EmissaoDeFicha emissao) : ICommandHandler<EmitirFichaNoGuicheCommand, FichaEmitidaDto>
 {
@@ -28,7 +29,7 @@ public sealed class EmitirFichaNoGuicheCommandHandler(
     public async ValueTask<FichaEmitidaDto> Handle(EmitirFichaNoGuicheCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
-        var guiche = await OperacaoGuiche.ExigirAsync(db, sessao, cancellationToken).ConfigureAwait(false);
+        var guiche = await OperacaoGuiche.ExigirAsync(db, DonoPosto.Exigir(sessao, concessao), cancellationToken).ConfigureAwait(false);
         // A deactivated station keeps only its atendimento in progress (RF04); a new ficha is a new operation.
         if (!guiche.Estacao.Ativa)
         {

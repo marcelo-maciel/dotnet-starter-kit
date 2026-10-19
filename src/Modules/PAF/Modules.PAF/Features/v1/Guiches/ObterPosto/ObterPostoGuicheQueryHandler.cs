@@ -14,12 +14,14 @@ namespace FSH.Modules.PAF.Features.v1.Guiches.ObterPosto;
 /// The guichê is read with the unit filter: a link to another unit's station is not this unit's post. Only the
 /// caller's own atendimento is "em curso" here: another user's pendência is never shown as his (seção 5).
 /// </summary>
-public sealed class ObterPostoGuicheQueryHandler(PafDbContext db, SessaoCorrente sessao, IUnidadeCorrente unidadeCorrente)
+public sealed class ObterPostoGuicheQueryHandler(PafDbContext db, SessaoCorrente sessao, ConcessaoCorrente concessao, IUnidadeCorrente unidadeCorrente)
     : IQueryHandler<ObterPostoGuicheQuery, PostoGuicheDto>
 {
     public async ValueTask<PostoGuicheDto> Handle(ObterPostoGuicheQuery query, CancellationToken cancellationToken)
     {
-        var (_, sessaoId, usuarioId) = sessao.Exigir();
+        // S11: under impersonation the post is the grant's own link; the user is the impersonated one (sub).
+        var dono = DonoPosto.Exigir(sessao, concessao);
+        var usuarioId = dono.UsuarioId;
         if (unidadeCorrente.UnidadeId is not { } unidadeId)
         {
             return new PostoGuicheDto(null, null, null, null, null);
@@ -29,12 +31,13 @@ public sealed class ObterPostoGuicheQueryHandler(PafDbContext db, SessaoCorrente
             .Where(u => u.Id == unidadeId)
             .Select(u => u.Nome)
             .FirstOrDefaultAsync(cancellationToken);
-        var guiche = await (
-                from v in db.SessoesEstacao.AsNoTracking()
-                join e in db.Estacoes.AsNoTracking() on v.EstacaoId equals e.Id
-                where v.SessaoId == sessaoId && v.LiberadoEm == null
-                select new { e.Id, e.Nome })
-            .FirstOrDefaultAsync(cancellationToken);
+        var vinculo = await VinculosGuiche.AtivoDoDonoAsync(db, dono, cancellationToken);
+        var guiche = vinculo is null
+            ? null
+            : await db.Estacoes.AsNoTracking()
+                .Where(e => e.Id == vinculo.EstacaoId)
+                .Select(e => new { e.Id, e.Nome })
+                .FirstOrDefaultAsync(cancellationToken);
         if (guiche is null)
         {
             return new PostoGuicheDto(unidadeId, unidade, null, null, null);
