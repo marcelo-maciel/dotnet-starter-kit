@@ -47,6 +47,8 @@ public sealed class ConjuntoLicencas(
 
     private readonly IConnectionMultiplexer? _valkey = multiplexers.FirstOrDefault();
 
+    private Action? _aoDegradar;
+
     public TimeSpan PrazoMembro => prazoMembro;
 
     public static string Membro(Guid sessaoId) => sessaoId.ToString();
@@ -357,11 +359,15 @@ public sealed class ConjuntoLicencas(
     public async Task<bool> MarcarReconstruidoAsync(CancellationToken ct) =>
         await TentarAsync(async db => RedisResult.Create(await db.StringSetAsync(ChaveReconstruido, "1")), ct) is not null;
 
-    /// <summary>Disparado quando a conexão ao Valkey volta; nada acontece sem Valkey registrado.</summary>
-    public void AoReconectar(Action acao)
+    /// <summary>
+    /// Disparado quando a conexão ao Valkey volta e quando uma chamada cai no modo degradado; nada acontece sem
+    /// Valkey registrado.
+    /// </summary>
+    public void AoPrecisarReconstruir(Action acao)
     {
         if (_valkey is not null)
         {
+            _aoDegradar = acao;
             _valkey.ConnectionRestored += (_, _) => acao();
         }
     }
@@ -385,6 +391,9 @@ public sealed class ConjuntoLicencas(
         catch (Exception ex) when (ex is RedisConnectionException or TimeoutException)
         {
             logger.LogWarning(ex, "Valkey indisponível para o conjunto de licenças; modo degradado");
+            // A stall too short to drop the connection raises no ConnectionRestored, yet the degraded mode may
+            // have let a session in that the set never saw.
+            _aoDegradar?.Invoke();
             return null;
         }
     }

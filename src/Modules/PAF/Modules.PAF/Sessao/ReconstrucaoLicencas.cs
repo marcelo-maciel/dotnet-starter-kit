@@ -23,9 +23,8 @@ public sealed class ReconstrucaoLicencas(
     TimeSpan intervalo,
     ILogger<ReconstrucaoLicencas> logger) : BackgroundService
 {
-    // ponytail: fixed polling of the rebuild mark. A stalled Valkey (paused, network held) also raises
-    // ConnectionRestored on its return: the client drops the connection on the first timeouts (S14,
-    // PafModoDegradadoTests); a stall too short for that leaves the members to the next mark renewal.
+    // ponytail: fixed polling of the rebuild mark. A reconnection or any call that fell into the degraded mode
+    // (a stall too short to drop the connection included, S14) asks for a rebuild on the next tick.
     public static readonly TimeSpan IntervaloVerificacao = TimeSpan.FromSeconds(15);
 
     // Starts pending: an instance that starts may follow logins decided in the degraded mode.
@@ -86,7 +85,7 @@ public sealed class ReconstrucaoLicencas(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        conjunto.AoReconectar(() => Interlocked.Exchange(ref _reconexaoPendente, 1));
+        conjunto.AoPrecisarReconstruir(() => Interlocked.Exchange(ref _reconexaoPendente, 1));
         using var relogio = new PeriodicTimer(intervalo);
         do
         {
