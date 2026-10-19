@@ -9,7 +9,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using StackExchange.Redis;
 
 namespace FSH.Modules.PAF.Midias;
 
@@ -121,7 +120,9 @@ public sealed partial class UrlLeituraMidia(
                     limite.Token)
                 .ConfigureAwait(false);
         }
-        catch (Exception erro) when (erro is RedisException || (erro is OperationCanceledException && !ct.IsCancellationRequested))
+        // HybridCache absorbs a Valkey error itself (logged, factory called); only a cache that does not answer in time
+        // reaches here.
+        catch (OperationCanceledException erro) when (!ct.IsCancellationRequested)
         {
             LogSemCache(logger, midia.Id, erro.GetType().Name);
             return await AssinarAsync(midia, validade, ct).ConfigureAwait(false);
