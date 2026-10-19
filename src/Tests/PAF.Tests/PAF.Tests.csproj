@@ -23,6 +23,8 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\Modules\PAF\Modules.PAF\Modules.PAF.csproj" />
+		<!-- O07: the expand and contract barrier reads the PafDbContext migrations. -->
+		<ProjectReference Include="..\..\Host\FSH.Starter.Migrations.PostgreSQL\FSH.Starter.Migrations.PostgreSQL.csproj" />
 	</ItemGroup>
 
 	<!-- O19: the RNF05 barrier evaluates the API host configuration from the host's own files. -->
@@ -33,6 +35,11 @@
 	<!-- O10: the logging tests apply the Serilog lines of the deployment environment file. -->
 	<ItemGroup>
 		<Content Include="..\..\..\deploy\paf\ambientes\producao.env.exemplo" Link="ambientes\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+	</ItemGroup>
+
+	<!-- O07: the station and hub contract snapshot. -->
+	<ItemGroup>
+		<Content Include="Contrato\contrato-estacao.snapshot.txt" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 
 </Project>

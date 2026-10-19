@@ -176,9 +176,56 @@ jobs:
       - name: Walk da primeira fatia
         run: bash deploy/paf/walk-ci.sh
 
+  # O07 (RNF16): the rolling deploy migrates first and keeps the old instance serving, so the previous revision's API
+  # must still emit and call on the schema of this one. PR: the base; push: the previous commit of the branch.
+  imagem-anterior:
+    name: Imagem anterior contra esquema novo
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # The previous revision is built from history, and the test looks up the commit that created the module.
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/Directory.Packages.props') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Caminhos de falha do ensaio
+        run: bash deploy/paf/imagem-anterior-esquema-novo.test.sh
+
+      - name: Revisão anterior
+        id: anterior
+        env:
+          BASE_PR: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BASE_PR" ]; then
+            echo "sha=$BASE_PR" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=$(git rev-parse HEAD^)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: API anterior contra o esquema novo
+        env:
+          SHA_ANTERIOR: ${{ steps.anterior.outputs.sha }}
+        run: bash deploy/paf/imagem-anterior-esquema-novo.sh "$SHA_ANTERIOR"
+
   paf-ci:
     name: PAF CI
-    needs: [backend, dashboard, scripts, walk]
+    needs: [backend, dashboard, scripts, walk, imagem-anterior]
     if: always() && github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
