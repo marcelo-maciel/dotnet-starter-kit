@@ -19,6 +19,7 @@ public static class MensagensGuiche
     public const string MensagemNaoEncontrado = "Atendimento não encontrado neste guichê.";
     public const string MensagemNaoChamado = "A senha não está chamada neste guichê.";
     public const string MensagemNaoAtendendo = "A estação não está atendendo.";
+    public const string MensagemDeOutroUsuario = "Este atendimento foi chamado por outro usuário e só ele pode operá-lo.";
 }
 
 /// <summary>The guichê of the session and the atendimento it acts on.</summary>
@@ -36,7 +37,8 @@ internal sealed record AtendimentoTravado(
     string Letra,
     int Numero,
     DateTimeOffset CriadoEm,
-    DateOnly DataElegibilidade);
+    DateOnly DataElegibilidade,
+    Guid? UsuarioId);
 
 /// <summary>Result of the RF12 cancel: the new version and the notices to write before the commit and send after it.</summary>
 internal sealed record AtendimentoCancelado(Guid AtendimentoId, int Versao, IReadOnlyList<AvisoPaf> Avisos);
@@ -73,7 +75,18 @@ internal static class OperacaoGuiche
             throw new NotFoundException(MensagensGuiche.MensagemNaoEncontrado);
         }
 
-        return await TravarFichaAsync(db, guiche.TenantId, atendimentoId, ct).ConfigureAwait(false);
+        var travado = await TravarFichaAsync(db, guiche.TenantId, atendimentoId, ct).ConfigureAwait(false);
+
+        // RF04: a pendência left on the guichê stays with the user who called it, so whoever holds the link now
+        // must not end it in their name (it would land in the wrong user's statistics, RF07). Checked on the row
+        // re-read under the lock; an atendimento that left this guichê meanwhile falls to the state check instead.
+        // guiche.UsuarioId is the impersonated user under impersonation, so the support acts as that user.
+        if (travado.EstacaoId == guiche.Estacao.Id && travado.UsuarioId != guiche.UsuarioId)
+        {
+            throw Conflito(MensagensGuiche.MensagemDeOutroUsuario);
+        }
+
+        return travado;
     }
 
     /// <summary>
@@ -106,7 +119,7 @@ internal static class OperacaoGuiche
                 where a.Id == atendimentoId
                 select new AtendimentoTravado(
                     a.Id, a.UnidadeId, a.FichaId, a.FilaId, a.PrioridadeId, a.EstacaoId, a.Estado, f.Letra, f.Numero,
-                    a.CriadoEm, a.DataElegibilidade))
+                    a.CriadoEm, a.DataElegibilidade, a.UsuarioId))
             .SingleAsync(ct)
             .ConfigureAwait(false);
     }
