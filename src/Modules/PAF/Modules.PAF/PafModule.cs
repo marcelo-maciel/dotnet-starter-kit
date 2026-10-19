@@ -36,6 +36,7 @@ using FSH.Modules.PAF.Features.v1.Estacoes.EnableEstacao;
 using FSH.Modules.PAF.Features.v1.Estacoes.GerarVinculo;
 using FSH.Modules.PAF.Features.v1.Estacoes.ListEstacoes;
 using FSH.Modules.PAF.Features.v1.Estacoes.ListEstacoesOperador;
+using FSH.Modules.PAF.Features.v1.Estacoes.MidiasDaEstacao;
 using FSH.Modules.PAF.Features.v1.Estacoes.ObterConfiguracao;
 using FSH.Modules.PAF.Features.v1.Estacoes.RenovarCredencial;
 using FSH.Modules.PAF.Features.v1.Estacoes.ResgatarVinculo;
@@ -70,6 +71,7 @@ using FSH.Modules.PAF.Features.v1.Setores.CreateSetor;
 using FSH.Modules.PAF.Features.v1.Setores.ListSetores;
 using FSH.Modules.PAF.Features.v1.Setores.UpdateSetor;
 using FSH.Modules.PAF.Features.v1.Painel.ObterEstadoPainel;
+using FSH.Modules.PAF.Features.v1.Painel.ObterMidiasPainel;
 using FSH.Modules.PAF.Features.v1.Prioridades.CreatePrioridade;
 using FSH.Modules.PAF.Features.v1.Prioridades.DisablePrioridade;
 using FSH.Modules.PAF.Features.v1.Prioridades.EnablePrioridade;
@@ -236,6 +238,8 @@ public sealed class PafModule : IModule
         cadastro.MapGetMidiaUrlEndpoint();
         // RF10 (M05): programações de mídia.
         MapearProgramacoesMidia(cadastro);
+        // RF04/RF21 (M06): ordered media list of a painel station.
+        cadastro.MapMidiasDaEstacaoEndpoints();
 
         // No group-wide RequireAuthorization: redeeming a link and renewing a credential are anonymous.
         var estacao = endpoints
@@ -469,6 +473,8 @@ public sealed class PafModule : IModule
         group.MapGetStationPanelSettingsEndpoint();
         group.MapIssueFichaEndpoint();
         group.MapGetPanelStateEndpoint();
+        // M06: what the painel plays, with signed read URLs.
+        group.MapGetPanelMediaEndpoint();
     }
 
     // --- Tempo real (seção 7) -------------------------------------------------------------------

@@ -68,14 +68,30 @@ public static class AgendaMidia
         ArgumentNullException.ThrowIfNull(programacoes);
         var hoje = DateOnly.FromDateTime(agoraSaoPaulo);
         var agora = (long)agoraSaoPaulo.TimeOfDay.TotalSeconds;
-        return programacoes
-            .Where(p => ValeNoDia(p, hoje)
+        return EmOrdemDePrecedencia(programacoes)
+            .FirstOrDefault(p => ValeNoDia(p, hoje)
                 && SegundosDoDia(p.HoraInicial) <= agora
-                && agora < p.HoraFinalSegundos)
+                && agora < p.HoraFinalSegundos);
+    }
+
+    /// <summary>
+    /// D13 precedence (latest start, then newest, then id): the first programação of this order whose window contains an
+    /// instant is the one on air. The painel (M06) gets today's list in this order and never re-implements the tie-break.
+    /// </summary>
+    public static IEnumerable<ProgramacaoDoDia> EmOrdemDePrecedencia(IEnumerable<ProgramacaoDoDia> programacoes)
+    {
+        ArgumentNullException.ThrowIfNull(programacoes);
+        return programacoes
             .OrderByDescending(p => p.HoraInicial)
             .ThenByDescending(p => p.CriadoEm)
-            .ThenByDescending(p => p.Id)
-            .FirstOrDefault();
+            .ThenByDescending(p => p.Id);
+    }
+
+    /// <summary>Start of the window in seconds from São Paulo midnight.</summary>
+    public static long InicioSegundos(ProgramacaoDoDia programacao)
+    {
+        ArgumentNullException.ThrowIfNull(programacao);
+        return SegundosDoDia(programacao.HoraInicial);
     }
 
     /// <summary>

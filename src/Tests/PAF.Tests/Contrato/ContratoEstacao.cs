@@ -28,6 +28,10 @@ internal static class ContratoEstacao
         typeof(SenhaRechamada),
         typeof(AtendimentoAtualizado),
         typeof(FilaAtualizada),
+        typeof(MidiasPainelDto),
+        typeof(ItemMidiaPainelDto),
+        typeof(ProgramacaoPainelDto),
+        typeof(ProgramacaoAlterada),
     ];
 
     /// <summary>Client to server bodies: an old bundle does not send a member added later, so a new one must be nullable.</summary>
@@ -39,7 +43,7 @@ internal static class ContratoEstacao
     ];
 
     /// <summary>Names an old bundle connects to or subscribes by: renaming one silently drops the events.</summary>
-    public static readonly Type[] Constantes = [typeof(PafHubRota), typeof(PafHubMetodos), typeof(PafHubChamadas)];
+    public static readonly Type[] Constantes = [typeof(PafHubRota), typeof(PafHubMetodos), typeof(PafHubChamadas), typeof(ProgramacaoAlterada)];
 
     public const string PrefixoPedido = "pedido ";
 

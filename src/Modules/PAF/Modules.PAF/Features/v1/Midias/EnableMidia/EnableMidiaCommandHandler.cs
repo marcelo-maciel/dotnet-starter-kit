@@ -4,6 +4,7 @@ using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.PAF.Contracts.v1.Midias;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Escopo;
+using FSH.Modules.PAF.TempoReal;
 using Mediator;
 
 namespace FSH.Modules.PAF.Features.v1.Midias.EnableMidia;
@@ -11,7 +12,8 @@ namespace FSH.Modules.PAF.Features.v1.Midias.EnableMidia;
 public sealed class EnableMidiaCommandHandler(
     PafDbContext db,
     IUnidadeCorrente unidadeCorrente,
-    IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor)
+    IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor,
+    AvisosTempoReal avisos)
     : ICommandHandler<EnableMidiaCommand, MidiaDto>
 {
     public async ValueTask<MidiaDto> Handle(EnableMidiaCommand command, CancellationToken cancellationToken)
@@ -23,8 +25,11 @@ public sealed class EnableMidiaCommandHandler(
         await using var transacao = await db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         var midia = await MidiaTravada.TravarAsync(db, tenantId, unidadeId, command.Id, cancellationToken).ConfigureAwait(false);
         midia.Ativar();
+        var aviso = ProgramacaoAlteradaPaf.Criar(tenantId, unidadeId);
+        await avisos.GravarAsync(aviso, cancellationToken).ConfigureAwait(false);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await transacao.CommitAsync(cancellationToken).ConfigureAwait(false);
+        await avisos.EnviarAsync(aviso, cancellationToken).ConfigureAwait(false);
         return MidiaTravada.ParaDto(midia);
     }
 }

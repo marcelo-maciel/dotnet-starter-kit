@@ -6,6 +6,7 @@ using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Escopo;
 using FSH.Modules.PAF.Sessao;
+using FSH.Modules.PAF.TempoReal;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,6 +20,7 @@ public sealed class CreateMidiaCommandHandler(
     PafDbContext db,
     IUnidadeCorrente unidadeCorrente,
     IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor,
+    AvisosTempoReal avisos,
     ConfirmacaoEnvioMidia confirmacao,
     AtosImpersonacao atos)
     : ICommandHandler<CreateMidiaCommand, MidiaDto>
@@ -26,7 +28,7 @@ public sealed class CreateMidiaCommandHandler(
     public async ValueTask<MidiaDto> Handle(CreateMidiaCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
-        unidadeCorrente.Exigir();
+        var unidadeId = unidadeCorrente.Exigir();
         var tenantId = tenantAccessor.MultiTenantContext?.TenantInfo?.Id ?? throw new UnauthorizedException();
 
         var envio = await confirmacao.LerAsync(command.EnvioId, cancellationToken).ConfigureAwait(false);
@@ -53,8 +55,11 @@ public sealed class CreateMidiaCommandHandler(
 
         var midia = Midia.Criar(envio, command.Descricao.Trim(), command.DuracaoSegundos);
         db.Midias.Add(midia);
+        var aviso = ProgramacaoAlteradaPaf.Criar(tenantId, unidadeId);
+        await avisos.GravarAsync(aviso, cancellationToken).ConfigureAwait(false);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await transacao.CommitAsync(cancellationToken).ConfigureAwait(false);
+        await avisos.EnviarAsync(aviso, cancellationToken).ConfigureAwait(false);
         return MidiaTravada.ParaDto(midia);
     }
 

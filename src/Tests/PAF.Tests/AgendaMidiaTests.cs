@@ -131,4 +131,25 @@ public sealed class AgendaMidiaTests
         agora.ShouldBe(Em(Segunda, 21, 30, 0));
         AgendaMidia.NoAr([segunda, terca], agora).ShouldBe(segunda);
     }
+
+    /// <summary>M06 sends today's programações in this order and M08 takes the first window holding the instant.</summary>
+    [Fact]
+    public void EmOrdemDePrecedencia_PrimeiraJanelaQueContemOInstante_EhSempreANoAr()
+    {
+        var criado = new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
+        var longa = Programacao(new TimeOnly(9, 0), 3600, 3, DiasSemana.Todos) with { CriadoEm = criado };            // 09:00-12:00
+        var curta = Programacao(new TimeOnly(10, 0), 1800, 1, DiasSemana.Todos) with { CriadoEm = criado };           // 10:00-10:30
+        var gemeaMaisNova = curta with { Id = Guid.CreateVersion7(), CriadoEm = criado.AddMinutes(1) };            // same window
+        var tarde = Programacao(new TimeOnly(11, 30), 600, 1, DiasSemana.Todos) with { CriadoEm = criado.AddDays(-1) }; // 11:30-11:40
+
+        var ordem = AgendaMidia.EmOrdemDePrecedencia([longa, curta, tarde, gemeaMaisNova]).ToList();
+
+        ordem.ShouldBe([tarde, gemeaMaisNova, curta, longa]);
+        for (var segundo = 8 * 3600; segundo < 13 * 3600; segundo += 30)
+        {
+            var agora = Segunda.ToDateTime(TimeOnly.MinValue).AddSeconds(segundo);
+            var primeira = ordem.FirstOrDefault(p => AgendaMidia.InicioSegundos(p) <= segundo && segundo < p.HoraFinalSegundos);
+            primeira.ShouldBe(AgendaMidia.NoAr([longa, curta, tarde, gemeaMaisNova], agora), $"{agora:HH:mm:ss}");
+        }
+    }
 }

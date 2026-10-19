@@ -7,6 +7,7 @@ const PafHubMetodos.FilaAtualizada = "FilaAtualizada"
 const PafHubMetodos.SenhaChamada = "SenhaChamada"
 const PafHubMetodos.SenhaRechamada = "SenhaRechamada"
 const PafHubRota.Caminho = "/api/v1/paf/hub"
+const ProgramacaoAlterada.Metodo = "ProgramacaoAlterada"
 pedido EmitirFichaRequest.FilaId: Guid
 pedido EmitirFichaRequest.PrioridadeId: Guid
 pedido RenovarCredencialEstacaoCommand.Segredo: String
@@ -42,6 +43,7 @@ resposta ChamadaPainelDto.NumeroGuiche: Int32?
 resposta ChamadaPainelDto.Senha: String
 resposta ChamadaPainelDto.UltimaRechamadaEm: DateTimeOffset?
 resposta ChamadaPainelDto.Versao: Int32
+resposta ConfiguracaoEstacaoDto.AnuncioDaChamada: AnuncioDaChamadaDto?
 resposta ConfiguracaoEstacaoDto.Botoes: IReadOnlyList<BotaoEmissaoDto>
 resposta ConfiguracaoEstacaoDto.Configuracao: String?
 resposta ConfiguracaoEstacaoDto.EstacaoId: Guid
@@ -71,6 +73,26 @@ resposta FichaEmitidaDto.Unidade: String
 resposta FilaAtualizada.EventoId: Guid
 resposta FilaAtualizada.FilaId: Guid
 resposta FilaAtualizada.UnidadeId: Guid
+resposta ItemMidiaPainelDto.DuracaoSegundos: Int32
+resposta ItemMidiaPainelDto.ExpiraEm: DateTimeOffset
+resposta ItemMidiaPainelDto.ItemId: Guid
+resposta ItemMidiaPainelDto.MidiaId: Guid
+resposta ItemMidiaPainelDto.Tipo: String
+resposta ItemMidiaPainelDto.Url: Uri
+resposta MidiasPainelDto.Agora: DateTimeOffset
+resposta MidiasPainelDto.Lista: IReadOnlyList<ItemMidiaPainelDto>
+resposta MidiasPainelDto.Programacoes: IReadOnlyList<ProgramacaoPainelDto>
+resposta ProgramacaoAlterada.EventoId: Guid
+resposta ProgramacaoAlterada.UnidadeId: Guid
+resposta ProgramacaoPainelDto.DuracaoSegundos: Int32
+resposta ProgramacaoPainelDto.ExpiraEm: DateTimeOffset
+resposta ProgramacaoPainelDto.FimSegundos: Int32
+resposta ProgramacaoPainelDto.InicioSegundos: Int32
+resposta ProgramacaoPainelDto.MidiaId: Guid
+resposta ProgramacaoPainelDto.ProgramacaoId: Guid
+resposta ProgramacaoPainelDto.Repeticoes: Int32
+resposta ProgramacaoPainelDto.Tipo: String
+resposta ProgramacaoPainelDto.Url: Uri
 resposta SenhaChamada.AtendimentoId: Guid
 resposta SenhaChamada.EstacaoId: Guid
 resposta SenhaChamada.EventoId: Guid

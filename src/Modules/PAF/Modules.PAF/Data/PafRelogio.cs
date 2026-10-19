@@ -22,6 +22,10 @@ internal static class PafRelogio
     public static async Task<DateOnly> HojeAsync(PafDbContext db, CancellationToken ct) =>
         DateOnly.FromDateTime(await AgoraEmSaoPauloAsync(db, ct).ConfigureAwait(false));
 
+    /// <summary>A São Paulo wall clock read from the database, with its offset, so a screen gets the instant and the wall clock.</summary>
+    public static DateTimeOffset ComFusoDeSaoPaulo(DateTime agoraSaoPaulo) =>
+        new(DateTime.SpecifyKind(agoraSaoPaulo, DateTimeKind.Unspecified), SaoPaulo.GetUtcOffset(agoraSaoPaulo));
+
     /// <summary>Presentation only: the instant itself always comes from the database.</summary>
     public static DateTimeOffset EmSaoPaulo(DateTimeOffset instante) =>
         TimeZoneInfo.ConvertTime(instante, SaoPaulo);
