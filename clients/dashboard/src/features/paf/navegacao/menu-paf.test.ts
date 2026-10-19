@@ -41,3 +41,9 @@ test("rotas do PAF abrem a seção do PAF no menu", () => {
   assert.equal(findSectionForPath("/paf/estacoes"), "paf");
   assert.equal(findSectionForPath("/identity/users"), "identity");
 });
+
+test("fichas em atendimento aparece só com FichasEmAtendimento.View (F07)", () => {
+  assert.deepEqual(itensPaf(["Permissions.PAF.FichasEmAtendimento.View"]), ["/paf/fichas-em-atendimento"]);
+  assert.deepEqual(itensPaf(["Permissions.PAF.FichasDoDia.Cancelar"]), []);
+  assert.equal(findSectionForPath("/paf/fichas-em-atendimento"), "paf");
+});
