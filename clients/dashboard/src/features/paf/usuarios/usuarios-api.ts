@@ -72,3 +72,8 @@ export function copiarPerfil(id: string, usuarioOrigemId: string, cancelarAtendi
 export function listarAtendimentosEmCurso(id: string) {
   return apiFetch<AtendimentoEmCursoDto[]>(`${BASE}/${id}/atendimentos-em-curso`);
 }
+
+/** C16: the administrator sets another user's password; every session of that user drops on success. */
+export function definirSenha(id: string, senha: string, confirmacaoSenha: string) {
+  return apiFetch<string>(`${BASE}/${id}/senha`, { method: "POST", body: JSON.stringify({ senha, confirmacaoSenha }) });
+}

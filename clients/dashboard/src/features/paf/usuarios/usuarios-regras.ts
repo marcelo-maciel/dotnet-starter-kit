@@ -40,3 +40,8 @@ export function sugestaoDeEmail(nome: string, sobrenome: string, dominio: string
   const local = [parte(nome), parte(sobrenome)].filter((p) => p !== "").join(".");
   return local === "" ? null : `${local}@${dominio}`;
 }
+
+/** C16: the confirm button of "Definir senha" waits for a non-blank password typed the same way twice. */
+export function senhaProntaParaDefinir(senha: string, confirmacao: string): boolean {
+  return senha.trim() !== "" && senha === confirmacao;
+}

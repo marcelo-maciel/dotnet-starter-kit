@@ -18,11 +18,13 @@ import {
   type UsuarioPafDto,
 } from "@/features/paf/usuarios/usuarios-api";
 import { dominioDoEmail, moverUnidade, ROTULO_PRINCIPAL, sugestaoDeEmail, unidadesRetiradas } from "@/features/paf/usuarios/usuarios-regras";
+import { definirSenha } from "@/features/paf/usuarios/usuarios-api";
+import { senhaProntaParaDefinir } from "@/features/paf/usuarios/usuarios-regras";
 
 const CHAVE_USUARIOS = ["paf", "usuarios"] as const;
 const CHAVE_UNIDADES = ["paf", "unidades", "cadastro"] as const;
 
-type Modo = "editar" | "escopo" | "copiar" | "desativar";
+type Modo = "editar" | "escopo" | "copiar" | "desativar" | "senha";
 
 function textoOuNulo(valor: string): string | null {
   const limpo = valor.trim();
@@ -202,6 +204,7 @@ export function UsuariosPage() {
       escopo: () => definirEscopo(u.id, escopo, empresa, cancelar),
       copiar: () => copiarPerfil(u.id, origem, cancelar),
       desativar: () => desativarUsuario(u.id, cancelar),
+      senha: () => definirSenha(u.id, senha, confirmacao),
     };
     if (await executar(acoes[aberto.modo])) {
       setAberto(null);
@@ -378,6 +381,15 @@ export function UsuariosPage() {
                     )}
                   </>
                 )}
+                {aberto.modo === "senha" && (
+                  <>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Input aria-label="Nova senha" type="password" autoComplete="new-password" value={senha} onChange={(e) => setSenha(e.target.value)} />
+                      <Input aria-label="Confirmar nova senha" type="password" autoComplete="new-password" value={confirmacao} onChange={(e) => setConfirmacao(e.target.value)} />
+                    </div>
+                    <p className="text-sm">Todas as sessões do usuário caem agora; ele entra de novo com a senha nova.</p>
+                  </>
+                )}
                 {aberto.modo === "desativar" && (
                   <>
                     <p className="text-sm">O usuário perde o acesso e todas as sessões dele caem agora.</p>
@@ -388,7 +400,12 @@ export function UsuariosPage() {
                   <Button
                     size="sm"
                     variant={aberto.modo === "desativar" ? "destructive" : "default"}
-                    disabled={ocupado || (aberto.modo === "copiar" && origem === "") || (aberto.modo === "escopo" && escopo.length === 0)}
+                    disabled={
+                      ocupado ||
+                      (aberto.modo === "copiar" && origem === "") ||
+                      (aberto.modo === "escopo" && escopo.length === 0) ||
+                      (aberto.modo === "senha" && !senhaProntaParaDefinir(senha, confirmacao))
+                    }
                     onClick={() => void confirmar(u)}
                   >
                     Confirmar
@@ -409,6 +426,11 @@ export function UsuariosPage() {
                 <Button size="sm" variant="outline" disabled={ocupado} onClick={() => abrir(u, "copiar")}>
                   Copiar perfil
                 </Button>
+                {u.ativo && u.id !== user?.id && (
+                  <Button size="sm" variant="outline" disabled={ocupado} onClick={() => abrir(u, "senha")}>
+                    Definir senha
+                  </Button>
+                )}
                 {u.ativo && (
                   <Button size="sm" variant="destructive" disabled={ocupado} onClick={() => abrir(u, "desativar")}>
                     Desativar
