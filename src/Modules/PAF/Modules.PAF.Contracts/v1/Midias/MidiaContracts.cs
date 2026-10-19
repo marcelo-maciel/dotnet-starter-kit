@@ -62,3 +62,15 @@ public sealed record DisableMidiaCommand(Guid Id) : ICommand<MidiaDto>, IEscrita
 
 /// <summary>Mídias of the current unidade, by description. There is no deletion (RF03): only disable.</summary>
 public sealed record ListMidiasQuery : IQuery<IReadOnlyList<MidiaDto>>;
+
+/// <summary>
+/// Signed read URL of a mídia (M04). <paramref name="Url"/> is absolute (the store's signed GET, or the API's own path
+/// with the local store) and stops working at <paramref name="ExpiraEm"/>; read it again before that.
+/// </summary>
+public sealed record UrlLeituraMidiaDto(Uri Url, DateTimeOffset ExpiraEm);
+
+/// <summary>
+/// Preview URL of mídia <paramref name="Id"/> of the current unidade, valid for one exhibition of its duration plus the
+/// margin. 404 outside the unidade; 409 when the mídia is inactive or its file is not confirmed.
+/// </summary>
+public sealed record GetMidiaUrlQuery(Guid Id) : IQuery<UrlLeituraMidiaDto>;

@@ -93,6 +93,7 @@ using FSH.Modules.PAF.Midias;
 using FSH.Modules.PAF.Features.v1.Midias;
 using FSH.Modules.PAF.Features.v1.Midias.CreateMidia;
 using FSH.Modules.PAF.Features.v1.Midias.EnableMidia;
+using FSH.Modules.PAF.Features.v1.Midias.GetMidiaUrl;
 using FSH.Modules.PAF.Features.v1.Midias.ListMidias;
 using FSH.Modules.PAF.Features.v1.Midias.PedirEnvioMidia;
 using FSH.Modules.PAF.Features.v1.Midias.TrocarArquivoMidia;
@@ -145,6 +146,8 @@ public sealed class PafModule : IModule
         ConfigurarSessao(builder.Services);
         OpcoesMidia.Registrar(builder.Services);
         RegistrarCadastroDeMidia(builder.Services);
+        // RF03 (M04): signed read URL with the unidade check and a short cache.
+        builder.Services.AddScoped<UrlLeituraMidia>();
         LogSemDadosPessoais.Registrar(builder.Configuration);
     }
 
@@ -204,6 +207,9 @@ public sealed class PafModule : IModule
 
         // RF03 (M03): mídia cadastro, upload by presigned URL.
         MapearMidias(cadastro);
+
+        // RF03 (M04): preview by signed read URL.
+        cadastro.MapGetMidiaUrlEndpoint();
 
         // No group-wide RequireAuthorization: redeeming a link and renewing a credential are anonymous.
         var estacao = endpoints
