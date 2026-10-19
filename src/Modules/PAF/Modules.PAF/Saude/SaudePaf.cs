@@ -3,7 +3,9 @@ using FSH.Modules.PAF.Sessao;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Npgsql;
 using StackExchange.Redis;
 
 namespace FSH.Modules.PAF.Saude;
@@ -49,17 +51,29 @@ public sealed record SaudePafDto(string Status, IReadOnlyList<ItemSaudePafDto> I
 
 public sealed record ItemSaudePafDto(string Nome, string Status, string? Descricao);
 
-/// <summary>PostgreSQL do PAF, com teto próprio: um banco parado não pode segurar a sonda.</summary>
+/// <summary>
+/// PostgreSQL do PAF, com teto próprio: um banco parado não pode segurar a sonda. Conexão própria, fora do pool e
+/// do DbContext: com o servidor travado, uma conexão do pool devolvida no descarte do escopo fica presa até o banco
+/// voltar e leva a sonda junto.
+/// </summary>
 public sealed class SaudePostgresPaf(PafDbContext db) : IHealthCheck
 {
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
-        // WaitAsync, not only the token: a paused server can keep the driver past a cancellation. The
-        // TimeoutException reaches the HealthCheckService, which reports the registration's failure status.
-        var conecta = await db.Database.CanConnectAsync(cancellationToken).WaitAsync(SaudePaf.PrazoPostgres, cancellationToken);
-        return conecta
-            ? HealthCheckResult.Healthy("PostgreSQL acessível.")
-            : HealthCheckResult.Unhealthy("PostgreSQL inacessível.");
+        var prazo = (int)SaudePaf.PrazoPostgres.TotalSeconds / 2;
+        var texto = new NpgsqlConnectionStringBuilder(db.Database.GetConnectionString())
+        {
+            Pooling = false,
+            Timeout = prazo,
+            CommandTimeout = prazo,
+            // Skip waiting for the server to acknowledge the cancellation of a timed-out probe: it is stalled too.
+            CancellationTimeout = -1,
+        };
+        await using var conexao = new NpgsqlConnection(texto.ConnectionString);
+        await conexao.OpenAsync(cancellationToken);
+        await using var comando = new NpgsqlCommand("SELECT 1", conexao);
+        await comando.ExecuteScalarAsync(cancellationToken);
+        return HealthCheckResult.Healthy("PostgreSQL acessível.");
     }
 }
 

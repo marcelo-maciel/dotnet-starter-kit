@@ -33,9 +33,14 @@ namespace Integration.Tests.Tests.PAF;
 [Collection(PafHostValkeyColecao.Nome)]
 public sealed class PafModoDegradadoTests(PafHostValkey host, ITestOutputHelper saida) : IAsyncLifetime
 {
-    // Ceiling of a guichê operation with the Valkey paused: the PAF's own Valkey calls stop at 500 ms and the
-    // kit's at the connection string's 500 ms (PafHostValkey.PrazosValkey).
+    // Ceilings with the Valkey paused. Each kit call to the Valkey costs the connection's asyncTimeout (500 ms,
+    // PafHostValkey.PrazosValkey) plus up to the client's 1 s heartbeat that detects it. Guichê p95: Finbuckle's
+    // tenant cache read, the PAF's own 500 ms calls and 100 ms per notice. One-off operation (unit switch,
+    // impersonation): plus the grant's HybridCache L2 read and write. Emission: plus the kit idempotency filter's
+    // four calls (probe, reservation, probe, store), the latency the kit imposes and the PAF cannot shorten.
     private static readonly TimeSpan TetoOperacao = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan TetoOperacaoAvulsa = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan TetoEmissao = TimeSpan.FromSeconds(7);
     private static readonly TimeSpan TetoSaudeSemBanco = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan EsperaReconstrucao = TimeSpan.FromSeconds(45);
 
@@ -106,7 +111,7 @@ public sealed class PafModoDegradadoTests(PafHostValkey host, ITestOutputHelper 
         repetida.FichaId.ShouldBe(ficha.FichaId);
         repetida.Senha.ShouldBe(ficha.Senha);
         (await ContarFichasAsync(c)).ShouldBe(1);
-        tempoPrimeira.ShouldBeLessThan(TetoOperacao);
+        tempoPrimeira.ShouldBeLessThan(TetoEmissao);
     }
 
     [Fact]
@@ -189,7 +194,7 @@ public sealed class PafModoDegradadoTests(PafHostValkey host, ITestOutputHelper 
             troca.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable, await troca.Content.ReadAsStringAsync());
         }
 
-        relogio.Elapsed.ShouldBeLessThan(TetoOperacao);
+        relogio.Elapsed.ShouldBeLessThan(TetoOperacaoAvulsa);
         await RetomarValkeyAsync();
 
         var depois = await EsperarAsync(
@@ -238,7 +243,7 @@ public sealed class PafModoDegradadoTests(PafHostValkey host, ITestOutputHelper 
         saida.WriteLine($"concessão sem cache com Valkey pausado: {relogio.Elapsed.TotalMilliseconds:F0} ms");
         unidades.StatusCode.ShouldBe(HttpStatusCode.OK, await unidades.Content.ReadAsStringAsync());
         (await unidades.Content.ReadAsStringAsync()).ShouldContain(c.UnidadeId.ToString());
-        relogio.Elapsed.ShouldBeLessThan(TetoOperacao);
+        relogio.Elapsed.ShouldBeLessThan(TetoOperacaoAvulsa);
     }
 
     [Fact]

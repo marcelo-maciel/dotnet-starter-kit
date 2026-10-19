@@ -16,9 +16,12 @@ namespace FSH.Modules.PAF.Saude;
 /// </summary>
 internal static partial class CacheDeTenantSemValkey
 {
+    // What a request waits for the cache copy; it is a copy, so past this it goes on in the background.
+    private static readonly TimeSpan PrazoCopia = TimeSpan.FromMilliseconds(100);
+
     // ponytail: a PostConfigure over the kit's event, because MultitenancyModule.cs is outside ADR 0008. Ceiling:
-    // each request pays the Valkey asyncTimeout twice (Finbuckle's read and this write) while it is down. Upgrade
-    // path: the same try/catch in the kit (upstream), then delete this file and its line in PafModule.
+    // while the Valkey is down each request still pays Finbuckle's cache read (the asyncTimeout) plus PrazoCopia.
+    // Upgrade path: the same guard in the kit (upstream), then delete this file and its line in PafModule.
     public static void Registrar(IServiceCollection services) =>
         services.PostConfigure<MultiTenantOptions<AppTenantInfo>>(opcoes =>
         {
@@ -28,23 +31,44 @@ internal static partial class CacheDeTenantSemValkey
                 return;
             }
 
-            opcoes.Events.OnTenantResolveCompleted = async contexto =>
-            {
-                try
-                {
-                    await doKit(contexto).ConfigureAwait(false);
-                }
-                // The tenant is already resolved from the database; only its cache copy is lost. Outside a request
-                // (no logger to reach) the failure propagates as before.
-                catch (Exception ex) when (ex is RedisException or TimeoutException && contexto.Context is HttpContext)
-                {
-                    var http = (HttpContext)contexto.Context;
-                    LogCopiaPerdida(http.RequestServices.GetRequiredService<ILogger<MultiTenantOptions<AppTenantInfo>>>(), ex);
-                }
-            };
+            // Outside a request (no logger to reach) the kit's behaviour stays as it is.
+            opcoes.Events.OnTenantResolveCompleted = contexto =>
+                contexto.Context is HttpContext http
+                    ? CopiarSemSegurarAsync(doKit(contexto), http.RequestServices.GetRequiredService<ILogger<MultiTenantOptions<AppTenantInfo>>>())
+                    : doKit(contexto);
         });
 
+    // The tenant is already resolved from the database; only its cache copy can be lost.
+    private static async Task CopiarSemSegurarAsync(Task copia, ILogger logger)
+    {
+        try
+        {
+            await copia.WaitAsync(PrazoCopia).ConfigureAwait(false);
+        }
+        catch (TimeoutException) when (!copia.IsCompleted)
+        {
+            _ = ObservarAsync(copia, logger);
+        }
+        catch (Exception ex) when (ex is RedisException or TimeoutException)
+        {
+            LogCopiaPerdida(logger, ex);
+        }
+    }
+
+    // Never faults: the discarded copy must not become an unobserved exception.
+    private static async Task ObservarAsync(Task copia, ILogger logger)
+    {
+        try
+        {
+            await copia.ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            LogCopiaPerdida(logger, ex);
+        }
+    }
+
     [LoggerMessage(EventId = 9140, Level = LogLevel.Warning,
-        Message = "Valkey indisponivel ao gravar o tenant no cache distribuido; segue resolvido pelo banco (modo degradado)")]
+        Message = "Gravacao do tenant no cache distribuido falhou (Valkey indisponivel?); segue resolvido pelo banco")]
     private static partial void LogCopiaPerdida(ILogger logger, Exception ex);
 }

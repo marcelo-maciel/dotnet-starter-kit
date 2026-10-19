@@ -18,7 +18,7 @@ public sealed partial class AvisosTempoReal(
 
     // S14: what the request waits for the fast path. The backplane publish ignores the token, so with the Valkey
     // stalled it would hold every guichê and totem response for the connection's asyncTimeout per notice.
-    private static readonly TimeSpan PrazoEnvioDireto = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan PrazoEnvioDireto = TimeSpan.FromMilliseconds(100);
 
     // The outbox store saves immediately and joins the ambient transaction of the scope's connection,
     // so the row commits or rolls back with the state change.
