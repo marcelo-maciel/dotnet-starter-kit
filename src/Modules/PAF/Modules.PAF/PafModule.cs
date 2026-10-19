@@ -68,6 +68,8 @@ using FSH.Modules.PAF.Features.v1.Unidades.EnableUnidade;
 using FSH.Modules.PAF.Features.v1.Unidades.GetAdministracaoUnidades;
 using FSH.Modules.PAF.Features.v1.Unidades.ListUnidades;
 using FSH.Modules.PAF.Features.v1.Unidades.UpdateUnidade;
+using FSH.Modules.PAF.Features.v1.Usuarios;
+using FSH.Modules.PAF.Features.v1.UsuariosUnidade;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.GetUsuarioUnidades;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.SetUsuarioUnidades;
 using FSH.Modules.PAF.Midias;
@@ -148,6 +150,9 @@ public sealed class PafModule : IModule
 
         // RF07 (E0): reads the caller's scope, never the current unit.
         cadastro.MapGetEstatisticaEndpoint();
+
+        // RF08 user cadastro (C12).
+        cadastro.MapUsuariosPafEndpoints();
 
         // No group-wide RequireAuthorization: redeeming a link and renewing a credential are anonymous.
         var estacao = endpoints
@@ -242,6 +247,11 @@ public sealed class PafModule : IModule
     {
         services.AddScoped<EscopoUsuario>();
         services.AddScoped<PafDemoSeeder>();
+
+        // RF08 user cadastro (C12).
+        services.AddScoped<ConcessaoDeEscopo>();
+        services.AddScoped<PapeisDoUsuarioPaf>();
+        services.AddScoped<AtendimentosEmCursoDoUsuario>();
     }
 
     // Cadastros and unit scope.

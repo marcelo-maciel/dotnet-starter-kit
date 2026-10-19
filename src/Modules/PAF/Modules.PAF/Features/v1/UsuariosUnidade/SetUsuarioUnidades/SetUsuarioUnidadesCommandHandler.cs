@@ -1,12 +1,14 @@
 using Finbuckle.MultiTenant.Abstractions;
-using FSH.Framework.Core.Exceptions;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.PAF.Contracts.v1.UsuariosUnidade;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Escopo;
+using FSH.Modules.PAF.Features.v1.Atendimentos;
+using FSH.Modules.PAF.Features.v1.Usuarios;
 using FSH.Modules.PAF.Sessao;
+using FSH.Modules.PAF.TempoReal;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,7 +20,8 @@ namespace FSH.Modules.PAF.Features.v1.UsuariosUnidade.SetUsuarioUnidades;
 /// tenant and edits any user; anyone else grants only inside his own
 /// effective scope and only edits a user whose whole scope fits in it. Reordering is an UPDATE of
 /// <c>Ordem</c>, never delete and recreate (RF08). Taking out the unidade a live session is operating revokes that
-/// session in the same act (RF08).
+/// session in the same act (RF08), and with <see cref="SetUsuarioUnidadesCommand.CancelarAtendimentosEmCurso"/> his
+/// atendimentos in progress there are cancelled by the RF12 cancel in the scope's own transaction (C12).
 /// </summary>
 public sealed class SetUsuarioUnidadesCommandHandler(
     PafDbContext db,
@@ -26,7 +29,10 @@ public sealed class SetUsuarioUnidadesCommandHandler(
     IUserProfileService userService,
     EstadoSessao estado,
     RevogacaoSessao revogacao,
-    IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor)
+    IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor,
+    ConcessaoDeEscopo concessao,
+    AtendimentosEmCursoDoUsuario emCurso,
+    AvisosTempoReal avisos)
     : ICommandHandler<SetUsuarioUnidadesCommand, Guid>
 {
     public const string MensagemUnidadeInvalida = "Unidade inexistente ou inativa.";
@@ -52,14 +58,19 @@ public sealed class SetUsuarioUnidadesCommandHandler(
             await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({chave}, 0))", cancellationToken)
                 .ConfigureAwait(false);
 
-            await ExigirConcessaoAsync(command, cancellationToken).ConfigureAwait(false);
+            await concessao.ExigirAsync(command.UsuarioId, command.Unidades, command.EscopoEmpresa, cancellationToken).ConfigureAwait(false);
 
             antes = await escopo.EscopoEfetivoAsync(command.UsuarioId, cancellationToken).ConfigureAwait(false);
             await GravarAsync(command, cancellationToken).ConfigureAwait(false);
             depois = await escopo.EscopoEfetivoAsync(command.UsuarioId, cancellationToken).ConfigureAwait(false);
 
-            // UX_UsuariosUnidade_Ordem is deferred: a duplicated principal is refused here, at commit.
-            await transacao.CommitAsync(cancellationToken).ConfigureAwait(false);
+            IReadOnlyList<AvisoPaf> cancelamentos = command.CancelarAtendimentosEmCurso
+                ? await emCurso.CancelarAsync(tenantId, command.UsuarioId, antes.Except(depois).ToHashSet(), cancellationToken).ConfigureAwait(false)
+                : [];
+
+            // UX_UsuariosUnidade_Ordem is deferred: a duplicated principal is refused here, at commit, and takes the
+            // cancels and their outbox rows with it.
+            await OperacaoGuiche.ConfirmarEAvisarTodosAsync(transacao, avisos, cancelamentos, cancellationToken).ConfigureAwait(false);
         }
 
         var retiradas = antes.Except(depois).ToHashSet();
@@ -69,28 +80,6 @@ public sealed class SetUsuarioUnidadesCommandHandler(
         }
 
         return command.UsuarioId;
-    }
-
-    private async Task ExigirConcessaoAsync(SetUsuarioUnidadesCommand command, CancellationToken ct)
-    {
-        bool administraTenant = await escopo.AdministraTenantAsync(ct).ConfigureAwait(false);
-        if (command.EscopoEmpresa && !administraTenant)
-        {
-            throw new ForbiddenException(MensagemSoEmpresaConcedeEmpresa);
-        }
-
-        if (administraTenant)
-        {
-            await ExigirUnidadesAtivasAsync(command.Unidades, ct).ConfigureAwait(false);
-            return;
-        }
-
-        await escopo.ExigirAlcanceSobreAsync(command.UsuarioId, ct).ConfigureAwait(false);
-        var doChamador = (await escopo.EscopoEfetivoAsync(escopo.ObterUsuarioId(), ct).ConfigureAwait(false)).ToHashSet();
-        if (!command.Unidades.All(doChamador.Contains))
-        {
-            throw new ForbiddenException(MensagemForaDoEscopoDeQuemConcede);
-        }
     }
 
     private async Task GravarAsync(SetUsuarioUnidadesCommand command, CancellationToken ct)
@@ -133,18 +122,6 @@ public sealed class SetUsuarioUnidadesCommandHandler(
         }
 
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
-    }
-
-    // Unidade carries only the tenant filter: an id of another tenant counts as missing.
-    private async Task ExigirUnidadesAtivasAsync(IReadOnlyCollection<Guid> unidades, CancellationToken ct)
-    {
-        var ativas = await db.Unidades.AsNoTracking()
-            .CountAsync(u => unidades.Contains(u.Id) && u.Ativa, ct)
-            .ConfigureAwait(false);
-        if (ativas != unidades.Distinct().Count())
-        {
-            throw new CustomException(MensagemUnidadeInvalida, (IEnumerable<string>?)null, System.Net.HttpStatusCode.BadRequest);
-        }
     }
 
     // Only sessions holding a licence row can be operating; one whose mark expired is refused anyway and comes

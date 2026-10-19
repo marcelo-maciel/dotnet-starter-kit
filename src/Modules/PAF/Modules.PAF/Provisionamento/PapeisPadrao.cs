@@ -109,7 +109,7 @@ public static class PapeisPadrao
     }
 
     // The kit search is a case-insensitive "contains" over name and description; only the exact name counts.
-    private static async Task<Identity.Contracts.DTOs.RoleDto?> BuscarAsync(IRoleService papeis, string nome, CancellationToken ct)
+    internal static async Task<Identity.Contracts.DTOs.RoleDto?> BuscarAsync(IRoleService papeis, string nome, CancellationToken ct)
     {
         var pagina = await papeis.GetRolesAsync(1, 200, nome, ct);
         return pagina.Items.FirstOrDefault(r => string.Equals(r.Name, nome, StringComparison.Ordinal));
