@@ -5,6 +5,7 @@ import { ProtectedRoute } from "@/auth/protected-route";
 import { RouteError } from "@/components/route-error";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/cn";
+import { PafTempoRealProvider } from "@/features/paf/tempo-real/paf-tempo-real-provider";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Lazy route boundaries
@@ -122,6 +123,7 @@ const PafResgateVinculoPage = lazyNamed(
 const PafTotemPage = lazyNamed(() => import("@/features/paf/totem/totem-page"), "TotemPage");
 const PafPainelPage = lazyNamed(() => import("@/features/paf/painel/painel-page"), "PainelPage");
 const PafGuichePage = lazyNamed(() => import("@/features/paf/guiche/guiche-page"), "GuichePage");
+const PafLayout = lazyNamed(() => import("@/features/paf/layout/paf-layout"), "PafLayout");
 
 /**
  * RouteFallback — what shows while a lazy chunk is downloading. Mirrors
@@ -220,7 +222,12 @@ export const router = createBrowserRouter([
     errorElement: <RouteError />,
     children: [
       {
-        element: <AppShell />,
+        // PAF (ADR 0008, amended 17/10/2026): one PafHub connection on every screen keeps the licence alive.
+        element: (
+          <PafTempoRealProvider>
+            <AppShell />
+          </PafTempoRealProvider>
+        ),
         errorElement: <RouteError />,
         children: [
           { index: true, element: withSuspense(<OverviewPage />) },
@@ -236,7 +243,12 @@ export const router = createBrowserRouter([
           { path: "files", element: withSuspense(<MyFilesPage />) },
           { path: "chat", element: withSuspense(<ChatPage />) },
           { path: "chat/:channelId", element: withSuspense(<ChatPage />) },
-          { path: "paf/guiche", element: withSuspense(<PafGuichePage />) },
+          {
+            // PAF screens of the signed-in user: current-unit selector on top (RF08). Later screens add children.
+            path: "paf",
+            element: withSuspense(<PafLayout />),
+            children: [{ path: "guiche", element: withSuspense(<PafGuichePage />) }],
+          },
           { path: "tickets", element: withSuspense(<TicketsPage />) },
           { path: "tickets/:ticketId", element: withSuspense(<TicketDetailPage />) },
           { path: "identity", element: <Navigate to="/identity/users" replace /> },

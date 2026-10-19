@@ -1,0 +1,16 @@
+import { ListOrdered, MonitorSmartphone } from "lucide-react";
+import type { NavSection } from "@/components/layout/nav-data";
+
+// PAF section of the dashboard menu (ADR 0008, amended 17/10/2026); nav-data.ts only lists it. Each entry is
+// gated by the permission of the endpoint its page lists from, so nobody lands on a page the API refuses.
+// Every later PAF screen adds its line here. Station screens (totem, painel) are opened by the device link,
+// never from the menu.
+export const secaoMenuPaf: NavSection = {
+  id: "paf",
+  caption: "Atendimento",
+  icon: ListOrdered,
+  items: [
+    // GET guiche/guiches and guiche/posto: Guiches.Selecionar.
+    { to: "/paf/guiche", label: "Guichê", icon: MonitorSmartphone, perm: "Permissions.PAF.Guiches.Selecionar" },
+  ],
+};
