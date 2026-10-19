@@ -350,6 +350,34 @@ try {
   await visivel(imagem.getByRole("button", { name: "Desativar" }));
   check("ativar: volta à leitura do painel", (await doPainel()).includes(idImagem));
 
+  // ── Review M1: a list holding an inactive mídia cannot be saved; the screen points at its position ──
+  // The PUT takes only active mídias and answers one 400 for the whole list: the screen blocks before asking.
+  await api("POST", `/api/v1/paf/midias/${idImagem}/disable`, await tokenDe(p));
+  await p.goto(`${WEB}/paf/estacoes`);
+  await p.locator(`[data-estacao="${estacao.id}"]`).getByRole("button", { name: "Editar" }).click();
+  await visivel(lista.getByText("inativa: pulada no painel"));
+  const putsDaLista = [];
+  p.on("request", (r) => {
+    if (r.method() === "PUT" && r.url().endsWith(`/api/v1/paf/estacoes/${estacao.id}/midias`)) putsDaLista.push(r.url());
+  });
+  await lista.getByRole("button", { name: `Subir Vídeo institucional ${SUFIXO} (posição 2)` }).click();
+  const bloqueio = lista.locator("[data-bloqueio-lista]");
+  check("M1: lista alterada com mídia inativa avisa a posição", await visivel(bloqueio), (await bloqueio.count()) > 0 ? await bloqueio.textContent() : "sem aviso");
+  check("M1: o aviso aponta a posição da inativa (agora a 2ª)", ((await bloqueio.textContent()) ?? "").includes("(posição 2)"), (await bloqueio.textContent()) ?? "");
+  check("M1: Salvar lista bloqueado", await lista.getByRole("button", { name: "Salvar lista" }).isDisabled());
+  await lista.getByRole("button", { name: `Tirar Cartaz ${SUFIXO} (posição 2)` }).click();
+  check("M1: sem a inativa, o aviso some", (await bloqueio.count()) === 0);
+  check("M1: sem a inativa, Salvar lista liberado", await lista.getByRole("button", { name: "Salvar lista" }).isEnabled());
+  check("M1: nenhum PUT enquanto bloqueado", putsDaLista.length === 0, `${putsDaLista.length}`);
+  await lista.getByRole("button", { name: "Salvar lista" }).click();
+  check("M1: salva sem a inativa", await visivel(lista.locator("[data-aviso-lista]")));
+  check("M1: gravada só com a ativa", JSON.stringify(await ordem()) === JSON.stringify([`Vídeo institucional ${SUFIXO}`]), JSON.stringify(await ordem()));
+  // Back to the state the steps below were written against: the image active and the list as it was.
+  await api("POST", `/api/v1/paf/midias/${idImagem}/enable`, await tokenDe(p));
+  const idVideo = (await api("GET", "/api/v1/paf/midias", await tokenDe(p))).find((m) => m.descricao === `Vídeo institucional ${SUFIXO}`).id;
+  await api("PUT", `/api/v1/paf/estacoes/${estacao.id}/midias`, await tokenDe(p), { estacaoId: estacao.id, midias: [idImagem, idVideo] });
+  check("M1: estado anterior restaurado", JSON.stringify(await ordem()) === JSON.stringify([`Cartaz ${SUFIXO}`, `Vídeo institucional ${SUFIXO}`]), JSON.stringify(await ordem()));
+
   // ── Programações: live calculation, midnight, the four filters, deletion ──
   await p.goto(`${WEB}/paf/programacoes`);
   const criar = async (nome, hora, repeticoes, dias) => {
