@@ -28,7 +28,16 @@ test("a seção do PAF não esconde nem mostra seção do kit por engano", () =>
   assert.deepEqual(comPaf.filter((id) => id !== "paf"), kit);
 });
 
+test("cada cadastro aparece só com a permissão da sua listagem", () => {
+  assert.deepEqual(itensPaf(["Permissions.PAF.Unidades.View"]), ["/paf/unidades"]);
+  assert.deepEqual(itensPaf(["Permissions.PAF.Filas.View", "Permissions.PAF.Estacoes.View"]), ["/paf/filas", "/paf/estacoes"]);
+  assert.deepEqual(itensPaf(["Permissions.PAF.Filas.Create", "Permissions.PAF.Estacoes.Update"]), []);
+});
+
 test("rotas do PAF abrem a seção do PAF no menu", () => {
   assert.equal(findSectionForPath("/paf/guiche"), "paf");
+  assert.equal(findSectionForPath("/paf/unidades"), "paf");
+  assert.equal(findSectionForPath("/paf/filas"), "paf");
+  assert.equal(findSectionForPath("/paf/estacoes"), "paf");
   assert.equal(findSectionForPath("/identity/users"), "identity");
 });

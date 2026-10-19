@@ -1,4 +1,4 @@
-import { ListOrdered, MonitorSmartphone } from "lucide-react";
+import { Building2, Layers, ListOrdered, Monitor, MonitorSmartphone } from "lucide-react";
 import type { NavSection } from "@/components/layout/nav-data";
 
 // PAF section of the dashboard menu (ADR 0008, amended 17/10/2026); nav-data.ts only lists it. Each entry is
@@ -12,5 +12,11 @@ export const secaoMenuPaf: NavSection = {
   items: [
     // GET guiche/guiches and guiche/posto: Guiches.Selecionar.
     { to: "/paf/guiche", label: "Guichê", icon: MonitorSmartphone, perm: "Permissions.PAF.Guiches.Selecionar" },
+    // GET unidades: Unidades.View (C02).
+    { to: "/paf/unidades", label: "Unidades", icon: Building2, perm: "Permissions.PAF.Unidades.View" },
+    // GET filas: Filas.View (C09).
+    { to: "/paf/filas", label: "Filas", icon: Layers, perm: "Permissions.PAF.Filas.View" },
+    // GET estacoes: Estacoes.View (C04).
+    { to: "/paf/estacoes", label: "Estações", icon: Monitor, perm: "Permissions.PAF.Estacoes.View" },
   ],
 };
