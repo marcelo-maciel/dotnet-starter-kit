@@ -26,6 +26,7 @@ import { carregarVozes, escolherVoz, falar } from "@/features/paf/painel/voz";
 import { estiloImagemDeFundo, useImagemDeFundo } from "@/features/paf/estacao/imagem-fundo";
 import { lerLogotipo } from "@/features/paf/logotipo/logotipo";
 import { LogotipoImagem } from "@/features/paf/logotipo/logotipo-imagem";
+import { SenhaContida } from "@/features/paf/painel/senha-contida";
 import {
   ANUNCIO_PADRAO,
   lerAnuncioDaChamada,
@@ -254,10 +255,10 @@ export function PainelPage() {
             data-chamada
             className={
               cores !== null
-                ? "rounded-3xl border-[0.1em] px-16 py-10 text-center"
+                ? "max-w-full rounded-3xl border-[0.1em] px-16 py-10 text-center"
                 : destaque !== null
-                  ? "rounded-3xl bg-yellow-400 px-16 py-10 text-center text-black"
-                  : "rounded-3xl px-16 py-10 text-center"
+                  ? "max-w-full rounded-3xl bg-yellow-400 px-16 py-10 text-center text-black"
+                  : "max-w-full rounded-3xl px-16 py-10 text-center"
             }
             style={
               cores === null
@@ -269,9 +270,7 @@ export function PainelPage() {
             }
           >
             <div className="text-[2.25em]">Senha</div>
-            <div className="text-[10em] leading-none font-bold" data-senha-atual>
-              {principal.senha}
-            </div>
+            <SenhaContida senha={principal.senha} className="text-[10em] leading-none font-bold" />
             <div className="mt-4 text-[3em]">{principal.nomeEstacao}</div>
             {destaque !== null && anuncio.mensagemAoChamar !== "" && (
               <div className="mt-4 text-[2em]" data-mensagem-chamada>
@@ -287,12 +286,14 @@ export function PainelPage() {
       {aparencia.mostrarUltimasChamadas && (
         <section aria-label="Últimas chamadas" className="border-t border-white/20 px-8 py-4">
           <h2 className={cores !== null ? "mb-2 text-[1.25em]" : "mb-2 text-[1.25em] text-white/70"}>Últimas chamadas</h2>
-          <ol className="grid grid-cols-2 gap-2 text-[1.5em] md:grid-cols-5">
+          {/* F20: still 2 and 5 columns, but never narrower than 5em, so at a large cadastro font a glyph of the senha
+              fits its cell and the senha wraps inside it instead of running out. */}
+          <ol className="grid grid-cols-[repeat(auto-fill,minmax(max(calc(50%_-_5px),min(100%,5em)),1fr))] gap-2 text-[1.5em] md:grid-cols-[repeat(auto-fill,minmax(max(calc(20%_-_7px),min(100%,5em)),1fr))]">
             {estado.chamadas.map((c) => (
               <li
                 key={c.atendimentoId}
                 data-atendimento={c.atendimentoId}
-                className={cores !== null ? "rounded-lg border px-3 py-2" : "rounded-lg bg-white/10 px-3 py-2"}
+                className={cores !== null ? "min-w-0 rounded-lg border px-3 py-2 [overflow-wrap:anywhere]" : "min-w-0 rounded-lg bg-white/10 px-3 py-2 [overflow-wrap:anywhere]"}
               >
                 <span className="font-bold">{c.senha}</span>{" "}
                 <span className={cores !== null ? undefined : "text-white/80"}>{c.nomeEstacao}</span>

@@ -42,6 +42,8 @@ export const FichaImpressa = forwardRef<HTMLDivElement, Props>(function FichaImp
           color: "#000",
           fontFamily: "Arial, Helvetica, sans-serif",
           textAlign: "center",
+          // F20: a long unidade, fila or footer word breaks inside the 80 mm instead of running past the paper edge.
+          overflowWrap: "anywhere",
         }}
       >
         <div data-logotipo-ficha style={{ display: "flex", justifyContent: "center", marginBottom: "2mm" }}>
