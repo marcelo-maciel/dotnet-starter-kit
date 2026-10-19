@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/api-client";
+import type { PapelEstacaoMonitorado } from "./monitoramento";
 
 // The Codefi operator works on one client tenant per request (arquitetura seção 6): every call names that tenant
 // in the header explicitly, never by swapping the token store's tenant, which the refresh must keep as root.
@@ -62,4 +63,15 @@ export function alterarContrato(tenantId: string, contratoId: string, contrato: 
     headers: noTenant(tenantId),
     body: JSON.stringify({ id: contratoId, ...contrato }),
   });
+}
+
+// O13 (RNF20): station monitoring of the client tenant, one tenant per request like the units.
+export type MonitoramentoEstacoesDto = {
+  agoraEmSaoPaulo: string;
+  estadoPeloRegistro: boolean;
+  papeis: PapelEstacaoMonitorado[];
+};
+
+export function listarEstacoesDoTenant(tenantId: string): Promise<MonitoramentoEstacoesDto> {
+  return apiFetch<MonitoramentoEstacoesDto>(`${BASE}/operador/estacoes`, { headers: noTenant(tenantId) });
 }

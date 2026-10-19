@@ -43,6 +43,7 @@ const AuditsListPage = lazyNamed(() => import("@/pages/audits/list"), "AuditsLis
 const HealthPage = lazyNamed(() => import("@/pages/health/page"), "HealthPage");
 const ImpersonationListPage = lazyNamed(() => import("@/pages/impersonation/list"), "ImpersonationListPage");
 const UnidadesOperadorPage = lazyNamed(() => import("@/features/paf/operador/unidades-operador-page"), "UnidadesOperadorPage");
+const EstacoesOperadorPage = lazyNamed(() => import("@/features/paf/operador/estacoes-operador-page"), "EstacoesOperadorPage");
 const WebhooksListPage = lazyNamed(() => import("@/pages/webhooks/list"), "WebhooksListPage");
 const WebhookDetailPage = lazyNamed(() => import("@/pages/webhooks/detail"), "WebhookDetailPage");
 const NotificationsInboxPage = lazyNamed(() => import("@/pages/notifications/inbox"), "NotificationsInboxPage");
@@ -222,6 +223,15 @@ export const router = createBrowserRouter([
             element: (
               <RouteGuard perms={[PermissoesOperadorPaf.UnidadesOperar]}>
                 <UnidadesOperadorPage />
+              </RouteGuard>
+            ),
+          },
+          // O13: station monitoring (RNF20)
+          {
+            path: "paf/estacoes",
+            element: (
+              <RouteGuard perms={[PermissoesOperadorPaf.UnidadesOperar]}>
+                <EstacoesOperadorPage />
               </RouteGuard>
             ),
           },
