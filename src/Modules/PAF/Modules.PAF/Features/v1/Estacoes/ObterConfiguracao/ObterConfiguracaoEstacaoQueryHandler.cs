@@ -26,7 +26,20 @@ public sealed class ObterConfiguracaoEstacaoQueryHandler(PafDbContext db, Leitor
             ?? throw new NotFoundException($"Estacao {query.EstacaoId} not found.");
 
         var botoes = await BotoesAsync(estacao.Id, estacao.UnidadeId, cancellationToken).ConfigureAwait(false);
-        return new ConfiguracaoEstacaoDto(estacao.Id, estacao.UnidadeId, estacao.Nome, estacao.Tipo.ToString(), estacao.Configuracao, botoes);
+        return new ConfiguracaoEstacaoDto(estacao.Id, estacao.UnidadeId, estacao.Nome, estacao.Tipo.ToString(), estacao.Configuracao, botoes)
+        {
+            AnuncioDaChamada = estacao.Tipo == TipoEstacao.Painel
+                ? await AnuncioDaChamadaAsync(estacao.UnidadeId, cancellationToken).ConfigureAwait(false)
+                : null,
+        };
+    }
+
+    // C20: the painel re-reads this on every FilaAtualizada (each call sends one), on reconnection and every 60 s, so a
+    // changed message reaches the screen with the next call without a new hub contract.
+    private async Task<AnuncioDaChamadaDto> AnuncioDaChamadaAsync(Guid unidadeId, CancellationToken ct)
+    {
+        var lidos = await parametros.CarregarAsync(unidadeId, ct).ConfigureAwait(false);
+        return new AnuncioDaChamadaDto(lidos.Ler(CatalogoParametros.MensagemAoChamar), lidos.Ler(CatalogoParametros.ChamarFichaPorVoz));
     }
 
     /// <summary>

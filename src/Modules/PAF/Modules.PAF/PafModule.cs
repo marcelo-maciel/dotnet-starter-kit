@@ -24,6 +24,7 @@ using FSH.Modules.PAF.Features.v1.Atendimentos.EncaminharAtendimento;
 using FSH.Modules.PAF.Features.v1.Atendimentos.IniciarAtendimento;
 using FSH.Modules.PAF.Features.v1.Atendimentos.ListDestinosEncaminhamento;
 using FSH.Modules.PAF.Features.v1.Atendimentos.ListFichasEmEspera;
+using FSH.Modules.PAF.Features.v1.Atendimentos.ObterAguardandoGuiche;
 using FSH.Modules.PAF.Features.v1.Atendimentos.RechamarAtendimento;
 using FSH.Modules.PAF.Features.v1.Atendimentos.ReabilitarAtendimentoDaFicha;
 using FSH.Modules.PAF.Features.v1.Contratos.CreateContratoUnidade;
@@ -314,6 +315,8 @@ public sealed class PafModule : IModule
         guiche.MapListVipFilasEndpoint();
         // C10: hotkeys under the guichê permission.
         guiche.MapGetTeclasGuicheEndpoint();
+        // C20: waiting counts of the guichê, detailed per fila when RF06 asks (D30).
+        guiche.MapGetAguardandoGuicheEndpoint();
     }
 
     // Cadastros and unit scope.

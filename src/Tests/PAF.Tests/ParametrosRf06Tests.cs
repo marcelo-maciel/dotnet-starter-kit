@@ -18,11 +18,14 @@ public sealed class ParametrosRf06Tests
     }
 
     [Fact]
-    public void Catalogo_DeixaDeForaOLogotipoEOsGeraisDeC20()
+    public void Catalogo_DeixaDeForaOLogotipo_ETemOsGeraisDeC20()
     {
         var chaves = CatalogoParametros.Todos.Select(p => p.Chave).ToList();
         chaves.ShouldContain(CatalogoParametros.SomenteFichasDaDataAtual.Chave);
-        chaves.ShouldNotContain(c => c.Contains("logotipo", StringComparison.OrdinalIgnoreCase) || c.Contains("voz", StringComparison.OrdinalIgnoreCase));
+        chaves.ShouldContain(CatalogoParametros.ExibirInformacaoDetalhadaFila.Chave);
+        chaves.ShouldContain(CatalogoParametros.ChamarFichaPorVoz.Chave);
+        chaves.ShouldContain(CatalogoParametros.MensagemAoChamar.Chave);
+        chaves.ShouldNotContain(c => c.Contains("logotipo", StringComparison.OrdinalIgnoreCase));
     }
 
     [Theory]
