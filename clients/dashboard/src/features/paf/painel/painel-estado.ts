@@ -5,6 +5,8 @@
 // - a recall moves the entry to the top, never duplicates it, and does not add a second queue item
 //   while the same atendimento is still waiting its turn;
 // - a cancel removes that atendimento's pending announcement;
+// - a rehabilitation (RF12) sends the atendimento back to Aguardando with a higher Versao: it leaves the list
+//   and the queue like a cancel, and its next call arrives as a new SenhaChamada above that Versao;
 // - the re-query on (re)connect brings at most 10 calls, so it removes a pending announcement only when it
 //   contradicts it (a state other than Chamado with a Versao above the announced one); an atendimento
 //   absent from the re-query keeps its announcement, in its place in the queue.
@@ -91,6 +93,12 @@ export const ESTADO_INICIAL_PAINEL: EstadoPainel = {
 
 const ESTADO_CANCELADO = "Cancelado";
 const ESTADO_CHAMADO = "Chamado";
+const ESTADO_AGUARDANDO = "Aguardando";
+
+/** Cancelled, or rehabilitated back to the queue: either way nothing is being called for it now. */
+function saiDoPainel(estado: string): boolean {
+  return estado === ESTADO_CANCELADO || estado === ESTADO_AGUARDANDO;
+}
 
 function lembrarEvento(estado: EstadoPainel, eventoId: string): string[] {
   const lista = [...estado.eventosAplicados, eventoId];
@@ -138,11 +146,10 @@ function aplicarAtualizacao(estado: EstadoPainel, evento: AtendimentoAtualizadoE
     ...estado,
     chamadas: estado.chamadas
       .map((c) => (c.atendimentoId === evento.atendimentoId ? { ...c, estado: evento.estado } : c))
-      .filter((c) => c.estado !== ESTADO_CANCELADO),
-    fila:
-      evento.estado === ESTADO_CANCELADO
-        ? estado.fila.filter((a) => a.atendimentoId !== evento.atendimentoId)
-        : estado.fila,
+      .filter((c) => !saiDoPainel(c.estado)),
+    fila: saiDoPainel(evento.estado)
+      ? estado.fila.filter((a) => a.atendimentoId !== evento.atendimentoId)
+      : estado.fila,
     versoes: { ...estado.versoes, [evento.atendimentoId]: evento.versao },
     eventosAplicados: lembrarEvento(estado, evento.eventoId),
   };

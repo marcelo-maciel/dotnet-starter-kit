@@ -18,6 +18,7 @@ using FSH.Modules.PAF.Features.v1.Atendimentos.ChamarProximaFicha;
 using FSH.Modules.PAF.Features.v1.Atendimentos.EncerrarAtendimento;
 using FSH.Modules.PAF.Features.v1.Atendimentos.IniciarAtendimento;
 using FSH.Modules.PAF.Features.v1.Atendimentos.RechamarAtendimento;
+using FSH.Modules.PAF.Features.v1.Atendimentos.ReabilitarAtendimentoDaFicha;
 using FSH.Modules.PAF.Features.v1.Contratos.CreateContratoUnidade;
 using FSH.Modules.PAF.Features.v1.Contratos.ListContratosUnidade;
 using FSH.Modules.PAF.Features.v1.Contratos.UpdateContratoUnidade;
@@ -132,6 +133,7 @@ public sealed class PafModule : IModule
             .RequireAuthorization();
         MapCadastroEndpoints(cadastro);
         MapearFichas(cadastro);
+        cadastro.MapRestoreAtendimentoEndpoint();
 
         // No group-wide RequireAuthorization: redeeming a link and renewing a credential are anonymous.
         var estacao = endpoints
