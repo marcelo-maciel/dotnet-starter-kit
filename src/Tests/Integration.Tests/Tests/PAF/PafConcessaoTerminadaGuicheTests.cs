@@ -71,7 +71,7 @@ public sealed class PafConcessaoTerminadaGuicheTests(FshWebApplicationFactory fa
         await _op.DrenarCaixaDeSaidaAsync();
 
         (await VinculosAtivosDaConcessaoAsync(c, suporte.Concessao)).ShouldBe(0, "o consumidor soltou o vínculo da concessão");
-        (await Task.WhenAny(fechou, Task.Delay(Espera))).ShouldBe(fechou, "o consumidor encerra a conexão da concessão");
+        (await Task.WhenAny(fechou, Task.Delay(Espera))).ShouldBe(fechou, "a conexão da concessão terminada fecha (aqui também pelo kit; a prova do consumidor é SoOConsumidor)");
         await ColegaChamaNoGuicheEOSuporteNaoRecebeAsync(c, chamadasDoSuporte);
     }
 
@@ -92,7 +92,7 @@ public sealed class PafConcessaoTerminadaGuicheTests(FshWebApplicationFactory fa
         await _op.DrenarCaixaDeSaidaAsync();
 
         (await VinculosAtivosDaConcessaoAsync(c, suporte.Concessao)).ShouldBe(0, "a revogação solta como o fim");
-        (await Task.WhenAny(fechou, Task.Delay(Espera))).ShouldBe(fechou, "a conexão da concessão revogada é encerrada");
+        (await Task.WhenAny(fechou, Task.Delay(Espera))).ShouldBe(fechou, "a conexão da concessão revogada fecha (aqui também pelo kit; a prova do consumidor é SoOConsumidor)");
         var depois = await _op.AtendimentoAsync(c, antes.Id);
         depois.Estado.ShouldBe(EstadoAtendimento.Chamado, "o atendimento em curso fica no guichê (REQ l.599)");
         depois.Versao.ShouldBe(antes.Versao, "a soltura do vínculo não escreve no atendimento");
