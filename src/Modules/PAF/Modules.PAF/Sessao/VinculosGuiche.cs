@@ -122,6 +122,23 @@ internal static class VinculosGuiche
             $"""UPDATE paf."SessoesEstacao" SET "LiberadoEm" = now() WHERE "TenantId" = {tenantId} AND "Id" = {vinculoId} AND "LiberadoEm" IS NULL""",
             ct);
 
+    // ─── S12: concessão de impersonação terminada ─────────────────────────────────
+
+    /// <summary>
+    /// Solta o vínculo ativo da concessão terminada (encerrada ou revogada no kit), com ou sem atendimento em curso no
+    /// guichê: o atendimento fica no guichê para o RF12 (REQ l.599), então não há recusa, que no consumidor do evento
+    /// viraria reentrega sem fim. Uma chamada do suporte em voo trava a linha (<see cref="TravarAtivoDoDonoAsync"/>), e
+    /// este UPDATE espera o commit dela. Devolve quantos vínculos soltou: zero quando outro escritor já soltou (evento
+    /// repetido, seleção de outro usuário, job de S08).
+    /// </summary>
+    public static Task<int> SoltarDaConcessaoAsync(PafDbContext db, string tenantId, Guid concessaoId, CancellationToken ct) =>
+        db.Database.ExecuteSqlAsync($"""
+            UPDATE paf."SessoesEstacao" SET "LiberadoEm" = now()
+             WHERE "TenantId" = {tenantId} AND "ConcessaoId" = {concessaoId} AND "LiberadoEm" IS NULL
+            """, ct);
+
+    // ─── fim S12 ──────────────────────────────────────────────────────────────────
+
     // FOR UPDATE outside a transaction autocommits and holds nothing; fail loudly instead of locking nothing.
     private static void ExigirTransacao(PafDbContext db)
     {

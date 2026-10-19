@@ -72,5 +72,9 @@ public sealed class EstadoSessao(IEnumerable<IConnectionMultiplexer> multiplexer
             : TentarAsync(concessaoId, db => db.StringSetAsync(ChaveConcessao(tenantId, concessaoId), unidadeId.ToString(), validade), false, ct);
     }
 
+    /// <summary>S12: the grant ended or was revoked; its unit must not outlive it until the TTL. False when Valkey did not answer.</summary>
+    public Task<bool> RemoverUnidadeDaConcessaoAsync(string tenantId, Guid concessaoId, CancellationToken ct) =>
+        TentarAsync(concessaoId, db => db.KeyDeleteAsync(ChaveConcessao(tenantId, concessaoId)), false, ct);
+
     private static RedisKey ChaveConcessao(string tenantId, Guid concessaoId) => $"paf:{tenantId}:concessao:{concessaoId:N}:unidade";
 }

@@ -1,6 +1,8 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json;
 using FSH.Framework.Core.Exceptions;
+using FSH.Modules.Identity.Contracts.Events;
+using FSH.Modules.Identity.Contracts.v1.Impersonation;
 using FSH.Modules.PAF.Contracts.Authorization;
 using FSH.Modules.PAF.Contracts.v1.Prioridades;
 using FSH.Modules.PAF.Contracts.v1.Sessao;
@@ -280,6 +282,33 @@ public sealed class PafImpersonacaoUnidadeTests(FshWebApplicationFactory factory
         {
             await op.DrenarCaixaDeSaidaAsync();
         }
+    }
+
+    // S12: the terminated grant's unit is dropped from the Valkey with its link, never the impersonated user's session state.
+    [Fact]
+    public async Task ComValkey_ConcessaoTerminada_ApagaAUnidadeDaConcessao_SoltaOVinculo_ENaoTocaNaSessaoDoUsuario()
+    {
+        var (a, b, alvo) = await CenarioAsync();
+        var sessaoId = PafTenantCliente.SessaoDoToken((await _tenant.EntrarAsync(alvo)).AccessToken);
+        var estado = Estado();
+        (await estado.DefinirUnidadeAsync(_tenant.TenantId, sessaoId, a.UnidadeId, CancellationToken.None)).ShouldBeTrue();
+        var concessao = Concessao(alvo);
+        (await estado.DefinirUnidadeDaConcessaoAsync(_tenant.TenantId, concessao.ConcessaoId, b.UnidadeId, concessao.ExpiraEm, CancellationToken.None)).ShouldBeTrue();
+        await VincularConcessaoAsync(a.GuicheB, concessao.ConcessaoId, concessao.ExpiraEm);
+        var evento = new ImpersonationGrantTerminatedIntegrationEvent(Guid.NewGuid(), DateTime.UtcNow, _tenant.TenantId,
+            Guid.NewGuid().ToString(), "Identity", Guid.NewGuid(), concessao.ConcessaoId.ToString("N"), alvo.UserId, ImpersonationGrantStatus.Revoked);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            await new ConcessaoTerminadaPafHandler(_tenant.Contexto(scope, unidadeCorrente: null), estado,
+                    scope.ServiceProvider.GetRequiredService<ConexoesPaf>(), NullLogger<ConcessaoTerminadaPafHandler>.Instance)
+                .HandleAsync(evento, CancellationToken.None);
+        }
+
+        (await _multiplexer.GetDatabase().KeyExistsAsync($"paf:{_tenant.TenantId}:concessao:{concessao.ConcessaoId:N}:unidade"))
+            .ShouldBeFalse("a unidade da concessão terminada não sobrevive até o TTL");
+        (await estado.LerUnidadeAsync(_tenant.TenantId, sessaoId, CancellationToken.None)).ShouldBe(a.UnidadeId, "a sessão do usuário real não é tocada");
+        (await VinculosAtivosDaConcessaoAsync(concessao.ConcessaoId)).ShouldBe(0);
     }
 
     // ─── helpers ─────────────────────────────────────────────────────
