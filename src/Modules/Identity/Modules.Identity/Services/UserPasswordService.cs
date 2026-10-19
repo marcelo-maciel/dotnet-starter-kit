@@ -10,6 +10,7 @@ using FSH.Modules.Identity.Domain;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using System.Collections.ObjectModel;
+using System.Net;
 using System.Text;
 
 namespace FSH.Modules.Identity.Services;
@@ -114,6 +115,37 @@ internal sealed class UserPasswordService(
         await passwordExpiryService.UpdateLastPasswordChangeDateAsync(userId, cancellationToken);
 
         // Save to history
+        await passwordHistoryService.SavePasswordHistoryAsync(userId, cancellationToken);
+    }
+
+    public async Task SetPasswordByAdminAsync(string userId, string newPassword, CancellationToken cancellationToken)
+    {
+        EnsureValidTenant();
+
+        var user = await userManager.FindByIdAsync(userId) ?? throw new NotFoundException("user not found");
+
+        // A user who never changed his password has an empty history, so the current one is checked on its own.
+        if (await userManager.CheckPasswordAsync(user, newPassword)
+            || await passwordHistoryService.IsPasswordInHistoryAsync(userId, newPassword, cancellationToken))
+        {
+            throw new CustomException(
+                "password reused",
+                ["This password has been used recently. Please choose a different password."],
+                HttpStatusCode.BadRequest);
+        }
+
+        // Reset (not Remove + Add) so the policy validators run and the hash is replaced in a single write.
+        var token = await userManager.GeneratePasswordResetTokenAsync(user);
+        var result = await userManager.ResetPasswordAsync(user, token, newPassword);
+        if (!result.Succeeded)
+        {
+            throw new CustomException("error setting password", result.Errors.Select(e => e.Description), HttpStatusCode.BadRequest);
+        }
+
+        var tenantId = multiTenantContextAccessor?.MultiTenantContext?.TenantInfo?.Id;
+        user.RecordPasswordChanged(wasReset: true, tenantId);
+        await db.SaveChangesAsync(cancellationToken);
+        await passwordExpiryService.UpdateLastPasswordChangeDateAsync(userId, cancellationToken);
         await passwordHistoryService.SavePasswordHistoryAsync(userId, cancellationToken);
     }
 

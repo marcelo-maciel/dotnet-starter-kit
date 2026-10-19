@@ -15,6 +15,8 @@ public sealed class RevogacaoSessao(Licencas licencas, EstadoSessao estado, ISes
     public const string MotivoUnidadeRetirada = "PAF: unidade corrente retirada do escopo";
     public const string MotivoUsuarioInativo = "PAF: usuário desativado";
     public const string MensagemUsuarioInativo = "Seu usuário foi desativado. Procure o administrador da empresa.";
+    public const string MotivoSenhaDefinida = "PAF: senha definida pelo administrador";
+    public const string MensagemSenhaDefinida = "Sua senha foi alterada pelo administrador. Entre com a senha nova.";
 
     public async Task RevogarAsync(string tenantId, Guid sessaoId, Guid usuarioId, string motivo, CancellationToken ct)
     {
@@ -30,6 +32,7 @@ public sealed class RevogacaoSessao(Licencas licencas, EstadoSessao estado, ISes
     {
         MotivoUnidadeRetirada => MensagemUnidadeRetirada,
         MotivoUsuarioInativo => MensagemUsuarioInativo,
+        MotivoSenhaDefinida => MensagemSenhaDefinida,
         _ => SessaoRevogadaPafHandler.MensagemSessaoEncerrada,
     };
 }

@@ -63,5 +63,19 @@ public static class UsuariosPafEndpoints
             .WithName("PafListAtendimentosEmCursoDoUsuario")
             .WithSummary("List the atendimentos a user holds Chamado or EmAtendimento, in any unit")
             .RequirePermission(PafPermissions.Usuarios.View);
+
+        endpoints.MapPost("/usuarios/{usuarioId:guid}/senha",
+                async (Guid usuarioId, DefinirSenhaUsuarioPafRequest corpo, IMediator mediator, CancellationToken ct) =>
+                    Results.Ok(await mediator.Send(new DefinirSenhaUsuarioPafCommand(usuarioId, corpo.Senha, corpo.ConfirmacaoSenha), ct)))
+            .WithName("PafDefinirSenhaUsuario")
+            .WithSummary("Set another user's password and revoke his sessions")
+            .RequirePermission(PafPermissions.Usuarios.Manage);
     }
+}
+
+/// <summary>Body of the password definition (C16), so the route id stays the only user id of the request.</summary>
+public sealed record DefinirSenhaUsuarioPafRequest(string Senha, string ConfirmacaoSenha)
+{
+    // The record's generated ToString would print the password wherever the body gets formatted.
+    public override string ToString() => nameof(DefinirSenhaUsuarioPafRequest);
 }
