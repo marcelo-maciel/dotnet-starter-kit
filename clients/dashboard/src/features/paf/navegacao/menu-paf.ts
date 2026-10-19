@@ -2,6 +2,7 @@ import { Building2, Layers, ListOrdered, Monitor, MonitorSmartphone } from "luci
 import { ClipboardList } from "lucide-react";
 import { Hourglass } from "lucide-react";
 import { Search } from "lucide-react";
+import { Printer } from "lucide-react";
 import { SlidersHorizontal } from "lucide-react";
 import { Users } from "lucide-react";
 import { ArrowUpWideNarrow } from "lucide-react";
@@ -30,6 +31,8 @@ export const secaoMenuPaf: NavSection = {
     { to: "/paf/fichas-em-atendimento", label: "Fichas em atendimento", icon: Hourglass, perm: "Permissions.PAF.FichasEmAtendimento.View" },
     // GET fichas/consulta: FichasDoDia.View (F14).
     { to: "/paf/consultar-ficha", label: "Consultar ficha", icon: Search, perm: "Permissions.PAF.FichasDoDia.View" },
+    // GET fichas/reimpressao: FichasDoDia.View (F15).
+    { to: "/paf/ficha-de-espera", label: "Ficha de espera", icon: Printer, perm: "Permissions.PAF.FichasDoDia.View" },
     // GET parametros: Parametros.View (C10).
     { to: "/paf/parametros", label: "Parâmetros", icon: SlidersHorizontal, perm: "Permissions.PAF.Parametros.View" },
     // GET usuarios: Usuarios.View (C12).

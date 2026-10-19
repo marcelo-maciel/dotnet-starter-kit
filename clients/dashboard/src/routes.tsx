@@ -133,6 +133,7 @@ const PafFichasEmAtendimentoPage = lazyNamed(
   "FichasEmAtendimentoPage",
 );
 const PafConsultarFichaPage = lazyNamed(() => import("@/features/paf/consultar-ficha/consultar-ficha-page"), "ConsultarFichaPage");
+const PafFichaDeEsperaPage = lazyNamed(() => import("@/features/paf/ficha-de-espera/ficha-de-espera-page"), "FichaDeEsperaPage");
 const PafParametrosPage = lazyNamed(() => import("@/features/paf/parametros/parametros-page"), "ParametrosPage");
 const PafUsuariosPage = lazyNamed(() => import("@/features/paf/usuarios/usuarios-page"), "UsuariosPage");
 const PafPrioridadesPage = lazyNamed(() => import("@/features/paf/prioridades/prioridades-page"), "PrioridadesPage");
@@ -267,6 +268,7 @@ export const router = createBrowserRouter([
               { path: "fichas-do-dia", element: withSuspense(<PafFichasDoDiaPage />) },
               { path: "fichas-em-atendimento", element: withSuspense(<PafFichasEmAtendimentoPage />) },
               { path: "consultar-ficha", element: withSuspense(<PafConsultarFichaPage />) },
+              { path: "ficha-de-espera", element: withSuspense(<PafFichaDeEsperaPage />) },
               { path: "parametros", element: withSuspense(<PafParametrosPage />) },
               { path: "usuarios", element: withSuspense(<PafUsuariosPage />) },
               { path: "prioridades", element: withSuspense(<PafPrioridadesPage />) },
