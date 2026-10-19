@@ -74,14 +74,58 @@ jobs:
       - name: PAF.Kestrel.Tests
         run: dotnet test src/Tests/PAF.Kestrel.Tests -c Release --no-build --logger "trx;LogFileName=PAF.Kestrel.trx" --results-directory ./TestResults
 
-      # Testcontainers: ubuntu-latest ships Docker.
-      - name: Integration.Tests (PAF)
-        run: dotnet test src/Tests/Integration.Tests -c Release --no-build --filter "FullyQualifiedName~Paf" --logger "trx;LogFileName=Integration.PAF.trx" --results-directory ./TestResults
-
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: paf-test-results
+          path: ./TestResults/*.trx
+          retention-days: 7
+
+  # The PAF integration classes share one xUnit collection, so they run serially: split into parallel jobs by the
+  # letter after "Paf", balanced on the class times of CI run 39319451596 (~8 min each instead of 24.5 min).
+  # The last part takes everything the others do not, so a new class always runs somewhere.
+  integracao:
+    name: Integration PAF (${{ matrix.parte.nome }})
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        parte:
+          - nome: C-E
+            filtro: "FullyQualifiedName~Paf&(FullyQualifiedName~.PafC|FullyQualifiedName~.PafE)"
+          - nome: I-M-R-S
+            filtro: "FullyQualifiedName~Paf&(FullyQualifiedName~.PafI|FullyQualifiedName~.PafM|FullyQualifiedName~.PafR|FullyQualifiedName~.PafS)"
+          - nome: demais
+            filtro: "FullyQualifiedName~Paf&FullyQualifiedName!~.PafC&FullyQualifiedName!~.PafE&FullyQualifiedName!~.PafI&FullyQualifiedName!~.PafM&FullyQualifiedName!~.PafR&FullyQualifiedName!~.PafS"
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/Directory.Packages.props') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Restore
+        run: dotnet restore src/Tests/Integration.Tests -p:NuGetAudit=false
+
+      - name: Build
+        run: dotnet build src/Tests/Integration.Tests -c Release --no-restore -p:NuGetAudit=false
+
+      # Testcontainers: ubuntu-latest ships Docker.
+      - name: Integration.Tests (PAF)
+        run: dotnet test src/Tests/Integration.Tests -c Release --no-build --filter "${{ matrix.parte.filtro }}" --logger "trx;LogFileName=Integration.PAF.${{ matrix.parte.nome }}.trx" --results-directory ./TestResults
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: paf-integracao-${{ matrix.parte.nome }}
           path: ./TestResults/*.trx
           retention-days: 7
 
@@ -230,7 +274,7 @@ jobs:
 
   paf-ci:
     name: PAF CI
-    needs: [backend, dashboard, scripts, walk, imagem-anterior]
+    needs: [backend, integracao, dashboard, scripts, walk, imagem-anterior]
     if: always() && github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 5

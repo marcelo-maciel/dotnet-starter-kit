@@ -146,7 +146,8 @@ Ensaio local, nunca na VPS: Apache 2.4.52 do `ubuntu:22.04` em contêiner (`paf-
 
 Jobs obrigatórios, todos agregados no job `PAF CI`, que fica vermelho se qualquer um falhar, for cancelado ou pulado:
 
-- `Backend PAF`: build da solução, `Architecture.Tests`, `PAF.Tests`, `PAF.Kestrel.Tests` e `Integration.Tests` com o filtro `FullyQualifiedName~Paf` (Testcontainers sobre o Docker do runner);
+- `Backend PAF`: build da solução, `Architecture.Tests`, `PAF.Tests` e `PAF.Kestrel.Tests`;
+- `Integration PAF (C-E | I-M-R-S | demais)`: `Integration.Tests` com o filtro `FullyQualifiedName~Paf` em três jobs paralelos, pela letra depois de `Paf` no nome da classe (Testcontainers sobre o Docker do runner). As classes dividem uma coleção do xUnit e rodam em série, por isso a divisão; a parte `demais` pega tudo que as outras não pegam, então classe nova nunca fica de fora. Rebalancear pelos tempos do `.trx` quando uma parte passar muito das outras;
 - `Dashboard PAF`: `npm run lint`, `npm run build` (inclui `tsc -b`) e os testes unitários do PAF por `node --test` (D21);
 - `Scripts de implantação`: `exigir-homologacao-verde.test.mjs`, `scripts-ci.test.sh` e `verificar-ambiente.test.sh`;
 - `Walk no Chrome`: `walk-ci.sh` sobe PostgreSQL e Valkey efêmeros, aplica migrações e `seed-demo` com a senha do secret, sobe a API e o servidor do Vite em portas livres e roda `paf-primeira-fatia.walk.mjs` no Google Chrome do runner. O código de saída é o do walk: um `FAIL` deixa o job vermelho. Sem o secret `PAF_SENHA_DEMO`, ou com ele igual à senha demo pública do kit, o job falha antes de subir qualquer coisa.
