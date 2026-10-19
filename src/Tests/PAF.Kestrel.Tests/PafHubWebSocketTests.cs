@@ -141,7 +141,8 @@ public sealed class PafHubWebSocketTests(PafKestrelFactory factory) : IAsyncLife
         // The expired token still passes the JWT check inside the kit's clock skew, but the server closes it at once.
         var vencida = Conexao(_tenant.TenantId, () => Task.FromResult(painel.AccessToken));
         var quedaVencida = vencida.Queda();
-        await Record.ExceptionAsync(() => vencida.Hub.StartAsync());
+        // Inside the kit's 2-min ClockSkew the upgrade is accepted; a refusal here means the skew changed.
+        await vencida.Hub.StartAsync();
         await quedaVencida.WaitAsync(Espera);
         vencida.Hub.State.ShouldNotBe(HubConnectionState.Connected);
     }
