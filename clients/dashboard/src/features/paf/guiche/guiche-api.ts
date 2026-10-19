@@ -84,3 +84,15 @@ export function operarAtendimento(atendimentoId: string, operacao: OperacaoAtend
     method: "POST",
   });
 }
+
+/** RF19 VIP (Atendimentos.Vip): the filas of the session's guichê, for the form. */
+export type FilaVipDto = { id: string; nome: string };
+
+export function listarFilasVip() {
+  return apiFetch<FilaVipDto[]>("/api/v1/paf/guiche/vip/filas");
+}
+
+/** `data` is the ficha's day (yyyy-MM-dd); the guichê comes from the session, never from the screen. */
+export function chamarVip(pedido: { senha: string; data: string; filaId: string }) {
+  return apiFetch<ChamadaDto>("/api/v1/paf/guiche/vip", { method: "POST", body: JSON.stringify(pedido) });
+}

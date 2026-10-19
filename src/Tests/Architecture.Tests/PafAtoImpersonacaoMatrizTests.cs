@@ -34,6 +34,7 @@ public sealed class PafAtoImpersonacaoMatrizTests
         [typeof(SetGuicheCommand)] = GuicheChegaEmS11,
         [typeof(EncaminharAtendimentoCommand)] = GuicheChegaEmS11,
         [typeof(ChamarFichaEscolhidaCommand)] = GuicheChegaEmS11,
+        [typeof(ChamarFichaVipCommand)] = GuicheChegaEmS11,
         [typeof(EmitirFichaCommand)] = CredencialDeEstacao,
         [typeof(RenovarCredencialEstacaoCommand)] = "renovação anônima pelo segredo da estação: sem token, não há act_sub",
         [typeof(ResgatarVinculoEstacaoCommand)] = "resgate anônimo do link da estação: sem token, não há act_sub",
