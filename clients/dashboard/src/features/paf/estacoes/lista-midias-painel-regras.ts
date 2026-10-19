@@ -34,6 +34,18 @@ export function duracaoDoLaco(itens: readonly string[], midias: readonly MidiaDa
   }, 0);
 }
 
+/**
+ * Why the list cannot be saved yet, or null. The M06 PUT accepts only active mídias and answers one 400 for the whole
+ * list, so an inactive entry kept from before would make every reorder or addition fail without saying which row.
+ * A mídia whose status is unknown is left to the server.
+ */
+export function bloqueioDoSalvar(itens: readonly string[], midias: readonly MidiaDaLista[]): string | null {
+  const posicoes = itens.flatMap((id, i) => (midias.find((m) => m.id === id)?.ativa === false ? [i + 1] : []));
+  if (posicoes.length === 0) return null;
+  const lista = posicoes.length === 1 ? `posição ${posicoes[0]}` : `posições ${posicoes.slice(0, -1).join(", ")} e ${posicoes[posicoes.length - 1]}`;
+  return `Tire as mídias inativas (${lista}) para salvar: a lista só aceita mídias ativas. Reative a mídia no cadastro para mantê-la.`;
+}
+
 export function iguais(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((id, i) => id === b[i]);
 }

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ApiRequestError } from "@/lib/api-client";
 import { mensagemAmigavel } from "@/features/paf/paf-erros";
 import { obterMidiasDaEstacao, substituirMidiasDaEstacao, type MidiaResumoDto } from "@/features/paf/estacoes/estacoes-api";
-import { adicionar, duracaoDoLaco, iguais, MAXIMO_ITENS, mover, remover } from "@/features/paf/estacoes/lista-midias-painel-regras";
+import { adicionar, bloqueioDoSalvar, duracaoDoLaco, iguais, MAXIMO_ITENS, mover, remover } from "@/features/paf/estacoes/lista-midias-painel-regras";
 import { duracaoLegivel } from "@/features/paf/programacoes/programacoes-regras";
 
 const SELECT_CLASSES = "h-9 rounded-md border border-[var(--color-input)] bg-[var(--color-card)] px-3 text-sm";
@@ -47,6 +47,7 @@ export function ListaMidiasPainel({ estacaoId, midias }: { estacaoId: string; mi
   ];
   const descrever = (id: string) => (midias ?? []).find((m) => m.id === id) ?? descritas.find((m) => m.id === id);
   const ativas = (midias ?? []).filter((m) => m.ativa);
+  const bloqueio = alterada ? bloqueioDoSalvar(itens, [...(midias ?? []), ...descritas]) : null;
 
   const mudar = (novos: string[]) => {
     setAviso(null);
@@ -157,8 +158,13 @@ export function ListaMidiasPainel({ estacaoId, midias }: { estacaoId: string; mi
           </Button>
         </div>
       )}
+      {bloqueio && (
+        <p role="alert" className="text-sm text-[var(--color-destructive)]" data-bloqueio-lista>
+          {bloqueio}
+        </p>
+      )}
       <div className="flex gap-2">
-        <Button type="button" size="sm" disabled={ocupado || !alterada} onClick={() => void salvar()}>
+        <Button type="button" size="sm" disabled={ocupado || !alterada || bloqueio !== null} onClick={() => void salvar()}>
           Salvar lista
         </Button>
         {alterada && (

@@ -2,7 +2,7 @@
 // Run: node --test src/features/paf/estacoes/lista-midias-painel-regras.test.ts (Node 22 strips the types, D21).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { adicionar, duracaoDoLaco, iguais, MAXIMO_ITENS, mover, remover } from "./lista-midias-painel-regras.ts";
+import { adicionar, bloqueioDoSalvar, duracaoDoLaco, iguais, MAXIMO_ITENS, mover, remover } from "./lista-midias-painel-regras.ts";
 
 test("acrescentar: repete mídia, recusa vazio e o 101º item", () => {
   assert.deepEqual(adicionar(["a"], "a"), { ok: true, itens: ["a", "a"] });
@@ -39,4 +39,18 @@ test("iguais compara ordem e tamanho", () => {
   assert.equal(iguais(["a", "b"], ["a", "b"]), true);
   assert.equal(iguais(["a", "b"], ["b", "a"]), false);
   assert.equal(iguais(["a"], ["a", "a"]), false);
+});
+
+test("salvar: bloqueado com mídia inativa na lista, apontando as posições (o PUT do M06 só aceita mídias ativas)", () => {
+  const midias = [
+    { id: "a", duracaoSegundos: 10, ativa: true },
+    { id: "b", duracaoSegundos: 20, ativa: false },
+  ];
+  assert.equal(bloqueioDoSalvar(["a", "a"], midias), null);
+  assert.equal(bloqueioDoSalvar([], midias), null);
+  const bloqueio = bloqueioDoSalvar(["a", "b", "a", "b"], midias);
+  assert.ok(bloqueio !== null && /posições 2 e 4/.test(bloqueio), String(bloqueio));
+  assert.match(bloqueioDoSalvar(["b"], midias) ?? "", /\(posição 1\)/);
+  // Unknown status (mídia not described) is not guessed inactive: the server decides.
+  assert.equal(bloqueioDoSalvar(["c"], midias), null);
 });
