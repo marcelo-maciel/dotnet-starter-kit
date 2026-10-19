@@ -13,5 +13,7 @@ public sealed class UpdateFilaCommandValidator : AbstractValidator<UpdateFilaCom
         RuleFor(x => x).Must(x => FilaValidation.JanelaValida(x.HoraInicial, x.HoraFinal))
             .WithName("HoraFinal")
             .WithMessage(FilaValidation.MensagemJanela);
+        RuleFor(x => x.SetorId).Must(id => id != Guid.Empty).When(x => x.SetorId.HasValue);
+        RuleFor(x => x.Aparencia).NotNull().SetValidator(new AparenciaFilaValidator());
     }
 }

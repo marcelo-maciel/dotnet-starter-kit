@@ -126,6 +126,7 @@ const PafGuichePage = lazyNamed(() => import("@/features/paf/guiche/guiche-page"
 const PafLayout = lazyNamed(() => import("@/features/paf/layout/paf-layout"), "PafLayout");
 const PafUnidadesPage = lazyNamed(() => import("@/features/paf/unidades/unidades-page"), "UnidadesPage");
 const PafEstacoesPage = lazyNamed(() => import("@/features/paf/estacoes/estacoes-page"), "EstacoesPage");
+const PafFilasPage = lazyNamed(() => import("@/features/paf/filas/filas-page"), "FilasPage");
 
 /**
  * RouteFallback — what shows while a lazy chunk is downloading. Mirrors
@@ -253,6 +254,7 @@ export const router = createBrowserRouter([
               { path: "guiche", element: withSuspense(<PafGuichePage />) },
               { path: "unidades", element: withSuspense(<PafUnidadesPage />) },
               { path: "estacoes", element: withSuspense(<PafEstacoesPage />) },
+              { path: "filas", element: withSuspense(<PafFilasPage />) },
             ],
           },
           { path: "tickets", element: withSuspense(<TicketsPage />) },

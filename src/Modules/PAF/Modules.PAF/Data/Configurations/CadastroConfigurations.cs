@@ -32,6 +32,8 @@ public sealed class SetorConfiguration : IEntityTypeConfiguration<Setor>
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).ValueGeneratedNever();
         builder.Property(x => x.Nome).IsRequired().HasMaxLength(120);
+        // Two setores of the same name would split one report line in two (RF07); another unidade may repeat it.
+        builder.HasIndex(x => new { x.UnidadeId, x.Nome }).IsUnique().HasDatabaseName("UX_Setores_Nome");
         builder.HasOne<Unidade>().WithMany().HasForeignKey(x => x.UnidadeId).OnDelete(DeleteBehavior.Restrict);
         builder.Ignore(x => x.DomainEvents);
     }

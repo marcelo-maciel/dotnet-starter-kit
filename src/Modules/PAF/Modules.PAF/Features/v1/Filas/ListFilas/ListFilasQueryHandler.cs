@@ -15,11 +15,12 @@ public sealed class ListFilasQueryHandler(PafDbContext db)
         return await db.Filas.AsNoTracking()
             .OrderBy(f => f.Nome)
             .Select(f => new FilaDto(
-                f.Id, f.UnidadeId, f.Nome, f.NomeExibicao, f.HoraInicial, f.HoraFinal, f.Ativa,
+                f.Id, f.UnidadeId, f.Nome, f.NomeExibicao, f.HoraInicial, f.HoraFinal, f.Ativa, f.SetorId,
+                new AparenciaFilaDto(f.Fonte, f.CorFonte, f.CorBotaoSelecionado),
                 db.FilaPrioridades
                     .Where(fp => fp.FilaId == f.Id)
                     .OrderBy(fp => fp.Ordem)
-                    .Select(fp => new FilaPrioridadeDto(fp.Id, fp.PrioridadeId, fp.Letra, fp.NumeroInicial, fp.Ordem))
+                    .Select(fp => new FilaPrioridadeDto(fp.Id, fp.PrioridadeId, fp.Letra, fp.NumeroInicial, fp.Ordem, fp.CorBotao))
                     .ToList(),
                 // The cadastro warns which combinations have no guichê (RF02): their buttons are hidden.
                 db.FilaPrioridades

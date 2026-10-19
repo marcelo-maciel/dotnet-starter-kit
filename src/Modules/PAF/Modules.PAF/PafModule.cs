@@ -49,6 +49,9 @@ using FSH.Modules.PAF.Features.v1.Filas.ListFilas;
 using FSH.Modules.PAF.Features.v1.Filas.ListFilasConsolidadas;
 using FSH.Modules.PAF.Features.v1.Filas.UpdateFila;
 using FSH.Modules.PAF.Features.v1.Filas.UpdateFilaPrioridade;
+using FSH.Modules.PAF.Features.v1.Setores.CreateSetor;
+using FSH.Modules.PAF.Features.v1.Setores.ListSetores;
+using FSH.Modules.PAF.Features.v1.Setores.UpdateSetor;
 using FSH.Modules.PAF.Features.v1.Painel.ObterEstadoPainel;
 using FSH.Modules.PAF.Features.v1.Prioridades.CreatePrioridade;
 using FSH.Modules.PAF.Features.v1.Prioridades.DisablePrioridade;
@@ -261,6 +264,9 @@ public sealed class PafModule : IModule
         group.MapDisableFilaEndpoint();
         group.MapAddFilaPrioridadeEndpoint();
         group.MapUpdateFilaPrioridadeEndpoint();
+        group.MapCreateSetorEndpoint();
+        group.MapListSetoresEndpoint();
+        group.MapUpdateSetorEndpoint();
 
         group.MapCreateEstacaoEndpoint();
         group.MapListEstacoesEndpoint();

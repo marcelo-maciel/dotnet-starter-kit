@@ -49,7 +49,11 @@ public sealed class ObterConfiguracaoEstacaoQueryHandler(PafDbContext db)
                 where ef.EstacaoId == estacaoId && ef.Papel == PapelEstacao.Emissao && f.Ativa && p.Ativa
                     && cobertas.Any(c => c.FilaId == f.Id && c.PrioridadeId == p.Id)
                 orderby ef.Ordem, fp.Ordem, f.NomeExibicao, p.Nome
-                select new { f.Id, f.NomeExibicao, f.HoraInicial, f.HoraFinal, PrioridadeId = p.Id, p.Nome, fp.Letra })
+                select new
+                {
+                    f.Id, f.NomeExibicao, f.HoraInicial, f.HoraFinal, PrioridadeId = p.Id, p.Nome, fp.Letra,
+                    f.Fonte, f.CorFonte, fp.CorBotao, f.CorBotaoSelecionado,
+                })
             .ToListAsync(ct)
             .ConfigureAwait(false);
 
@@ -60,7 +64,8 @@ public sealed class ObterConfiguracaoEstacaoQueryHandler(PafDbContext db)
         // A flat position: the two source orders may tie across filas, and the screen sorts by one number.
         return linhas
             .Where(l => Fila.JanelaPermiteEmissao(l.HoraInicial, l.HoraFinal, hora))
-            .Select((l, i) => new BotaoEmissaoDto(l.Id, l.NomeExibicao, l.PrioridadeId, l.Nome, l.Letra, i))
+            .Select((l, i) => new BotaoEmissaoDto(
+                l.Id, l.NomeExibicao, l.PrioridadeId, l.Nome, l.Letra, i, l.Fonte, l.CorFonte, l.CorBotao, l.CorBotaoSelecionado))
             .ToList();
     }
 }
