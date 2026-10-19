@@ -243,6 +243,63 @@ namespace FSH.Starter.Migrations.PostgreSQL.PAF
                     b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
+            modelBuilder.Entity("FSH.Modules.PAF.Domain.EnvioMidia", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ChaveObjeto")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<DateTimeOffset?>("ConfirmadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTimeOffset>("CriadoEm")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTimeOffset?>("RecusadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("RemovidoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<Guid>("UnidadeId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChaveObjeto", "TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_EnviosMidia_ChaveObjeto");
+
+                    b.ToTable("EnviosMidia", "paf", t =>
+                        {
+                            t.HasCheckConstraint("CK_EnviosMidia_Desfecho", "\"ConfirmadoEm\" IS NULL OR \"RecusadoEm\" IS NULL");
+
+                            t.HasCheckConstraint("CK_EnviosMidia_Tipo", "\"Tipo\" IN ('Video', 'Imagem', 'Audio')");
+                        });
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
             modelBuilder.Entity("FSH.Modules.PAF.Domain.Estacao", b =>
                 {
                     b.Property<Guid>("Id")
@@ -258,6 +315,10 @@ namespace FSH.Starter.Migrations.PostgreSQL.PAF
                         .IsRequired()
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)");
+
+                    b.Property<string>("Ramal")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<string>("TenantId")
                         .IsRequired()
@@ -284,8 +345,6 @@ namespace FSH.Starter.Migrations.PostgreSQL.PAF
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("UnidadeId");
 
                     b.ToTable("Estacoes", "paf");
 
@@ -542,6 +601,106 @@ namespace FSH.Starter.Migrations.PostgreSQL.PAF
                     b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
 
+            modelBuilder.Entity("FSH.Modules.PAF.Domain.Midia", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Ativa")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ChaveObjeto")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<DateTimeOffset>("CriadoEm")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Descricao")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("DuracaoSegundos")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("EnvioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<Guid>("UnidadeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Versao")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChaveObjeto", "TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Midias_ChaveObjeto");
+
+                    b.HasIndex("UnidadeId", "EnvioId", "ChaveObjeto");
+
+                    b.ToTable("Midias", "paf", t =>
+                        {
+                            t.HasCheckConstraint("CK_Midias_Duracao", "\"DuracaoSegundos\" BETWEEN 1 AND 86400");
+
+                            t.HasCheckConstraint("CK_Midias_Tipo", "\"Tipo\" IN ('Video', 'Imagem', 'Audio')");
+                        });
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
+            modelBuilder.Entity("FSH.Modules.PAF.Domain.PainelMidia", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("EstacaoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MidiaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Ordem")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("UnidadeId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UnidadeId", "EstacaoId");
+
+                    b.HasIndex("UnidadeId", "MidiaId");
+
+                    b.HasIndex("EstacaoId", "Ordem", "TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_PainelMidias_Ordem");
+
+                    b.ToTable("PainelMidias", "paf");
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
             modelBuilder.Entity("FSH.Modules.PAF.Domain.Parametro", b =>
                 {
                     b.Property<Guid>("Id")
@@ -642,6 +801,70 @@ namespace FSH.Starter.Migrations.PostgreSQL.PAF
                     b.HasIndex("UnidadeId");
 
                     b.ToTable("Prioridades", "paf");
+
+                    b.HasAnnotation("Finbuckle:MultiTenant", true);
+                });
+
+            modelBuilder.Entity("FSH.Modules.PAF.Domain.ProgramacaoMidia", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Ativa")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("CriadoEm")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateOnly>("DataFinal")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("DataInicial")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Dias")
+                        .HasColumnType("integer");
+
+                    b.Property<TimeOnly>("HoraInicial")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<Guid>("MidiaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Nome")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("Repeticoes")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("UnidadeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Versao")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UnidadeId", "MidiaId");
+
+                    b.ToTable("ProgramacoesMidia", "paf", t =>
+                        {
+                            t.HasCheckConstraint("CK_ProgramacoesMidia_Dias", "\"Dias\" BETWEEN 1 AND 127");
+
+                            t.HasCheckConstraint("CK_ProgramacoesMidia_Periodo", "\"DataFinal\" >= \"DataInicial\"");
+
+                            t.HasCheckConstraint("CK_ProgramacoesMidia_Repeticoes", "\"Repeticoes\" >= 1");
+                        });
 
                     b.HasAnnotation("Finbuckle:MultiTenant", true);
                 });
@@ -758,7 +981,9 @@ namespace FSH.Starter.Migrations.PostgreSQL.PAF
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UnidadeId");
+                    b.HasIndex("UnidadeId", "Nome", "TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Setores_Nome");
 
                     b.ToTable("Setores", "paf");
 
@@ -782,6 +1007,9 @@ namespace FSH.Starter.Migrations.PostgreSQL.PAF
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<bool>("Inicial")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Nome")
                         .IsRequired()
                         .HasMaxLength(160)
@@ -792,6 +1020,11 @@ namespace FSH.Starter.Migrations.PostgreSQL.PAF
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Inicial", "TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Unidades_Inicial")
+                        .HasFilter("\"Inicial\"");
 
                     b.ToTable("Unidades", "paf");
 
@@ -952,6 +1185,15 @@ namespace FSH.Starter.Migrations.PostgreSQL.PAF
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("FSH.Modules.PAF.Domain.EnvioMidia", b =>
+                {
+                    b.HasOne("FSH.Modules.PAF.Domain.Unidade", null)
+                        .WithMany()
+                        .HasForeignKey("UnidadeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("FSH.Modules.PAF.Domain.Estacao", b =>
                 {
                     b.HasOne("FSH.Modules.PAF.Domain.Unidade", null)
@@ -1065,6 +1307,48 @@ namespace FSH.Starter.Migrations.PostgreSQL.PAF
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("FSH.Modules.PAF.Domain.Midia", b =>
+                {
+                    b.HasOne("FSH.Modules.PAF.Domain.Unidade", null)
+                        .WithMany()
+                        .HasForeignKey("UnidadeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FSH.Modules.PAF.Domain.EnvioMidia", null)
+                        .WithMany()
+                        .HasForeignKey("UnidadeId", "EnvioId", "ChaveObjeto")
+                        .HasPrincipalKey("UnidadeId", "Id", "ChaveObjeto")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_Midias_EnviosMidia_MesmaUnidade");
+                });
+
+            modelBuilder.Entity("FSH.Modules.PAF.Domain.PainelMidia", b =>
+                {
+                    b.HasOne("FSH.Modules.PAF.Domain.Unidade", null)
+                        .WithMany()
+                        .HasForeignKey("UnidadeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FSH.Modules.PAF.Domain.Estacao", null)
+                        .WithMany()
+                        .HasForeignKey("UnidadeId", "EstacaoId")
+                        .HasPrincipalKey("UnidadeId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_PainelMidias_Estacoes_MesmaUnidade");
+
+                    b.HasOne("FSH.Modules.PAF.Domain.Midia", null)
+                        .WithMany()
+                        .HasForeignKey("UnidadeId", "MidiaId")
+                        .HasPrincipalKey("UnidadeId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_PainelMidias_Midias_MesmaUnidade");
+                });
+
             modelBuilder.Entity("FSH.Modules.PAF.Domain.Parametro", b =>
                 {
                     b.HasOne("FSH.Modules.PAF.Domain.Unidade", null)
@@ -1080,6 +1364,23 @@ namespace FSH.Starter.Migrations.PostgreSQL.PAF
                         .HasForeignKey("UnidadeId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("FSH.Modules.PAF.Domain.ProgramacaoMidia", b =>
+                {
+                    b.HasOne("FSH.Modules.PAF.Domain.Unidade", null)
+                        .WithMany()
+                        .HasForeignKey("UnidadeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FSH.Modules.PAF.Domain.Midia", null)
+                        .WithMany()
+                        .HasForeignKey("UnidadeId", "MidiaId")
+                        .HasPrincipalKey("UnidadeId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_ProgramacoesMidia_Midias_MesmaUnidade");
                 });
 
             modelBuilder.Entity("FSH.Modules.PAF.Domain.Rechamada", b =>
