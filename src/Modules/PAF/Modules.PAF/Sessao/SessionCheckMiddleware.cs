@@ -18,14 +18,14 @@ namespace FSH.Modules.PAF.Sessao;
 /// <summary>
 /// Conferência de sessão por requisição do token de pessoa (RF22, seção 9, ADR 0008 "Conferência de tenant e de
 /// sessão"): claim de sessão, UserSession ativa e marca de sessão viva em <c>AtividadeSessao</c>, conferidas no
-/// PostgreSQL. Define a unidade corrente (estado no Valkey, ou a unidade da licença sem ele) e renova a marca.
+/// PostgreSQL. Define a unidade corrente (estado no Valkey, ou a unidade da licença sem ele) e renova a marca; sem
+/// marca viva, reocupa pela cascata (<see cref="ReocupacaoSessao"/>).
 /// Credencial de estação tem ramo próprio, fora deste middleware; da impersonação, aqui só a barreira de
 /// <see cref="ImpersonacaoPaf"/> (act_tenant raiz nas rotas do PAF).
 /// </summary>
 internal sealed class SessionCheckMiddleware(RequestDelegate next)
 {
     public const string MensagemSessaoInvalida = "Sessão encerrada. Entre novamente.";
-    public const string MensagemLicencaExpirada = "A licença da sessão expirou. Renove o acesso.";
 
     public async Task InvokeAsync(HttpContext context)
     {
@@ -120,18 +120,14 @@ internal sealed class SessionCheckMiddleware(RequestDelegate next)
     {
         var servicos = context.RequestServices;
         var licencas = servicos.GetRequiredService<Licencas>();
-        var unidadeLicenca = await licencas.UnidadeDaMarcaVivaAsync(tenantId, sessaoId, ct);
+        // Without a live mark (grace release, expired mark) the request re-occupies through the cascade, refused
+        // with 401 and the cause (seção 9, sessão revivida). A user with no unit is not a PAF user: no licence, and
+        // the unit filter stays closed for him.
+        var unidadeLicenca = await servicos.GetRequiredService<ReocupacaoSessao>().GarantirAsync(tenantId, sessaoId, usuarioId, ct);
         if (unidadeLicenca is not { } unidadeLicencaId)
         {
-            // A user with no unit is not a PAF user: no licence, and the unit filter stays closed for him.
-            if (!await licencas.UsuarioDoPafAsync(usuarioId, ct))
-            {
-                await next(context);
-                return;
-            }
-
-            // The refresh path re-occupies through the same check as the login (seção 9, sessão revivida).
-            throw new UnauthorizedException(MensagemLicencaExpirada);
+            await next(context);
+            return;
         }
 
         var estado = servicos.GetRequiredService<EstadoSessao>();

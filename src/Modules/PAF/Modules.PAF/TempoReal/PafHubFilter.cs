@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
+using FSH.Framework.Core.Exceptions;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.PAF.Conferencia;
@@ -44,7 +45,20 @@ public sealed partial class PafHubFilter(ILogger<PafHubFilter> logger) : IHubFil
     {
         ArgumentNullException.ThrowIfNull(invocationContext);
         ArgumentNullException.ThrowIfNull(next);
-        var tenant = await ConferirAsync(invocationContext.Context, invocationContext.ServiceProvider).ConfigureAwait(false);
+        AppTenantInfo tenant;
+        try
+        {
+            tenant = await ConferirAsync(invocationContext.Context, invocationContext.ServiceProvider).ConfigureAwait(false);
+        }
+        catch (LicencaRecusadaException)
+        {
+            // On a call the connection stays open unless closed here. On connect the exception out of OnConnectedAsync
+            // already ends the connection, and SignalR is expected to send it as the close reason, which an Abort
+            // before it could race away (not exercised: in one instance the middleware refuses first).
+            invocationContext.Context.Abort();
+            throw;
+        }
+
         InstalarTenant(invocationContext.ServiceProvider, tenant);
         return await next(invocationContext).ConfigureAwait(false);
     }
@@ -73,8 +87,7 @@ public sealed partial class PafHubFilter(ILogger<PafHubFilter> logger) : IHubFil
             ConexaoEstacao estacao => await EstacaoVigenteAsync(servicos, estacao, ct).ConfigureAwait(false),
             // Before the session arm: an impersonation is judged by its grant, whatever else the token carries.
             ConexaoPessoa { Impersonacao: true } => await ImpersonacaoVigenteAsync(servicos, contexto, ct).ConfigureAwait(false),
-            ConexaoPessoa { SessaoId: { } sessaoId } => await servicos.GetRequiredService<ISessionService>()
-                .GetSessionAsync(sessaoId, ct).ConfigureAwait(false) is { IsActive: true },
+            ConexaoPessoa { SessaoId: { } sessaoId } pessoa => await SessaoVigenteAsync(servicos, contexto, pessoa, sessaoId, ct).ConfigureAwait(false),
             // The root token without sid has no kit session to re-check; the expiry of the token closes it
             // (CloseOnAuthenticationExpiration), as SessionCheckMiddleware lets it through.
             _ => true,
@@ -105,6 +118,34 @@ public sealed partial class PafHubFilter(ILogger<PafHubFilter> logger) : IHubFil
             .IsRevokedOrEndedAsync(jti, limite.Token).ConfigureAwait(false);
     }
 
+    // Active kit session, then the licence: a reconnection or a call that arrives after the grace released the seat
+    // re-occupies through the cascade, or is refused with the cause (ARQ seção 9). The root tenant takes no licence.
+    private async Task<bool> SessaoVigenteAsync(
+        IServiceProvider servicos, HubCallerContext contexto, ConexaoPessoa pessoa, Guid sessaoId, CancellationToken ct)
+    {
+        if (await servicos.GetRequiredService<ISessionService>().GetSessionAsync(sessaoId, ct).ConfigureAwait(false) is not { IsActive: true } sessao)
+        {
+            return false;
+        }
+
+        if (string.Equals(pessoa.TenantId, MultitenancyConstants.Root.Id, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        try
+        {
+            await servicos.GetRequiredService<ReocupacaoSessao>()
+                .GarantirAsync(pessoa.TenantId, sessaoId, Guid.Parse(sessao.UserId!), ct).ConfigureAwait(false);
+            return true;
+        }
+        catch (UnauthorizedException ex)
+        {
+            LogLicencaRecusada(logger, contexto.ConnectionId);
+            throw new LicencaRecusadaException(ex.Message);
+        }
+    }
+
     private static Task<bool> EstacaoVigenteAsync(IServiceProvider servicos, ConexaoEstacao estacao, CancellationToken ct)
     {
         // Estacoes is unit-filtered and fails closed; the station's unit is fixed by its credential (ADR 0006).
@@ -119,6 +160,28 @@ public sealed partial class PafHubFilter(ILogger<PafHubFilter> logger) : IHubFil
         contexto.Abort();
         return new HubException(MensagemRecusada);
     }
+
+    /// <summary>Licence refused on connect or on a call; the message is the cause the screen shows (ARQ seção 9).</summary>
+    public sealed class LicencaRecusadaException : HubException
+    {
+        public LicencaRecusadaException()
+        {
+        }
+
+        public LicencaRecusadaException(string message)
+            : base(message)
+        {
+        }
+
+        public LicencaRecusadaException(string message, Exception innerException)
+            : base(message, innerException)
+        {
+        }
+    }
+
+    [LoggerMessage(EventId = 9006, Level = LogLevel.Information,
+        Message = "PafHub recusou a conexao {ConnectionId}: licenca da sessao recusada na reocupacao")]
+    private static partial void LogLicencaRecusada(ILogger logger, string connectionId);
 
     [LoggerMessage(EventId = 9003, Level = LogLevel.Information,
         Message = "PafHub recusou a conexao {ConnectionId} ({Tipo}): credencial revogada, sessao encerrada ou principal invalido")]

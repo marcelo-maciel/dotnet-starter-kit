@@ -206,6 +206,7 @@ public sealed class PafModule : IModule
         services.AddHostedService(sp => sp.GetRequiredService<ReconstrucaoLicencas>());
         services.AddScoped<EstadoSessao>();
         services.AddScoped<RevogacaoSessao>();
+        services.AddScoped<ReocupacaoSessao>();
         services.AddScoped<IPipelineBehavior<GenerateTokenCommand, TokenResponse>, GenerateTokenLicenseBehavior>();
         services.AddScoped<IPipelineBehavior<RefreshTokenCommand, RefreshTokenCommandResponse>, RefreshTokenLicenseBehavior>();
         // S11A (D28): AtoImpersonacao of every write; the open generic only closes over IEscritaDeCadastro commands.
