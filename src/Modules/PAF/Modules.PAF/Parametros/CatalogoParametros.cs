@@ -82,6 +82,31 @@ public static class CatalogoParametros
     public static readonly DefinicaoParametro<int> QuantidadeChamadasPainel =
         new("quantidadeChamadasPainel", Padrao: 10, valor => InterpretarInteiroAte(valor, QuantidadeMaximaChamadasPainel));
 
+    // --- C20: the other RF06 Geral keys (requisitos l.228, D29 and D30 of 17/10/2026). ---
+
+    public const int TamanhoMaximoMensagemAoChamar = 120;
+    public const string FalaSoSenha = "senha";
+    public const string FalaSenhaEMensagem = "senhaEMensagem";
+
+    /// <summary>RF06 "mensagem exibida ao chamar a ficha": shown on the painel under the called senha; empty = no line.</summary>
+    public static readonly DefinicaoParametro<string> MensagemAoChamar =
+        new("mensagemAoChamar", Padrao: string.Empty, valor => InterpretarTexto(valor, TamanhoMaximoMensagemAoChamar));
+
+    /// <summary>
+    /// RF06 "chamar ficha por voz" as amended by D29: RNF19 wants every call in voice and text, so the voice never turns
+    /// off and the key only chooses what it says. An option, not a boolean, so "false" is refused (400) instead of
+    /// silencing the painel. The senha alone is the default because requisitos l.86 never speaks the guichê.
+    /// </summary>
+    public static readonly DefinicaoParametro<string> ChamarFichaPorVoz =
+        new("chamarFichaPorVoz", Padrao: FalaSoSenha, valor => InterpretarOpcao(valor, [FalaSoSenha, FalaSenhaEMensagem]));
+
+    /// <summary>
+    /// RF06 "exibir informação detalhada de fila" (D30): on, the guichê screen shows the waiting count of each fila of
+    /// its station; off, only the total. Off by default, the smaller screen.
+    /// </summary>
+    public static readonly DefinicaoParametro<bool> ExibirInformacaoDetalhadaFila =
+        new("exibirInformacaoDetalhadaFila", Padrao: false, InterpretarBooleano);
+
     /// <summary>The six guichê hotkeys; no two may hold the same key in the effective set of any unidade.</summary>
     public static IReadOnlyList<DefinicaoParametro<string>> Teclas { get; } =
         [TeclaChamarProxima, TeclaEncaminhar, TeclaEncerrar, TeclaEncerrarEChamar, TeclaIniciar, TeclaChamarNovamente];
@@ -90,6 +115,9 @@ public static class CatalogoParametros
     public static IReadOnlyList<ParametroCatalogado> Todos { get; } =
     [
         ParametroCatalogado.Booleano(SomenteFichasDaDataAtual, "Geral"),
+        ParametroCatalogado.Booleano(ExibirInformacaoDetalhadaFila, "Geral"),
+        ParametroCatalogado.Opcao(ChamarFichaPorVoz, "Geral", [FalaSoSenha, FalaSenhaEMensagem]),
+        ParametroCatalogado.Texto(MensagemAoChamar, "Geral"),
         ParametroCatalogado.Texto(TituloFichas, "Fichas"),
         ParametroCatalogado.Texto(MensagemRodapeFicha, "Fichas"),
         ParametroCatalogado.Booleano(ImprimirQrFicha, "Fichas"),

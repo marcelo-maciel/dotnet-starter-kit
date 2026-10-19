@@ -37,6 +37,9 @@ import { EmissaoGuiche } from "@/features/paf/guiche/emissao-guiche";
 import { useAuth } from "@/auth/use-auth";
 import { textoSeloImpersonacao } from "@/features/paf/guiche/selo-impersonacao";
 
+// C20: waiting counts.
+import { AguardandoGuiche } from "@/features/paf/guiche/aguardando-guiche";
+
 type Ultimo = { senha: string; estado: string };
 
 // The server holds unit, guichê and atendimento (GET posto): a reload asks it again. Only the step of a
@@ -340,6 +343,7 @@ export function GuichePage() {
               </p>
             )}
           </div>
+          <AguardandoGuiche />
 
           <div className="flex flex-wrap justify-center gap-3">
             <Button size="lg" disabled={ocupado} onClick={() => void chamar()}>
