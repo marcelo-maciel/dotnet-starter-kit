@@ -49,19 +49,20 @@ public sealed class PafEscopoEmpresaTests(FshWebApplicationFactory factory) : IA
         var u1 = await _tenant.CriarUnidadeAsync(limiteSessoes: null);
         var u2 = await _tenant.CriarUnidadeAsync(limiteSessoes: 5);
         var u3 = await _tenant.CriarUnidadeAsync(limiteSessoes: null);
-        // Principal U2 on purpose: the principal leads, the rest follows creation order.
+        // Principal U2 on purpose: the principal leads, the rest follows creation order, starting with the
+        // tenant's initial unidade (C03), created with the tenant.
         var usuario = await _tenant.CriarUsuarioEmpresaAsync(u2.UnidadeId);
         await _tenant.DarPapelAsync(usuario.UserId, PafPermissions.Unidades.View, PafPermissions.Guiches.Selecionar, PafPermissions.Filas.View);
         using var cliente = _tenant.Cliente((await _tenant.EntrarAsync(usuario)).AccessToken);
 
-        (await UnidadesAsync(cliente)).ShouldBe([u2.UnidadeId, u1.UnidadeId, u3.UnidadeId]);
+        (await UnidadesAsync(cliente)).ShouldBe([u2.UnidadeId, _tenant.UnidadeInicial, u1.UnidadeId, u3.UnidadeId]);
 
         var u4 = await _tenant.CriarUnidadeAsync(limiteSessoes: null);
         var filaEmU4 = await CriarFilaAsync(u4.UnidadeId);
 
-        (await UnidadesAsync(cliente)).ShouldBe([u2.UnidadeId, u1.UnidadeId, u3.UnidadeId, u4.UnidadeId]);
+        (await UnidadesAsync(cliente)).ShouldBe([u2.UnidadeId, _tenant.UnidadeInicial, u1.UnidadeId, u3.UnidadeId, u4.UnidadeId]);
         (await PafApi.OkAsync<List<UnidadeDoGuicheDto>>(cliente, HttpMethod.Get, "/guiche/unidades", null, null))
-            .Select(u => u.Id).ShouldBe([u2.UnidadeId, u1.UnidadeId, u3.UnidadeId, u4.UnidadeId]);
+            .Select(u => u.Id).ShouldBe([u2.UnidadeId, _tenant.UnidadeInicial, u1.UnidadeId, u3.UnidadeId, u4.UnidadeId]);
         (await PafApi.OkAsync<List<FilaDto>>(cliente, HttpMethod.Get, "/filas/consolidadas", null, null))
             .ShouldContain(f => f.Id == filaEmU4);
     }
@@ -93,7 +94,8 @@ public sealed class PafEscopoEmpresaTests(FshWebApplicationFactory factory) : IA
 
         var vistas = await UnidadesAsync(cliente);
 
-        vistas.ShouldBe([u1.UnidadeId]);
+        vistas.ShouldBe([u1.UnidadeId, _tenant.UnidadeInicial]);
+        vistas.ShouldNotContain(outro.UnidadeInicial);
         vistas.ShouldNotContain(deB.UnidadeId);
         vistas.ShouldNotContain(deBDepois.UnidadeId);
     }

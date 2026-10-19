@@ -9,6 +9,9 @@ public sealed class Unidade : BaseEntity<Guid>
     public string? DocumentoFiscal { get; private set; }
     public bool Ativa { get; private set; }
 
+    /// <summary>A unidade criada junto com o tenant (RF23); no máximo uma por tenant (<c>UX_Unidades_Inicial</c>).</summary>
+    public bool Inicial { get; private set; }
+
 #pragma warning disable S1144 // EF Core writes these setters via reflection
     /// <summary>Carimbado pelo PostgreSQL; ordena a cascata de licença do usuário de escopo empresa.</summary>
     public DateTimeOffset CriadoEm { get; private set; }
@@ -26,6 +29,14 @@ public sealed class Unidade : BaseEntity<Guid>
             DocumentoFiscal = documentoFiscal,
             Ativa = true,
         };
+    }
+
+    /// <summary>A unidade que nasce da criação do tenant, com os dados a completar pelo operador da Codefi (RF23).</summary>
+    public static Unidade CriarInicial(string nome)
+    {
+        var unidade = Criar(nome, documentoFiscal: null);
+        unidade.Inicial = true;
+        return unidade;
     }
 
     public void Atualizar(string nome, string? documentoFiscal)

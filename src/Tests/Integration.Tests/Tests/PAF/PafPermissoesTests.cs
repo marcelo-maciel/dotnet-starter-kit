@@ -31,20 +31,16 @@ public sealed class PafPermissoesTests(FshWebApplicationFactory factory)
         });
         criar.StatusCode.ShouldBe(HttpStatusCode.Created, await criar.Content.ReadAsStringAsync());
         await TenantProvisioningWait.WaitForProvisioningAsync(root, tenantId);
+        await PafTenantCliente.PrepararAdministradorAsync(factory, tenantId, PafTenantCliente.LimiteDaUnidadeInicial);
         using var cliente = await _auth.CreateAuthenticatedClientAsync(adminEmail, TestConstants.DefaultPassword, tenantId);
 
         var unidade = await PafApi.OkAsync<Guid>(cliente, HttpMethod.Post, "/unidades", null, new CreateUnidadeCommand("Loja 1", null));
 
-        // Creating does not grant: the admin stays out of the unit's scope, so his session, opened without a
-        // licence, keeps working instead of turning into an unlicensed PAF session.
-        (await PafApi.OkAsync<List<UnidadeDto>>(cliente, HttpMethod.Get, "/unidades", null, null)).ShouldNotContain(u => u.Id == unidade);
+        // The initial admin has escopo empresa (C03), so a unidade created later is in his scope at once (RF08).
+        (await PafApi.OkAsync<List<UnidadeDto>>(cliente, HttpMethod.Get, "/unidades", null, null)).ShouldContain(u => u.Id == unidade);
 
         using var contrato = await PafApi.EnviarAsync(cliente, HttpMethod.Post, "/contratos", null,
             new CreateContratoUnidadeCommand(unidade, new DateOnly(2026, 1, 1), null, "Pro", 999, "Recusar"));
         contrato.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-
-        // Outside his scope the unit is not even readable through the header.
-        using var leitura = await PafApi.EnviarAsync(cliente, HttpMethod.Get, "/contratos", unidade, null);
-        leitura.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 }

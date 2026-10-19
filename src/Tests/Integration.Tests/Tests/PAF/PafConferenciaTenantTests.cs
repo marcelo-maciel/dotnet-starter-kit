@@ -39,6 +39,7 @@ public sealed class PafConferenciaTenantTests : IAsyncLifetime
         await CriarTenantAsync(root, _tenantB, $"admin-b-{unico}@pafct.com");
         await TenantProvisioningWait.WaitForProvisioningAsync(root, _tenantA);
         await TenantProvisioningWait.WaitForProvisioningAsync(root, _tenantB);
+        await PafTenantCliente.PrepararAdministradorAsync(_factory, _tenantA, PafTenantCliente.LimiteDaUnidadeInicial);
         _ = await TokenComRetentativaAsync(_adminA, _tenantA);
     }
 

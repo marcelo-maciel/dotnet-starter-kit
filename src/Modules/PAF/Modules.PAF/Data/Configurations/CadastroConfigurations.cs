@@ -6,6 +6,8 @@ namespace FSH.Modules.PAF.Data.Configurations;
 
 public sealed class UnidadeConfiguration : IEntityTypeConfiguration<Unidade>
 {
+    public const string IndiceInicial = "UX_Unidades_Inicial";
+
     public void Configure(EntityTypeBuilder<Unidade> builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -15,6 +17,8 @@ public sealed class UnidadeConfiguration : IEntityTypeConfiguration<Unidade>
         builder.Property(x => x.Nome).IsRequired().HasMaxLength(160);
         builder.Property(x => x.DocumentoFiscal).HasMaxLength(32);
         builder.Property(x => x.CriadoEm).HasDefaultValueSql(PafSql.Agora);
+        // Two deliveries of the tenant creation event race here: the second insert fails on this index (RF23, C03).
+        builder.HasIndex(x => x.Inicial).IsUnique().HasFilter("\"Inicial\"").HasDatabaseName(UnidadeConfiguration.IndiceInicial);
         builder.Ignore(x => x.DomainEvents);
     }
 }
