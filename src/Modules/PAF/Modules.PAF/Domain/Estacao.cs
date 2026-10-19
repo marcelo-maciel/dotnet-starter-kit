@@ -12,6 +12,11 @@ public sealed class Estacao : BaseEntity<Guid>, IEscopoUnidade
     public string Nome { get; private set; } = default!;
     public TipoEstacao Tipo { get; private set; }
 
+    public const int RamalMaxLength = 20;
+
+    /// <summary>Ramal telefônico da estação (RF04, campos gerais).</summary>
+    public string? Ramal { get; private set; }
+
 #pragma warning disable S1144 // EF Core writes these setters via reflection
     /// <summary>Bloco de configuração do tipo, em JSON.</summary>
     public string? Configuracao { get; private set; }
@@ -43,6 +48,16 @@ public sealed class Estacao : BaseEntity<Guid>, IEscopoUnidade
         ArgumentException.ThrowIfNullOrWhiteSpace(nome);
         Nome = nome;
     }
+
+    /// <summary>Validated and serialized by the cadastro (Features/v1/Estacoes/ConfiguracaoDaEstacao).</summary>
+    public void DefinirConfiguracao(string configuracao)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(configuracao);
+        Configuracao = configuracao;
+    }
+
+    public void DefinirRamal(string? ramal) =>
+        Ramal = string.IsNullOrWhiteSpace(ramal) ? null : ramal.Trim();
 
     public void Ativar() => Ativa = true;
 

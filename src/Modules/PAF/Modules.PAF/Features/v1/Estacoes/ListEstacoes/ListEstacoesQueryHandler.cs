@@ -19,6 +19,8 @@ public sealed class ListEstacoesQueryHandler(PafDbContext db)
                 e.Nome,
                 e.Tipo,
                 e.Ativa,
+                e.Ramal,
+                e.Configuracao,
                 Filas = db.EstacaoFilas.Where(ef => ef.EstacaoId == e.Id).OrderBy(ef => ef.Ordem)
                     .Select(ef => new { ef.Papel, ef.FilaId, ef.Ordem }).ToList(),
                 Prioridades = db.EstacaoPrioridades.Where(ep => ep.EstacaoId == e.Id).OrderBy(ep => ep.Ordem)
@@ -31,7 +33,9 @@ public sealed class ListEstacoesQueryHandler(PafDbContext db)
             .Select(e => new EstacaoDto(
                 e.Id, e.UnidadeId, e.Nome, e.Tipo.ToString(), e.Ativa,
                 e.Filas.Select(f => new EstacaoFilaItem(f.Papel.ToString(), f.FilaId, f.Ordem)).ToList(),
-                e.Prioridades))
+                e.Prioridades,
+                e.Ramal,
+                ConfiguracaoDaEstacao.Ler(e.Configuracao)))
             .ToList();
     }
 }

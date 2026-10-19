@@ -15,6 +15,7 @@ public sealed class EstacaoConfiguration : IEntityTypeConfiguration<Estacao>
         builder.Property(x => x.Nome).IsRequired().HasMaxLength(120);
         builder.Property(x => x.Tipo).HasConversion<string>().HasMaxLength(32);
         builder.Property(x => x.Configuracao).HasColumnType("jsonb");
+        builder.Property(x => x.Ramal).HasMaxLength(Estacao.RamalMaxLength);
         builder.HasOne<Unidade>().WithMany().HasForeignKey(x => x.UnidadeId).OnDelete(DeleteBehavior.Restrict);
         builder.Ignore(x => x.DomainEvents);
     }

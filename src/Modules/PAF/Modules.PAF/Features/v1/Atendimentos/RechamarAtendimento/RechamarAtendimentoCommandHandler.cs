@@ -35,9 +35,14 @@ public sealed class RechamarAtendimentoCommandHandler(PafDbContext db, SessaoCor
             """, cancellationToken);
 
         var paineis = await OperacaoGuiche.PaineisDaFilaAsync(db, atendimento.FilaId, cancellationToken);
+        var (numeroGuiche, nomeExibicaoGuiche) = Estacoes.ConfiguracaoDaEstacao.IdentidadeDoGuiche(guiche.Estacao.Configuracao);
         var aviso = SenhaRechamadaPaf.Criar(guiche.TenantId, OperacaoGuiche.Correlacao(), new SenhaRechamada(
             Guid.CreateVersion7(), atendimento.UnidadeId, atendimento.Id, atendimento.FichaId, versao,
-            OperacaoGuiche.Senha(atendimento.Letra, atendimento.Numero), guiche.Estacao.Id, guiche.Estacao.Nome), paineis);
+            OperacaoGuiche.Senha(atendimento.Letra, atendimento.Numero), guiche.Estacao.Id, guiche.Estacao.Nome)
+        {
+            NumeroGuiche = numeroGuiche,
+            NomeExibicaoGuiche = nomeExibicaoGuiche,
+        }, paineis);
         await OperacaoGuiche.ConfirmarEAvisarAsync(transacao, avisos, aviso, cancellationToken);
         return new AtendimentoAlteradoDto(atendimento.Id, nameof(EstadoAtendimento.Chamado), versao);
     }

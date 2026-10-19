@@ -11,6 +11,8 @@ public sealed class UpdateEstacaoCommandValidator : AbstractValidator<UpdateEsta
     {
         RuleFor(x => x.Id).NotEmpty();
         RuleFor(x => x.Nome).NotEmpty().MaximumLength(120);
+        RuleFor(x => x.Ramal).MaximumLength(Estacao.RamalMaxLength);
+        RuleFor(x => x.Configuracao).NotNull();
 
         RuleFor(x => x.Filas).NotNull();
         RuleForEach(x => x.Filas).ChildRules(f =>

@@ -37,12 +37,12 @@ public sealed class PafCoberturaGuicheTests(FshWebApplicationFactory factory) : 
         using var totem = await _op.TotemAsync(c);
 
         var semPreferencialNoA = await EnviarAsync(c, new UpdateEstacaoCommand(c.GuicheA, "Guichê 1",
-            [new EstacaoFilaItem("Guiche", c.Caixa, 0)], [new EstacaoPrioridadeItem(c.Normal, 0)]));
+            [new EstacaoFilaItem("Guiche", c.Caixa, 0)], [new EstacaoPrioridadeItem(c.Normal, 0)], null, BlocosDeTeste.Guiche(1)));
         semPreferencialNoA.CombinacoesSemCobertura.ShouldBeEmpty("o guichê B ainda cobre Caixa/Preferencial");
 
         var semPreferencialNoB = await EnviarAsync(c, new UpdateEstacaoCommand(c.GuicheB, "Guichê 2",
             [new EstacaoFilaItem("Guiche", c.Protocolo, 0), new EstacaoFilaItem("Guiche", c.Caixa, 1)],
-            [new EstacaoPrioridadeItem(c.Normal, 0)]));
+            [new EstacaoPrioridadeItem(c.Normal, 0)], null, BlocosDeTeste.Guiche(2)));
         var perdida = semPreferencialNoB.CombinacoesSemCobertura.ShouldHaveSingleItem();
         (perdida.FilaId, perdida.PrioridadeId, perdida.Letra, perdida.Fila, perdida.Prioridade)
             .ShouldBe((c.Caixa, c.Preferencial, "AP", "Caixa", "Preferencial"));
@@ -70,7 +70,7 @@ public sealed class PafCoberturaGuicheTests(FshWebApplicationFactory factory) : 
         // Retaguarda goes into the emission list of an "Emissão de Fichas e Guichê" station, never its guichê list.
         var combinada = await EnviarAsync(c, new CreateEstacaoCommand("Totem e guichê", "EmissaoGuiche",
             [new EstacaoFilaItem("Emissao", c.Retaguarda, 0), new EstacaoFilaItem("Emissao", c.Caixa, 1), new EstacaoFilaItem("Guiche", c.Protocolo, 0)],
-            [new EstacaoPrioridadeItem(c.Normal, 0)]));
+            [new EstacaoPrioridadeItem(c.Normal, 0)], null, BlocosDeTeste.EmissaoGuiche(3)));
         using var totem = _tenant.Cliente(await _op.CredencialAsync(c.UnidadeId, combinada, "Emissao"));
 
         (await BotoesAsync(totem)).ShouldBe([(c.Caixa, c.Normal), (c.Caixa, c.Preferencial)]);
