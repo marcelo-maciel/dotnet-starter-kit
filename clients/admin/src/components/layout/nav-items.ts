@@ -18,6 +18,7 @@ import {
   MultitenancyPermissions,
   WebhooksPermissions,
 } from "@/lib/permissions";
+import { secaoOperadorPaf } from "@/features/paf/operador/menu-operador-paf";
 
 /** A single nav destination — label, route, icon, optional perm guard. */
 export type NavSpec = {
@@ -117,6 +118,7 @@ export const sections: NavSection[] = [
       },
     ],
   },
+  secaoOperadorPaf,
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
