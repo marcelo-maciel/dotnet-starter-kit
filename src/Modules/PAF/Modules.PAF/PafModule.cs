@@ -41,6 +41,7 @@ using FSH.Modules.PAF.Features.v1.Estacoes.RevogarVinculo;
 using FSH.Modules.PAF.Features.v1.Estacoes.UpdateEstacao;
 using FSH.Modules.PAF.Features.v1.Fichas.CancelarAtendimentoDaFicha;
 using FSH.Modules.PAF.Features.v1.Fichas.ConsultarFicha;
+using FSH.Modules.PAF.Features.v1.Fichas.ReimprimirFichaDeEspera;
 using FSH.Modules.PAF.Features.v1.Fichas.EmitirFicha;
 using FSH.Modules.PAF.Features.v1.Fichas.ListAtendimentosDoDia;
 using FSH.Modules.PAF.Features.v1.Fichas.ObterImpressaoFicha;
@@ -290,6 +291,8 @@ public sealed class PafModule : IModule
         fichas.MapListFichasInProgressEndpoint();
         // RF18 (F14): read only; its cancel and reabilitar are the F04 and F05 routes.
         fichas.MapGetFichaBySenhaEndpoint();
+        // RF20 (F15): reprint by senha, day and fila through the F06 reader, under FichasDoDia.View.
+        fichas.MapGetFichaDeEsperaEndpoint();
     }
 
     private static void MapearSessao(IEndpointRouteBuilder sessao)
