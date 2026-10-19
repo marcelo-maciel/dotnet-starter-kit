@@ -54,6 +54,11 @@ public sealed class PafDbContext : BaseDbContext
     public DbSet<AtividadeSessao> AtividadesSessao => Set<AtividadeSessao>();
     public DbSet<AtoImpersonacao> AtosImpersonacao => Set<AtoImpersonacao>();
 
+    public DbSet<EnvioMidia> EnviosMidia => Set<EnvioMidia>();
+    public DbSet<Midia> Midias => Set<Midia>();
+    public DbSet<ProgramacaoMidia> ProgramacoesMidia => Set<ProgramacaoMidia>();
+    public DbSet<PainelMidia> PainelMidias => Set<PainelMidia>();
+
     // Read by the query filter on the executing context instance, once per query.
     private Guid? UnidadeCorrenteId => _unidadeCorrente?.UnidadeId;
 

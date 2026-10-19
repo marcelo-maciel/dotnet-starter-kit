@@ -138,6 +138,24 @@ Concurrency and fail-closed tests: `src/Tests/Integration.Tests/Tests/PAF/`.
 - `PapeisPadrao`: kit roles Administrador, Gerente, Atendente with PAF permissions only (no kit permission, no `Permissions.Users.Update`), created through `IRoleService` when missing; an existing role keeps its permissions. Administrador lacks `Unidades.Create/Update` and `Parametros.UpdateEmpresa` (company admin only); `Estatisticas.ViewPorAtendente` (D10) waits for its `IsRoot` flag to flip. `PafDemoSeeder` marks its unidade `Inicial` and seeds the same roles.
 - `GenerateTokenLicenseBehavior` refuses (403, `MensagemSemUnidade`) a client-tenant login with no `UsuarioUnidade` once the PAF has reached the tenant (`Licencas.PafProvisionadoAsync`: initial unidade exists); before that the kit login stands, because the event waits for the outbox (off in the integration host) and the kit's tests log in right after provisioning. The refresh and the per-request check keep passing such a user through.
 
+## Media schema (`Domain/EnvioMidia`, `Midia`, `ProgramacaoMidia`, `PainelMidia`; `Data/Configurations/MidiaConfigurations.cs`)
+
+- Four unit-scoped tables (`IEscopoUnidade`, no soft delete): `EnviosMidia` (one upload; source of the object key, never reused, RF03; `CriadoEm`/`ConfirmadoEm`/`RecusadoEm`/`RemovidoEm` stamped by PostgreSQL, so confirm, refuse and cleanup are raw `now()` UPDATEs), `Midias` (`EnvioId` + copy of `ChaveObjeto`, `Versao`, `Ativa`), `ProgramacoesMidia` (BRT wall-clock dates and `HoraInicial`, `Repeticoes`, `Dias` = `DiasSemana` bit mask in `DayOfWeek` order, 127 = every day; media time, total and end hour are computed on read, never stored), `PainelMidias` (own `Id`, `Ordem`; the same mídia may repeat in a list).
+- `Midia.Criar(envio, …)` takes unidade, tipo, envio and key from the `EnvioMidia`. Midnight crossing and overlap (D13) depend on the mídia duration and are validated by the writer, not by a CHECK.
+- Same-unit composite FKs: `FK_Midias_EnviosMidia_MesmaUnidade` (UnidadeId, EnvioId, ChaveObjeto), `FK_ProgramacoesMidia_Midias_MesmaUnidade`, `FK_PainelMidias_Midias_MesmaUnidade` (UnidadeId, MidiaId), `FK_PainelMidias_Estacoes_MesmaUnidade` (UnidadeId, EstacaoId), against the alternate keys `AK_EnviosMidia_UnidadeId_Id_ChaveObjeto`, `AK_Midias_UnidadeId_Id`, `AK_Estacoes_UnidadeId_Id` (declared from the dependent side). Every principal key includes `Id`: a key on (UnidadeId, ChaveObjeto) alone would be created before `UX_EnviosMidia_ChaveObjeto` and be the constraint PostgreSQL names for a duplicated key.
+
+| Name | Table | Columns / predicate |
+|---|---|---|
+| `UX_EnviosMidia_ChaveObjeto` | EnviosMidia | ChaveObjeto, TenantId |
+| `UX_Midias_ChaveObjeto` | Midias | ChaveObjeto, TenantId (one object serves one mídia) |
+| `UX_PainelMidias_Ordem` | PainelMidias | EstacaoId, Ordem, TenantId |
+| `CK_EnviosMidia_Tipo`, `CK_Midias_Tipo` | EnviosMidia, Midias | Tipo IN (`TipoMidia` names) |
+| `CK_EnviosMidia_Desfecho` | EnviosMidia | not both ConfirmadoEm and RecusadoEm |
+| `CK_Midias_Duracao` | Midias | DuracaoSegundos BETWEEN 1 AND 86400 |
+| `CK_ProgramacoesMidia_Periodo` / `_Repeticoes` / `_Dias` | ProgramacoesMidia | DataFinal >= DataInicial / Repeticoes >= 1 / Dias BETWEEN 1 AND 127 |
+
+Tests: `Integration.Tests/Tests/PAF/PafMidiaEsquemaTests`, `PAF.Tests/MidiaDominioTests`.
+
 ## Touching the kit
 
 The kit is touched only at module registration points (both host `Program.cs` and `.csproj`, `src/FSH.Starter.slnx`, the migrations project) and at the other items of the closed list in ADR 0008. Any other kit edit requires amending ADR 0008 first.
