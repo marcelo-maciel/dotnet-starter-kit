@@ -7,6 +7,7 @@ using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Escopo;
 using FSH.Modules.PAF.Features.v1.Midias.PedirEnvioMidia;
 using FSH.Modules.PAF.Sessao;
+using FSH.Modules.PAF.TempoReal;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,6 +22,7 @@ public sealed class TrocarArquivoMidiaCommandHandler(
     PafDbContext db,
     IUnidadeCorrente unidadeCorrente,
     IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor,
+    AvisosTempoReal avisos,
     ConfirmacaoEnvioMidia confirmacao,
     AtosImpersonacao atos)
     : ICommandHandler<TrocarArquivoMidiaCommand, MidiaDto>
@@ -69,8 +71,11 @@ public sealed class TrocarArquivoMidiaCommandHandler(
         }
 
         midia.TrocarArquivo(envio);
+        var aviso = ProgramacaoAlteradaPaf.Criar(tenantId, unidadeId);
+        await avisos.GravarAsync(aviso, cancellationToken).ConfigureAwait(false);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await transacao.CommitAsync(cancellationToken).ConfigureAwait(false);
+        await avisos.EnviarAsync(aviso, cancellationToken).ConfigureAwait(false);
         return MidiaTravada.ParaDto(midia);
     }
 }
