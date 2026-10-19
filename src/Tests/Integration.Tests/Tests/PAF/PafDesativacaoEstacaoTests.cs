@@ -321,6 +321,11 @@ public sealed class PafDesativacaoEstacaoTests(FshWebApplicationFactory factory)
         var outraUnidade = await _op.CriarAsync();
         using var deOutra = await gerente.PostAsync(Rota(outraUnidade.GuicheA), content: null);
         deOutra.StatusCode.ShouldBe(HttpStatusCode.NotFound, "o guichê de outra unidade não é alcançado");
+
+        // The pre-C05 shape, with no body, still deactivates and keeps the atendimento in progress.
+        using var semCorpo = await gerente.PostAsync($"/api/v1/paf/estacoes/{c.GuicheA}/disable", content: null);
+        semCorpo.StatusCode.ShouldBe(HttpStatusCode.OK, await semCorpo.Content.ReadAsStringAsync());
+        (await semCorpo.Content.ReadFromJsonAsync<EstacaoDesativadaDto>())!.EmCurso.ShouldHaveSingleItem().AtendimentoId.ShouldBe(chamada.AtendimentoId);
     }
 
     // ─── helpers ─────────────────────────────────────────────────────

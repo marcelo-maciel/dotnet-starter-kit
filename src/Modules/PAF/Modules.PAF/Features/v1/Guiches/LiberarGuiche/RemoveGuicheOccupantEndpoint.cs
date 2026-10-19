@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Routing;
 
 namespace FSH.Modules.PAF.Features.v1.Guiches.LiberarGuiche;
 
-public static class LiberarGuicheEndpoint
+public static class RemoveGuicheOccupantEndpoint
 {
     internal static RouteHandlerBuilder MapReleaseGuicheEndpoint(this IEndpointRouteBuilder endpoints) =>
         endpoints.MapPost("/guiches/{id:guid}/liberar",
