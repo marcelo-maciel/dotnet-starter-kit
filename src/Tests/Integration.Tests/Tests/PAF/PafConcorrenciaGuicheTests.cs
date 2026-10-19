@@ -18,10 +18,10 @@ namespace Integration.Tests.Tests.PAF;
 /// ADR 0005 consequences for the pairs that exist in the guichê today (requisitos seção 4, RF21): two real
 /// connections, the test's own transaction as the barrier that fixes which operation reaches the ficha lock
 /// first, and the painel checked on the hub, in the outbox and in the state query. The pairs with the RF12
-/// cancel, rehabilitation and forwarding belong to F16, after those operations exist.
+/// cancel, rehabilitation and forwarding (F16) are in PafConcorrenciaGuicheTests.FichasDoDia.cs.
 /// </summary>
 [Collection(FshCollectionDefinition.Name)]
-public sealed class PafConcorrenciaGuicheTests(FshWebApplicationFactory factory) : IAsyncLifetime
+public sealed partial class PafConcorrenciaGuicheTests(FshWebApplicationFactory factory) : IAsyncLifetime
 {
     private static readonly TimeSpan Prazo = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan SilencioEsperado = TimeSpan.FromSeconds(1.5);
@@ -336,6 +336,8 @@ public sealed class PafConcorrenciaGuicheTests(FshWebApplicationFactory factory)
     private sealed class Barreira(IServiceScope scope, PafDbContext db, IDbContextTransaction transacao) : IAsyncDisposable
     {
         public Task<List<Guid>> TravarAsync(FormattableString sql) => db.Database.SqlQuery<Guid>(sql).ToListAsync();
+
+        public Task<int> ExecutarAsync(FormattableString sql) => db.Database.ExecuteSqlAsync(sql);
 
         public async ValueTask DisposeAsync()
         {
