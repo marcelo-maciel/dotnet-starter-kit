@@ -7,6 +7,7 @@
 //   PAF_API=http://localhost:5412 PAF_WEB=http://localhost:5413 PAF_PG=c13-pg node tests/e2e/paf-navegacao.walk.mjs
 // PAF_ESPERA_MS (default 180000) is how long the kit screen stays idle. Exit code 0 only when every check passed.
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { chromium } from "@playwright/test";
 
 const API = process.env.PAF_API;
@@ -51,7 +52,8 @@ async function api(method, path, token, body) {
 
 // Read-only checks go straight to PostgreSQL: a second API login would revoke the browser's session (sessão única).
 function sql(consulta) {
-  return execFileSync("docker", ["exec", PG, "psql", "-U", "postgres", "-d", "fsh", "-At", "-c", consulta], {
+  // User fsh, the owner every walk container is created with (deploy/paf/walk-local.sh, walk-ci.sh).
+  return execFileSync("docker", ["exec", PG, "psql", "-U", "fsh", "-d", "fsh", "-v", "ON_ERROR_STOP=1", "-At", "-c", consulta], {
     encoding: "utf8",
     timeout: TIMEOUT,
   }).trim();
@@ -100,18 +102,31 @@ async function entrar(contexto, email) {
 }
 
 async function linksPaf(pagina) {
-  await pagina.locator("aside").first().waitFor({ timeout: TIMEOUT });
+  // The aside renders before the permissions arrive: wait for the PAF section itself, then let the list settle.
+  await pagina.locator('aside a[href^="/paf"]').first().waitFor({ timeout: TIMEOUT });
+  await pagina.waitForTimeout(1_000);
   return pagina.locator('aside a[href^="/paf"]').evaluateAll((as) => [...new Set(as.map((a) => a.getAttribute("href")))]);
 }
 
 const browser = await chromium.launch({ channel: "chrome" });
 try {
   // ── Setup through the API: a second unidade in the admin's scope; alice and manager on the demo unidade only.
-  const admin = await api("POST", "/api/v1/identity/token/issue", null, { email: "admin@acme.com", password: SENHA_DEMO });
-  const unidades = await api("GET", "/api/v1/paf/unidades", admin.accessToken);
+  // Only the company admin creates a unidade (RF23): the demo admin is made one first, as paf-logotipo.walk.mjs does.
+  const inicial = await api("POST", "/api/v1/identity/token/issue", null, { email: "admin@acme.com", password: SENHA_DEMO });
+  const unidades = await api("GET", "/api/v1/paf/unidades", inicial.accessToken);
   const demo = unidades.find((u) => u.nome === "Loja Demo");
+  await api("PUT", `/api/v1/paf/usuarios/${usuarioId("admin@acme.com")}/unidades`, inicial.accessToken, {
+    usuarioId: "00000000-0000-0000-0000-000000000000",
+    unidades: [demo.id],
+    escopoEmpresa: true,
+  });
+  const admin = await api("POST", "/api/v1/identity/token/issue", null, { email: "admin@acme.com", password: SENHA_DEMO });
   const nomeCentro = `Loja Centro ${Date.now()}`;
   const centroId = await api("POST", "/api/v1/paf/unidades", admin.accessToken, { nome: nomeCentro, documentoFiscal: null });
+  // The switch migrates the licence: the new unidade gets a copy of the demo contract. Ids are Guids the API returned.
+  sql(`INSERT INTO paf."ContratosUnidade" ("Id", "UnidadeId", "InicioVigencia", "FimVigencia", "Plano", "LimiteSessoes", "Politica", "TenantId")
+       SELECT gen_random_uuid(), '${centroId}', "InicioVigencia", "FimVigencia", "Plano", "LimiteSessoes", "Politica", "TenantId"
+       FROM paf."ContratosUnidade" WHERE "UnidadeId" = '${demo.id}' LIMIT 1`);
   const escopo = (unidadesDoUsuario) => ({ usuarioId: "00000000-0000-0000-0000-000000000000", unidades: unidadesDoUsuario, escopoEmpresa: false });
   const adminId = usuarioId("admin@acme.com");
   const aliceId = usuarioId("alice@acme.com");
@@ -125,7 +140,15 @@ try {
   await ctxAdmin.addInitScript(SOCKETS);
   const pAdmin = await entrar(ctxAdmin, "admin@acme.com");
   const menuAdmin = await linksPaf(pAdmin);
-  check("menu: admin vê a seção do PAF com todas as telas que existem", JSON.stringify(menuAdmin) === '["/paf/guiche"]', JSON.stringify(menuAdmin));
+  // Every screen of the PAF menu definition (menu-paf.ts): the demo admin holds every client-side PAF permission.
+  const telasDoMenu = [
+    ...new Set(readFileSync(new URL("../../src/features/paf/navegacao/menu-paf.ts", import.meta.url), "utf8").match(/"\/paf\/[a-z-]+"/g).map((s) => JSON.parse(s))),
+  ].sort();
+  check(
+    "menu: admin vê a seção do PAF com todas as telas que existem",
+    JSON.stringify([...menuAdmin].sort()) === JSON.stringify(telasDoMenu),
+    `${JSON.stringify(menuAdmin)} vs ${telasDoMenu.length} no menu-paf.ts`,
+  );
   check("menu: seção com o título Atendimento", await visivel(pAdmin.locator("aside").getByText("Atendimento").first()));
   check("tempo real: tela do kit conecta ao PafHub", await hubAberto(pAdmin));
 
