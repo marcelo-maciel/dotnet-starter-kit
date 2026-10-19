@@ -226,9 +226,13 @@ public sealed class PafTenantCriadoTests(FshWebApplicationFactory factory) : IAs
         var permissoes = await PermissoesAsync(cliente);
         permissoes.ShouldBe(PapeisPadrao.PermissoesGerente, ignoreOrder: true);
         permissoes.ShouldContain(PafPermissions.Guiches.Liberar);
+        permissoes.ShouldContain(PafPermissions.Estatisticas.ViewPorAtendente, "D10: o Gerente do cliente vê o tipo 4");
         permissoes.ShouldNotContain(PafPermissions.Parametros.UpdateEmpresa);
         using var fila = await PafApi.EnviarAsync(cliente, HttpMethod.Post, "/filas", null, new CreateFilaCommand("Nova", "Nova", null, null, null, PafApi.SemAparencia, []));
         fila.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        using var porAtendente = await cliente.GetAsync($"{PafApi.Base}/estatistica?tipo=4&dataInicial=2026-10-01&dataFinal=2026-10-18");
+        porAtendente.StatusCode.ShouldBe(HttpStatusCode.OK, await porAtendente.Content.ReadAsStringAsync());
     }
 
     // ─── helpers ────────────────────────────────────────────────────────

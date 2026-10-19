@@ -145,7 +145,7 @@ public sealed class PafEstatisticaAtendimentosTests(FshWebApplicationFactory fac
         await RealizadoAsync(c, a, a.Prioridade, c.U1.GuicheB, Guid.NewGuid(), Sp(Dia, 9, 15, 0), esperaSegundos: 60, atendimentoSegundos: 60);
         await RealizadoAsync(c, a, a.Prioridade, c.U1.GuicheB, null, Sp(Dia, 9, 20, 0), esperaSegundos: 60, atendimentoSegundos: 60);
 
-        // In process: through HTTP a client role cannot hold ViewPorAtendente until D10 flips its IsRoot flag (E0 test).
+        // In process: the query alone; the ViewPorAtendente gate through HTTP is pinned in PafEstatisticaTests.
         using var scope = factory.Services.CreateScope();
         c.Cliente.Contexto(scope, unidadeCorrente: null);
         var consulta = scope.ServiceProvider.GetServices<IConsultaEstatistica>().Single(x => x.Tipo == TipoEstatistica.AtendimentosPorAtendente);

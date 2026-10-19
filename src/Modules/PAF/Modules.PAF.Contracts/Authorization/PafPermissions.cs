@@ -152,8 +152,6 @@ public static class PafPermissions
     }
 
     // Guiches.Selecionar, Atendimentos.Operar, Fichas.Emitir, Atendimentos.Encaminhar and Atendimentos.SelecionarFicha are basic: the ordinary attendant operates a guichê, and the kit's basic role is their starting point.
-    // Estatisticas.ViewPorAtendente is IsRoot only because the kit hands every non-root permission to each tenant's Admin role on startup, see the kit RolePermissionSyncer:
-    // root keeps it out of every client role and catalog until D10 decides who sees it, then the flag flips.
     public static IReadOnlyList<FshPermission> All { get; } =
     [
         new("View PAF units", ActionConstants.View, Unidades.Resource),
@@ -187,7 +185,7 @@ public static class PafPermissions
         new("Reabilitar atendimento das fichas do dia", "Reabilitar", FichasDoDia.Resource),
         new("Ver fichas em atendimento", ActionConstants.View, FichasEmAtendimento.Resource),
         new("Ver estatísticas", ActionConstants.View, Estatisticas.Resource),
-        new("Ver estatística por atendente", "ViewPorAtendente", Estatisticas.Resource, IsRoot: true),
+        new("Ver estatística por atendente", "ViewPorAtendente", Estatisticas.Resource),
         new("View PAF media", ActionConstants.View, Midias.Resource),
         new("Create PAF media", ActionConstants.Create, Midias.Resource),
         new("Update PAF media", ActionConstants.Update, Midias.Resource),

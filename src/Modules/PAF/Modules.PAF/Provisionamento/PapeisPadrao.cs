@@ -25,7 +25,7 @@ public static class PapeisPadrao
     ];
 
     /// <summary>
-    /// Atendente plus Controle de Fila, releasing a stuck guichê (RF04), VIP, statistics and read-only cadastros.
+    /// Atendente plus Controle de Fila, releasing a stuck guichê (RF04), VIP, statistics (type 4 per atendente too, D10) and read-only cadastros.
     /// No cadastro write and no parameter write: those are Administração.
     /// </summary>
     public static IReadOnlyList<string> PermissoesGerente { get; } =
@@ -38,6 +38,7 @@ public static class PapeisPadrao
         PafPermissions.FichasDoDia.Reabilitar,
         PafPermissions.FichasEmAtendimento.View,
         PafPermissions.Estatisticas.View,
+        PafPermissions.Estatisticas.ViewPorAtendente,
         PafPermissions.Unidades.View,
         PafPermissions.Filas.View,
         PafPermissions.Prioridades.View,
@@ -77,8 +78,6 @@ public static class PapeisPadrao
         PafPermissions.Usuarios.Manage,
     ];
 
-    // Estatisticas.ViewPorAtendente (D10: Gerente and Administrador) is still IsRoot in PafPermissions, and the kit
-    // RoleService strips root permissions in a client tenant; it joins these sets when that flag flips.
     private static readonly (string Nome, string Descricao, IReadOnlyList<string> Permissoes)[] Papeis =
     [
         (Administrador, "PAF: administração da unidade ou da empresa, conforme o escopo", PermissoesAdministrador),

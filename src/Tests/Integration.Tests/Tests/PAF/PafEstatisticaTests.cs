@@ -26,12 +26,21 @@ public sealed class PafEstatisticaTests(FshWebApplicationFactory factory)
             recusada.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
 
-        // The role was given ViewPorAtendente too, and the kit strips it from a client role (root-only until D10
-        // reaches the catalog): what is left is View alone.
+        // View alone does not open the type 4 report per atendente (D10).
         using (var porAtendente = await GetAsync(cenario.ComView, $"tipo=4&{Periodo}"))
         {
             porAtendente.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
             (await porAtendente.Content.ReadAsStringAsync()).ShouldNotContain("linhas", Case.Insensitive);
+        }
+
+        // A client role holding ViewPorAtendente keeps it (not root since D10) and reads type 4.
+        var gerente = await cenario.Cliente.CriarUsuarioAsync(cenario.U1.UnidadeId);
+        await cenario.Cliente.DarPapelAsync(gerente.UserId, PafPermissions.Estatisticas.View, PafPermissions.Estatisticas.ViewPorAtendente);
+        using (var comPermissao = await EntrarAsync(cenario.Cliente, gerente))
+        using (var tipo4 = await GetAsync(comPermissao, $"tipo=4&{Periodo}"))
+        {
+            tipo4.StatusCode.ShouldBe(HttpStatusCode.OK, await tipo4.Content.ReadAsStringAsync());
+            (await tipo4.DeserializeAsync<ResultadoEstatisticaDto>()).Tipo.ShouldBe(TipoEstatistica.AtendimentosPorAtendente);
         }
 
         foreach (var tipo in Enumerable.Range(1, 10).Where(t => t != 4))
@@ -135,7 +144,7 @@ public sealed class PafEstatisticaTests(FshWebApplicationFactory factory)
         var u1 = await cliente.CriarUnidadeAsync(limiteSessoes: 5);
         var u2 = await cliente.CriarUnidadeAsync(limiteSessoes: 5);
         var usuario = await cliente.CriarUsuarioAsync(u1.UnidadeId, u2.UnidadeId);
-        await cliente.DarPapelAsync(usuario.UserId, PafPermissions.Estatisticas.View, PafPermissions.Estatisticas.ViewPorAtendente);
+        await cliente.DarPapelAsync(usuario.UserId, PafPermissions.Estatisticas.View);
         return new Cenario(cliente, u1, u2, await EntrarAsync(cliente, usuario));
     }
 

@@ -1,5 +1,6 @@
 using System.Reflection;
 using FSH.Modules.PAF.Contracts.Authorization;
+using FSH.Modules.PAF.Provisionamento;
 
 namespace PAF.Tests;
 
@@ -51,7 +52,7 @@ public sealed class PafPermissionsTests
     }
 
     [Fact]
-    public void Raiz_Should_BeOperatorAndUndecidedPersonalData()
+    public void Raiz_Should_BeOperatorOnly()
     {
         string[] raiz = PafPermissions.All.Where(p => p.IsRoot).Select(p => p.Name).ToArray();
 
@@ -59,8 +60,18 @@ public sealed class PafPermissionsTests
         [
             PafPermissions.Contratos.Manage,
             PafPermissions.Unidades.Operar,
-            PafPermissions.Estatisticas.ViewPorAtendente,
         ], ignoreOrder: true);
+    }
+
+    // D10 (17/10/2026): the type 4 report per atendente goes to the client's Gerente and Administrador, never to the
+    // Atendente, and it must not be root, or the kit strips it from every client role.
+    [Fact]
+    public void ViewPorAtendente_Should_BeGrantedToGerenteAndAdministradorOnly()
+    {
+        PapeisPadrao.PermissoesGerente.ShouldContain(PafPermissions.Estatisticas.ViewPorAtendente);
+        PapeisPadrao.PermissoesAdministrador.ShouldContain(PafPermissions.Estatisticas.ViewPorAtendente);
+        PapeisPadrao.PermissoesAtendente.ShouldNotContain(PafPermissions.Estatisticas.ViewPorAtendente);
+        PafPermissions.All.Single(p => p.Name == PafPermissions.Estatisticas.ViewPorAtendente).IsRoot.ShouldBeFalse();
     }
 
     [Fact]
