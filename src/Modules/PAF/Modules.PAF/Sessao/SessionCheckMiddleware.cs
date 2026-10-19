@@ -37,10 +37,16 @@ internal sealed class SessionCheckMiddleware(RequestDelegate next)
             return;
         }
 
-        // Impersonation has no kit session (the kit checks its grant per request); the PAF adds only the barrier.
+        // Impersonation has no kit session (the kit checks its grant per request): the barrier, then the grant's own
+        // branch, which takes no licence and never reads or writes the user's session (seção 9, RF22).
         if (ImpersonacaoPaf.Impersonando(usuario))
         {
             ImpersonacaoPaf.ConferirRequisicao(context);
+            if (ImpersonacaoPaf.RotaDoPaf(context.Request))
+            {
+                await DefinirUnidadeDaConcessaoAsync(context);
+            }
+
             await next(context);
             return;
         }
@@ -82,6 +88,18 @@ internal sealed class SessionCheckMiddleware(RequestDelegate next)
         }
 
         await ConferirLicencaAsync(context, tenantClaim!, sessaoId, Guid.Parse(sessao.UserId!), ct);
+    }
+
+    private static async Task DefinirUnidadeDaConcessaoAsync(HttpContext context)
+    {
+        var servicos = context.RequestServices;
+        var concessao = ConcessaoImpersonacao.DoToken(context.User)
+            ?? throw new UnauthorizedException(MensagemSessaoInvalida);
+        servicos.GetRequiredService<ConcessaoCorrente>().Definir(concessao);
+        if (await servicos.GetRequiredService<UnidadeDaConcessao>().ResolverAsync(concessao, context.RequestAborted) is { } unidadeId)
+        {
+            servicos.GetRequiredService<IUnidadeCorrente>().Definir(unidadeId);
+        }
     }
 
     // Root operator scoped to a client tenant by header: the session lives in root, and the request's Identity

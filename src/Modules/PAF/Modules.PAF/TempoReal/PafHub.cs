@@ -68,8 +68,9 @@ public sealed partial class PafHub(ConexoesPaf conexoes, IServiceProvider servic
                     LogPessoaConectada(logger, Context.ConnectionId, pessoa.TenantId, pessoa.UsuarioId);
                     break;
 
+                // The grant's own unit (S10B), never the user group: the support's switch must not reach the user.
                 case ConexaoPessoa pessoa:
-                    if (await UnidadeDaImpersonacaoAsync(pessoa).ConfigureAwait(false) is { } unidadeImpersonada)
+                    if (await UnidadeDaConcessaoAsync().ConfigureAwait(false) is { } unidadeImpersonada)
                     {
                         await EntrarAsync(pessoa.TenantId, PafGrupos.Unidade(pessoa.TenantId, unidadeImpersonada)).ConfigureAwait(false);
                     }
@@ -133,30 +134,16 @@ public sealed partial class PafHub(ConexoesPaf conexoes, IServiceProvider servic
             ?? await servicos.GetRequiredService<Licencas>().UnidadeDaMarcaVivaAsync(tenantId, sessaoId, ct).ConfigureAwait(false);
     }
 
-    // ponytail: the impersonated user's licence unit, else his principal unit. S10B keys the grant's own current unit
-    // by jti (and the link of the grant's guichê first); this connection then joins that unit instead.
-    private async Task<Guid?> UnidadeDaImpersonacaoAsync(ConexaoPessoa pessoa)
+    // Same resolution as SessionCheckMiddleware: the grant's Valkey key, else its guichê link, the user's live session,
+    // the principal unit (seção 9). Null with an empty scope: the connection joins no unit.
+    private async Task<Guid?> UnidadeDaConcessaoAsync()
     {
-        if (!Guid.TryParse(pessoa.UsuarioId, out var usuarioId))
+        if (ConcessaoImpersonacao.DoToken(Context.User) is not { } concessao)
         {
             return null;
         }
 
-        var ct = Context.ConnectionAborted;
-        var db = servicos.GetRequiredService<PafDbContext>();
-        var daLicenca = await db.Database.SqlQuery<Guid?>($"""
-            SELECT "UnidadeId" AS "Value"
-              FROM paf."AtividadesSessao"
-             WHERE "TenantId" = {pessoa.TenantId} AND "UsuarioId" = {usuarioId}
-               AND "UltimaAtividadeEm" > now() - make_interval(mins => {Licencas.PrazoMarcaMinutos})
-             ORDER BY "UltimaAtividadeEm" DESC
-             LIMIT 1
-            """).FirstOrDefaultAsync(ct).ConfigureAwait(false);
-        return daLicenca ?? await db.UsuariosUnidade.AsNoTracking()
-            .Where(u => u.UsuarioId == usuarioId)
-            .OrderBy(u => u.Ordem)
-            .Select(u => (Guid?)u.UnidadeId)
-            .FirstOrDefaultAsync(ct).ConfigureAwait(false);
+        return await servicos.GetRequiredService<UnidadeDaConcessao>().ResolverAsync(concessao, Context.ConnectionAborted).ConfigureAwait(false);
     }
 
     private Task EntrarAsync(string tenantId, string grupo) =>

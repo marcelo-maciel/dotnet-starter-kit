@@ -120,7 +120,7 @@ public sealed class PafEstadoSessaoValkeyTests(FshWebApplicationFactory factory)
         var sessao = new SessaoCorrente();
         sessao.Definir(_tenant.TenantId, sessaoId, usuarioId, origem.UnidadeId);
         estado = Estado();
-        return new SetUnidadeCorrenteCommandHandler(db, sessao, scope.ServiceProvider.GetRequiredService<IUnidadeCorrente>(), estado,
+        return new SetUnidadeCorrenteCommandHandler(db, sessao, new ConcessaoCorrente(), scope.ServiceProvider.GetRequiredService<IUnidadeCorrente>(), estado,
             scope.ServiceProvider.GetRequiredService<EscopoUsuario>());
     }
 
