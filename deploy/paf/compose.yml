@@ -13,6 +13,8 @@ x-paf-api: &paf-api
   image: ${PAF_IMAGEM_API:?PAF_IMAGEM_API is required (deploy/paf/publicar-imagem-api.sh)}
   restart: unless-stopped
   env_file: [ "${PAF_ARQUIVO_AMBIENTE:?PAF_ARQUIVO_AMBIENTE is required}" ]
+  # O06: SIGTERM, then 30 s for Kestrel to finish in-flight requests and close the WebSockets before SIGKILL.
+  stop_grace_period: 30s
   depends_on:
     postgres: { condition: service_healthy }
     valkey: { condition: service_healthy }

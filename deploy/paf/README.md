@@ -162,7 +162,7 @@ Promoção:
 
 - `Deploy homologação`: só em push para `main`, depois do `PAF CI` verde, no environment `homologacao`. Publica `paf-api`, `paf-dbmigrator`, `paf-dashboard` e `paf-admin` no GHCR com a tag igual ao SHA completo e chama `implantar-remoto.sh homologacao <sha>`.
 - `Deploy produção`: só manual (`workflow_dispatch` a partir de `main`, com o SHA). O job `Exigir SHA verde em homologação` roda antes do environment `producao` pedir aprovação e falha se a implantação mais recente daquele SHA em homologação não terminou em `success` (`exigir-homologacao-verde.mjs`). A produção usa as mesmas imagens que passaram na homologação, sem rebuild.
-- `implantar-remoto.sh <ambiente> <sha>` confere os segredos, copia `deploy/paf` para o host por SSH (os `ambientes/*.env` do host ficam onde estão) e roda lá `deploy/paf/deploy.sh <ambiente> <sha>` com `PAF_REGISTRO` no ambiente. O `deploy.sh` é da tarefa O06; enquanto ele não existir, os dois deploys falham com essa mensagem.
+- `implantar-remoto.sh <ambiente> <sha>` confere os segredos, copia `deploy/paf`, `deploy/docker/postgres-init` e `appsettings.Production.json` (lido pelo `verificar-ambiente.sh`) para o host por SSH (os `ambientes/*.env` do host ficam onde estão) e roda lá `deploy/paf/deploy.sh <ambiente> <sha>` com `PAF_REGISTRO` no ambiente (seção Deploy em sequência).
 
 Configuração do repositório, fora do código:
 
@@ -261,3 +261,46 @@ Com o volume D20 (por loja 8 guichês, 3 totens e 2 painéis; 20 lojas) e o pico
 A partição própria para estação (ADR 0008, linha "Partição de limite de taxa por estação") não entra: com os limites acima, os 60 totens das 20 lojas emitem no mesmo minuto sem recusa.
 
 Barreiras: `verificar-ambiente.sh` reprova `Auth` abaixo de 15, `Ip` abaixo de 387 e `Tenant` abaixo de 7740 (ausente conta como o valor do kit); `src/Tests/Integration.Tests/Tests/PAF/PafLimiteTaxaTests.cs` sobe a API com `appsettings.Production.json` e as linhas deste arquivo de ambiente e prova os 15 logins pelo Apache, o `X-Forwarded-For` forjado, o pico da loja e do tenant e o 429 com `Retry-After` e sem ficha. Nada disso passou por um Apache de verdade: o teste apresenta o Apache como o gateway da rede do Docker.
+
+## Deploy em sequência (O06, RNF16, ARQ seção 11)
+
+```bash
+PAF_REGISTRO=ghcr.io/<dono> deploy/paf/deploy.sh <homologacao|producao> <tag>   # no host, em $PAF_DIR_HOST
+```
+
+O CI chama pelo `implantar-remoto.sh`; à mão, roda no host, nunca de fora. Antes de cada deploy, o rollback é nomeado e confirmado por Marcelo: é o mesmo script com a tag anterior, que o deploy imprime (`rollback: deploy/paf/deploy.sh <ambiente> <tag>`) e grava em `ambientes/<ambiente>.tag-anterior` antes de tocar em qualquer coisa.
+
+Sequência, cada passo com código próprio:
+
+1. `flock -n` em `ambientes/<ambiente>.deploy.lock`: o segundo deploy simultâneo do mesmo ambiente sai na hora com 3.
+2. Conferências sem mutação: os dois arquivos de ambiente, `verificar-ambiente.sh` (inclui `QuotaOptions__Enabled=false`, RNF09), o balancer-manager do vhost com cada membro, as quatro imagens presentes ou baixadas.
+3. PostgreSQL e Valkey sobem se faltarem, nunca são recriados; o migrator da tag nova roda antes de qualquer instância. Só expandir: quem garante é a barreira da O07 no CI, o deploy não sabe distinguir.
+4. Por instância (`api-a`, depois `api-b` com `duas-instancias`): a outra precisa estar saudável e habilitada; drena no balanceador pelo balancer-manager (`/paf-balanceador`, só loopback, sem reload do Apache) e relê até aparecer `Drn`; espera `Busy` 0 ou 60 s; para com `stop_grace_period` 30 s; sobe a tag nova; espera `GET api/v1/paf/saude` 200 na porta da instância em até 90 s; reabilita. Falha: a instância volta para a imagem anterior, é reabilitada e o deploy sai sem tocar na seguinte.
+5. Dashboard e admin na tag nova, depois das APIs.
+6. `ambientes/<ambiente>.imagens.env` registra as quatro imagens em execução; um `docker compose` à mão passa `--env-file ambientes/<ambiente>.env --env-file ambientes/<ambiente>.imagens.env`.
+
+| Código | Significado |
+|---|---|
+| 0 | implantado |
+| 2 | uso (ambiente, tag ou `PAF_REGISTRO` inválidos) |
+| 3 | outro deploy do ambiente segura a trava |
+| 4 | conferência reprovou; nada foi tocado |
+| 5 | imagem indisponível; nada foi tocado |
+| 6 | infraestrutura ou migrator falhou; nenhuma instância foi tocada |
+| 7 | uma instância falhou e voltou à imagem anterior, saudável e habilitada; a seguinte ficou intocada |
+| 8 | uma instância falhou e não voltou (sem imagem anterior, ou a anterior também sem saúde): ação manual |
+| 9 | APIs na tag nova; dashboard ou admin falharam e voltaram às imagens anteriores |
+| 10 | dashboard ou admin falharam e não voltaram |
+
+Homologação tem uma instância: a drenagem tira o único membro e a API fica fora do ar durante a troca, o que o RNF16 aceita lá. Interrompido (SIGTERM do `timeout 1800`), o deploy reabilita o membro drenado se a instância responde saúde; senão imprime `RESIDUO` e o membro fica drenado até alguém reabilitar em `https://<host da API>/paf-balanceador` a partir do host.
+
+Passo humano antes do primeiro deploy com este script: reaplicar o vhost (`sudo deploy/paf/apache/aplicar-vhost.sh deploy/paf/ambientes/<ambiente>.env`), que agora traz o balancer-manager. O balancer-manager não precisa de `mod_status` (conferido em 19/10/2026 num Apache 2.4.52 do Ubuntu 22.04 com `a2dismod status` e `graceful`: a página continuou respondendo 200). Ele recusa requisição com `X-Forwarded-For` ou `Cf-Connecting-Ip`, para que um túnel que conecte no host por `127.0.0.1` não conte como local.
+
+### ensaio-deploy.sh
+
+```bash
+deploy/paf/ensaio-deploy.sh paf-api:<tag> paf-dbmigrator:<tag> paf-dashboard:<tag>   # local, nunca na VPS
+deploy/paf/deploy.test.sh                                                           # erros de uso, sem Docker
+```
+
+Um contêiner Ubuntu 22.04 faz o papel do host (Apache 2.4.52, `docker compose`, `flock`, `curl`) na rede da VM do Docker (`--network host`), com a mesma árvore que o `implantar-remoto.sh` envia. Confere: primeira implantação; deploy sob o walk em laço (totem com retry pela mesma chave, guichê com chamar, iniciar e encerrar, painel e guichê no hub pelo vhost com reconexão); drenagem registrada das duas instâncias; segundo deploy simultâneo com 3 pelo `flock`; imagem sem saúde com 7, a instância de volta e a outra intocada (mesmo contêiner); migrator que falha com 6 sem tocar instância; nenhum 5xx na emissão, fichas novas iguais às chaves com 200, toda senha chamada no painel, todo `EventoId` de `SenhaChamada` da caixa de saída recebido pelo hub ou recuperado pela reconsulta do painel ao reconectar (o evento enviado na janela entre o WebSocket fechado e o novo não chega pelo hub; no ensaio de 19/10/2026, 1 de 495), `AtividadesSessao` e `SessoesEstacao` inalteradas. Não cobre: o Apache real da Contabo, TLS real, Cloudflare na frente, imagens puxadas do GHCR.

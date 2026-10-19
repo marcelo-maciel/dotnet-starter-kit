@@ -43,5 +43,8 @@ SSH=(ssh -i "$TEMP/chave" -o "UserKnownHostsFile=$TEMP/known_hosts" -o StrictHos
   -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 "$PAF_SSH_USUARIO@$PAF_SSH_HOST")
 
 # Only the files of this checkout go over; the host's ambientes/*.env (not in git) stay where they are.
-tar -C "$DIR/.." -cf - paf | "${SSH[@]}" "mkdir -p '$PAF_DIR_HOST/deploy' && tar -C '$PAF_DIR_HOST/deploy' -xf -"
+# O06: also appsettings.Production.json (verificar-ambiente.sh, run by deploy.sh, reads it for the RNF09 quotas) and
+# postgres-init, the bind mount of the postgres service in compose.yml.
+tar -C "$DIR/../.." -cf - deploy/paf deploy/docker/postgres-init src/Host/FSH.Starter.Api/appsettings.Production.json \
+  | "${SSH[@]}" "mkdir -p '$PAF_DIR_HOST' && tar -C '$PAF_DIR_HOST' -xf -"
 "${SSH[@]}" "cd '$PAF_DIR_HOST' && PAF_REGISTRO='$PAF_REGISTRO' timeout 1800 deploy/paf/deploy.sh '$AMBIENTE' '$SHA'"
