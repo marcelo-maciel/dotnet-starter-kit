@@ -23,9 +23,10 @@ public sealed class Midia : BaseEntity<Guid>, IEscopoUnidade
     public string ChaveObjeto { get; private set; } = default!;
     public int DuracaoSegundos { get; private set; }
 
-#pragma warning disable S1144 // EF Core writes these setters via reflection
     public bool Ativa { get; private set; }
     public int Versao { get; private set; }
+
+#pragma warning disable S1144 // EF Core writes these setters via reflection
     public DateTimeOffset CriadoEm { get; private set; }
 #pragma warning restore S1144
 
@@ -35,10 +36,7 @@ public sealed class Midia : BaseEntity<Guid>, IEscopoUnidade
     public static Midia Criar(EnvioMidia envio, string descricao, int duracaoSegundos)
     {
         ArgumentNullException.ThrowIfNull(envio);
-        ArgumentException.ThrowIfNullOrWhiteSpace(descricao);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(descricao.Length, DescricaoMaxLength);
-        ArgumentOutOfRangeException.ThrowIfLessThan(duracaoSegundos, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(duracaoSegundos, DuracaoMaximaSegundos);
+        ValidarDescricaoEDuracao(descricao, duracaoSegundos);
         return new Midia
         {
             Id = Guid.CreateVersion7(),
@@ -50,5 +48,51 @@ public sealed class Midia : BaseEntity<Guid>, IEscopoUnidade
             DuracaoSegundos = duracaoSegundos,
             Ativa = true,
         };
+    }
+
+    public void Editar(string descricao, int duracaoSegundos)
+    {
+        ValidarDescricaoEDuracao(descricao, duracaoSegundos);
+        Descricao = descricao;
+        DuracaoSegundos = duracaoSegundos;
+        Versao++;
+    }
+
+    /// <summary>
+    /// Points to a new upload of the same unidade and type: a programação or painel list built around a video must not
+    /// start showing an image unseen. The old envio stays in the store until the cleanup after the 30-day lock.
+    /// </summary>
+    public void TrocarArquivo(EnvioMidia envio)
+    {
+        ArgumentNullException.ThrowIfNull(envio);
+        if (envio.UnidadeId != UnidadeId || envio.Tipo != Tipo)
+        {
+            throw new ArgumentException("O envio da troca precisa ser da mesma unidade e do mesmo tipo da mídia.", nameof(envio));
+        }
+
+        EnvioId = envio.Id;
+        ChaveObjeto = envio.ChaveObjeto;
+        Versao++;
+    }
+
+    /// <summary>Activation also moves <see cref="Versao"/>, so an edit read before it is refused instead of applied unseen.</summary>
+    public void Ativar()
+    {
+        Ativa = true;
+        Versao++;
+    }
+
+    public void Desativar()
+    {
+        Ativa = false;
+        Versao++;
+    }
+
+    private static void ValidarDescricaoEDuracao(string descricao, int duracaoSegundos)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(descricao);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(descricao.Length, DescricaoMaxLength);
+        ArgumentOutOfRangeException.ThrowIfLessThan(duracaoSegundos, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(duracaoSegundos, DuracaoMaximaSegundos);
     }
 }

@@ -71,6 +71,13 @@ using FSH.Modules.PAF.Features.v1.Unidades.UpdateUnidade;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.GetUsuarioUnidades;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.SetUsuarioUnidades;
 using FSH.Modules.PAF.Midias;
+using FSH.Modules.PAF.Features.v1.Midias;
+using FSH.Modules.PAF.Features.v1.Midias.CreateMidia;
+using FSH.Modules.PAF.Features.v1.Midias.EnableMidia;
+using FSH.Modules.PAF.Features.v1.Midias.ListMidias;
+using FSH.Modules.PAF.Features.v1.Midias.PedirEnvioMidia;
+using FSH.Modules.PAF.Features.v1.Midias.TrocarArquivoMidia;
+using FSH.Modules.PAF.Features.v1.Midias.UpdateMidia;
 using FSH.Modules.PAF.Parametros;
 using FSH.Modules.PAF.Saude;
 using FSH.Modules.PAF.Sessao;
@@ -115,6 +122,26 @@ public sealed class PafModule : IModule
         AddTempoReal(builder.Services);
         ConfigurarSessao(builder.Services);
         OpcoesMidia.Registrar(builder.Services);
+        RegistrarCadastroDeMidia(builder.Services);
+    }
+
+    // RF03 (M03): the store door with its deadline, and the envio confirmation shared by create and swap.
+    private static void RegistrarCadastroDeMidia(IServiceCollection services)
+    {
+        services.AddScoped<ArmazenamentoMidia>();
+        services.AddScoped<ConfirmacaoEnvioMidia>();
+    }
+
+    private static void MapearMidias(IEndpointRouteBuilder midias)
+    {
+        midias.MapRequestMediaUploadEndpoint();
+        midias.MapRequestMediaSwapUploadEndpoint();
+        midias.MapCreateMidiaEndpoint();
+        midias.MapListMidiasEndpoint();
+        midias.MapUpdateMidiaEndpoint();
+        midias.MapSwapMidiaFileEndpoint();
+        midias.MapEnableMidiaEndpoint();
+        midias.MapDisableMidiaEndpoint();
     }
 
     public void ConfigureMiddleware(IApplicationBuilder app)
@@ -148,6 +175,9 @@ public sealed class PafModule : IModule
 
         // RF07 (E0): reads the caller's scope, never the current unit.
         cadastro.MapGetEstatisticaEndpoint();
+
+        // RF03 (M03): mídia cadastro, upload by presigned URL.
+        MapearMidias(cadastro);
 
         // No group-wide RequireAuthorization: redeeming a link and renewing a credential are anonymous.
         var estacao = endpoints

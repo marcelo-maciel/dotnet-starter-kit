@@ -156,6 +156,14 @@ Concurrency and fail-closed tests: `src/Tests/Integration.Tests/Tests/PAF/`.
 
 Tests: `Integration.Tests/Tests/PAF/PafMidiaEsquemaTests`, `PAF.Tests/MidiaDominioTests`.
 
+## Media cadastro (`Features/v1/Midias`, M03, RF03)
+
+- Routes under `api/v1/paf/midias`: `POST envios` (`Midias.Create`) and `POST {id}/envios` (`Midias.Update`, same type as the mídia) return the presigned PUT (`EnvioMidiaDto`: `Url`, `CabecalhosObrigatorios` to send verbatim, `ExpiraEm`, `TetoBytes`); `POST` (create = confirm), `PUT {id}` (description, duration), `PUT {id}/arquivo` (swap), `POST {id}/enable|disable`, `GET`. No deletion. Edit and swap carry the `Versao` read; every write takes `FOR UPDATE` on the mídia row (`MidiaTravada`) and answers 409 on a stale version; enable and disable also raise `Versao`.
+- Request: the last extension of `NomeArquivo` picks the format (`FormatosMidia`, so `x.mp4.avi` is refused and `x.avi.mp4` is an mp4), `ContentType` must be that format's MIME (parameters ignored), else 400 with the list. The name is never stored nor logged; the key is `ChaveObjetoMidia` with the current unidade. The `EnvioMidia` row is written before the URL is signed.
+- Confirmation (`ConfirmacaoEnvioMidia`, create and swap): HEAD outside any transaction; no object = 409, nothing written (the kit's S3 `HeadObjectAsync` also returns null on any store error); stored type, empty file or over `TetoBytes(tipo)` = raw `RecusadoEm = now()` committed on its own (left for M09), then 400. Accepted = raw `ConfirmadoEm = now()` conditional on the envio still open, in the write's transaction: a second confirmation of the same envio waits on that row and returns the mídia already created. A swap loser's envio stays unreferenced; the old object is never removed by the swap.
+- Store calls go only through `Midias/ArmazenamentoMidia`, each bounded by `PAF:Midia:PrazoArmazenamento` (5 s, at most 30 s): past it, 503 `MensagemSemResposta`. Ponytail: no first-bytes sniffing, the MIME is the one the signed PUT forced.
+- Tests: `Integration.Tests/Tests/PAF/PafMidiaCadastroTests` (RustFS; also `PafMidiaCadastroTenantTests` for 403, other tenant and impersonation acts, `PafMidiaArmazenamentoParadoTests` with a silent TCP store), `PAF.Tests/MidiaCadastroTests`.
+
 ## Touching the kit
 
 The kit is touched only at module registration points (both host `Program.cs` and `.csproj`, `src/FSH.Starter.slnx`, the migrations project) and at the other items of the closed list in ADR 0008. Any other kit edit requires amending ADR 0008 first.
