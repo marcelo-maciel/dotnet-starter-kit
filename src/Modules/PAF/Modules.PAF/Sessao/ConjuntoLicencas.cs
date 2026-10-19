@@ -177,6 +177,21 @@ public sealed class ConjuntoLicencas(
         return 1
         """;
 
+    // Live session members per unit, reservations left out: the sample counts sessions, and a reservation becomes one
+    // or leaves within PrazoReserva. Reads only. KEYS: reconstruido. ARGV: prefixo, unidades...
+    private const string ScriptTamanhos = Relogio + Quebra + """
+        if redis.call('EXISTS', KEYS[1]) == 0 then return {'naoreconstruido'} end
+        local r = {'ok'}
+        for k = 2, #ARGV do
+          local n = 0
+          for _, s in ipairs(redis.call('ZRANGEBYSCORE', ARGV[1] .. 'licencas:' .. ARGV[k], '(' .. agora, '+inf')) do
+            if string.sub(s, 1, 8) ~= 'reserva:' then n = n + 1 end
+          end
+          r[#r + 1] = tostring(n)
+        end
+        return r
+        """;
+
     private const string ScriptAgora = "local t = redis.call('TIME') return tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)";
 
     /// <summary>
@@ -254,6 +269,30 @@ public sealed class ConjuntoLicencas(
         // FireAndForget: queued in order on the same connection, no wait, no reply to observe.
         _ = valkey.GetDatabase().ScriptEvaluateAsync(
             ScriptLiberar, [ChaveIndice(tenantId, membro)], [Prefixo(tenantId), membro], CommandFlags.FireAndForget);
+    }
+
+    /// <summary>
+    /// Sessões vivas no conjunto de cada unidade, na ordem dada; nulo sem Valkey ou antes da reconstrução, quando o
+    /// conjunto não é a contagem que vale (modo degradado).
+    /// </summary>
+    public async Task<IReadOnlyList<int>?> TamanhosAsync(string tenantId, IReadOnlyList<Guid> unidades, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(unidades);
+        var argumentos = new List<RedisValue> { Prefixo(tenantId) };
+        argumentos.AddRange(unidades.Select(u => (RedisValue)u.ToString()));
+        var resultado = await TentarAsync(db => db.ScriptEvaluateAsync(ScriptTamanhos, [ChaveReconstruido], [.. argumentos]), ct);
+        if (resultado is null)
+        {
+            return null;
+        }
+
+        var partes = ((RedisResult[]?)resultado ?? []).Select(p => (string?)p ?? string.Empty).ToArray();
+        if (partes.FirstOrDefault() != "ok")
+        {
+            return null;
+        }
+
+        return partes.Skip(1).Select(p => int.Parse(p, CultureInfo.InvariantCulture)).ToList();
     }
 
     /// <summary>Nulo sem Valkey.</summary>

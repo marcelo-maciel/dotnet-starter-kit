@@ -18,7 +18,8 @@ public sealed class ReservaLicenca : IAsyncDisposable
         Guid usuarioId,
         CandidataLicenca candidata,
         string? membroReserva,
-        DesfechoOcupacao desfecho)
+        DesfechoOcupacao desfecho,
+        int ocupadasNoBanco)
     {
         _licencas = licencas;
         Transacao = transacao;
@@ -27,6 +28,7 @@ public sealed class ReservaLicenca : IAsyncDisposable
         Candidata = candidata;
         MembroReserva = membroReserva;
         Desfecho = desfecho;
+        OcupadasNoBanco = ocupadasNoBanco;
     }
 
     public Guid UnidadeId => Candidata.UnidadeId;
@@ -41,6 +43,9 @@ public sealed class ReservaLicenca : IAsyncDisposable
 
     /// <summary>Como a vaga foi reservada: no conjunto, ou no modo degradado com o Valkey fora ou não reconstruído.</summary>
     internal DesfechoOcupacao Desfecho { get; }
+
+    /// <summary>Vagas da unidade com esta ocupação, contadas no modo degradado; zero quando o conjunto decidiu.</summary>
+    internal int OcupadasNoBanco { get; }
 
     /// <summary>
     /// Ocupa a licença para a sessão e solta, no mesmo ato, licenças e guichês das sessões anteriores do usuário

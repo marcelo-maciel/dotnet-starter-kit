@@ -60,3 +60,10 @@ public enum DiasSemana
     Sabado = 64,
     Todos = 127,
 }
+
+// Persisted as strings: the partial unique index on ConsumosLicenca filters on 'Amostra'.
+public enum TipoConsumoLicenca
+{
+    Amostra,
+    Excedente,
+}
