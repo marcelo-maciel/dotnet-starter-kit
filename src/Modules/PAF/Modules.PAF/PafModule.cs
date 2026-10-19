@@ -67,6 +67,7 @@ using FSH.Modules.PAF.Features.v1.UsuariosUnidade.GetUsuarioUnidades;
 using FSH.Modules.PAF.Features.v1.UsuariosUnidade.SetUsuarioUnidades;
 using FSH.Modules.PAF.Midias;
 using FSH.Modules.PAF.Parametros;
+using FSH.Modules.PAF.Saude;
 using FSH.Modules.PAF.Sessao;
 using FSH.Modules.PAF.TempoReal;
 using Mediator;
@@ -97,10 +98,11 @@ public sealed class PafModule : IModule
         builder.Services.AddScoped<IUnidadeCorrente, UnidadeCorrente>();
         builder.Services.AddScoped<LeitorParametros>();
 
+        // S14: own PostgreSQL check with a ceiling, and the Valkey as Degraded (route paf/saude, seção 9).
         builder.Services.AddHealthChecks()
-            .AddDbContextCheck<PafDbContext>(
-                name: "db:paf",
-                failureStatus: HealthStatus.Unhealthy);
+            .AddCheck<SaudePostgresPaf>(SaudePaf.NomePostgres, HealthStatus.Unhealthy, [SaudePaf.Etiqueta])
+            .AddCheck<SaudeValkeyPaf>(SaudePaf.NomeValkey, HealthStatus.Degraded, [SaudePaf.Etiqueta]);
+        CacheDeTenantSemValkey.Registrar(builder.Services);
 
         PermissionConstants.Register(PafPermissions.All);
         ConfigureCadastroServices(builder.Services);
@@ -162,6 +164,12 @@ public sealed class PafModule : IModule
         MapearGuiche(guiche);
 
         MapTempoReal(endpoints);
+
+        // S14: anonymous and outside the rate limit, like the kit's /health probes.
+        endpoints.MapGroup("api/v{version:apiVersion}/paf")
+            .WithTags("PAF Saúde")
+            .WithApiVersionSet(versionSet)
+            .MapSaudeEndpoint();
     }
 
     // Licença, sessão única, unidade corrente e guichê (RF22, ADR 0006, ADR 0008).

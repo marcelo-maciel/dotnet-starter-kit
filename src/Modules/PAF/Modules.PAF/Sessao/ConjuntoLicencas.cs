@@ -240,6 +240,22 @@ public sealed class ConjuntoLicencas(
             db => db.ScriptEvaluateAsync(ScriptLiberar, [ChaveIndice(tenantId, membro)], [Prefixo(tenantId), membro]),
             ct) is not null;
 
+    /// <summary>
+    /// Solta, sem esperar, o membro de uma ocupação que passou do prazo. Um Valkey travado (pausado, rede presa)
+    /// executa o script pendente quando volta; esta liberação vai na mesma conexão, atrás dele, e o desfaz.
+    /// </summary>
+    public void SoltarOcupacaoSemResposta(string tenantId, string membro)
+    {
+        if (_valkey is not { IsConnected: true } valkey)
+        {
+            return;
+        }
+
+        // FireAndForget: queued in order on the same connection, no wait, no reply to observe.
+        _ = valkey.GetDatabase().ScriptEvaluateAsync(
+            ScriptLiberar, [ChaveIndice(tenantId, membro)], [Prefixo(tenantId), membro], CommandFlags.FireAndForget);
+    }
+
     /// <summary>Nulo sem Valkey.</summary>
     public async Task<bool?> ReconstruidoAsync(CancellationToken ct)
     {

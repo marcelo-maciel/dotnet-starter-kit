@@ -23,7 +23,9 @@ public sealed class ReconstrucaoLicencas(
     TimeSpan intervalo,
     ILogger<ReconstrucaoLicencas> logger) : BackgroundService
 {
-    // ponytail: fixed polling of the rebuild mark; S14 owns the detection of the Valkey's return.
+    // ponytail: fixed polling of the rebuild mark. A stalled Valkey (paused, network held) also raises
+    // ConnectionRestored on its return: the client drops the connection on the first timeouts (S14,
+    // PafModoDegradadoTests); a stall too short for that leaves the members to the next mark renewal.
     public static readonly TimeSpan IntervaloVerificacao = TimeSpan.FromSeconds(15);
 
     // Starts pending: an instance that starts may follow logins decided in the degraded mode.
