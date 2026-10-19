@@ -13,6 +13,8 @@ import {
   type ClaimsConexao,
 } from "@/features/paf/tempo-real/conexao-sessao";
 import { guardarAvisoParaRecarga, PafTempoRealContexto } from "@/features/paf/tempo-real/paf-tempo-real-contexto";
+import { avisoDaPropriaSessao, lerSessaoInvalidada, SESSAO_INVALIDADA } from "@/features/paf/tempo-real/sessao-invalidada";
+import { useAuth } from "@/auth/use-auth";
 
 // Every authenticated screen keeps one PafHub connection (REQ RF22 "toda tela aberta mantém a conexão"): the
 // connection is what renews the session's licence mark (RenovacaoPelaConexao), so a kit screen left open does
@@ -33,6 +35,7 @@ export function PafTempoRealProvider({ children }: { children: ReactNode }) {
   // Bumped to rebuild the connection after a unit switch: the server joins the unit group on connect only.
   const [epoca, setEpoca] = useState(0);
   const [abaId] = useState(() => crypto.randomUUID());
+  const { logout } = useAuth();
 
   useEffect(() => {
     if (chave === null) return;
@@ -47,13 +50,22 @@ export function PafTempoRealProvider({ children }: { children: ReactNode }) {
       },
       // Session loss is the kit's to handle (logout redirect); the loop keeps retrying until the shell unmounts.
       credencialPerdida: () => false,
-      handlers: {},
+      handlers: {
+        // The server closes the connection right after this (S04): show why instead of a silent drop, and leave.
+        [SESSAO_INVALIDADA]: (payload) => {
+          const aviso = lerSessaoInvalidada(payload);
+          if (!aviso || !avisoDaPropriaSessao(aviso, lerClaims()?.sid)) return;
+          conexao.parar();
+          toast.error(aviso.motivo);
+          logout();
+        },
+      },
       aoConectar: () => undefined,
       aoMudarEstado: () => undefined,
       aoPerderCredencial: () => undefined,
     });
     return () => conexao.parar();
-  }, [chave, epoca]);
+  }, [chave, epoca, logout]);
 
   useEffect(() => {
     if (chave === null) return;

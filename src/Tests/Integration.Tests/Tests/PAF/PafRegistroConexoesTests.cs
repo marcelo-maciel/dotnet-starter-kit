@@ -96,10 +96,53 @@ public sealed class PafRegistroConexoesTests(FshWebApplicationFactory factory) :
         await Task.Delay(SilencioEsperado);
         filas.Recebidos.Count.ShouldBe(recebidas, "fora de todos os grupos, a conexão não recebe mais o movimento da unidade");
 
-        (await segunda.Conexoes.EncerrarSessaoAsync(_tenant.TenantId, pessoa.SessaoId.Value, CancellationToken.None)).ShouldBe(1);
+        (await segunda.Conexoes.EncerrarSessaoAsync(_tenant.TenantId, pessoa.SessaoId.Value, "teste", CancellationToken.None)).ShouldBe(1);
         contexto.Abortada.ShouldBeFalse("só a instância que segura a conexão consegue abortá-la");
-        await primeira.Conexoes.EncerrarSessaoAsync(_tenant.TenantId, pessoa.SessaoId.Value, CancellationToken.None);
+        await primeira.Conexoes.EncerrarSessaoAsync(_tenant.TenantId, pessoa.SessaoId.Value, "teste", CancellationToken.None);
         contexto.Abortada.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task DuasInstancias_SessaoInvalidadaChegaPelaOutra_ERepeticaoNaoGeraSegundoAviso()
+    {
+        var c = await _op.CriarAsync();
+        using var atendente = await _op.AtendenteAsync(c, c.GuicheA);
+        var token = Token(atendente);
+        var pessoa = Pessoa(token);
+        var hub = await ConectarAsync(token);
+        using var avisos = new Caixa<SessaoInvalidada>(hub, SessaoInvalidada.Metodo);
+
+        var relogio = new RelogioDeTeste();
+        var primeira = NovaInstancia(relogio, Carencia);
+        var segunda = NovaInstancia(relogio, Carencia);
+        var contexto = new ContextoDeTeste(hub.ConnectionId!, Principal(token));
+        await primeira.Conexoes.RegistrarAsync(contexto, pessoa, CancellationToken.None);
+
+        // The PAF-born revocation on one instance, then the kit event's copy handled on another: both reach the
+        // connection the first instance holds, which stays open (it ignores the notice) between them.
+        (await segunda.Conexoes.EncerrarSessaoAsync(_tenant.TenantId, pessoa.SessaoId!.Value, "primeiro", CancellationToken.None)).ShouldBe(1);
+        (await avisos.EsperarAsync(a => a.SessaoId == pessoa.SessaoId, Espera)).ShouldNotBeNull()
+            .Motivo.ShouldBe("primeiro", "o aviso atravessa instâncias, enviado à conexão pelo id que o registro guarda");
+        (await primeira.Conexoes.EncerrarSessaoAsync(_tenant.TenantId, pessoa.SessaoId.Value, "repetido", CancellationToken.None)).ShouldBe(1);
+        await Task.Delay(SilencioEsperado);
+
+        avisos.Recebidos.Count.ShouldBe(1, "o aviso repetido é descartado pelo id da sessão");
+        contexto.Abortada.ShouldBeTrue("a repetição ainda fecha a conexão onde ela está");
+    }
+
+    [Fact]
+    public async Task AvisoQueFalhaNoBackplane_NaoImpedeOFechamentoDaConexao()
+    {
+        var opcoes = Options.Create(new OpcoesSessaoPaf { CarenciaReconexao = Carencia });
+        var semValkey = new RegistroConexoes([], opcoes, new RelogioDeTeste(), NullLogger<RegistroConexoes>.Instance);
+        var conexoes = new ConexoesPaf(new HubQueNaoEntrega(), semValkey, NullLogger<ConexoesPaf>.Instance);
+        var sessaoId = Guid.NewGuid();
+        var contexto = new ContextoDeTeste($"conexao-{sessaoId:N}", new ClaimsPrincipal());
+        await conexoes.RegistrarAsync(contexto, new ConexaoPessoa(_tenant.TenantId, Guid.NewGuid().ToString(), false, sessaoId, null), CancellationToken.None);
+
+        (await conexoes.EncerrarSessaoAsync(_tenant.TenantId, sessaoId, "motivo", CancellationToken.None)).ShouldBe(1);
+
+        contexto.Abortada.ShouldBeTrue("o aviso é a experiência da tela; a revogação fecha a conexão mesmo sem ele");
     }
 
     [Fact]
@@ -131,7 +174,7 @@ public sealed class PafRegistroConexoesTests(FshWebApplicationFactory factory) :
         relogio.Avancar(TimeSpan.FromMinutes(1) + TimeSpan.FromSeconds(1));
 
         (await viva.Registro.DaSessaoAsync(_tenant.TenantId, sessaoId, CancellationToken.None)).ShouldBeEmpty();
-        (await viva.Conexoes.EncerrarSessaoAsync(_tenant.TenantId, sessaoId, CancellationToken.None)).ShouldBe(0);
+        (await viva.Conexoes.EncerrarSessaoAsync(_tenant.TenantId, sessaoId, "teste", CancellationToken.None)).ShouldBe(0);
         (await viva.Conexoes.EncerrarEstacaoAsync(_tenant.TenantId, estacao.EstacaoId, CancellationToken.None)).ShouldBe(0);
     }
 
@@ -549,5 +592,24 @@ public sealed class PafRegistroConexoesTests(FshWebApplicationFactory factory) :
         public override IFeatureCollection Features { get; } = new FeatureCollection();
         public override CancellationToken ConnectionAborted => CancellationToken.None;
         public override void Abort() => Abortada = true;
+    }
+
+    // A backplane that fails every send, as a stalled Valkey would past the ceiling; groups are never reached here.
+    private sealed class HubQueNaoEntrega : IHubContext<PafHub>, IHubClients, IClientProxy
+    {
+        public IHubClients Clients => this;
+        public IGroupManager Groups => throw new NotSupportedException("o teste não passa por grupos");
+        IClientProxy IHubClients<IClientProxy>.All => this;
+        IClientProxy IHubClients<IClientProxy>.AllExcept(IReadOnlyList<string> excludedConnectionIds) => this;
+        IClientProxy IHubClients<IClientProxy>.Client(string connectionId) => this;
+        IClientProxy IHubClients<IClientProxy>.Clients(IReadOnlyList<string> connectionIds) => this;
+        IClientProxy IHubClients<IClientProxy>.Group(string groupName) => this;
+        IClientProxy IHubClients<IClientProxy>.GroupExcept(string groupName, IReadOnlyList<string> excludedConnectionIds) => this;
+        IClientProxy IHubClients<IClientProxy>.Groups(IReadOnlyList<string> groupNames) => this;
+        IClientProxy IHubClients<IClientProxy>.User(string userId) => this;
+        IClientProxy IHubClients<IClientProxy>.Users(IReadOnlyList<string> userIds) => this;
+
+        public Task SendCoreAsync(string method, object?[] args, CancellationToken cancellationToken = default) =>
+            Task.FromException(new TimeoutException("backplane parado"));
     }
 }

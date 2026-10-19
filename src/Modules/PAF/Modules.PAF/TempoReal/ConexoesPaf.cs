@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
 using FSH.Modules.PAF.Contracts.Authorization;
+using FSH.Modules.PAF.Contracts.v1.TempoReal;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
+using StackExchange.Redis;
 
 namespace FSH.Modules.PAF.TempoReal;
 
@@ -114,9 +116,46 @@ public sealed partial class ConexoesPaf(IHubContext<PafHub> hub, RegistroConexoe
         return await EncerrarAsync(tenantId, conexoes, ct).ConfigureAwait(false);
     }
 
-    /// <summary>Closes every connection of a revoked kit session (single session, logout), on any instance.</summary>
-    public async Task<int> EncerrarSessaoAsync(string tenantId, Guid sessaoId, CancellationToken ct) =>
-        await EncerrarAsync(tenantId, await DaSessaoAsync(tenantId, sessaoId, ct).ConfigureAwait(false), ct).ConfigureAwait(false);
+    /// <summary>
+    /// Closes every connection of a revoked kit session (single session, logout, revocation), on any instance:
+    /// <see cref="SessaoInvalidada"/> with <paramref name="motivo"/> goes first, to those connections only (never the
+    /// user group, which may already hold the new session's), then they leave every group and the ones held here are
+    /// aborted. A repeat (the kit event after a PAF-born revocation) sends no second notice: the session id is marked
+    /// in the registry, and a connection held here is gone by then anyway.
+    /// </summary>
+    public async Task<int> EncerrarSessaoAsync(string tenantId, Guid sessaoId, string motivo, CancellationToken ct)
+    {
+        var conexoes = await DaSessaoAsync(tenantId, sessaoId, ct).ConfigureAwait(false);
+        if (conexoes.Count > 0 && await registro.PrimeiroAvisoDeInvalidacaoAsync(tenantId, sessaoId, ct).ConfigureAwait(false))
+        {
+            await AvisarAsync(conexoes, new SessaoInvalidada(sessaoId, motivo), ct).ConfigureAwait(false);
+        }
+
+        return await EncerrarAsync(tenantId, conexoes, ct).ConfigureAwait(false);
+    }
+
+    // One id at a time, never Clients(list): the Redis lifetime manager writes a single local connection straight to
+    // its transport, so the notice is flushed before the abort, while the list overload publishes every id through
+    // the backplane, local ones too, and would lose the race with the abort. A remote id still goes over the backplane.
+    // The notice is the screen's experience, not the revocation: a failed or stalled send is logged and the close goes on.
+    private async Task AvisarAsync(IReadOnlyCollection<string> conexoes, SessaoInvalidada aviso, CancellationToken ct)
+    {
+        using var limite = Limite(ct);
+        foreach (var connectionId in conexoes)
+        {
+            try
+            {
+                // The backplane publish ignores the token: the ceiling is applied on the wait.
+                await hub.Clients.Client(connectionId).SendAsync(SessaoInvalidada.Metodo, aviso, limite.Token)
+                    .WaitAsync(limite.Token).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is RedisException or TimeoutException
+                                       || (ex is OperationCanceledException && !ct.IsCancellationRequested))
+            {
+                LogAvisoNaoEnviado(logger, ex, connectionId, aviso.SessaoId);
+            }
+        }
+    }
 
     private async Task<int> EncerrarAsync(string tenantId, IReadOnlyCollection<string> conexoes, CancellationToken ct)
     {
@@ -279,6 +318,10 @@ public sealed partial class ConexoesPaf(IHubContext<PafHub> hub, RegistroConexoe
     [LoggerMessage(EventId = 9004, Level = LogLevel.Information,
         Message = "PafHub movimento de guiche superado por outro concorrente {ConnectionId} grupo={Grupo}")]
     private static partial void LogMovimentoSuperado(ILogger logger, string connectionId, string grupo);
+
+    [LoggerMessage(EventId = 9105, Level = LogLevel.Warning,
+        Message = "PafHub aviso SessaoInvalidada nao enviado {ConnectionId} sessao={SessaoId}; a conexao e encerrada assim mesmo")]
+    private static partial void LogAvisoNaoEnviado(ILogger logger, Exception ex, string connectionId, Guid sessaoId);
 
     [LoggerMessage(EventId = 9011, Level = LogLevel.Information,
         Message = "PafHub ultima conexao da sessao caiu tenant={TenantId} sessao={SessaoId}; soltura depois da carencia")]

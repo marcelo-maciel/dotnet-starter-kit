@@ -137,7 +137,7 @@ public sealed partial class RenovacaoPelaConexao(
         {
             await servicos.GetRequiredService<Licencas>().LiberarAsync(tenantId, sessaoId, ct).ConfigureAwait(false);
             await servicos.GetRequiredService<EstadoSessao>().RemoverAsync(tenantId, sessaoId, ct).ConfigureAwait(false);
-            await conexoes.EncerrarSessaoAsync(tenantId, sessaoId, ct).ConfigureAwait(false);
+            await conexoes.EncerrarSessaoAsync(tenantId, sessaoId, SessaoRevogadaPafHandler.MensagemSessaoEncerrada, ct).ConfigureAwait(false);
             LogSessaoEncerradaNaRenovacao(logger, tenantId, sessaoId);
             return;
         }
