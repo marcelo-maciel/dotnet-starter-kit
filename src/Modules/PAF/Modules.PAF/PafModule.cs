@@ -103,6 +103,7 @@ using FSH.Modules.PAF.Features.v1.Midias.ListMidias;
 using FSH.Modules.PAF.Features.v1.Midias.PedirEnvioMidia;
 using FSH.Modules.PAF.Features.v1.Midias.TrocarArquivoMidia;
 using FSH.Modules.PAF.Features.v1.Midias.UpdateMidia;
+using FSH.Modules.PAF.Features.v1.ProgramacoesMidia;
 using FSH.Modules.PAF.Observabilidade;
 using FSH.Modules.PAF.Parametros;
 using FSH.Modules.PAF.Saude;
@@ -177,6 +178,16 @@ public sealed class PafModule : IModule
         midias.MapDisableMidiaEndpoint();
     }
 
+    private static void MapearProgramacoesMidia(IEndpointRouteBuilder programacoes)
+    {
+        programacoes.MapCreateProgramacaoMidiaEndpoint();
+        programacoes.MapSearchProgramacoesMidiaEndpoint();
+        programacoes.MapUpdateProgramacaoMidiaEndpoint();
+        programacoes.MapEnableProgramacaoMidiaEndpoint();
+        programacoes.MapDisableProgramacaoMidiaEndpoint();
+        programacoes.MapDeleteProgramacaoMidiaEndpoint();
+    }
+
     public void ConfigureMiddleware(IApplicationBuilder app)
     {
         ArgumentNullException.ThrowIfNull(app);
@@ -220,6 +231,8 @@ public sealed class PafModule : IModule
 
         // RF03 (M04): preview by signed read URL.
         cadastro.MapGetMidiaUrlEndpoint();
+        // RF10 (M05): programações de mídia.
+        MapearProgramacoesMidia(cadastro);
 
         // No group-wide RequireAuthorization: redeeming a link and renewing a credential are anonymous.
         var estacao = endpoints
