@@ -48,10 +48,19 @@ internal sealed class GenerateTokenLicenseBehavior(
             ?? throw new UnauthorizedException("Invalid credentials.");
         var subject = credencial.Subject;
 
-        // A client-tenant user with no unidade would get a token with no licence and no unit (RF23, C03): the
-        // tenant creation gives the initial admin his unidade, and every other user gets one from the cadastro.
-        await using var reserva = await licencas.ReservarAsync(tenantId, Guid.Parse(subject), cancellationToken)
-            ?? throw new ForbiddenException(MensagemSemUnidade);
+        await using var reserva = await licencas.ReservarAsync(tenantId, Guid.Parse(subject), cancellationToken);
+        if (reserva is null)
+        {
+            // Once the PAF has reached the tenant, a user with no unidade would get a token with no licence and no
+            // unit (RF23, C03, L23): the initial admin got his unidade then, and every other user gets one from the
+            // cadastro. Before that (tenant event not delivered yet) nobody has a unidade, and the kit login stands.
+            if (await licencas.PafProvisionadoAsync(cancellationToken))
+            {
+                throw new ForbiddenException(MensagemSemUnidade);
+            }
+
+            return await next(message, cancellationToken);
+        }
 
         var token = await next(message, cancellationToken);
         var sessaoId = ClaimDeSessao.DoToken(token.AccessToken)

@@ -34,10 +34,10 @@ public sealed class PafTenantCriadoTests(FshWebApplicationFactory factory) : IAs
     {
         var (tenantId, adminEmail) = await CriarTenantAsync("paf-c03a");
 
-        // Before the event is delivered the admin has no unidade: refused, never let in without a licence.
+        // Before the event is delivered the PAF has not reached the tenant: the kit login stands (plano L23), which is
+        // what the kit's own tests rely on when they log in right after provisioning.
         var antes = await LoginAsync(tenantId, adminEmail);
-        antes.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        PafSessaoLicencaTests.Detalhe(await antes.Content.ReadAsStringAsync()).ShouldBe(GenerateTokenLicenseBehavior.MensagemSemUnidade);
+        antes.StatusCode.ShouldBe(HttpStatusCode.OK, await antes.Content.ReadAsStringAsync());
 
         await OutboxDrain.DrainAsync(factory.Services);
         var adminId = await AdminIdAsync(tenantId, adminEmail);
@@ -125,6 +125,20 @@ public sealed class PafTenantCriadoTests(FshWebApplicationFactory factory) : IAs
         await Job().ExecutarAsync(tenantId, AssociacaoAdministradorInicial.Teto, CancellationToken.None);
         (await AssociacaoAsync(tenantId, adminId)).ShouldBeNull();
         AgendadosDoTenant(tenantId).ShouldBeEmpty("at the ceiling the job gives up instead of rescheduling");
+
+        // No initial unidade yet: the PAF has not reached the tenant and the kit login stands.
+        (await LoginAsync(tenantId, adminEmail)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        // The handler's part ran but the job gave up: a user with no unidade in a tenant the PAF reached is refused,
+        // so the stuck admin is noticed instead of holding a licence-less token for good (L23).
+        await using (var provisionado = Escopo(await TenantAsync(tenantId)))
+        {
+            await ActivatorUtilities.CreateInstance<ProvisionamentoTenantPaf>(provisionado.ServiceProvider)
+                .GarantirUnidadeInicialAsync($"Tenant {tenantId}", CancellationToken.None);
+        }
+
+        var semUnidade = await LoginAsync(tenantId, adminEmail);
+        semUnidade.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        PafSessaoLicencaTests.Detalhe(await semUnidade.Content.ReadAsStringAsync()).ShouldBe(GenerateTokenLicenseBehavior.MensagemSemUnidade);
 
         await TrocarAdminEmailAsync(tenantId, adminEmail);
         await Job().ExecutarAsync(tenantId, 3, CancellationToken.None);
