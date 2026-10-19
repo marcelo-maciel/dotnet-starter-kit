@@ -1,0 +1,2 @@
+# Real environment files carry secrets: only the .exemplo files are versioned.
+*.env
