@@ -10,7 +10,7 @@ public sealed class SessaoCorrente
     public Guid? SessaoId { get; private set; }
     public Guid? UsuarioId { get; private set; }
 
-    /// <summary>Unidade que ocupa a licença; na primeira fatia é a do login e não migra na troca.</summary>
+    /// <summary>Unidade que ocupa a licença; lida no início da requisição; a troca de unidade a migra (S07).</summary>
     public Guid? UnidadeLicencaId { get; private set; }
 
     public void Definir(string tenantId, Guid sessaoId, Guid usuarioId, Guid unidadeLicencaId)

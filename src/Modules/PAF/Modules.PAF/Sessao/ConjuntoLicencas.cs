@@ -131,6 +131,35 @@ public sealed class ConjuntoLicencas(
         return {'semsaldo'}
         """;
 
+    // Manual unit switch, task S07. The member moves from its unit to the destination within one script. The balance is
+    // checked before anything is removed, so a refusal leaves both sets as they were.
+    // KEYS: reconstruido, indice do membro, registro de unidades. ARGV: prefixo, membro, validade ms, destino, limite, ultrapassa.
+    private const string ScriptMover = Relogio + Quebra + """
+        if redis.call('EXISTS', KEYS[1]) == 0 then return {'naoreconstruido'} end
+        local p = ARGV[1]
+        local membro = ARGV[2]
+        local validade = tonumber(ARGV[3])
+        local destino = ARGV[4]
+        local conj = p .. 'licencas:' .. destino
+        redis.call('ZREMRANGEBYSCORE', conj, '-inf', agora)
+        local atual = redis.call('GET', KEYS[2])
+        if atual == destino and redis.call('ZSCORE', conj, membro) then
+          redis.call('ZADD', conj, agora + validade, membro)
+          redis.call('PEXPIRE', KEYS[2], validade)
+          prolongar(conj, validade)
+          return {'ja', destino, tostring(redis.call('ZCARD', conj))}
+        end
+        local vivos = redis.call('ZCARD', conj)
+        if redis.call('ZSCORE', conj, membro) then vivos = vivos - 1 end
+        if vivos >= tonumber(ARGV[5]) and ARGV[6] ~= '1' then return {'semsaldo'} end
+        if atual then redis.call('ZREM', p .. 'licencas:' .. atual, membro) end
+        redis.call('ZADD', conj, agora + validade, membro)
+        redis.call('SET', KEYS[2], destino, 'PX', validade)
+        redis.call('SADD', KEYS[3], destino)
+        prolongar(conj, validade)
+        return {'ocupada', destino, tostring(vivos + 1)}
+        """;
+
     // Puts the member in the given unit whatever the balance: the PostgreSQL row says the session holds it there.
     // KEYS: indice, registro de unidades. ARGV: prefixo, membro, unidade, validade ms.
     private const string ScriptRestaurar = Relogio + Quebra + """
@@ -226,6 +255,11 @@ public sealed class ConjuntoLicencas(
 
         var chaves = new[] { ChaveReconstruido, ChaveIndice(tenantId, membro), ChaveRegistroUnidades(tenantId) };
         var resultado = await TentarAsync(db => db.ScriptEvaluateAsync(ScriptOcupar, chaves, [.. argumentos]), ct);
+        return LerOcupacao(resultado);
+    }
+
+    private static Ocupacao LerOcupacao(RedisResult? resultado)
+    {
         if (resultado is null)
         {
             return new Ocupacao(DesfechoOcupacao.Indisponivel, null, 0);
@@ -240,6 +274,23 @@ public sealed class ConjuntoLicencas(
             "naoreconstruido" => new Ocupacao(DesfechoOcupacao.NaoReconstruido, null, 0),
             var outro => throw new InvalidOperationException($"Licence set script returned '{outro}'."),
         };
+    }
+
+    /// <summary>
+    /// Troca manual de unidade (S07): move o membro da unidade em que está para <paramref name="destino"/> numa
+    /// operação só, contando a própria sessão como livre no destino. Sem saldo, nenhum conjunto muda.
+    /// </summary>
+    public async Task<Ocupacao> MoverAsync(string tenantId, string membro, CandidataLicenca destino, TimeSpan validade, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(destino);
+        var chaves = new[] { ChaveReconstruido, ChaveIndice(tenantId, membro), ChaveRegistroUnidades(tenantId) };
+        RedisValue[] argumentos =
+        [
+            Prefixo(tenantId), membro, Milissegundos(validade), destino.UnidadeId.ToString(), destino.Limite,
+            destino.UltrapassaComAviso ? "1" : "0",
+        ];
+        var resultado = await TentarAsync(db => db.ScriptEvaluateAsync(ScriptMover, chaves, argumentos), ct);
+        return LerOcupacao(resultado);
     }
 
     /// <summary>Renova o membro na unidade da linha do PostgreSQL, devolvendo-o a ela se tinha sumido. Falso sem Valkey.</summary>

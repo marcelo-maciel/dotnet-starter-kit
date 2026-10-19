@@ -203,7 +203,8 @@ public sealed class PafSessaoLicencaTests(FshWebApplicationFactory factory) : IA
     public async Task TrocaDeUnidade_SemValkey_RecusadaComoIndisponivel()
     {
         var unidade = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);
-        var segunda = await _tenant.CriarUnidadeAsync(limiteSessoes: null);
+        // With a contract: a destination without one is refused first, for the licence (S07).
+        var segunda = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);
         var usuario = await _tenant.CriarUsuarioAsync(unidade.UnidadeId, segunda.UnidadeId);
         using var cliente = _tenant.Cliente((await _tenant.EntrarAsync(usuario)).AccessToken);
 

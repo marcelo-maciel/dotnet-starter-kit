@@ -9,6 +9,7 @@ using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Escopo;
 using FSH.Modules.PAF.Features.v1.Sessao.SetUnidadeCorrente;
 using FSH.Modules.PAF.Sessao;
+using FSH.Modules.PAF.TempoReal;
 using Integration.Tests.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
@@ -105,7 +106,8 @@ public sealed class PafEscopoEmpresaTests(FshWebApplicationFactory factory) : IA
     {
         var u1 = await _tenant.CriarUnidadeAsync(limiteSessoes: 5);
         await _tenant.CriarUnidadeAsync(limiteSessoes: null);
-        var u3 = await _tenant.CriarUnidadeAsync(limiteSessoes: null);
+        // With a contract: since S07 the switch migrates the licence and a unit without one has no balance (RF22).
+        var u3 = await _tenant.CriarUnidadeAsync(limiteSessoes: 5);
         var usuario = await _tenant.CriarUsuarioEmpresaAsync(u1.UnidadeId);
         var usuarioId = Guid.Parse(usuario.UserId);
         var token = await _tenant.EntrarAsync(usuario);
@@ -118,12 +120,8 @@ public sealed class PafEscopoEmpresaTests(FshWebApplicationFactory factory) : IA
             (await estado.LerUnidadeAsync(_tenant.TenantId, sessaoId, CancellationToken.None)).ShouldBe(u3.UnidadeId);
         }
 
-        // The harness host has no Valkey, so its session check falls back to the licence unit: moving it to U3
-        // makes the next request run with U3 as the current unit, the state the switch above produced.
-        await _tenant.ExecutarAsync($"""
-            UPDATE paf."AtividadesSessao" SET "UnidadeId" = {u3.UnidadeId}
-             WHERE "TenantId" = {_tenant.TenantId} AND "SessaoId" = {sessaoId}
-            """);
+        // The harness host has no Valkey, so its session check falls back to the licence unit, which the switch
+        // above moved to U3 (S07): the next request runs with U3 as the current unit.
         using var cliente = _tenant.Cliente(token.AccessToken);
         (await cliente.GetAsync(Perfil)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await _tenant.AtividadesAsync(usuarioId)).ShouldHaveSingleItem().UnidadeId.ShouldBe(u3.UnidadeId);
@@ -275,9 +273,18 @@ public sealed class PafEscopoEmpresaTests(FshWebApplicationFactory factory) : IA
         sessao.Definir(_tenant.TenantId, sessaoId, usuarioId, origem);
         var estado = new EstadoSessao([_multiplexer], NullLogger<EstadoSessao>.Instance);
         var handler = new SetUnidadeCorrenteCommandHandler(db, sessao, new ConcessaoCorrente(), scope.ServiceProvider.GetRequiredService<IUnidadeCorrente>(), estado,
-            scope.ServiceProvider.GetRequiredService<EscopoUsuario>());
+            scope.ServiceProvider.GetRequiredService<EscopoUsuario>(),
+            NovasLicencas(scope, db), scope.ServiceProvider.GetRequiredService<AvisosTempoReal>(), scope.ServiceProvider.GetRequiredService<ConexoesPaf>());
         return (handler, estado);
     }
+
+    // The set is not rebuilt in this container: the licence move takes the degraded count, the unit state goes to the Valkey.
+    private Licencas NovasLicencas(IServiceScope scope, FSH.Modules.PAF.Data.PafDbContext db) => new(
+        db,
+        scope.ServiceProvider.GetRequiredService<IUnidadeCorrente>(),
+        new ConjuntoLicencas([_multiplexer], TimeSpan.FromMinutes(Licencas.PrazoMarcaMinutos), NullLogger<ConjuntoLicencas>.Instance),
+        scope.ServiceProvider.GetRequiredService<EscopoUsuario>(),
+        NullLogger<Licencas>.Instance);
 
     private static async Task<List<Guid>> UnidadesAsync(HttpClient cliente) =>
         [.. (await PafApi.OkAsync<List<UnidadeDto>>(cliente, HttpMethod.Get, "/unidades", null, null)).Select(u => u.Id)];

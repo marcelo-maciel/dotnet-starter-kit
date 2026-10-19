@@ -1,17 +1,22 @@
 using System.Net;
 using FSH.Framework.Core.Exceptions;
 using FSH.Modules.PAF.Contracts.v1.Sessao;
+using FSH.Modules.PAF.Contracts.v1.TempoReal;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Escopo;
+using FSH.Modules.PAF.Features.v1.Atendimentos;
 using FSH.Modules.PAF.Sessao;
+using FSH.Modules.PAF.TempoReal;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
 namespace FSH.Modules.PAF.Features.v1.Sessao.SetUnidadeCorrente;
 
 /// <summary>
-/// Troca a unidade corrente da sessão (ADR 0006). Primeira fatia: a licença fica na unidade do login e não migra.
-/// Solta o guichê selecionado no mesmo ato e recusa com atendimento em curso nele; sem Valkey, recusa (seção 9).
+/// Troca a unidade corrente da sessão (ADR 0006) e migra a licença para o destino na mesma transação (S07, RF22):
+/// destino sem contrato vigente ou sem saldo recusa com a sessão intacta. O guichê selecionado é solto só depois da
+/// licença aceita, e a troca é recusada com atendimento em curso nele; sem Valkey, recusa (seção 9). Depois do
+/// commit, as conexões da sessão mudam de grupo de unidade e o grupo do usuário recebe o aviso.
 /// Na impersonação, troca a unidade da concessão dentro do escopo do impersonado, sem licença e sem tocar na
 /// sessão nem nas abas do usuário real (RF22).
 /// </summary>
@@ -21,7 +26,10 @@ public sealed class SetUnidadeCorrenteCommandHandler(
     ConcessaoCorrente concessaoCorrente,
     IUnidadeCorrente unidadeCorrente,
     EstadoSessao estado,
-    EscopoUsuario escopo) : ICommandHandler<SetUnidadeCorrenteCommand>
+    EscopoUsuario escopo,
+    Licencas licencas,
+    AvisosTempoReal avisos,
+    ConexoesPaf conexoes) : ICommandHandler<SetUnidadeCorrenteCommand>
 {
     public const string MensagemForaDoEscopo = "Esta unidade não faz parte do seu acesso.";
     public const string MensagemUnidadeInativa = "Esta unidade está inativa.";
@@ -43,19 +51,50 @@ public sealed class SetUnidadeCorrenteCommandHandler(
             return Unit.Value;
         }
 
-        await using var transacao = await db.Database.BeginTransactionAsync(cancellationToken);
-        if (await VinculosGuiche.AtivoDaSessaoAsync(db, sessaoId, cancellationToken) is { } vinculo)
+        var origem = unidadeCorrente.UnidadeId;
+        var aviso = UnidadeCorrenteAlteradaPaf.Criar(
+            tenantId, OperacaoGuiche.Correlacao(), usuarioId.ToString(), new UnidadeCorrenteAlterada(Guid.CreateVersion7(), command.UnidadeId));
+        var soltouGuiche = false;
+        MigracaoLicenca migracao;
+        await using (var transacao = await db.Database.BeginTransactionAsync(cancellationToken))
         {
-            await VinculosGuiche.SoltarSemAtendimentoEmCursoAsync(db, tenantId, vinculo, cancellationToken);
+            // Link lock before the licence row, the order of Licencas.LiberarAsync: a logout of this same session
+            // running alongside waits instead of deadlocking.
+            await VinculosGuiche.TravarAtivoDaSessaoAsync(db, tenantId, sessaoId, cancellationToken);
+            migracao = await licencas.MigrarAsync(tenantId, usuarioId, sessaoId, command.UnidadeId, cancellationToken);
+            try
+            {
+                // Only after the licence is accepted: a refused switch keeps the guichê.
+                if (await VinculosGuiche.AtivoDaSessaoAsync(db, sessaoId, cancellationToken) is { } vinculo)
+                {
+                    soltouGuiche = await VinculosGuiche.SoltarSemAtendimentoEmCursoAsync(db, tenantId, vinculo, cancellationToken);
+                }
+
+                await avisos.GravarAsync(aviso, cancellationToken);
+
+                // Valkey is written before the commit: if it fails, the licence move and the guichê release roll back with it.
+                if (!await estado.DefinirUnidadeAsync(tenantId, sessaoId, command.UnidadeId, cancellationToken))
+                {
+                    throw new CustomException(MensagemTrocaIndisponivel, [], HttpStatusCode.ServiceUnavailable);
+                }
+
+                await transacao.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                await licencas.DesfazerMigracaoAsync(migracao);
+                throw;
+            }
         }
 
-        // Valkey is written before the commit: if it fails, the guichê release rolls back with it.
-        if (!await estado.DefinirUnidadeAsync(tenantId, sessaoId, command.UnidadeId, cancellationToken))
+        await licencas.ConcluirMigracaoAsync(migracao, cancellationToken);
+        await conexoes.MoverSessaoParaUnidadeAsync(tenantId, sessaoId, origem, command.UnidadeId, cancellationToken);
+        if (soltouGuiche)
         {
-            throw new CustomException(MensagemTrocaIndisponivel, [], HttpStatusCode.ServiceUnavailable);
+            await conexoes.MoverSessaoParaGuicheAsync(tenantId, sessaoId, null, cancellationToken);
         }
 
-        await transacao.CommitAsync(cancellationToken);
+        await avisos.EnviarAsync(aviso, cancellationToken);
         return Unit.Value;
     }
 
