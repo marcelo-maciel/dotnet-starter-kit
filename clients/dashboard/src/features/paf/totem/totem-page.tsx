@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { lerCredencial } from "@/features/paf/estacao/credencial-estacao";
 import {
   lerNumeroDaConfiguracao,
@@ -9,6 +9,13 @@ import {
 import { CredencialEstacaoInvalidaError } from "@/features/paf/estacao/estacao-http";
 import { conectarHubEstacao } from "@/features/paf/estacao/hub-estacao";
 import { mensagemAmigavel } from "@/features/paf/paf-erros";
+import {
+  APARENCIA_EMISSAO_PADRAO,
+  estiloDoBotao,
+  lerAparenciaEmissao,
+  type AparenciaEmissao,
+  type EstiloBotaoTotem,
+} from "@/features/paf/totem/aparencia-totem";
 import { EmissaoTotem, PRAZO_CICLO_PADRAO_S } from "@/features/paf/totem/ciclo-emissao";
 import { emitirFichaNoCiclo } from "@/features/paf/totem/emitir-ficha";
 import { FichaImpressa } from "@/features/paf/totem/ficha-impressa";
@@ -32,9 +39,25 @@ function chaveDoBotao(b: BotaoEmissao): string {
   return `${b.filaId}:${b.prioridadeId}`;
 }
 
+// Inline style only for what the station or the fila set: anything left null keeps the default class.
+function estiloInline(e: EstiloBotaoTotem, selecionado: boolean): CSSProperties {
+  return {
+    backgroundColor: e.fundo ?? undefined,
+    color: e.corFila ?? undefined,
+    fontFamily: e.familiaFonte ?? undefined,
+    fontSize: e.tamanhoFontePx ?? undefined,
+    minHeight: e.tamanhoMinimoPx ?? undefined,
+    minWidth: e.tamanhoMinimoPx ?? undefined,
+    // The touched button shows its "selecionada" color at full strength; the others dim as before.
+    opacity: selecionado ? 1 : undefined,
+  };
+}
+
 export function TotemPage() {
   const [vinculado, setVinculado] = useState(() => lerCredencial("Emissao") !== null);
   const [botoes, setBotoes] = useState<BotaoEmissao[] | null>(null);
+  const [aparencia, setAparencia] = useState<AparenciaEmissao>(APARENCIA_EMISSAO_PADRAO);
+  const [botaoTocado, setBotaoTocado] = useState<string | null>(null);
   const [erroConfiguracao, setErroConfiguracao] = useState<string | null>(null);
   const [emissao, setEmissao] = useState<Emissao>({ tipo: "ocioso", aviso: null });
   const cicloRef = useRef<EmissaoTotem<BotaoEmissao, FichaEmitidaDto> | null>(null);
@@ -56,6 +79,8 @@ export function TotemPage() {
       (cfg) => {
         setErroConfiguracao(null);
         setBotoes([...cfg.botoes].sort((a, b) => a.ordem - b.ordem));
+        // Re-read with the buttons (FilaAtualizada, reconnection, periodic): a cadastro change applies without reload.
+        setAparencia(lerAparenciaEmissao(cfg.configuracao));
         prazoCicloMsRef.current =
           lerNumeroDaConfiguracao(cfg.configuracao, CHAVE_PRAZO_CICLO, PRAZO_CICLO_PADRAO_S) * 1_000;
       },
@@ -103,6 +128,7 @@ export function TotemPage() {
   const emitir = async (botao: BotaoEmissao) => {
     const ciclo = cicloRef.current;
     if (ciclo === null || ciclo.ocupada()) return;
+    setBotaoTocado(chaveDoBotao(botao));
     // Same visible message for the whole attempt: network resends and the in-flight 409 wait are not errors.
     setEmissao({ tipo: "emitindo" });
     const fim = await ciclo.tocar(botao, prazoCicloMsRef.current);
@@ -164,7 +190,7 @@ export function TotemPage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center gap-8 bg-white p-8 text-black">
-      <h1 className="text-4xl font-bold">Retire sua senha</h1>
+      <h1 className="text-4xl font-bold">{aparencia.titulo ?? "Retire sua senha"}</h1>
 
       {erroConfiguracao && (
         <p role="alert" className="text-2xl text-red-700">
@@ -178,18 +204,32 @@ export function TotemPage() {
       )}
 
       <div className="grid w-full max-w-4xl grid-cols-1 gap-6 sm:grid-cols-2">
-        {(botoes ?? []).map((b) => (
-          <button
-            key={chaveDoBotao(b)}
-            type="button"
-            disabled={ocupado}
-            onClick={() => void emitir(b)}
-            className="min-h-32 rounded-2xl bg-blue-700 px-6 py-8 text-3xl font-bold text-white disabled:opacity-50"
-          >
-            {b.fila}
-            <span className="block text-2xl font-normal">{b.prioridade}</span>
-          </button>
-        ))}
+        {(botoes ?? []).map((b) => {
+          const chave = chaveDoBotao(b);
+          const selecionado = ocupado && botaoTocado === chave;
+          const estilo = estiloDoBotao(aparencia, b, selecionado);
+          return (
+            <button
+              key={chave}
+              type="button"
+              disabled={ocupado}
+              onClick={() => void emitir(b)}
+              data-botao-emissao={chave}
+              data-selecionado={selecionado ? "sim" : "nao"}
+              style={estiloInline(estilo, selecionado)}
+              className="min-h-32 rounded-2xl bg-blue-700 px-6 py-8 text-3xl font-bold text-white disabled:opacity-50"
+            >
+              {b.fila}
+              <span
+                data-descricao
+                style={{ color: estilo.corDescricao ?? undefined, fontSize: estilo.tamanhoFontePx ?? undefined }}
+                className="block text-2xl font-normal"
+              >
+                {b.prioridade}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       <div aria-live="polite" className="min-h-16 text-center text-3xl">
