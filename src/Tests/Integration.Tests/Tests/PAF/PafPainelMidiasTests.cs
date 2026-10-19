@@ -143,6 +143,11 @@ public sealed class PafPainelMidiasTests(FshWebApplicationFactory factory) : IAs
 
         (await SubstituirAsync(outraUnidade.GuicheA, [boa])).ShouldBe(HttpStatusCode.NotFound, "another unidade's station");
         (await SubstituirAsync(painelA, [Guid.Empty])).ShouldBe(HttpStatusCode.BadRequest);
+        using (var semLista = await PafApi.EnviarAsync(_tenant.Admin, HttpMethod.Put, $"/estacoes/{painelA}/midias", null, new { }))
+        {
+            semLista.StatusCode.ShouldBe(HttpStatusCode.BadRequest, "a body without midias never clears the list");
+        }
+
         (await SubstituirAsync(painelA, Enumerable.Repeat(boa, SubstituirMidiasDaEstacaoCommand.MaximoItens + 1).ToList())).ShouldBe(HttpStatusCode.BadRequest);
         using (var stale = await PafApi.EnviarAsync(_tenant.Admin, HttpMethod.Put, $"/midias/{boa}", null, new UpdateMidiaCommand(boa, "Velha", 10, 99)))
         {
