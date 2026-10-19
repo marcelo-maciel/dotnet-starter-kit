@@ -149,6 +149,19 @@ public sealed partial class ConexoesPaf(IHubContext<PafHub> hub, RegistroConexoe
         return await EncerrarAsync(tenantId, conexoes, ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Closes every connection of a terminated impersonation grant (S12; <paramref name="concessao"/> = the token
+    /// <c>jti</c> as the kit writes it): out of every group on any instance, aborted where this instance holds it.
+    /// No <see cref="SessaoInvalidada"/>: it names a kit session, and the grant has none. Call after the link release
+    /// is committed.
+    /// </summary>
+    public async Task<int> EncerrarConcessaoAsync(string tenantId, string concessao, CancellationToken ct)
+    {
+        var locais = Filtrar(c => c is ConexaoPessoa p && p.TenantId == tenantId && p.Concessao == concessao);
+        var conexoes = Unir(locais, await registro.DaConcessaoAsync(tenantId, concessao, ct).ConfigureAwait(false));
+        return await EncerrarAsync(tenantId, conexoes, ct).ConfigureAwait(false);
+    }
+
     // One id at a time, never Clients(list): the Redis lifetime manager writes a single local connection straight to
     // its transport, so the notice is flushed before the abort, while the list overload publishes every id through
     // the backplane, local ones too, and would lose the race with the abort. A remote id still goes over the backplane.
