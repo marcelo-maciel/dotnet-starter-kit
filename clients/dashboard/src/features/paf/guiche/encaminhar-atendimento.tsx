@@ -43,6 +43,7 @@ export function EncaminharAtendimento({ estado, desabilitado, aoEncaminhar }: Pr
       <Button
         size="lg"
         variant="secondary"
+        data-acao-guiche="encaminhar"
         disabled={desabilitado || estado !== "EmAtendimento"}
         onClick={() => setAberto(true)}
       >
