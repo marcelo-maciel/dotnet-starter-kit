@@ -27,6 +27,8 @@ import { estiloImagemDeFundo, useImagemDeFundo } from "@/features/paf/estacao/im
 import { lerLogotipo } from "@/features/paf/logotipo/logotipo";
 import { LogotipoImagem } from "@/features/paf/logotipo/logotipo-imagem";
 import { SenhaContida } from "@/features/paf/painel/senha-contida";
+import { MidiaPainel } from "@/features/paf/painel/midia-painel";
+import { useMidiasDoPainel } from "@/features/paf/painel/use-midias-do-painel";
 import {
   ANUNCIO_PADRAO,
   lerAnuncioDaChamada,
@@ -118,16 +120,21 @@ export function PainelPage() {
   }, [tratarErro]);
 
   const fundo = useImagemDeFundo(urlFundo, recarregarConfiguracao);
+  // M08: nothing is chosen before the start gesture, so no media plays with sound before it.
+  const { execucao, reler: relerMidias, relerAoReconectar: relerMidiasAoReconectar, terminar, falhar } =
+    useMidiasDoPainel(estado.anunciando, perderCredencial);
 
   useEffect(() => {
     if (!vinculado) return;
     recarregarConfiguracao();
+    relerMidias();
     const timer = window.setInterval(recarregarConfiguracao, RELEITURA_CONFIGURACAO_MS);
 
     const pararHub = conectarHubEstacao({
       papel: "Painel",
       handlers: {
         FilaAtualizada: () => recarregarConfiguracao(),
+        ProgramacaoAlterada: () => relerMidias(),
         SenhaChamada: (p) => dispatch({ tipo: "senhaChamada", evento: p as SenhaChamadaEvento }),
         SenhaRechamada: (p) => dispatch({ tipo: "senhaRechamada", evento: p as SenhaChamadaEvento }),
         AtendimentoAtualizado: (p) =>
@@ -136,6 +143,7 @@ export function PainelPage() {
       aoConectar: () => {
         recarregarEstado();
         recarregarConfiguracao();
+        relerMidiasAoReconectar();
       },
       aoMudarEstado: setConexao,
       aoPerderCredencial: perderCredencial,
@@ -144,7 +152,7 @@ export function PainelPage() {
       window.clearInterval(timer);
       pararHub();
     };
-  }, [vinculado, recarregarEstado, recarregarConfiguracao, perderCredencial]);
+  }, [vinculado, recarregarEstado, recarregarConfiguracao, perderCredencial, relerMidias, relerMidiasAoReconectar]);
 
   const mostrarDataHora = aparencia.mostrarDataHora;
   useEffect(() => {
@@ -210,6 +218,7 @@ export function PainelPage() {
   }
 
   const principal = destaque ?? estado.ultimoDestaque ?? estado.chamadas[0] ?? null;
+  const pausarMidia = destaque !== null || estado.fila.length > 0;
   // Every text below is sized in em, so the cadastro's font size scales the whole screen; absent, the base is the
   // page's 16 px and the screen looks as before. With the cadastro colors, only those colors are used: the
   // translucent whites and the yellow highlight box were never checked against the chosen background (RNF19).
@@ -248,7 +257,31 @@ export function PainelPage() {
         </p>
       )}
 
-      <section aria-label="Chamada atual" className="flex flex-1 flex-col items-center justify-center gap-4 px-8">
+      {/* M08: the media region exists only while an item with a picture plays; audio plays without one, and without
+          an item the calls take the whole screen. A pending announcement also counts, so a burst of calls keeps the
+          sound paused instead of resuming between two highlights. */}
+      {execucao !== null && execucao.tipo === "Audio" && (
+        <MidiaPainel
+          key={execucao.id}
+          execucao={execucao}
+          pausado={pausarMidia}
+          aoTerminar={terminar}
+          aoFalhar={falhar}
+        />
+      )}
+      <div className="flex min-h-0 flex-1">
+      {execucao !== null && execucao.tipo !== "Audio" && (
+        <section aria-label="Mídia" className="flex min-w-0 flex-[3] items-center justify-center overflow-hidden p-4">
+          <MidiaPainel
+            key={execucao.id}
+            execucao={execucao}
+            pausado={pausarMidia}
+            aoTerminar={terminar}
+            aoFalhar={falhar}
+          />
+        </section>
+      )}
+      <section aria-label="Chamada atual" className="flex min-w-0 flex-[2] flex-col items-center justify-center gap-4 px-8">
         {principal ? (
           <div
             data-destaque={destaque !== null ? "sim" : "nao"}
@@ -282,6 +315,7 @@ export function PainelPage() {
           <p className={cores !== null ? "text-[1.875em]" : "text-[1.875em] text-white/60"}>Aguardando chamadas</p>
         )}
       </section>
+      </div>
 
       {aparencia.mostrarUltimasChamadas && (
         <section aria-label="Últimas chamadas" className="border-t border-white/20 px-8 py-4">

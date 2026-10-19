@@ -1,5 +1,6 @@
 import { estacaoFetch } from "@/features/paf/estacao/estacao-http";
 import type { EstadoPainelDto } from "@/features/paf/painel/painel-estado";
+import type { MidiasPainelDto } from "@/features/paf/painel/agenda-midia";
 
 /** One totem button: a fila of the station's emission role with one of its active prioridades. */
 export type BotaoEmissao = {
@@ -70,6 +71,11 @@ export function obterConfiguracaoPainel() {
 
 export function obterEstadoPainel() {
   return estacaoFetch<EstadoPainelDto>("Painel", "/api/v1/paf/estacao/painel/estado", { method: "GET" });
+}
+
+/** M08: what the painel plays (M06, RF21 amended): its loop, today's programações and the server's instant. */
+export function obterMidiasPainel() {
+  return estacaoFetch<MidiasPainelDto>("Painel", "/api/v1/paf/estacao/painel/midias", { method: "GET" });
 }
 
 /** Reads one numeric key of the station's JSON block; absent, malformed or non-positive → `padrao`. */
