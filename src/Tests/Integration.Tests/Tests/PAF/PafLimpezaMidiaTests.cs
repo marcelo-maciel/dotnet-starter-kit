@@ -7,6 +7,8 @@ using FSH.Framework.Storage;
 using FSH.Framework.Storage.DTOs;
 using FSH.Framework.Storage.Services;
 using FSH.Modules.PAF.Midias;
+using Hangfire;
+using Hangfire.Storage;
 using Integration.Tests.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -38,6 +40,20 @@ public sealed class PafLimpezaMidiaTests(FshWebApplicationFactory factory) : IAs
         {
             await s3.DeleteObjectAsync(Bucket, chave, prazo.Token);
         }
+    }
+
+    // Literals, not LimpezaMidia.Cron: the decision is three in the morning in Sao Paulo (BRT everywhere, jobs included).
+    [Fact]
+    public void Job_RegistradoNoHangfire_AsTresDaManhaEmSaoPaulo()
+    {
+        using var conexao = factory.Services.GetRequiredService<JobStorage>().GetConnection();
+
+        var job = conexao.GetRecurringJobs().Where(j => j.Id == LimpezaMidia.IdRecorrente).ShouldHaveSingleItem();
+
+        job.Cron.ShouldBe("0 3 * * *");
+        job.TimeZoneId.ShouldBe("America/Sao_Paulo");
+        job.Job.Type.ShouldBe(typeof(LimpezaMidia));
+        job.Job.Method.Name.ShouldBe(nameof(LimpezaMidia.ExecutarAsync));
     }
 
     [Fact]

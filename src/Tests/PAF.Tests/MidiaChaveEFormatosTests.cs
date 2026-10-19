@@ -134,9 +134,20 @@ public sealed partial class MidiaChaveEFormatosTests
         opcoes.TetoBytes(TipoMidia.Video).ShouldBe(1073741824L);
     }
 
+    // R7: exactly 7 days signs in SigV2, which R2 refuses; the ceiling is the read URL's (7 days minus 15 min).
+    [Fact]
+    public void Opcoes_ValidadeUrlEnvioNoTetoDaAssinatura_Aceita()
+    {
+        var opcoes = Resolver(new() { ["PAF:Midia:ValidadeUrlEnvio"] = "6.23:45:00" });
+
+        opcoes.ValidadeUrlEnvio.ShouldBe(UrlLeituraMidia.TetoValidade);
+    }
+
     [Theory]
     [InlineData("PAF:Midia:ValidadeUrlEnvio", "00:00:00", "ValidadeUrlEnvio")]
     [InlineData("PAF:Midia:ValidadeUrlEnvio", "7.00:00:01", "ValidadeUrlEnvio")]
+    [InlineData("PAF:Midia:ValidadeUrlEnvio", "7.00:00:00", "ValidadeUrlEnvio")]
+    [InlineData("PAF:Midia:ValidadeUrlEnvio", "6.23:45:01", "ValidadeUrlEnvio")]
     [InlineData("PAF:Midia:TetoVideoBytes", "0", "tetos por tipo")]
     [InlineData("PAF:Midia:TetoAudioBytes", "-1", "tetos por tipo")]
     [InlineData("PAF:Midia:MargemLeitura", "-00:00:01", "MargemLeitura")]

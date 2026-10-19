@@ -280,7 +280,7 @@ public sealed class PafModule : IModule
             LimpezaMidia.IdRecorrente,
             Job.FromExpression<LimpezaMidia>(j => j.ExecutarAsync(default)),
             LimpezaMidia.Cron,
-            new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
+            new RecurringJobOptions { TimeZone = LimpezaMidia.Fuso });
     }
 
     // Licença, sessão única, unidade corrente e guichê (RF22, ADR 0006, ADR 0008).
