@@ -1,9 +1,7 @@
 using System.Diagnostics;
-using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.PAF.Contracts.Authorization;
 using FSH.Modules.PAF.Contracts.v1.TempoReal;
 using FSH.Modules.PAF.Sessao;
-using FSH.Modules.PAF.TempoReal;
 using Integration.Tests.Infrastructure;
 using Microsoft.AspNetCore.SignalR.Client;
 
@@ -15,6 +13,10 @@ namespace Integration.Tests.Tests.PAF;
 /// evento de S01 e, perdido o evento, pelo ciclo de renovação. O host do harness sobe sem Valkey (uma instância);
 /// o caminho entre instâncias e o descarte do aviso repetido pelo id da sessão estão em PafRegistroConexoesTests.
 /// O cliente que ignora o aviso e invoca o hub recebe HubException: PafHubConexoesTests.Filtro_ChamadaComSessaoRevogada_AbortaERecusa.
+/// Aqui o transporte é long polling, e cada poll passa de novo pela checagem de sessão: revogada a sessão, o poll que
+/// ainda não estava parado no servidor volta 401 e o aviso fica na fila. Só cabe aqui o cenário em que o cliente está
+/// ocioso quando a revogação acontece; a revogação logo depois de conectar (RevogacaoSessao, ciclo de renovação) está
+/// em PAF.Kestrel.Tests.PafHubWebSocketTests, sobre WebSocket, o transporte do front.
 /// </summary>
 [Collection(FshCollectionDefinition.Name)]
 public sealed class PafSessaoInvalidadaTests(FshWebApplicationFactory factory) : IAsyncLifetime
@@ -105,62 +107,6 @@ public sealed class PafSessaoInvalidadaTests(FshWebApplicationFactory factory) :
         (await Task.WhenAny(fechou, Task.Delay(Espera))).ShouldBe(fechou, "o consumidor do evento fecha a conexão");
         (await _tenant.AtividadesAsync(Guid.Parse(usuario.UserId))).ShouldBeEmpty("a licença sai junto, sem esperar a marca vencer");
         controle.State.ShouldBe(HubConnectionState.Connected, "conexões de outras credenciais seguem abertas");
-    }
-
-    [Fact]
-    public async Task EventoPerdido_ARevogacaoDoKitValeNoCicloSeguinteDeRenovacao()
-    {
-        var c = await _op.CriarAsync();
-        var usuario = await _tenant.CriarUsuarioAsync(c.UnidadeId);
-        var token = (await _tenant.EntrarAsync(usuario)).AccessToken;
-        var sessaoId = PafTenantCliente.SessaoDoToken(token);
-        var conexao = await ConectarAsync(token);
-        using var avisos = new Caixa<SessaoInvalidada>(conexao, SessaoInvalidada.Metodo);
-        var fechou = Fechamento(conexao);
-
-        // The kit revocation with its event never delivered: the outbox is not drained before the cycle.
-        using (var scope = factory.Services.CreateScope())
-        {
-            _tenant.Contexto(scope, unidadeCorrente: null);
-            (await scope.ServiceProvider.GetRequiredService<ISessionService>()
-                .RevokeSessionForAdminAsync(sessaoId, usuario.UserId, "teste: evento perdido")).ShouldBeTrue();
-        }
-
-        // Inside the renewal interval the cycle does not look at the session yet (seção 9).
-        await factory.Services.GetRequiredService<RenovacaoPelaConexao>().CicloAsync(CancellationToken.None);
-        avisos.Recebidos.ShouldBeEmpty();
-
-        (await _tenant.ExecutarAsync($"""
-            UPDATE paf."AtividadesSessao" SET "UltimaAtividadeEm" = now() - interval '2 minutes' WHERE "SessaoId" = {sessaoId}
-            """)).ShouldBe(1);
-        await factory.Services.GetRequiredService<RenovacaoPelaConexao>().CicloAsync(CancellationToken.None);
-
-        (await avisos.EsperarAsync(a => a.SessaoId == sessaoId, Espera)).ShouldNotBeNull()
-            .Motivo.ShouldBe(SessaoRevogadaPafHandler.MensagemSessaoEncerrada);
-        (await Task.WhenAny(fechou, Task.Delay(Espera))).ShouldBe(fechou, "o ciclo de renovação fecha a conexão da sessão morta");
-    }
-
-    [Fact]
-    public async Task RevogacaoNoPaf_UnidadeRetirada_AvisaComOMotivoDaTela()
-    {
-        var c = await _op.CriarAsync();
-        var usuario = await _tenant.CriarUsuarioAsync(c.UnidadeId);
-        var token = (await _tenant.EntrarAsync(usuario)).AccessToken;
-        var sessaoId = PafTenantCliente.SessaoDoToken(token);
-        var conexao = await ConectarAsync(token);
-        using var avisos = new Caixa<SessaoInvalidada>(conexao, SessaoInvalidada.Metodo);
-        var fechou = Fechamento(conexao);
-
-        using (var scope = factory.Services.CreateScope())
-        {
-            _tenant.Contexto(scope, unidadeCorrente: null);
-            await scope.ServiceProvider.GetRequiredService<RevogacaoSessao>().RevogarAsync(
-                _tenant.TenantId, sessaoId, Guid.Parse(usuario.UserId), RevogacaoSessao.MotivoUnidadeRetirada, CancellationToken.None);
-        }
-
-        (await Task.WhenAny(fechou, Task.Delay(Espera))).ShouldBe(fechou);
-        var aviso = avisos.Recebidos.ShouldHaveSingleItem("o aviso sai antes do fechamento");
-        aviso.Motivo.ShouldBe(RevogacaoSessao.MensagemUnidadeRetirada, "a tela recebe a frase, não o motivo de auditoria do kit");
     }
 
     // ─── helpers ─────────────────────────────────────────────────────
