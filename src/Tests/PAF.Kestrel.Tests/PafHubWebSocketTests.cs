@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.IdentityModel.Tokens.Jwt;
+using System.Text.Json;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.PAF.Contracts.Authorization;
 using FSH.Modules.PAF.Contracts.v1.Atendimentos;
@@ -7,6 +8,7 @@ using FSH.Modules.PAF.Contracts.v1.Fichas;
 using FSH.Modules.PAF.Contracts.v1.TempoReal;
 using FSH.Modules.PAF.Sessao;
 using FSH.Modules.PAF.TempoReal;
+using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
 
@@ -98,6 +100,40 @@ public sealed class PafHubWebSocketTests(PafKestrelFactory factory) : IAsyncLife
         await aceita.Hub.StartAsync();
         await aceita.ProntaAsync();
         aceita.Tentativas.Select(t => t.Status).ShouldBe([HttpStatusCode.SwitchingProtocols]);
+    }
+
+    // Owner's decision: production takes WebSockets only (OpcoesTempoReal default; this host overrides nothing). Long
+    // polling re-authenticates every poll, and a revocation's notice can be lost on a refused poll.
+    [Fact]
+    public async Task PadraoDeProducao_LongPollingRecusado_WebSocketAceito()
+    {
+        var c = await _tenant.CriarUnidadeAsync();
+        var painel = await _tenant.CredencialAsync(c.UnidadeId, c.Painel, PafPapeisEstacao.Painel);
+
+        using (var cliente = _tenant.Cliente(painel.AccessToken))
+        using (var negociacao = await cliente.PostAsync($"{PafHubRota.Caminho}/negotiate?negotiateVersion=1", content: null))
+        {
+            negociacao.StatusCode.ShouldBe(HttpStatusCode.OK, await negociacao.Content.ReadAsStringAsync());
+            using var corpo = JsonDocument.Parse(await negociacao.Content.ReadAsStringAsync());
+            corpo.RootElement.GetProperty("availableTransports").EnumerateArray()
+                .Select(t => t.GetProperty("transport").GetString()).ShouldBe([nameof(HttpTransportType.WebSockets)]);
+        }
+
+        await using var longPolling = new HubConnectionBuilder()
+            .WithUrl(new Uri(factory.Endereco, $"{PafHubRota.Caminho}?tenant={Uri.EscapeDataString(_tenant.TenantId)}"), options =>
+            {
+                options.Transports = HttpTransportType.LongPolling;
+                options.AccessTokenProvider = () => Task.FromResult<string?>(painel.AccessToken);
+            })
+            .Build();
+        await Should.ThrowAsync<Exception>(() => longPolling.StartAsync());
+        longPolling.State.ShouldBe(HubConnectionState.Disconnected);
+
+        // Same credential on the front's transport: the refusal above is the transport, not the credential.
+        var webSocket = Conexao(_tenant.TenantId, () => Task.FromResult(painel.AccessToken));
+        await webSocket.Hub.StartAsync();
+        await webSocket.ProntaAsync();
+        webSocket.Tentativas.Select(t => t.Status).ShouldBe([HttpStatusCode.SwitchingProtocols]);
     }
 
     [Fact]
