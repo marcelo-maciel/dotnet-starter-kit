@@ -2,9 +2,10 @@
 // footer on the totem print with the DELETE falling back to the empresa, QR read but not printed, hotkey configured
 // in the unidade firing on the guichê, hotkey conflict refused, fila ordering changing the totem buttons.
 //
-// Prerequisites: fresh `seed-demo` database plus a second fila "Abertura" on the demo totem and guichê (station order
-// after "Atendimento"), API and Vite up. Run:
-//   PAF_API=http://localhost:5420 PAF_WEB=http://localhost:5520 node tests/e2e/paf-parametros.walk.mjs
+// Prerequisites: fresh `seed-demo` database, API and Vite up; the walk adds the second fila "Abertura" to the demo
+// totem and guichê itself (station order after "Atendimento"). Run:
+//   PAF_API=http://localhost:5420 PAF_WEB=http://localhost:5520 PAF_SENHA_DEMO=<seed password> node tests/e2e/paf-parametros.walk.mjs
+// or PAF_WALK=tests/e2e/paf-parametros.walk.mjs PAF_SENHA_DEMO=<secret> deploy/paf/walk-local.sh
 // Exit code 0 only when every check passed; each check prints PASS/FAIL.
 import { chromium } from "@playwright/test";
 
@@ -65,7 +66,8 @@ const STUBS = () => {
       titulo: ficha?.querySelector("[data-titulo-ficha]")?.textContent ?? null,
       rodape: ficha?.querySelector("[data-rodape-ficha]")?.textContent ?? null,
       senha: ficha?.querySelector("[data-senha]")?.textContent ?? null,
-      temQr: !!ficha?.querySelector("svg, canvas, img"),
+      // The logo (C19) is an inline SVG or an image in its own block: a QR is any other graphic on the ticket.
+      temQr: !!ficha?.querySelector(":is(svg, canvas, img):not([data-logotipo-ficha] *)"),
     });
     setTimeout(() => window.dispatchEvent(new Event("afterprint")), 20);
   };
@@ -126,6 +128,59 @@ try {
   );
   const estacoes = await ok("GET", "/api/v1/paf/estacoes", admin.accessToken);
   const totem = estacoes.find((e) => e.tipo === "EmissaoPainel");
+  const guiche = estacoes.find((e) => e.tipo === "Guiche");
+  // The second fila "Abertura" (letter B), after "Atendimento" in station order on the totem and the guichê.
+  const normal = (await ok("GET", "/api/v1/paf/prioridades", admin.accessToken)).find((p) => p.nome === "Normal");
+  const aberturaId = await ok("POST", "/api/v1/paf/filas", admin.accessToken, {
+    nome: "Abertura",
+    nomeExibicao: "Abertura",
+    horaInicial: null,
+    horaFinal: null,
+    setorId: null,
+    aparencia: { fonte: null, corFonte: null, corBotaoSelecionado: null },
+    prioridades: [{ prioridadeId: normal.id, letra: "B", numeroInicial: 1, ordem: 0, corBotao: null }],
+  });
+  const comAbertura = (estacao, papel) => [...estacao.filas, { papel, filaId: aberturaId, ordem: estacao.filas.length }];
+  // An update requires the station type's blocks (D25); the seed may leave them empty.
+  await ok("PUT", `/api/v1/paf/estacoes/${totem.id}`, admin.accessToken, {
+    id: totem.id,
+    nome: totem.nome,
+    filas: comAbertura(totem, "Emissao"),
+    prioridades: totem.prioridades,
+    ramal: totem.ramal,
+    configuracao: {
+      emissao: totem.configuracao?.emissao ?? {
+        titulo: null,
+        tamanhoFontePx: null,
+        tamanhoBotaoPx: null,
+        corFundoBotao: null,
+        corFonteBotao: null,
+        corDescricaoBotao: null,
+        prazoCicloEmissaoSegundos: null,
+      },
+      guiche: null,
+      painel: totem.configuracao?.painel ?? {
+        mostrarDataHora: false,
+        tamanhoFontePx: null,
+        corFundo: null,
+        corFonteFilas: null,
+        corFonteChamada: null,
+        corFonteAlternada: null,
+        modo: "Informativo",
+        tempoExibicaoChamadaSegundos: null,
+      },
+    },
+  });
+  await ok("PUT", `/api/v1/paf/estacoes/${guiche.id}`, admin.accessToken, {
+    id: guiche.id,
+    nome: guiche.nome,
+    filas: comAbertura(guiche, "Guiche"),
+    prioridades: guiche.prioridades,
+    ramal: guiche.ramal,
+    configuracao: guiche.configuracao?.guiche
+      ? guiche.configuracao
+      : { emissao: null, painel: null, guiche: { numero: 1, nomeExibicao: null, ladoSeta: null, respeitarOrdemFilas: false, selecionarFicha: false } },
+  });
   const link = await ok("POST", `/api/v1/paf/estacoes/${totem.id}/vinculo`, admin.accessToken, {});
 
   // ── Parameters screen: empresa default, unidade override, badges ──
