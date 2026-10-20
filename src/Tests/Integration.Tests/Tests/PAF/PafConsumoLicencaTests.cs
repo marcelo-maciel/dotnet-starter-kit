@@ -80,11 +80,13 @@ public sealed class PafConsumoLicencaTests(FshWebApplicationFactory factory) : I
         return unidade;
     }
 
-    private async Task<List<ConsumoLicenca>> ConsumosAsync(Guid unidadeId)
+    // Only the excess rows: the host's Hangfire server runs ManutencaoLicencas on every 5-minute boundary (UTC) and
+    // writes an Amostra row for each unit with a contract, this test's unit included, whenever a test spans the tick.
+    private async Task<List<ConsumoLicenca>> ExcedentesAsync(Guid unidadeId)
     {
         using var scope = factory.Services.CreateScope();
         return await _tenant.Contexto(scope, unidadeCorrente: unidadeId).ConsumosLicenca.AsNoTracking()
-            .Where(c => c.UnidadeId == unidadeId).ToListAsync();
+            .Where(c => c.UnidadeId == unidadeId && c.Tipo == TipoConsumoLicenca.Excedente).ToListAsync();
     }
 
     private async Task<List<string>> MembrosAsync(Guid unidadeId) =>
@@ -99,11 +101,11 @@ public sealed class PafConsumoLicencaTests(FshWebApplicationFactory factory) : I
     {
         var unidade = await UnidadeAsync(limite: 1, PoliticaLimiteLicenca.UltrapassarComAviso);
         await EntrarAsync(await UsuarioAsync(unidade.UnidadeId), comValkey);
-        (await ConsumosAsync(unidade.UnidadeId)).ShouldBeEmpty("dentro do limite não há excedente");
+        (await ExcedentesAsync(unidade.UnidadeId)).ShouldBeEmpty("dentro do limite não há excedente");
 
         var acima = await EntrarAsync(await UsuarioAsync(unidade.UnidadeId), comValkey);
 
-        var excedente = (await ConsumosAsync(unidade.UnidadeId)).ShouldHaveSingleItem();
+        var excedente = (await ExcedentesAsync(unidade.UnidadeId)).ShouldHaveSingleItem();
         excedente.Tipo.ShouldBe(TipoConsumoLicenca.Excedente);
         excedente.Ocupadas.ShouldBe(2);
         excedente.Limite.ShouldBe(1);
@@ -123,7 +125,7 @@ public sealed class PafConsumoLicencaTests(FshWebApplicationFactory factory) : I
 
         await Should.ThrowAsync<ForbiddenException>(() => EntrarAsync(recusado, comValkey));
 
-        (await ConsumosAsync(unidade.UnidadeId)).ShouldBeEmpty();
+        (await ExcedentesAsync(unidade.UnidadeId)).ShouldBeEmpty();
     }
 
     /// <summary>
@@ -171,7 +173,7 @@ public sealed class PafConsumoLicencaTests(FshWebApplicationFactory factory) : I
             await transacaoBloqueio.RollbackAsync();
         }
 
-        (await ConsumosAsync(unidade.UnidadeId)).ShouldBeEmpty("o excedente vai junto com a ocupação que falhou");
+        (await ExcedentesAsync(unidade.UnidadeId)).ShouldBeEmpty("o excedente vai junto com a ocupação que falhou");
         (await _tenant.AtividadesAsync(usuario)).ShouldBeEmpty();
         if (comValkey)
         {
@@ -199,7 +201,7 @@ public sealed class PafConsumoLicencaTests(FshWebApplicationFactory factory) : I
         aviso.Ocupadas.ShouldBe(2);
         aviso.Limite.ShouldBe(1);
         aviso.Unidade.ShouldStartWith("Loja ");
-        var excedente = (await ConsumosAsync(unidade.UnidadeId)).ShouldHaveSingleItem();
+        var excedente = (await ExcedentesAsync(unidade.UnidadeId)).ShouldHaveSingleItem();
         aviso.RegistroId.ShouldBe(excedente.Id);
         excedente.SessaoId.ShouldBe(PafTenantCliente.SessaoDoToken(acima.AccessToken));
     }
