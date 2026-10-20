@@ -185,13 +185,21 @@ jobs:
       - name: Invariantes de ambiente
         run: bash deploy/paf/verificar-ambiente.test.sh
 
+  # Every clients/dashboard/tests/e2e/paf-*.walk.mjs, split into parallel jobs by deploy/paf/walks-ci.txt (one stack per
+  # job, a fresh seed-demo database per walk). The part "demais" takes every walk the file does not list, so a new
+  # walk always runs somewhere; scripts-ci.test.sh fails when this list and the file's parts diverge.
   walk:
-    name: Walk no Chrome
+    name: Walk no Chrome (${{ matrix.parte }})
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        parte: [1, 2, demais]
     env:
       PAF_SENHA_DEMO: ${{ secrets.PAF_SENHA_DEMO }}
+      PARTE: ${{ matrix.parte }}
     steps:
       - uses: actions/checkout@v6
 
@@ -222,8 +230,20 @@ jobs:
       - name: Google Chrome presente
         run: google-chrome --version
 
-      - name: Walk da primeira fatia
-        run: bash deploy/paf/walk-ci.sh
+      # The runner image ships no ffmpeg (actions/runner-images, Ubuntu 24.04 readme): installed only for a part that
+      # holds a walk reading PAF_FFMPEG (paf-midias records its test video with it).
+      - name: ffmpeg para os walks que gravam vídeo
+        run: |
+          set -euo pipefail
+          walks="$(bash deploy/paf/walks-da-parte.sh "$PARTE")"
+          if (cd clients/dashboard/tests/e2e && grep -l PAF_FFMPEG $walks); then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends ffmpeg
+            ffmpeg -version | head -n 1
+          fi
+
+      - name: Walks da parte
+        run: bash deploy/paf/walk-ci.sh "$PARTE"
 
   # O07 (RNF16): the rolling deploy migrates first and keeps the old instance serving, so the previous revision's API
   # must still emit and call on the schema of this one. PR: the base; push: the previous commit of the branch.

@@ -6,7 +6,7 @@
 // Prerequisites: fresh `seed-demo` database, API and Vite up. Run:
 //   PAF_API=http://localhost:5418 PAF_WEB=http://localhost:5518 PAF_SENHA_DEMO=<Seed__DemoPassword> \
 //     node tests/e2e/paf-senha-longa.walk.mjs
-// or through deploy/paf/walk-ci.sh with PAF_WALK=tests/e2e/paf-senha-longa.walk.mjs.
+// or through deploy/paf/walk-local.sh with PAF_WALK=tests/e2e/paf-senha-longa.walk.mjs.
 // Exit code 0 only when every check passed; each check prints PASS/FAIL.
 import { chromium } from "@playwright/test";
 

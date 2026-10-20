@@ -52,7 +52,7 @@ async function api(method, path, token, body) {
 
 // Read-only checks go straight to PostgreSQL: a second API login would revoke the browser's session (sessão única).
 function sql(consulta) {
-  // User fsh, the owner every walk container is created with (deploy/paf/walk-local.sh, walk-ci.sh).
+  // User fsh, the owner every walk container is created with (deploy/paf/walk-pilha.sh).
   return execFileSync("docker", ["exec", PG, "psql", "-U", "fsh", "-d", "fsh", "-v", "ON_ERROR_STOP=1", "-At", "-c", consulta], {
     encoding: "utf8",
     timeout: TIMEOUT,

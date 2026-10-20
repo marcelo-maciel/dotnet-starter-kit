@@ -44,7 +44,7 @@ LIMITE_API_S=180
 LIMITE_ENSAIO_S=120
 PID_API=""
 
-# ponytail: infra helpers copied from walk-ci.sh (owned by O08/O17); extract a sourced lib if a third script needs them.
+# ponytail: infra helpers copied from walk-pilha.sh (owned by O08/O17); extract a sourced lib if a third script needs them.
 limpar() {
   local codigo=$?
   echo "--- limpeza"
