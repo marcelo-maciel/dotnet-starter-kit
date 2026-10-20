@@ -43,7 +43,7 @@
 			health_uri /api/v1/paf/saude
 			health_interval 2s
 			health_timeout 2s
-			fail_duration 10s
+			fail_duration 2s
 			# The kit trusts X-Forwarded-For and X-Forwarded-Proto from KnownNetworks = PAF_SUBNET, ForwardLimit 1:
 			# one value, the client IP resolved above (CF-Connecting-IP from cloudflared, else the peer).
 			header_up X-Forwarded-For {client_ip}
