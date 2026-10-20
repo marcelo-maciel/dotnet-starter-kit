@@ -45,6 +45,8 @@ export type AuthContextValue = {
   impersonation: ImpersonationInfo | null;
   login: (input: { email: string; password: string; tenant: string }) => Promise<void>;
   logout: () => void;
+  /** Clears the local session with no call to the server: for when the server already ended it (SessaoInvalidada). */
+  logoutLocal: () => void;
   /** Re-fetch the permission set for the signed-in user (e.g. after a role change). */
   refreshPermissions: () => Promise<void>;
   /** Begin impersonating another user. Resolves once the new token is installed. */
@@ -250,7 +252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [queryClient],
   );
 
-  // PAF: umLogoutPorVez drops the SessaoInvalidada-triggered call that arrives while this logout is in flight.
+  // PAF: umLogoutPorVez drops a second call (menu plus inactivity guard) while this logout is in flight.
   const logout = useMemo(
     () =>
       umLogoutPorVez(() => {
@@ -269,6 +271,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }),
     [queryClient],
   );
+
+  const logoutLocal = useCallback(() => {
+    tokenStore.clear();
+    queryClient.clear();
+  }, [queryClient]);
 
   const beginImpersonation = useCallback(
     async (input: { targetUserId: string; targetTenantId: string; reason?: string }) => {
@@ -345,11 +352,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       impersonation,
       login,
       logout,
+      logoutLocal,
       beginImpersonation,
       stopImpersonation,
       refreshPermissions,
     }),
-    [user, isInitializing, permissionsHydrated, impersonation, login, logout, beginImpersonation, stopImpersonation, refreshPermissions],
+    [user, isInitializing, permissionsHydrated, impersonation, login, logout, logoutLocal, beginImpersonation, stopImpersonation, refreshPermissions],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

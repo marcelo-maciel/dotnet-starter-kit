@@ -27,3 +27,21 @@ export function avisoDaPropriaSessao(aviso: SessaoInvalidada, sidAtual: string |
   if (sidAtual === undefined || sidAtual === "") return false;
   return aviso.sessaoId.toLowerCase() === sidAtual.toLowerCase();
 }
+
+export type AcoesSessaoInvalidada = {
+  pararConexao: () => void;
+  avisar: (motivo: string) => void;
+  sairLocalmente: () => void;
+};
+
+/**
+ * The server already revoked the session, so leaving is local only: a POST to the server logout would carry a
+ * revoked token and get 401. Anything malformed or for another session does nothing.
+ */
+export function tratarSessaoInvalidada(dado: unknown, sidAtual: string | undefined, acoes: AcoesSessaoInvalidada): void {
+  const aviso = lerSessaoInvalidada(dado);
+  if (!aviso || !avisoDaPropriaSessao(aviso, sidAtual)) return;
+  acoes.pararConexao();
+  acoes.avisar(aviso.motivo);
+  acoes.sairLocalmente();
+}

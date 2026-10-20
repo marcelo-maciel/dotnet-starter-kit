@@ -204,6 +204,29 @@ try {
     await ctx.close();
   }
 
+  // ── 3b. Session ended in another tab: that tab leaves locally, with no POST to the (already revoked) logout ──
+  {
+    const ctx = await browser.newContext();
+    const abaA = await ctx.newPage();
+    const abaB = await ctx.newPage();
+    const chamadasA = registrarLogouts(abaA);
+    const chamadasB = registrarLogouts(abaB);
+    await entrar(abaA);
+    await abaB.goto(`${WEB}/`);
+    await abaB.getByRole("button", { name: "Open profile menu" }).waitFor({ timeout: TIMEOUT });
+    await abaA.bringToFront();
+    await sairPeloMenu(abaA);
+    await abaB.waitForURL((u) => u.pathname.startsWith("/login"), { timeout: TIMEOUT });
+    // Past the notice and any retry: a late second POST would show up here.
+    await abaB.waitForTimeout(1_500);
+    const respostaA = chamadasA[0] ? await chamadasA[0].req.response() : null;
+    check("outra aba: a aba que saiu fez um POST com 204", chamadasA.length === 1 && respostaA?.status() === 204, `${await descrever(chamadasA)}, ${respostaA?.status()}`);
+    check("outra aba: a outra aba não fez POST ao logout", chamadasB.length === 0, await descrever(chamadasB));
+    check("outra aba: a outra aba foi para o login", new URL(abaB.url()).pathname.startsWith("/login"), abaB.url());
+    check("outra aba: token apagado", (await tokens(abaB)).access === null);
+    await ctx.close();
+  }
+
   // ── 4. NEGATIVE: server hung, then server refusing the connection: local logout still happens ──
   {
     const ctx = await browser.newContext();
