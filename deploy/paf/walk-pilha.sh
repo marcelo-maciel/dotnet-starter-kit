@@ -79,6 +79,21 @@ aguardar_http() {
   done
   echo "FAIL $url não respondeu 2xx em ${limite}s" >&2; return 1
 }
+# RustFS answers /health before its S3 API is up: a cold container (CI pulled the image seconds before) returns 503 to
+# the bucket PUT. 503 means "not ready yet"; any other non-2xx is a real failure and stops at once.
+criar_bucket() {
+  local url="$1" limite="$2"; local i codigo
+  for ((i = 0; i < limite; i++)); do
+    codigo="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 --aws-sigv4 "aws:amz:us-east-1:s3" \
+      --user rustfsadmin:rustfsadmin -X PUT "$url")"
+    case "$codigo" in
+      2??) return 0 ;;
+      503) sleep 1 ;;
+      *) echo "FAIL infra: criar bucket $url respondeu $codigo" >&2; return 1 ;;
+    esac
+  done
+  echo "FAIL infra: criar bucket $url ainda 503 depois de ${limite}s" >&2; return 1
+}
 porta_livre() { node -e 'const s=require("node:net").createServer().listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})'; }
 
 # Containers, the dotnet build (skipped with PAF_PULAR_BUILD=1), the environment of every DbMigrator and API run, and
@@ -104,7 +119,7 @@ pilha_subir() {
   URL_S3="http://127.0.0.1:$porta_s3"
   aguardar_http "$URL_S3/health" "$LIMITE_PRONTO_S" ""
   # The API does not create its bucket; walks that upload without creating it (paf-logotipo) need it there.
-  curl -fsS -o /dev/null --max-time 10 --aws-sigv4 "aws:amz:us-east-1:s3" --user rustfsadmin:rustfsadmin -X PUT "$URL_S3/$PILHA_BUCKET"
+  criar_bucket "$URL_S3/$PILHA_BUCKET" "$LIMITE_PRONTO_S"
 
   echo "--- build da API e do DbMigrator"
   export MSBUILDDISABLENODEREUSE=1 DOTNET_CLI_USE_MSBUILD_SERVER=0
