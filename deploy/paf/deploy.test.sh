@@ -136,6 +136,18 @@ else
   falhas=$((falhas + 1))
 fi
 
+# A host with homologação only (no producao.env): the pre-flight does not refuse the missing file and hands both
+# paths to verificar-ambiente.sh, which skips the cross checks (verificar-ambiente.test.sh). The stub records them.
+mv "$TEMP/paf/ambientes/producao.env" "$TEMP/paf/ambientes/homologacao.env"
+printf '#!/usr/bin/env bash\necho "$@" >"%s"\nexit 0\n' "$TEMP/verificador.args" >"$TEMP/paf/verificar-ambiente.sh"
+caso 6 "só homologação no host" "${STUBADO[@]}" STUB_IMAGEM_A= STUB_IMAGEM_B= bash "$DEPLOY" homologacao t1
+if [ "$(cat "$TEMP/verificador.args")" = "$TEMP/paf/ambientes/producao.env $TEMP/paf/ambientes/homologacao.env" ] \
+   && [ ! -e "$TEMP/paf/ambientes/producao.env" ]; then
+  echo "PASS só homologação no host: verificar-ambiente.sh recebe o caminho de producao.env ausente e o deploy segue"
+else
+  echo "FAIL só homologação no host: argumentos '$(cat "$TEMP/verificador.args")'"; falhas=$((falhas + 1))
+fi
+
 if [ "$falhas" -eq 0 ]; then echo "DEPLOY-TEST OK"; exit 0; fi
 echo "DEPLOY-TEST FALHOU ($falhas)"
 exit 1

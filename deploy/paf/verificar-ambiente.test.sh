@@ -85,6 +85,39 @@ codigo=$?
 if [ "$codigo" -eq 0 ] && grep -q "VERIFICAR-AMBIENTE OK" "$SAIDA"; then registrar PASS "par válido aprovado"
 else registrar FAIL "par válido reprovado (código $codigo)"; grep -F "FAIL" "$SAIDA" | head -n 10; fi
 
+# Only one environment on the host (homologação before produção): its own checks run, the cross checks print
+# SKIPPED and never PASS; an invariant of that environment still fails; neither file is refused.
+so_um() {
+  local nome="$1" ausente="$2" rotulo="$3"
+  restaurar
+  rm -f "$ausente"
+  bash "$AQUI/verificar-ambiente.sh" "$PROD" "$HOMOLOG" >"$SAIDA" 2>&1
+  local codigo=$?
+  if [ "$codigo" -eq 0 ] && grep -q "^SKIPPED cruzado" "$SAIDA" && grep -q "VERIFICAR-AMBIENTE OK (conferências cruzadas SKIPPED)" "$SAIDA" \
+     && ! grep -q "^PASS cruzado" "$SAIDA" && grep -q "^PASS $rotulo: caddy presente" "$SAIDA"; then
+    registrar PASS "$nome: aprovado, cruzadas SKIPPED"
+  else
+    registrar FAIL "$nome: código $codigo"; grep -E "FAIL|SKIPPED|VERIFICAR" "$SAIDA" | head -n 5
+  fi
+}
+so_um "só homologação" "$PROD" homologacao
+so_um "só produção" "$HOMOLOG" producao
+restaurar
+rm -f "$PROD"
+trocar "$HOMOLOG" QuotaOptions__Enabled ""
+bash "$AQUI/verificar-ambiente.sh" "$PROD" "$HOMOLOG" >"$SAIDA" 2>&1
+codigo=$?
+if [ "$codigo" -ne 0 ] && grep -F "FAIL" "$SAIDA" | grep -qF "homologacao: api-a QuotaOptions__Enabled=false explícito"; then
+  registrar PASS "só homologação com invariante quebrada: reprovado (código $codigo)"
+else
+  registrar FAIL "só homologação com invariante quebrada: código $codigo"
+fi
+rm -f "$PROD" "$HOMOLOG"
+bash "$AQUI/verificar-ambiente.sh" "$PROD" "$HOMOLOG" >"$SAIDA" 2>&1
+codigo=$?
+if [ "$codigo" -ne 0 ] && grep -q "nenhum arquivo de ambiente existe" "$SAIDA"; then registrar PASS "nenhum arquivo: reprovado (código $codigo)"
+else registrar FAIL "nenhum arquivo: código $codigo"; fi
+
 caso "quotas ausente" "QuotaOptions__Enabled=false explícito" trocar "$PROD" QuotaOptions__Enabled ""
 caso "quotas true" "QuotaOptions__Enabled=false explícito" trocar "$HOMOLOG" QuotaOptions__Enabled "QuotaOptions__Enabled=true"
 caso "chave não ASCII" "chave de assinatura só ASCII imprimível" trocar "$PROD" JwtOptions__SigningKey "JwtOptions__SigningKey=paf-chave-de-assinatura-com-acentuação-0123456789"

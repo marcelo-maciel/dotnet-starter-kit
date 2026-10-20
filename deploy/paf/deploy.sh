@@ -9,7 +9,8 @@
 #
 # Sequence, each step with its own exit code; nothing after a failed step runs:
 #   1. lock per environment (flock -n): a second deploy of the same environment fails at once with 3;
-#   2. pre-flight, no mutation: environment files, verificar-ambiente.sh, the four images present or pulled; the
+#   2. pre-flight, no mutation: environment files, verificar-ambiente.sh (with the other environment's file when the
+#      host has it; without it the cross checks print SKIPPED), the four images present or pulled; the
 #      running tag that is not <tag> saved to ambientes/<ambiente>.tag-anterior (after a partial deploy the instances
 #      differ: retry or rollback to one of their tags, a third tag fails with 4);
 #   3. PostgreSQL, Valkey and Caddy started if missing, never recreated; migrator of the new tag (expand only: the O07

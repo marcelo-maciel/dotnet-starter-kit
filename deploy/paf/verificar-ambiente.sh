@@ -4,6 +4,9 @@
 # environment files before every `docker compose up` (README).
 #
 # Usage: deploy/paf/verificar-ambiente.sh <producao.env> <homologacao.env>
+# A host that runs only one environment (homologação before produção exists) passes the path of the other file even
+# though it does not exist: that environment's checks and every cross check print SKIPPED, never PASS. At least one
+# file must exist.
 # Needs: docker compose v2; node >= 18 on the host, else the node:22-alpine image runs the checker.
 set -uo pipefail
 
@@ -16,20 +19,22 @@ RAIZ="$(cd "$AQUI/../.." && pwd)"
 TRABALHO="$(mktemp -d)"
 trap 'rm -rf "$TRABALHO"' EXIT
 
-for arquivo in "$1" "$2"; do
-  if [ ! -f "$arquivo" ]; then
-    echo "FAIL arquivo de ambiente inexistente: $arquivo" >&2
-    exit 1
-  fi
-done
-# Copies only for the checker (it may run in a container); compose reads the originals.
-cp "$1" "$TRABALHO/producao.env"
-cp "$2" "$TRABALHO/homologacao.env"
+if [ ! -f "$1" ] && [ ! -f "$2" ]; then
+  echo "FAIL nenhum arquivo de ambiente existe: $1, $2" >&2
+  exit 1
+fi
 cp "$AQUI/verificar-ambiente.mjs" "$TRABALHO/"
 cp "$RAIZ/src/Host/FSH.Starter.Api/appsettings.Production.json" "$TRABALHO/"
 
 renderizar() {
   local ambiente="$1" arquivo="$2"
+  if [ ! -f "$arquivo" ]; then
+    echo "SKIPPED $ambiente: arquivo de ambiente inexistente ($arquivo); as conferências cruzadas não rodam"
+    : >"$TRABALHO/$ambiente.ausente"
+    return 0
+  fi
+  # Copy only for the checker (it may run in a container); compose reads the original.
+  cp "$arquivo" "$TRABALHO/$ambiente.env"
   # `--profile '*'` renders any service behind a profile too: none should be, and the checker fails on one.
   # The compose's env_file entry (PAF_ARQUIVO_AMBIENTE) resolves from deploy/paf; the checker compares it line by
   # line with the file given here, so a file naming another environment fails.

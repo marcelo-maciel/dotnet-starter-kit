@@ -5,8 +5,10 @@
 //   node verificar-ambiente.mjs <appsettings.Production.json> <producao.env> <producao.json> <producao.stderr> \
 //                               <homologacao.env> <homologacao.json> <homologacao.stderr>
 //
-// Prints one PASS/FAIL line per check and exits 1 when any check failed.
-import { readFileSync } from "node:fs";
+// An environment whose rendered model (.json) is absent was not given to verificar-ambiente.sh (a host that runs only
+// one environment): its checks and every cross check print SKIPPED, never PASS.
+// Prints one PASS/FAIL/SKIPPED line per check and exits 1 when any check failed.
+import { existsSync, readFileSync } from "node:fs";
 
 const FUSO = "America/Sao_Paulo";
 // RNF05 ceiling shared with the O19 test (src/Tests/PAF.Tests/PrazosEntradaSaida/RegrasDePrazo.cs, Teto = 30 s).
@@ -41,6 +43,10 @@ function lerArquivoDeAmbiente(caminho) {
 }
 
 function carregar(rotulo, arquivoEnv, arquivoJson, arquivoStderr) {
+  if (!existsSync(arquivoJson)) {
+    console.log(`SKIPPED ${rotulo}: ambiente não informado, nenhuma conferência dele`);
+    return undefined;
+  }
   return {
     rotulo,
     env: lerArquivoDeAmbiente(arquivoEnv),
@@ -54,10 +60,14 @@ const cabecalhosDoKit = appsettingsDoKit.CorsOptions.AllowedHeaders.map((h) => h
 // O10: positions of the kit's Serilog sinks, so the environment overrides the right index whatever the kit reorders.
 const sinksDoKit = (appsettingsDoKit.Serilog?.WriteTo ?? []).map((w, i) => ({ indice: i, nome: w.Name }));
 
-const ambientes = [
+const [producao, homologacao] = [
   carregar("producao", porAmbiente[0], porAmbiente[1], porAmbiente[2]),
   carregar("homologacao", porAmbiente[3], porAmbiente[4], porAmbiente[5]),
 ];
+if (producao === undefined && homologacao === undefined) {
+  console.error("nenhum ambiente para conferir");
+  process.exit(2);
+}
 
 // "key=value;key=value" with Npgsql's tolerance: keys case- and space-insensitive.
 function pares(texto, separador) {
@@ -275,24 +285,32 @@ function api(modelo) {
 }
 
 conferir("appsettings.Production.json: PafHub só em WebSockets", soWebSockets(appsettingsDoKit.PAF?.TempoReal?.Transportes), appsettingsDoKit.PAF?.TempoReal?.Transportes);
-for (const ambiente of ambientes) conferirAmbiente(ambiente);
+for (const ambiente of [producao, homologacao]) if (ambiente !== undefined) conferirAmbiente(ambiente);
 
-const [prod, homolog] = ambientes.map((a) => a.modelo);
-conferir("cruzado: nomes de projeto diferentes", prod.name !== homolog.name, `${prod.name} x ${homolog.name}`);
-conferir("cruzado: subnets sem sobreposição", !sobrepoe(subrede(prod), subrede(homolog)), `${subrede(prod)} x ${subrede(homolog)}`);
-const portasRepetidas = portasPublicadas(prod).filter((p) => portasPublicadas(homolog).includes(p));
-conferir("cruzado: portas publicadas distintas", portasRepetidas.length === 0, portasRepetidas.join(", "));
-conferir("cruzado: mesmo AccessTokenMinutes", api(prod).JwtOptions__AccessTokenMinutes === api(homolog).JwtOptions__AccessTokenMinutes, `${api(prod).JwtOptions__AccessTokenMinutes} x ${api(homolog).JwtOptions__AccessTokenMinutes}`);
-// Same key, issuer and audience would make a homologation token valid in production.
-conferir("cruzado: chaves de assinatura diferentes", api(prod).JwtOptions__SigningKey !== api(homolog).JwtOptions__SigningKey);
-conferir("cruzado: buckets do R2 diferentes", api(prod).Storage__S3__Bucket !== api(homolog).Storage__S3__Bucket, api(prod).Storage__S3__Bucket);
-const bucketBackup = (modelo) => modelo.services?.backup?.environment?.PAF_BACKUP_BUCKET;
-conferir("cruzado: buckets de backup diferentes", bucketBackup(prod) !== bucketBackup(homolog), bucketBackup(prod));
-// One tunnel per environment (O03): a leaked homologation credential never reaches production.
-const tunelDe = (modelo) => modelo.services?.cloudflared?.command?.at(-1);
-conferir("cruzado: túneis diferentes", tunelDe(prod) !== tunelDe(homolog), tunelDe(prod));
-// Same service name would mix homologation telemetry into production's in New Relic.
-conferir("cruzado: OTEL_SERVICE_NAME diferentes", api(prod).OTEL_SERVICE_NAME !== api(homolog).OTEL_SERVICE_NAME, api(prod).OTEL_SERVICE_NAME);
+function conferirCruzado(prod, homolog) {
+  conferir("cruzado: nomes de projeto diferentes", prod.name !== homolog.name, `${prod.name} x ${homolog.name}`);
+  conferir("cruzado: subnets sem sobreposição", !sobrepoe(subrede(prod), subrede(homolog)), `${subrede(prod)} x ${subrede(homolog)}`);
+  const portasRepetidas = portasPublicadas(prod).filter((p) => portasPublicadas(homolog).includes(p));
+  conferir("cruzado: portas publicadas distintas", portasRepetidas.length === 0, portasRepetidas.join(", "));
+  conferir("cruzado: mesmo AccessTokenMinutes", api(prod).JwtOptions__AccessTokenMinutes === api(homolog).JwtOptions__AccessTokenMinutes, `${api(prod).JwtOptions__AccessTokenMinutes} x ${api(homolog).JwtOptions__AccessTokenMinutes}`);
+  // Same key, issuer and audience would make a homologation token valid in production.
+  conferir("cruzado: chaves de assinatura diferentes", api(prod).JwtOptions__SigningKey !== api(homolog).JwtOptions__SigningKey);
+  conferir("cruzado: buckets do R2 diferentes", api(prod).Storage__S3__Bucket !== api(homolog).Storage__S3__Bucket, api(prod).Storage__S3__Bucket);
+  const bucketBackup = (modelo) => modelo.services?.backup?.environment?.PAF_BACKUP_BUCKET;
+  conferir("cruzado: buckets de backup diferentes", bucketBackup(prod) !== bucketBackup(homolog), bucketBackup(prod));
+  // One tunnel per environment (O03): a leaked homologation credential never reaches production.
+  const tunelDe = (modelo) => modelo.services?.cloudflared?.command?.at(-1);
+  conferir("cruzado: túneis diferentes", tunelDe(prod) !== tunelDe(homolog), tunelDe(prod));
+  // Same service name would mix homologation telemetry into production's in New Relic.
+  conferir("cruzado: OTEL_SERVICE_NAME diferentes", api(prod).OTEL_SERVICE_NAME !== api(homolog).OTEL_SERVICE_NAME, api(prod).OTEL_SERVICE_NAME);
+}
 
-console.log(falhas === 0 ? "VERIFICAR-AMBIENTE OK" : `VERIFICAR-AMBIENTE FALHOU (${falhas})`);
+const cruzadasPuladas = producao === undefined || homologacao === undefined;
+if (cruzadasPuladas) {
+  console.log(`SKIPPED cruzado: só ${(producao ?? homologacao).rotulo} informado; nomes, subnets, portas, chaves, buckets, túneis e OTEL_SERVICE_NAME entre ambientes não conferidos`);
+} else {
+  conferirCruzado(producao.modelo, homologacao.modelo);
+}
+
+console.log(falhas > 0 ? `VERIFICAR-AMBIENTE FALHOU (${falhas})` : cruzadasPuladas ? "VERIFICAR-AMBIENTE OK (conferências cruzadas SKIPPED)" : "VERIFICAR-AMBIENTE OK");
 process.exit(falhas === 0 ? 0 : 1);
