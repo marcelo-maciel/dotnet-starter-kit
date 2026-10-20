@@ -200,8 +200,10 @@ try {
 
   // ── Menu ──
   await p.locator("aside").first().waitFor({ timeout: TIMEOUT });
-  check("menu: Arquivos de mídia", (await p.locator('aside a[href="/paf/midias"]').count()) > 0);
-  check("menu: Programação de mídias", (await p.locator('aside a[href="/paf/programacoes"]').count()) > 0);
+  // The aside renders before the permissions arrive: wait for each entry instead of counting at once.
+  const noMenu = (href) => p.locator(`aside a[href="${href}"]`).first().waitFor({ state: "attached", timeout: TIMEOUT }).then(() => true, () => false);
+  check("menu: Arquivos de mídia", await noMenu("/paf/midias"));
+  check("menu: Programação de mídias", await noMenu("/paf/programacoes"));
 
   await p.goto(`${WEB}/paf/midias`);
   const nova = p.locator("[data-nova-midia]");
