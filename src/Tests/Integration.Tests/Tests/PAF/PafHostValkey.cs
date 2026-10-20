@@ -140,6 +140,8 @@ public sealed class PafHostValkey : WebApplicationFactory<Program>, IAsyncLifeti
             ["Seed:DemoPassword"] = "Password123!",
             ["Seed:DefaultAdminPassword"] = TestConstants.DefaultPassword,
             ["SecurityHeadersOptions:Enabled"] = "false",
+            // Long polling through TestServer, as in FshWebApplicationFactory (PafLogSemDadosPessoaisTests connects).
+            ["PAF:TempoReal:Transportes"] = "WebSockets, LongPolling",
         }));
 
         builder.ConfigureServices(services =>

@@ -17,7 +17,7 @@ if (!API || !WEB || !PG) {
   process.exit(2);
 }
 const TENANT = "acme";
-const SENHA_DEMO = "Password123!";
+const SENHA_DEMO = process.env.PAF_SENHA_DEMO ?? "Password123!";
 const TIMEOUT = 15_000;
 
 let falhas = 0;
@@ -28,7 +28,7 @@ function check(nome, ok, detalhe) {
 
 // Setup and read-only checks go straight to PostgreSQL: a second API login would revoke the browser's session.
 function sql(consulta) {
-  return execFileSync("docker", ["exec", PG, "psql", "-U", "postgres", "-d", "fsh", "-At", "-c", consulta], {
+  return execFileSync("docker", ["exec", PG, "psql", "-U", "fsh", "-d", "fsh", "-v", "ON_ERROR_STOP=1", "-At", "-c", consulta], {
     encoding: "utf8",
     timeout: TIMEOUT,
   }).trim();

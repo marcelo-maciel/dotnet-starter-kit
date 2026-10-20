@@ -3,8 +3,8 @@
 // the total exactly as the API answers it, copy carries TSV, the CSV file has BOM, `;`, CRLF and decimal comma, an
 // inverted period is blocked on the screen, the server's 400 and 403 are shown with their message.
 //
-// Run through the CI harness (fresh database, seed-demo, API and dashboard on free ports, everything torn down):
-//   PAF_SENHA_DEMO=<not the kit default> PAF_WALK=tests/e2e/paf-estatistica.walk.mjs deploy/paf/walk-ci.sh
+// Run through the walk harness (fresh database, seed-demo, API and dashboard on free ports, everything torn down):
+//   PAF_SENHA_DEMO=<not the kit default> PAF_WALK=tests/e2e/paf-estatistica.walk.mjs deploy/paf/walk-local.sh
 // or against an API and dashboard already up on a fresh `seed-demo` database:
 //   PAF_API=http://localhost:5391 PAF_WEB=http://localhost:5184 PAF_SENHA_DEMO=<seed password> node tests/e2e/paf-estatistica.walk.mjs
 // Exit code 0 only when every check passed; each check prints PASS/FAIL. Opening the CSV in Excel pt-BR by double

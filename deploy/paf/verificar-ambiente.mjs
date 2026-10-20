@@ -73,6 +73,13 @@ function inteiroNoIntervalo(valor, minimo, maximo) {
   return valor !== undefined && /^\d+$/.test(valor) && Number(valor) >= minimo && Number(valor) <= maximo;
 }
 
+// Owner's decision: the PafHub takes WebSockets only. Long polling re-authenticates every poll and can lose a
+// revocation notice; it is the Integration.Tests host's override (TestServer has no WebSocket), never an environment's.
+// Absent = the OpcoesTempoReal default, WebSockets.
+function soWebSockets(transportes) {
+  return transportes === undefined || String(transportes).trim().toLowerCase() === "websockets";
+}
+
 function subrede(modelo) {
   return modelo.networks?.paf?.ipam?.config?.[0]?.subnet;
 }
@@ -141,6 +148,7 @@ function conferirAmbiente({ rotulo, env, modelo, avisos }) {
     conferir(s("env_file é o próprio arquivo do ambiente"), divergentes.length === 0, divergentes.join(", "));
 
     conferir(s("TZ=America/Sao_Paulo"), e.TZ === FUSO, e.TZ);
+    conferir(s("PafHub só em WebSockets (PAF__TempoReal__Transportes)"), soWebSockets(e.PAF__TempoReal__Transportes), e.PAF__TempoReal__Transportes);
     conferir(s("QuotaOptions__Enabled=false explícito"), typeof e.QuotaOptions__Enabled === "string" && e.QuotaOptions__Enabled.toLowerCase() === "false", e.QuotaOptions__Enabled ?? "ausente");
 
     const chave = e.JwtOptions__SigningKey ?? "";
@@ -230,6 +238,7 @@ function api(modelo) {
   return modelo.services?.["api-a"]?.environment ?? {};
 }
 
+conferir("appsettings.Production.json: PafHub só em WebSockets", soWebSockets(appsettingsDoKit.PAF?.TempoReal?.Transportes), appsettingsDoKit.PAF?.TempoReal?.Transportes);
 for (const ambiente of ambientes) conferirAmbiente(ambiente);
 
 const [prod, homolog] = ambientes.map((a) => a.modelo);

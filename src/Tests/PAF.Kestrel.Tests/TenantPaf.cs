@@ -19,6 +19,9 @@ namespace PAF.Kestrel.Tests;
 /// </summary>
 internal sealed record CenarioUnidade(Guid UnidadeId, Guid FilaId, Guid PrioridadeId, Guid Guiche, Guid Totem, Guid Painel);
 
+/// <summary>A person of the unidade with the password to log in again (each login is a new kit session).</summary>
+internal sealed record AtendenteCriado(Guid UsuarioId, string Email, string Senha);
+
 /// <summary>
 /// Client tenant provisioned through the kit API, where the licence applies (the root tenant is exempt), every
 /// request over the Kestrel socket. Mirrors Integration.Tests' PafTenantCliente and PafOperacao for what O16 needs.
@@ -128,7 +131,27 @@ internal sealed class TenantPaf(PafKestrelFactory factory)
     }
 
     /// <summary>Confirmed user of the unidade (principal), logged in; returns the access token.</summary>
-    public async Task<string> AtendenteAsync(Guid unidadeId)
+    public async Task<string> AtendenteAsync(Guid unidadeId) => await EntrarAsync(await CriarAtendenteAsync(unidadeId));
+
+    /// <summary>Access token of a new login of the person (a new kit session, as on another machine).</summary>
+    public Task<string> EntrarAsync(AtendenteCriado atendente) => EntrarAsync(TenantId, atendente.Email, atendente.Senha);
+
+    /// <summary>Licence activity rows of the person (one per live session).</summary>
+    public async Task<List<AtividadeSessao>> AtividadesAsync(Guid usuarioId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = Contexto(scope, unidadeCorrente: null);
+        return await db.AtividadesSessao.AsNoTracking().Where(a => a.UsuarioId == usuarioId).ToListAsync();
+    }
+
+    /// <summary>
+    /// Delivers the outbox now: this host has no dispatcher, so the kit's events reach the PAF only when a test
+    /// drains, which is how a test controls when the kit's revocation event arrives.
+    /// </summary>
+    public Task DrenarCaixaDeSaidaAsync() => OutboxDrain.DrainAsync(factory.Services);
+
+    /// <summary>Confirmed user of the unidade (principal), not logged in yet.</summary>
+    public async Task<AtendenteCriado> CriarAtendenteAsync(Guid unidadeId)
     {
         var sufixo = Guid.NewGuid().ToString("N")[..8];
         var email = $"paf-ws-{sufixo}@example.com";
@@ -156,7 +179,7 @@ internal sealed class TenantPaf(PafKestrelFactory factory)
             await db.SaveChangesAsync();
         }
 
-        return await EntrarAsync(TenantId, email, senha);
+        return new AtendenteCriado(Guid.Parse(usuarioId), email, senha);
     }
 
     /// <summary>Moves the unidade's fichas past the five-second call guard (seção 4) without sleeping.</summary>

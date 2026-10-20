@@ -18,7 +18,7 @@ if (!API || !WEB || !PG) {
 }
 const TENANT = "acme";
 const EMAIL = "admin@acme.com";
-const SENHA_DEMO = "Password123!";
+const SENHA_DEMO = process.env.PAF_SENHA_DEMO ?? "Password123!";
 const TIMEOUT = 15_000;
 const LOGOUT_PATH = "/api/v1/paf/sessao/logout";
 
@@ -62,10 +62,20 @@ function estadoSessao(sessaoId) {
   return { abertos, liberados, atividades };
 }
 
+// Method, status and how long after the first each call left: tells a second logout() apart from a retry.
+async function descrever(chamadas) {
+  const partes = [];
+  for (const c of chamadas) partes.push(`${c.metodo} ${(await c.req.response())?.status() ?? "sem resposta"} +${c.em - chamadas[0].em}ms`);
+  return `${chamadas.length} chamada(s): ${partes.join("; ")}`;
+}
+
 function registrarLogouts(page) {
   const chamadas = [];
   page.on("request", (req) => {
-    if (req.url().endsWith(LOGOUT_PATH)) chamadas.push({ metodo: req.method(), req });
+    if (req.url().endsWith(LOGOUT_PATH)) chamadas.push({ metodo: req.method(), req, em: Date.now() });
+  });
+  page.on("console", (m) => {
+    if (m.text().startsWith("[paf] logout")) console.log(`DIAG console: ${m.text().slice(0, 160)}`);
   });
   return chamadas;
 }
@@ -134,7 +144,7 @@ try {
     check("menu: antes do logout a sessão tem guichê aberto e atividade de licença", antes.abertos === 1 && antes.atividades > 0, JSON.stringify(antes));
     const ms = await sairPeloMenu(page);
     const depois = estadoSessao(sessao);
-    check("menu: um POST ao logout do PAF", chamadas.length === 1 && chamadas[0].metodo === "POST", `${chamadas.length} chamada(s)`);
+    check("menu: um POST ao logout do PAF", chamadas.length === 1 && chamadas[0].metodo === "POST", await descrever(chamadas));
     const resposta = chamadas[0] ? await chamadas[0].req.response() : null;
     check("menu: servidor respondeu 204", resposta?.status() === 204, String(resposta?.status()));
     check("menu: guichê solto e licença liberada", depois.abertos === 0 && depois.liberados === 1 && depois.atividades === 0, JSON.stringify(depois));
@@ -188,7 +198,7 @@ try {
     check("inatividade: guichê aberto antes", estadoSessao(sessao).abertos === 1);
     await page.waitForURL((u) => u.pathname.startsWith("/login"), { timeout: 30_000 });
     const resposta = chamadas[0] ? await chamadas[0].req.response() : null;
-    check("inatividade: um POST ao logout do PAF com 204", chamadas.length === 1 && resposta?.status() === 204, `${chamadas.length} chamada(s), ${resposta?.status()}`);
+    check("inatividade: um POST ao logout do PAF com 204", chamadas.length === 1 && resposta?.status() === 204, `${await descrever(chamadas)}, ${resposta?.status()}`);
     const depois = estadoSessao(sessao);
     check("inatividade: guichê solto e licença liberada", depois.abertos === 0 && depois.atividades === 0, JSON.stringify(depois));
     await ctx.close();

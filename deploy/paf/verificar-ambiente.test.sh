@@ -44,6 +44,11 @@ trocar() {
   mv "$temporario" "$arquivo"
 }
 
+# Appends a line the .exemplo files do not have (a setting that must never be set there).
+acrescentar() {
+  printf '%s\n' "$2" >>"$1"
+}
+
 falhas=0
 resultados=()
 registrar() {
@@ -117,6 +122,8 @@ caso "OTLP sem prazo" "OTEL_EXPORTER_OTLP_TIMEOUT explícito" trocar "$PROD" OTE
 caso "mesmo serviço nos dois" "OTEL_SERVICE_NAME diferentes" trocar "$HOMOLOG" OTEL_SERVICE_NAME "OTEL_SERVICE_NAME=paf-api-producao"
 caso "sink OTLP do appsettings ligado" "sink OTLP do appsettings desligado" trocar "$PROD" Serilog__WriteTo__1__Name "Serilog__WriteTo__1__Name=OpenTelemetry"
 caso "console em texto" "console em JSON" trocar "$HOMOLOG" Serilog__WriteTo__0__Args__formatter ""
+caso "hub com long polling" "PafHub só em WebSockets" acrescentar "$PROD" "PAF__TempoReal__Transportes=WebSockets, LongPolling"
+caso "hub só long polling" "PafHub só em WebSockets" acrescentar "$HOMOLOG" "PAF__TempoReal__Transportes=LongPolling"
 
 # The .exemplo files themselves must never pass: placeholders and the sample key.
 cp "$AMBIENTES/producao.env.exemplo" "$PROD"

@@ -21,7 +21,7 @@ const TENANT = "acme";
 const EMAIL = "admin@acme.com";
 // The attendant runs the screen: one session per user, so the admin's API token survives her sign-in.
 const OPERADORA = "alice@acme.com";
-const SENHA_DEMO = "Password123!";
+const SENHA_DEMO = process.env.PAF_SENHA_DEMO ?? "Password123!";
 const TIMEOUT = 15_000;
 const SUFIXO = Date.now().toString().slice(-6);
 const CAIXA = `Caixa F09 ${SUFIXO}`;
@@ -152,6 +152,12 @@ try {
   await chamar.waitFor({ timeout: TIMEOUT });
   const encaminhar = page.getByRole("button", { name: "Encaminhar", exact: true });
   check("sem atendimento: Encaminhar desabilitado", await encaminhar.isDisabled());
+  // The call skips a ficha younger than five seconds (REQ seção 4, guarda de tempo; ChamadaDeFicha.Elegiveis). On a
+  // fast runner the screen is ready before that: wait on the database clock for the same predicate, never a fixed sleep.
+  check(
+    "setup: ficha passou da guarda de 5 s",
+    await ate(() => sql(`SELECT "CriadoEm" <= now() - interval '5 seconds' FROM paf."Fichas" WHERE "Id" = '${fichaId}'`) === "t"),
+  );
   await chamar.click();
   await page.locator("[data-senha-guiche]").waitFor({ timeout: TIMEOUT });
   const senha = (await page.locator("[data-senha-guiche]").textContent())?.trim();

@@ -1,20 +1,26 @@
 // C19 walk against a REAL API (no route mocks): RF06 "Logotipo". With no row the totem, the painel and the printed
 // ficha show the system logo; an image uploaded through the mídia flow (M03) and picked on the parameters screen as the
 // empresa default shows on the totem screen, in the painel header and on the ficha at print time (decoded, not a
-// blank box); picking "Logotipo padrão do sistema" again brings the system logo back.
+// blank box); picking "Logotipo padrão do sistema" again brings the system logo back. Review R4 of wave 4: in another
+// unidade the inherited empresa logo (an image of Loja Demo) cannot be saved, both save buttons wait with the warning,
+// while an image of the current unidade can.
 //
-// Prerequisites: fresh `seed-demo` database, API and Vite up, API origin resolvable for the local store's URLs. Run:
-//   PAF_API=http://localhost:5430 PAF_WEB=http://localhost:5530 PAF_SENHA_DEMO=<Seed__DemoPassword> node tests/e2e/paf-logotipo.walk.mjs
-// or through deploy/paf/walk-ci.sh with PAF_WALK=tests/e2e/paf-logotipo.walk.mjs and OriginOptions__OriginUrl="".
+// Prerequisites: fresh `seed-demo` database, API and Vite up, API origin resolvable for the local store's URLs, its
+// PostgreSQL in a docker container (PAF_PG_CONTAINER, only to give the second unidade a contract). Run:
+//   PAF_API=http://localhost:5430 PAF_WEB=http://localhost:5530 PAF_SENHA_DEMO=<Seed__DemoPassword> PAF_PG_CONTAINER=<pg> \
+//     node tests/e2e/paf-logotipo.walk.mjs
+// or PAF_WALK=tests/e2e/paf-logotipo.walk.mjs PAF_SENHA_DEMO=<secret> deploy/paf/walk-local.sh.
 // Exit code 0 only when every check passed; each check prints PASS/FAIL.
+import { execFileSync } from "node:child_process";
 import { deflateSync } from "node:zlib";
 import { chromium } from "@playwright/test";
 
 const API = process.env.PAF_API;
 const WEB = process.env.PAF_WEB;
 const SENHA_DEMO = process.env.PAF_SENHA_DEMO;
-if (!API || !WEB || !SENHA_DEMO) {
-  console.error("PAF_API, PAF_WEB and PAF_SENHA_DEMO are required");
+const PG = process.env.PAF_PG_CONTAINER;
+if (!API || !WEB || !SENHA_DEMO || !PG) {
+  console.error("PAF_API, PAF_WEB, PAF_SENHA_DEMO and PAF_PG_CONTAINER are required");
   process.exit(2);
 }
 const TENANT = "acme";
@@ -153,6 +159,14 @@ try {
     escopoEmpresa: true,
   });
   admin = await ok("POST", "/api/v1/identity/token/issue", null, { email: EMAIL, password: SENHA_DEMO });
+  // R4: a second unidade with a contract (the switch migrates the licence), created before the browser login takes the
+  // single session. Ids are Guids the API returned, so they go into the statement as they are.
+  const nomeOutra = `Loja R4 ${Date.now()}`;
+  const outraId = await ok("POST", "/api/v1/paf/unidades", admin.accessToken, { nome: nomeOutra, documentoFiscal: null });
+  execFileSync("docker", ["exec", PG, "psql", "-U", "fsh", "-d", "fsh", "-v", "ON_ERROR_STOP=1", "-tAc",
+    `INSERT INTO paf."ContratosUnidade" ("Id", "UnidadeId", "InicioVigencia", "FimVigencia", "Plano", "LimiteSessoes", "Politica", "TenantId")
+     SELECT gen_random_uuid(), '${outraId}', "InicioVigencia", "FimVigencia", "Plano", "LimiteSessoes", "Politica", "TenantId"
+     FROM paf."ContratosUnidade" WHERE "UnidadeId" = '${loja.id}' LIMIT 1`], { timeout: TIMEOUT });
   const estacoes = await ok("GET", "/api/v1/paf/estacoes", admin.accessToken);
   const totem = estacoes.find((e) => e.tipo === "EmissaoPainel");
   const link = await ok("POST", `/api/v1/paf/estacoes/${totem.id}/vinculo`, admin.accessToken, {});
@@ -206,6 +220,49 @@ try {
   await pPainel.getByRole("button", { name: "Iniciar painel" }).click();
   await pPainel.locator('[data-conexao="conectado"]').waitFor({ timeout: TIMEOUT });
   check("painel: logotipo personalizado no cabeçalho", (await larguraDoLogotipo(pPainel, "header")) === LARGURA);
+
+  // ── R4: the inherited empresa logo is an image of Loja Demo; in another unidade it cannot be saved ──
+  const salvarUnidade = () => linha(pPar).getByRole("button", { name: "Salvar nesta unidade" });
+  const salvarEmpresa = () => linha(pPar).getByRole("button", { name: "Salvar como padrão da empresa" });
+  const avisoR4 = () => linha(pPar).getByText("Este logotipo é uma imagem de outra unidade ou inativa", { exact: false });
+  await linha(pPar).getByRole("button", { name: "Alterar" }).click();
+  check(
+    "R4: imagem desta unidade, os dois Salvar liberados e sem aviso",
+    (await salvarUnidade().isEnabled()) && (await salvarEmpresa().isEnabled()) && (await avisoR4().count()) === 0,
+  );
+  await linha(pPar).getByRole("button", { name: "Cancelar" }).click();
+  const seletor = pPar.locator("[data-paf-seletor-unidade] select");
+  await pPar.reload();
+  // An <option> is never "visible" to Playwright: attached is what the select offers.
+  check(
+    "R4: seletor de unidade com a unidade nova",
+    await seletor.locator("option", { hasText: nomeOutra }).waitFor({ state: "attached", timeout: TIMEOUT }).then(() => true, () => false),
+  );
+  const troca = pPar.waitForResponse((r) => r.url().includes("/api/v1/paf/sessao/unidade-corrente"), { timeout: TIMEOUT });
+  await seletor.selectOption({ label: nomeOutra });
+  check("R4: troca para a outra unidade aceita", (await troca).ok());
+  await pPar.goto(`${WEB}/paf/parametros`);
+  await linha(pPar).waitFor({ timeout: TIMEOUT });
+  check(
+    "R4: na outra unidade o logotipo herdado da empresa aparece",
+    (await linha(pPar).locator("[data-selo]").getAttribute("data-selo")) === "Empresa",
+    await linha(pPar).locator("[data-valor-efetivo]").textContent(),
+  );
+  await linha(pPar).getByRole("button", { name: "Alterar" }).click();
+  check("R4: logotipo de outra unidade, Salvar nesta unidade desabilitado", await salvarUnidade().isDisabled());
+  check("R4: logotipo de outra unidade, Salvar como padrão da empresa desabilitado", await salvarEmpresa().isDisabled());
+  check("R4: o aviso explica por quê", await visivel(avisoR4(), TIMEOUT));
+  await linha(pPar).getByLabel(/Novo valor de/).selectOption({ label: "Logotipo padrão do sistema" });
+  check(
+    "R4: escolhendo o padrão do sistema, os dois Salvar voltam e o aviso some",
+    (await salvarUnidade().isEnabled()) && (await salvarEmpresa().isEnabled()) && (await avisoR4().count()) === 0,
+  );
+  await linha(pPar).getByRole("button", { name: "Cancelar" }).click();
+  const volta = pPar.waitForResponse((r) => r.url().includes("/api/v1/paf/sessao/unidade-corrente"), { timeout: TIMEOUT });
+  await seletor.selectOption({ label: "Loja Demo" });
+  check("R4: volta para a Loja Demo", (await volta).ok());
+  await pPar.goto(`${WEB}/paf/parametros`);
+  await linha(pPar).waitFor({ timeout: TIMEOUT });
 
   // ── Back to the system logo ──
   await escolherNaEmpresa(pPar, "Logotipo padrão do sistema", "Empresa");

@@ -92,7 +92,8 @@ const STUBS = () => {
       senha: senha?.textContent ?? null,
       fontePx: senha ? parseFloat(senha.style.fontSize) : 0,
       senhaCabe: senha ? senha.scrollWidth <= senha.clientWidth : false,
-      temQr: !!ficha?.querySelector("svg"),
+      // The logo (C19) is an inline SVG or an image in its own block: a QR is any other graphic on the ticket.
+      temQr: !!ficha?.querySelector(":is(svg, canvas, img):not([data-logotipo-ficha] *)"),
     });
     setTimeout(() => window.dispatchEvent(new Event("afterprint")), 20);
   };
@@ -145,7 +146,8 @@ try {
   );
 
   // Idempotency: the first emission reaches the server but the answer is dropped (network error on
-  // the totem); the second tap must reuse the key and get the SAME ficha back.
+  // the totem); the RF11 cycle (ciclo-emissao.ts) resends by itself with the SAME key, within the same tap, and
+  // gets the SAME ficha back: one ficha, one print, no new tap asked.
   const chavesEnviadas = [];
   let derrubar = true;
   await estacaoCtx.route("**/api/v1/paf/estacao/emissao/fichas", async (route) => {
@@ -162,9 +164,8 @@ try {
   await pTotem.reload();
   const botao = pTotem.getByRole("button", { name: new RegExp(fila.nome) }).first();
   await botao.click();
-  check("totem: falha de rede pede novo toque", await visivel(pTotem.getByText("Toque de novo")));
-  await botao.click();
   await pTotem.locator("[data-senha-emitida]").waitFor({ timeout: TIMEOUT });
+  check("totem: falha de rede reenviada sem pedir novo toque", (await pTotem.getByText("Toque de novo").count()) === 0);
   const senha1 = await pTotem.locator("[data-senha-emitida]").textContent();
   check(
     "totem: reenvio usa a mesma Idempotency-Key",

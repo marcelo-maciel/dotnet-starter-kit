@@ -123,6 +123,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
 [assembly: FshModule(typeof(FSH.Modules.PAF.PafModule), 900)]
@@ -493,6 +494,7 @@ public sealed class PafModule : IModule
         services.AddSingleton<ConexoesPaf>();
         RegistrarVidaPelaConexao(services);
         services.AddSingleton<PafHubFilter>();
+        OpcoesTempoReal.Registrar(services);
         // AddHubOptions, not Configure<HubOptions<PafHub>>: only it registers HubOptionsSetup<PafHub>, which marks the
         // per-hub options as set; without that mark SignalR falls back to the global options and the filter never runs.
         services.AddSignalR().AddHubOptions<PafHub>(options => options.AddFilter<PafHubFilter>());
@@ -516,6 +518,12 @@ public sealed class PafModule : IModule
     {
         // The kit enables this on no hub: a connection would outlive the token that opened it, and an
         // expired impersonation grant, which raises no event, would keep receiving the unit's events.
-        endpoints.MapHub<PafHub>(PafHubRota.Caminho, options => options.CloseOnAuthenticationExpiration = true);
+        // Read at map time: the endpoint's transports are fixed for the life of the host (OpcoesTempoReal).
+        var transportes = endpoints.ServiceProvider.GetRequiredService<IOptions<OpcoesTempoReal>>().Value.Transportes;
+        endpoints.MapHub<PafHub>(PafHubRota.Caminho, options =>
+        {
+            options.CloseOnAuthenticationExpiration = true;
+            options.Transports = transportes;
+        });
     }
 }

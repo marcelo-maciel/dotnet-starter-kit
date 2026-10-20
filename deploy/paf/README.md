@@ -146,14 +146,15 @@ Ensaio local, nunca na VPS: Apache 2.4.52 do `ubuntu:22.04` em contêiner (`paf-
 
 Jobs obrigatórios, todos agregados no job `PAF CI`, que fica vermelho se qualquer um falhar, for cancelado ou pulado:
 
-- `Backend PAF`: build da solução, `Architecture.Tests`, `PAF.Tests`, `PAF.Kestrel.Tests` e `Integration.Tests` com o filtro `FullyQualifiedName~Paf` (Testcontainers sobre o Docker do runner);
+- `Backend PAF`: build da solução, `Architecture.Tests`, `PAF.Tests` e `PAF.Kestrel.Tests`;
+- `Integration PAF (C-E | I-M-R-S | demais)`: `Integration.Tests` com o filtro `FullyQualifiedName~Paf` em três jobs paralelos, pela letra depois de `Paf` no nome da classe (Testcontainers sobre o Docker do runner). As classes dividem uma coleção do xUnit e rodam em série, por isso a divisão; a parte `demais` pega tudo que as outras não pegam, então classe nova nunca fica de fora. Rebalancear pelos tempos do `.trx` quando uma parte passar muito das outras;
 - `Dashboard PAF`: `npm run lint`, `npm run build` (inclui `tsc -b`) e os testes unitários do PAF por `node --test` (D21);
 - `Scripts de implantação`: `exigir-homologacao-verde.test.mjs`, `scripts-ci.test.sh` e `verificar-ambiente.test.sh`;
-- `Walk no Chrome`: `walk-ci.sh` sobe PostgreSQL e Valkey efêmeros, aplica migrações e `seed-demo` com a senha do secret, sobe a API e o servidor do Vite em portas livres e roda `paf-primeira-fatia.walk.mjs` no Google Chrome do runner. O código de saída é o do walk: um `FAIL` deixa o job vermelho. Sem o secret `PAF_SENHA_DEMO`, ou com ele igual à senha demo pública do kit, o job falha antes de subir qualquer coisa.
+- `Walk no Chrome (1 | 2 | demais)`: todos os `clients/dashboard/tests/e2e/paf-*.walk.mjs`, divididos em jobs paralelos por `walks-ci.txt`. Cada job roda `walk-ci.sh <parte>`, que sobe uma pilha só (PostgreSQL, Valkey e RustFS efêmeros, build do .NET, servidor do Vite e, se a parte tiver walk que pede o build de produção, `npm run build` com `vite preview`) e, para cada walk, recria o banco, aplica migrações e `seed-demo` com a senha do secret, limpa o Valkey e sobe a API de novo (os caches em memória da API guardariam os ids do banco anterior). Um walk que falha não interrompe os seguintes, e o job fica vermelho se qualquer um falhar. A parte `demais` pega todo walk que o arquivo não lista, então walk novo nunca fica de fora; `scripts-ci.test.sh` falha se a matriz do `paf.yml` e as partes do arquivo divergirem ou se algum walk ficar em duas partes. O `ffmpeg`, que a imagem do runner não traz, é instalado só no job cuja parte tem walk que lê `PAF_FFMPEG`. Os walks rodam no Google Chrome do runner. Sem o secret `PAF_SENHA_DEMO`, ou com ele igual à senha demo pública do kit, o job falha antes de subir qualquer coisa. Rebalancear `walks-ci.txt` pelos tempos dos jobs no CI quando uma parte passar muito das outras.
 - `Imagem anterior contra esquema novo` (O07, RNF16): `imagem-anterior-esquema-novo.sh <ref-anterior>` compila a API da revisão anterior (base do PR, ou o commit anterior no push), aplica migrações e `seed-demo` com o DbMigrator atual num PostgreSQL efêmero, sobe a API anterior nesse esquema e roda `imagem-anterior-esquema-novo.mjs`: emissão no totem 200, seleção do guichê 204, chamar próxima 200 com a senha emitida e o painel com a chamada. A senha do seed é aleatória por execução, sem secret. Revisão anterior sem o módulo PAF imprime `NAO-SE-APLICA` e sai 0. `imagem-anterior-esquema-novo.test.sh` cobre os erros de uso (saída 2) sem subir nada. A barreira estática fica em `PAF.Tests` (`Esquema/BarreiraExpandirContrairTests`, `Contrato/ContratoEstacaoTests`).
 
 ```bash
-PAF_SENHA_DEMO=<senha> deploy/paf/walk-ci.sh     # o mesmo walk, local; precisa de npm ci em clients/dashboard
+PAF_SENHA_DEMO=<senha> deploy/paf/walk-ci.sh 1   # a parte 1 do CI, local; precisa de npm ci em clients/dashboard
 deploy/paf/scripts-ci.test.sh                    # caminhos de falha dos scripts de CI, sem subir nada
 node --test deploy/paf/exigir-homologacao-verde.test.mjs
 ```
@@ -170,6 +171,16 @@ Configuração do repositório, fora do código:
 - [ ] environments `homologacao` e `producao`, com revisor obrigatório em `producao`, e em cada um os secrets `PAF_SSH_HOST`, `PAF_SSH_USUARIO`, `PAF_SSH_CHAVE`, `PAF_SSH_KNOWN_HOSTS` e `PAF_DIR_HOST`;
 - [ ] `docker login ghcr.io` no host com um token de leitura de pacotes;
 - [ ] tornar o job `PAF CI` verificação obrigatória na proteção das branches.
+
+### Walks locais
+
+Um walk sozinho roda localmente por `walk-local.sh`, sobre a mesma receita de pilha do CI (`walk-pilha.sh`, a única cópia), e o walk recebe `PAF_API`, `PAF_WEB`, `PAF_S3`, `PAF_S3_BUCKET`, `PAF_SENHA_DEMO`, `PAF_PG` e `PAF_PG_CONTAINER`. O que cada walk pede da pilha sai do nome do arquivo, em `walk-pilha.sh`: o build de produção com `vite preview` para `paf-navegacao`, `paf-fichas-do-dia` e `paf-selecionar-ficha`, e as URLs curtas de mídia (`PAF__Midia__MargemLeitura=00:00:40`, `PAF__Midia__PisoValidadeUrlLeitura=00:00:01`) para `paf-midia-painel`. Recusa senha ausente ou igual à do kit e `PAF_WALK` ausente ou inexistente com saída 2, sem subir nada; não deixa processo nem contêiner ao sair.
+
+```bash
+PAF_SENHA_DEMO=<senha> PAF_WALK=tests/e2e/paf-vip.walk.mjs deploy/paf/walk-local.sh
+```
+
+`PAF_PULAR_BUILD=1` pula o build do .NET quando os binários Release já são desta árvore.
 
 ## Massa demo da homologação (O09, D19, RNF17)
 
@@ -247,7 +258,7 @@ PostgreSQL migrado e com o `seed-demo`, MinIO no lugar dos dois buckets e um rec
 
 O limitador do kit (janela fixa de 60 s, sem fila, em memória por instância) fica ligado em produção com os limites do arquivo de ambiente, medidos e não chutados. `RateLimitingOptions__Ip__PermitLimit=800`, `__Tenant__PermitLimit=16000` e `__Auth__PermitLimit=30` estão nos dois `.env.exemplo`; `User` fica no valor do kit (200). Sem `TrustedProxyOptions__KnownNetworks__0` igual à subnet do projeto, toda loja cai na partição do IP do Apache e o limite vira um teto para a base inteira; o teste de integração prova isso (mutação com a máscara errada: 429 já nos logins da primeira loja).
 
-Medição de 19/10/2026, com `clients/dashboard/tests/e2e/paf-abertura-loja.medicao.mjs` contra a API real (`PAF_WALK=tests/e2e/paf-abertura-loja.medicao.mjs deploy/paf/walk-ci.sh`), requisições por estação no minuto da abertura, contando toda rota da tela (shell do kit, upgrades de WebSocket):
+Medição de 19/10/2026, com `clients/dashboard/tests/e2e/paf-abertura-loja.medicao.mjs` contra a API real (`PAF_WALK=tests/e2e/paf-abertura-loja.medicao.mjs deploy/paf/walk-local.sh`), requisições por estação no minuto da abertura, contando toda rota da tela (shell do kit, upgrades de WebSocket):
 
 | Estação | Abertura (60 s) | Minuto seguinte | Política `auth` |
 |---|---|---|---|

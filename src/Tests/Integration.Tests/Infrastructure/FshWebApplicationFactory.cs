@@ -168,6 +168,9 @@ public sealed class FshWebApplicationFactory : WebApplicationFactory<Program>, I
                 ["Storage:S3:ForcePathStyle"] = "true",
                 ["Storage:S3:PublicRead"] = "false",
                 ["Storage:S3:Region"] = "us-east-1",
+                // TestServer closes a WebSocket before the SignalR handshake, so the PAF hub tests here connect by
+                // long polling; production accepts only WebSockets (OpcoesTempoReal, PAF.Kestrel.Tests).
+                ["PAF:TempoReal:Transportes"] = "WebSockets, LongPolling",
             });
         });
 

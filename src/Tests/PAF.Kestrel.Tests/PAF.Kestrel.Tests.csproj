@@ -43,6 +43,7 @@
         <Compile Include="..\Integration.Tests\Infrastructure\Dtos.cs" Link="Linked\Dtos.cs" />
         <Compile Include="..\Integration.Tests\Infrastructure\NoOpMailService.cs" Link="Linked\NoOpMailService.cs" />
         <Compile Include="..\Integration.Tests\Infrastructure\DetailedTestExceptionHandler.cs" Link="Linked\DetailedTestExceptionHandler.cs" />
+        <Compile Include="..\Integration.Tests\Infrastructure\OutboxDrain.cs" Link="Linked\OutboxDrain.cs" />
     </ItemGroup>
 
 </Project>
