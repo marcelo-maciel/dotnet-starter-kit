@@ -15,8 +15,12 @@ SAIDA="$(mktemp)"
 trap 'rm -f "$PROD" "$HOMOLOG" "$SAIDA"' EXIT
 
 preencher() {
-  local exemplo="$1" destino="$2" sufixo="$3"
-  sed -e "s#^PAF_ARQUIVO_AMBIENTE=.*#PAF_ARQUIVO_AMBIENTE=ambientes/$(basename "$destino")#" \
+  local exemplo="$1" destino="$2" sufixo="$3" tunel
+  # One tunnel per environment: a UUID derived from the suffix length keeps the two different.
+  tunel="$(printf '00000000-0000-4000-8000-%012d' "${#sufixo}")"
+  sed -e "s#<uuid-do-tunel>#$tunel#" \
+      -e "s#<credenciais-json-do-tunel>#{\"AccountTag\":\"conta-teste\",\"TunnelSecret\":\"c2VncmVkby10ZXN0ZQ==\",\"TunnelID\":\"$tunel\"}#" \
+      -e "s#^PAF_ARQUIVO_AMBIENTE=.*#PAF_ARQUIVO_AMBIENTE=ambientes/$(basename "$destino")#" \
       -e "s#^POSTGRES_PASSWORD=.*#POSTGRES_PASSWORD=pg-$sufixo-1#" \
       -e "s#^VALKEY_PASSWORD=.*#VALKEY_PASSWORD=vk-$sufixo-1#" \
       -e "s#^JwtOptions__SigningKey=.*#JwtOptions__SigningKey=paf-$sufixo-signing-key-ascii-0123456789abcdef#" \
@@ -122,6 +126,15 @@ caso "OTLP sem prazo" "OTEL_EXPORTER_OTLP_TIMEOUT explícito" trocar "$PROD" OTE
 caso "mesmo serviço nos dois" "OTEL_SERVICE_NAME diferentes" trocar "$HOMOLOG" OTEL_SERVICE_NAME "OTEL_SERVICE_NAME=paf-api-producao"
 caso "sink OTLP do appsettings ligado" "sink OTLP do appsettings desligado" trocar "$PROD" Serilog__WriteTo__1__Name "Serilog__WriteTo__1__Name=OpenTelemetry"
 caso "console em texto" "console em JSON" trocar "$HOMOLOG" Serilog__WriteTo__0__Args__formatter ""
+caso "tunel sem id" "docker compose config falhou" trocar "$PROD" PAF_TUNEL_ID ""
+caso "tunel com id que não é UUID" "PAF_TUNEL_ID é um UUID" trocar "$PROD" PAF_TUNEL_ID "PAF_TUNEL_ID=paf-producao"
+caso "tunel sem credenciais" "docker compose config falhou" trocar "$HOMOLOG" PAF_TUNEL_CREDENCIAIS ""
+caso "credenciais que não são JSON" "PAF_TUNEL_CREDENCIAIS é o JSON de credenciais" trocar "$PROD" PAF_TUNEL_CREDENCIAIS "PAF_TUNEL_CREDENCIAIS=eyJhIjoiYiJ9"
+caso "credenciais sem TunnelSecret" "PAF_TUNEL_CREDENCIAIS é o JSON de credenciais" trocar "$PROD" PAF_TUNEL_CREDENCIAIS 'PAF_TUNEL_CREDENCIAIS={"AccountTag":"conta-teste","TunnelID":"00000000-0000-4000-8000-000000000008"}'
+caso "credenciais de outro túnel" "PAF_TUNEL_CREDENCIAIS é do túnel de PAF_TUNEL_ID" trocar "$PROD" PAF_TUNEL_CREDENCIAIS 'PAF_TUNEL_CREDENCIAIS={"AccountTag":"conta-teste","TunnelSecret":"c2VncmVkby10ZXN0ZQ==","TunnelID":"00000000-0000-4000-8000-000000000011"}'
+caso "mesmo túnel nos dois" "túneis diferentes" trocar "$HOMOLOG" PAF_TUNEL_ID "PAF_TUNEL_ID=00000000-0000-4000-8000-000000000008"
+caso "admin sem URL" "docker compose config falhou" trocar "$PROD" PAF_ADMIN_URL ""
+caso "API em http" "caddy com PAF_API_URL https://<host>" trocar "$HOMOLOG" PAF_API_URL "PAF_API_URL=http://api.homolog.paf.exemplo.com.br"
 caso "hub com long polling" "PafHub só em WebSockets" acrescentar "$PROD" "PAF__TempoReal__Transportes=WebSockets, LongPolling"
 caso "hub só long polling" "PafHub só em WebSockets" acrescentar "$HOMOLOG" "PAF__TempoReal__Transportes=LongPolling"
 

@@ -84,6 +84,18 @@ function subrede(modelo) {
   return modelo.networks?.paf?.ipam?.config?.[0]?.subnet;
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// The file `cloudflared tunnel create` writes; undefined when it is not JSON or lacks a field cloudflared needs.
+function credenciaisDoTunel(texto) {
+  try {
+    const c = JSON.parse(texto ?? "");
+    return ["AccountTag", "TunnelSecret", "TunnelID"].every((k) => typeof c?.[k] === "string" && c[k] !== "") ? c : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function conferirAmbiente({ rotulo, env, modelo, avisos }) {
   const r = (texto) => `${rotulo}: ${texto}`;
   const servicos = modelo.services ?? {};
@@ -133,6 +145,30 @@ function conferirAmbiente({ rotulo, env, modelo, avisos }) {
   const bucketAplicacao = servicos["api-a"]?.environment?.Storage__S3__Bucket;
   conferir(r("bucket de backup separado do bucket da aplicação"), Boolean(backup.PAF_BACKUP_BUCKET) && backup.PAF_BACKUP_BUCKET !== bucketAplicacao, `${backup.PAF_BACKUP_BUCKET} x ${bucketAplicacao}`);
   conferir(r("backup sem a credencial do Storage da aplicação"), Object.keys(backup).every((k) => !k.startsWith("Storage__")) && backup.AWS_ACCESS_KEY_ID !== servicos["api-a"]?.environment?.Storage__S3__AccessKey);
+
+  // O03: the environment's entrance is its own tunnel into Caddy; neither publishes a port (the check above covers
+  // every service) and both always run, never behind a profile.
+  const caddy = servicos.caddy;
+  conferir(r("caddy presente no modelo"), caddy !== undefined);
+  conferir(r("caddy sem porta publicada"), (caddy?.ports ?? []).length === 0);
+  conferir(r("caddy com o Caddyfile versionado montado só leitura"), (caddy?.volumes ?? []).some((v) => v.target === "/etc/caddy/Caddyfile" && v.read_only === true && /[\\/]caddy[\\/]Caddyfile$/.test(v.source ?? "")));
+  conferir(r("caddy confia só na subnet do projeto"), caddy?.environment?.PAF_SUBNET === rede, `${caddy?.environment?.PAF_SUBNET} x ${rede}`);
+  for (const chave of ["PAF_API_URL", "PAF_DASHBOARD_URL", "PAF_ADMIN_URL"]) {
+    conferir(r(`caddy com ${chave} https://<host>`), /^https:\/\/[a-z0-9.-]+$/.test(caddy?.environment?.[chave] ?? ""), caddy?.environment?.[chave] ?? "ausente");
+  }
+  const tunel = servicos.cloudflared;
+  conferir(r("cloudflared presente no modelo"), tunel !== undefined);
+  // api-b included: both environments run two instances, so the deploy never takes the API down (O06).
+  const comPerfil = Object.entries(servicos).filter(([, s]) => s.profiles !== undefined).map(([n]) => n);
+  conferir(r("nenhum serviço atrás de perfil"), comPerfil.length === 0, comPerfil.join(", "));
+  conferir(r("cloudflared com 2 réplicas (CA4)"), tunel?.deploy?.replicas === 2, tunel?.deploy?.replicas);
+  conferir(r("cloudflared com o config.yml versionado montado só leitura"), (tunel?.volumes ?? []).some((v) => v.target === "/etc/cloudflared/config.yml" && v.read_only === true && /[\\/]cloudflared[\\/]config\.yml$/.test(v.source ?? "")));
+  const idTunel = env.get("PAF_TUNEL_ID") ?? "";
+  conferir(r("PAF_TUNEL_ID é um UUID"), UUID.test(idTunel), idTunel || "ausente");
+  conferir(r("cloudflared roda o túnel de PAF_TUNEL_ID"), (tunel?.command ?? []).at(-1) === idTunel && (tunel?.command ?? []).at(-2) === "run", JSON.stringify(tunel?.command));
+  const credenciais = credenciaisDoTunel(tunel?.environment?.TUNNEL_CRED_CONTENTS);
+  conferir(r("PAF_TUNEL_CREDENCIAIS é o JSON de credenciais (AccountTag, TunnelSecret, TunnelID)"), credenciais !== undefined);
+  conferir(r("PAF_TUNEL_CREDENCIAIS é do túnel de PAF_TUNEL_ID"), credenciais?.TunnelID === idTunel, credenciais?.TunnelID);
 
   for (const nome of SERVICOS_DOTNET) {
     const servico = servicos[nome];
@@ -252,6 +288,9 @@ conferir("cruzado: chaves de assinatura diferentes", api(prod).JwtOptions__Signi
 conferir("cruzado: buckets do R2 diferentes", api(prod).Storage__S3__Bucket !== api(homolog).Storage__S3__Bucket, api(prod).Storage__S3__Bucket);
 const bucketBackup = (modelo) => modelo.services?.backup?.environment?.PAF_BACKUP_BUCKET;
 conferir("cruzado: buckets de backup diferentes", bucketBackup(prod) !== bucketBackup(homolog), bucketBackup(prod));
+// One tunnel per environment (O03): a leaked homologation credential never reaches production.
+const tunelDe = (modelo) => modelo.services?.cloudflared?.command?.at(-1);
+conferir("cruzado: túneis diferentes", tunelDe(prod) !== tunelDe(homolog), tunelDe(prod));
 // Same service name would mix homologation telemetry into production's in New Relic.
 conferir("cruzado: OTEL_SERVICE_NAME diferentes", api(prod).OTEL_SERVICE_NAME !== api(homolog).OTEL_SERVICE_NAME, api(prod).OTEL_SERVICE_NAME);
 

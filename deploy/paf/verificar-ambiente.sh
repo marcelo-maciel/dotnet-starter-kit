@@ -30,7 +30,7 @@ cp "$RAIZ/src/Host/FSH.Starter.Api/appsettings.Production.json" "$TRABALHO/"
 
 renderizar() {
   local ambiente="$1" arquivo="$2"
-  # `--profile '*'` renders api-b too: an invariant broken only on the second instance still fails here.
+  # `--profile '*'` renders any service behind a profile too: none should be, and the checker fails on one.
   # The compose's env_file entry (PAF_ARQUIVO_AMBIENTE) resolves from deploy/paf; the checker compares it line by
   # line with the file given here, so a file naming another environment fails.
   if ! docker compose -f "$AQUI/compose.yml" --env-file "$arquivo" --profile '*' config --format json >"$TRABALHO/$ambiente.json" 2>"$TRABALHO/$ambiente.stderr"; then

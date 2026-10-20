@@ -1,0 +1,63 @@
+# PAF V2, internal balancer of one environment (O03). The only client is this project's cloudflared (no port is
+# published on the host), so this is plain HTTP inside the `paf` network: TLS ends at the Cloudflare edge, no ACME and
+# no certificate here. The hosts come from the environment file through the container's environment
+# (PAF_API_URL, PAF_DASHBOARD_URL, PAF_ADMIN_URL, PAF_SUBNET), so one file serves both environments.
+#
+# Reload closes every proxied WebSocket by default; no routine operation reloads this file (the deploy swaps
+# instances by health check, never by editing it). README, "Túnel e Caddy".
+{
+	# Never fetch certificates: the edge terminates TLS.
+	auto_https off
+	servers {
+		# Only cloudflared (inside PAF_SUBNET) may state the client IP, and only through CF-Connecting-IP, which the
+		# Cloudflare edge always overwrites. A client's own X-Forwarded-For is never read (CA7).
+		trusted_proxies static {$PAF_SUBNET}
+		client_ip_headers CF-Connecting-IP
+	}
+}
+
+:80 {
+	# Hosts compared with the public URLs of the environment file: cloudflared sends the public Host unchanged.
+	@api expression `"https://" + {http.request.host} == "{$PAF_API_URL}"`
+	@dashboard expression `"https://" + {http.request.host} == "{$PAF_DASHBOARD_URL}"`
+	@admin expression `"https://" + {http.request.host} == "{$PAF_ADMIN_URL}"`
+
+	# Never the query string: /api/v1/paf/hub, /api/v1/realtime/hub and /notifications carry ?access_token= (the
+	# browser cannot send the header on a WebSocket). Authorization and Cookie are already logged as REDACTED.
+	log {
+		output stdout
+		format filter {
+			request>uri regexp "\?.*$" ""
+			wrap json
+		}
+	}
+
+	handle @api {
+		# Option B of ARQ seção 11: every PafHub client connects WebSockets-only with SkipNegotiation, so no affinity.
+		# A stopped or dead instance fails the dial and the request is retried on the other one for up to 5 s; the
+		# active check takes it out within 2 s and puts it back on its first 200 (O06 swaps instances this way).
+		reverse_proxy api-a:8080 api-b:8080 {
+			lb_policy round_robin
+			lb_try_duration 5s
+			lb_try_interval 250ms
+			health_uri /api/v1/paf/saude
+			health_interval 2s
+			health_timeout 2s
+			fail_duration 10s
+			# The kit trusts X-Forwarded-For and X-Forwarded-Proto from KnownNetworks = PAF_SUBNET, ForwardLimit 1:
+			# one value, the client IP resolved above (CF-Connecting-IP from cloudflared, else the peer).
+			header_up X-Forwarded-For {client_ip}
+			header_up X-Forwarded-Proto https
+		}
+	}
+	handle @dashboard {
+		reverse_proxy dashboard:80
+	}
+	handle @admin {
+		reverse_proxy admin:80
+	}
+	# Any other host routed to the tunnel gets nothing from the PAF.
+	handle {
+		respond 404
+	}
+}
