@@ -16,7 +16,7 @@ if (!API || !WEB) {
 }
 const TENANT = "acme";
 const EMAIL = "admin@acme.com";
-const SENHA_DEMO = "Password123!";
+const SENHA_DEMO = process.env.PAF_SENHA_DEMO ?? "Password123!";
 const TIMEOUT = 15_000;
 // Guichê count re-read period (10 s) plus margin.
 const RELEITURA = 25_000;

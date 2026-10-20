@@ -14,7 +14,7 @@ if (!API || !WEB) {
 }
 const TENANT = "acme";
 const EMAIL = "admin@acme.com";
-const SENHA_DEMO = "Password123!";
+const SENHA_DEMO = process.env.PAF_SENHA_DEMO ?? "Password123!";
 const TIMEOUT = 15_000;
 
 let falhas = 0;
