@@ -726,27 +726,34 @@ try {
     const meiaNoiteServidorMs = Date.parse(corpoA1.agora) - (Number(hh) * 3600 + Number(mm) * 60 + Number(ss)) * 1000 + 86_400_000;
     const desvioA1 = Date.parse(corpoA1.agora) - ultimaA1.em;
     await pMeiaNoite.route("**/api/v1/paf/estacao/painel/midias", (r) => r.abort("connectionrefused"));
+    // The jump fires the hub's server-timeout timer; a reconnection re-reads (relerAoReconectar) and would measure the
+    // offset again before the painel's midnight. Hub sockets opened from here on are closed at once.
+    await pMeiaNoite.routeWebSocket(/\/api\/v1\/paf\/hub/, (ws) => ws.close());
     const antesDoSalto = leiturasA1.length;
     const saltoMs = Math.floor(meiaNoiteServidorMs - (Date.now() + desvioA1) - 10_000);
     const localAntes = await pMeiaNoite.evaluate(() => Date.now());
     await pMeiaNoite.clock.fastForward(saltoMs);
     const saltoEm = Date.now();
     const localDepois = await pMeiaNoite.evaluate(() => Date.now());
-    console.log(`DIAG A1 salto ${saltoMs} ms (relógio do navegador andou ${localDepois - localAntes} ms); leituras recusadas no salto: ${leiturasA1.length - antesDoSalto}`);
-    await dormir(1_000);
+    // The fake hours also expire the station credential and its timers: the renewal that follows re-runs the painel's
+    // effects a few seconds later, and their reads would measure the offset again. Reads stay refused until 1.5 s
+    // before the painel's midnight (10 s after the jump); a refused read leaves the agenda as it was.
+    await dormir(8_500);
     await pMeiaNoite.unroute("**/api/v1/paf/estacao/painel/midias");
+    console.log(`DIAG A1 salto ${saltoMs} ms (relógio do navegador andou ${localDepois - localAntes} ms); leituras recusadas antes da virada: ${leiturasA1.length - antesDoSalto}`);
     const aposSalto = leiturasA1.length;
-    // 10 s to midnight on the painel's view of the server clock, then 20 s past it.
-    await dormir(30_000);
+    // 1.5 s to midnight on the painel's view of the server clock, then 20 s past it.
+    await dormir(21_500);
     const naVirada = leiturasA1.slice(aposSalto);
     const relogioNavegador = await pMeiaNoite.evaluate(() => Date.now());
     console.log(`DIAG A1 leituras na virada ${naVirada.length}; navegador ${new Date(relogioNavegador + desvioA1).toISOString()} no relógio do servidor`);
     check("A1: o relógio do navegador passou a meia-noite de São Paulo do servidor", relogioNavegador + desvioA1 > meiaNoiteServidorMs + 5_000, `${relogioNavegador + desvioA1 - meiaNoiteServidorMs} ms depois`);
     check("A1: a virada do dia relê as mídias 1 a 2 vezes, sem laço", naVirada.length >= 1 && naVirada.length <= 2, `${naVirada.length} GET estacao/painel/midias em 30 s`);
-    // A read before the painel's midnight (a late hub reconnection) would measure the offset again and hide the turn.
+    // A read before the painel's midnight would measure the offset again and hide the turn. The midnight lands 10 s after the
+    // jump on this machine's estimate of the painel's offset, which the Docker VM clock drift moves by up to about 1 s.
     check(
       "A1: a primeira releitura veio da virada, não de uma reconexão antes dela",
-      naVirada.length >= 1 && naVirada[0].em - saltoEm >= 8_000,
+      naVirada.length >= 1 && naVirada[0].em - saltoEm >= 9_000,
       naVirada.map((l) => `${l.em - saltoEm} ms após o salto`).join(","),
     );
     check("A1: sem recarregar", await pMeiaNoite.evaluate(() => window.__semRecarregar === true));
