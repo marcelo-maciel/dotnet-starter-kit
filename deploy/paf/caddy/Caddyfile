@@ -48,6 +48,12 @@
 			# one value, the client IP resolved above (CF-Connecting-IP from cloudflared, else the peer).
 			header_up X-Forwarded-For {client_ip}
 			header_up X-Forwarded-Proto https
+			# On SIGTERM Kestrel closes its idle keep-alive connections; a request Caddy writes on one at that moment
+			# fails after it was sent, and a POST is never retried (502). A connection per request instead fails at
+			# the dial, which is retried on the other instance. The upgrade of a WebSocket is its own connection anyway.
+			transport http {
+				keepalive off
+			}
 		}
 	}
 	handle @dashboard {

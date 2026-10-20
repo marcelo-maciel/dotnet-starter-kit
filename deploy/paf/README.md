@@ -56,7 +56,7 @@ docker compose -f deploy/paf/compose.yml --env-file deploy/paf/ambientes/produca
 
 O arquivo do ambiente é ao mesmo tempo o `--env-file` do compose e o `env_file` da API e do DbMigrator, então o que o verificador confere é exatamente o que o host .NET lê. Segredos sem `$`: o compose interpola o caractere e corta o valor; o verificador reprova o aviso.
 
-O que cada projeto sobe: PostgreSQL com `timezone=America/Sao_Paulo` na instância, Valkey próprio com senha e AOF (nunca compartilhado entre ambientes, ARQ l.367), o DbMigrator (`apply --seed`), `api-a`, o dashboard e o admin do kit. `api-b` fica no perfil `duas-instancias`, desligado: produção só sobe com duas instâncias depois de S03 e S04 mesclados (riscos do plano da fatia 2); a partir daí, `COMPOSE_PROFILES=duas-instancias` no arquivo de produção. Toda porta é publicada só em `127.0.0.1`, para o Apache do host (O03). A rede tem subnet fixa por ambiente, e é ela que entra em `TrustedProxyOptions:KnownNetworks` (ARQ l.380). As subnets `172.31.10.0/24` e `172.31.20.0/24` dos exemplos precisam ser conferidas contra as redes que já existem na VPS (`docker network inspect`) antes do primeiro `up`.
+O que cada projeto sobe: PostgreSQL com `timezone=America/Sao_Paulo` na instância, Valkey próprio com senha e AOF (nunca compartilhado entre ambientes, ARQ l.367), o DbMigrator (`apply --seed`), `api-a` e `api-b` nos dois ambientes (o deploy troca uma de cada vez e o atendimento não para), o dashboard e o admin do kit, o Caddy e o `cloudflared` (seção "Túnel e Caddy"). Nenhum serviço fica atrás de perfil. Toda porta publicada fica só em `127.0.0.1`, para o `deploy.sh` conferir saúde e para o `pg_dump` do host; Caddy e `cloudflared` não publicam porta nenhuma. A rede tem subnet fixa por ambiente, e é ela que entra em `TrustedProxyOptions:KnownNetworks` (ARQ l.380) e no `trusted_proxies` do Caddy. As subnets `172.31.10.0/24` e `172.31.20.0/24` dos exemplos precisam ser conferidas contra as redes que já existem na VPS (`docker network inspect`) antes do primeiro `up`.
 
 Prazo de inatividade (D04): `dashboard/config.json.template` é montado por volume sobre o template do kit na imagem do dashboard, com `inactivityIdleMs` vindo de `PAF_INATIVIDADE_MS` (8 horas nos exemplos, o mesmo prazo para todas as telas). A imagem e o entrypoint do kit não mudam.
 
@@ -72,8 +72,11 @@ Renderiza os dois ambientes com `docker compose config` (todos os perfis ligados
 - `x-paf-unidade` no CORS sem perder nenhum cabeçalho de `appsettings.Production.json`;
 - prazos explícitos de PostgreSQL (`Timeout`, `Command Timeout`) e Valkey (`connectTimeout`, `syncTimeout`, `asyncTimeout`) até o teto de 30 s do teste de O19;
 - `TZ=America/Sao_Paulo` na API, no DbMigrator e no PostgreSQL; `Storage:Provider=s3` (R2, ADR 0007);
-- nenhum valor de exemplo (`<...>`), nenhum `container_name`, toda porta em `127.0.0.1`, Valkey sem porta publicada.
+- nenhum valor de exemplo (`<...>`), nenhum `container_name`, nenhum serviço atrás de perfil, toda porta em `127.0.0.1`, Valkey sem porta publicada.
+- túnel e Caddy (O03): Caddy sem porta, com o `caddy/Caddyfile` montado só leitura, `PAF_SUBNET` igual à subnet do projeto e as três URLs públicas em `https://<host>`; `cloudflared` com 2 réplicas e o `cloudflared/config.yml` montado só leitura; `PAF_TUNEL_ID` em formato UUID, `PAF_TUNEL_CREDENCIAIS` um JSON com `AccountTag`, `TunnelSecret` e `TunnelID` igual a `PAF_TUNEL_ID`; túneis diferentes entre os ambientes.
 - observabilidade (O10, RNF06): `OTEL_EXPORTER_OTLP_ENDPOINT` em https, `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf`, `OTEL_EXPORTER_OTLP_HEADERS` com `api-key=`, `OTEL_EXPORTER_OTLP_TIMEOUT` até 30 s, `OTEL_SERVICE_NAME` diferente entre os ambientes, o sink OTLP de `appsettings.Production.json` desligado pelo índice (`Serilog__WriteTo__1__Name=`, senão cada log vai duas vezes) e o console em JSON compacto.
+
+Num host que ainda roda um ambiente só (homologação antes de existir a produção), o caminho do outro arquivo é passado mesmo sem o arquivo existir: as conferências daquele ambiente e todas as cruzadas saem como `SKIPPED`, nunca como `PASS`, e a última linha é `VERIFICAR-AMBIENTE OK (conferências cruzadas SKIPPED)`. Sem nenhum dos dois arquivos, reprova. Quando os dois existem, as cruzadas são obrigatórias. O `deploy.sh` segue essa regra: o deploy da homologação não exige `producao.env` no host.
 
 `verificar-ambiente.test.sh` prova cada caso negativo sobre um par gerado dos arquivos `.exemplo` (sobe nenhum contêiner).
 
@@ -110,35 +113,45 @@ Roteiro por ambiente, um passo por linha com estado VERIFICADO ou SKIPPED, em `d
 - `r2/conferir-midias.cs <arquivo .env>` com `PAF_CONFERENCIA_CONEXAO`: HEAD em lote das chaves de `paf."Midias"` no banco restaurado. Código 0 tudo presente, 1 algum ausente, 2 conferência não rodou. É o passo de mídia do teste de restauração do O11.
 - `r2/r2.test.sh`: prova local das duas contra PostgreSQL com as migrações reais e RustFS; remove os contêineres ao sair.
 
-## Vhost do Apache do host (O03, RNF02, RNF16)
+## Túnel e Caddy (O03, RNF02, RNF16)
 
-`apache/paf-vhost.conf.template` é o vhost de um ambiente no Apache compartilhado da VPS (layout Debian/Ubuntu). Nunca editar a cópia gerada em `sites-available`: o template é a fonte.
+A entrada pública de cada ambiente é um Cloudflare Tunnel próprio, e o Apache compartilhado da VPS não participa do caminho do PAF. A decisão, as opções comparadas e os critérios de aceite estão em `PAFV2/Analise/PROPOSTA-O03-PROXY.md`, com as decisões de Marcelo de 20/10/2026 na seção 8.1.
 
-- API: `balancer://<COMPOSE_PROJECT_NAME>` com `api-a` e, só quando `COMPOSE_PROFILES` tem `duas-instancias`, `api-b`, os dois em `127.0.0.1` com `upgrade=websocket` (opção B da ARQ seção 11: WebSockets com `SkipNegotiation`, sem cookie de afinidade), `connectiontimeout=3` e `retry=10` (o padrão de 60 s deixava a instância reiniciada fora do grupo, ARQ l.378); `ProxyTimeout 60`, acima do keepalive de 15 s do SignalR; `ProxyPreserveHost On` e `X-Forwarded-Proto https`.
-- Dashboard e admin: um vhost 443 cada, proxy simples para a porta do ambiente; porta 80 só redireciona para https no mesmo host, caminho e query, para que HTTP desses hosts nunca caia no vhost padrão de outro cliente.
-- Log sem query string em nenhuma rota (`%m %U %H`, nunca `%r`): hub do PAF, hub do kit e `/notifications` levam `?access_token=`.
-- TLS: certificados em `/etc/letsencrypt/live/<host>/`. Sem o certificado, o `configtest` falha e nada é aplicado.
+O que roda, por ambiente, na rede `paf` do projeto:
 
-```bash
-sudo deploy/paf/apache/conferir-apache.sh                                  # só leitura
-sudo deploy/paf/apache/aplicar-vhost.sh deploy/paf/ambientes/producao.env  # um ambiente por vez
-```
+- `cloudflared` (imagem `cloudflare/cloudflared:2026.10.2`), duas réplicas do mesmo túnel, sem porta publicada. Só abre conexões de saída para a Cloudflare na porta 7844, e entrega toda requisição ao Caddy. Reiniciar uma réplica não derruba o ambiente, porque a outra continua conectada (CA4).
+- `caddy` (imagem `caddy:2.11.7-alpine`), sem porta publicada, em HTTP simples dentro da rede: o TLS termina na borda da Cloudflare, então não há certificado nem ACME na origem. Ele roteia por host e balanceia `api-a` e `api-b`.
 
-`conferir-apache.sh` confere versão 2.4.47 ou mais nova, MPM `event` e os módulos `ssl`, `proxy`, `proxy_http`, `proxy_balancer`, `slotmem_shm`, `lbmethod_byrequests` e `headers`, e imprime `Timeout`, `MaxRequestWorkers` e afins. Nunca habilita módulo: o que faltar sai com a linha `a2enmod` a rodar, um módulo por vez, com confirmação de Marcelo, `configtest` e `graceful`, e o p95 dos outros sites medido antes e depois. Rollback de um módulo: `a2dismod`, `configtest`, `graceful`.
+O túnel é gerenciado localmente (Q7): a configuração fica versionada em `cloudflared/config.yml`, e o painel da Cloudflare não guarda regra nenhuma. O `cloudflared` lê o UUID do túnel de `PAF_TUNEL_ID` e o conteúdo do JSON de credenciais de `PAF_TUNEL_CREDENCIAIS`, que o compose passa como `TUNNEL_CRED_CONTENTS`. O `--token` não serve aqui: a documentação de parâmetros do `tunnel run` diz que ele vale só para túnel gerenciado remotamente, cuja configuração mora no painel (https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/configure-tunnels/cloudflared-parameters/run-parameters/). O túnel gerenciado localmente roda com o arquivo de credenciais que o `cloudflared tunnel create` grava (https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/local-management/create-local-tunnel/), e `--credentials-contents` (`TUNNEL_CRED_CONTENTS`) é a forma do próprio binário de receber esse conteúdo sem arquivo, conferida no `cloudflared tunnel run --help` da versão 2026.10.2.
 
-`aplicar-vhost.sh` roda o conferir, gera o vhost, guarda o anterior em `<projeto>.conf.anterior`, instala, `a2ensite`, `configtest` e só então `graceful`. `configtest` falho restaura o anterior (ou desabilita o site novo), confere o estado restaurado e sai com código diferente de zero, sem `graceful`. Rollback do vhost: copiar o `.anterior` de volta (ou `a2dissite <projeto>`), `configtest` e `graceful`.
+`cloudflared/config.yml` tem uma regra só, que é também a regra final obrigatória: todo host roteado para o túnel vai ao Caddy. Os hosts do PAF ficam explícitos no `caddy/Caddyfile`, comparados com `PAF_API_URL`, `PAF_DASHBOARD_URL` e `PAF_ADMIN_URL` do arquivo de ambiente, e qualquer outro host recebe 404 do Caddy. Uma regra por host no `config.yml` exigiria os nomes escritos no arquivo, um por ambiente, porque o `cloudflared` não expande variáveis de ambiente na configuração e a imagem dele não tem shell para gerar o arquivo na partida.
 
-### Limite de conexões: bloqueia produção
+O `caddy/Caddyfile`:
 
-No Apache 2.4.x, cada WebSocket aberto pelo túnel do `mod_proxy_http` prende uma thread do worker enquanto durar (a documentação 2.4 não tem diretiva de túnel assíncrono). Medido no ensaio abaixo, Apache 2.4.52 do Ubuntu 22.04 com o `mpm_event.conf` padrão (`MaxRequestWorkers 150`, o mesmo valor da Contabo): 150 WebSockets abriram, os outros 150 foram recusados, o log registrou `AH00484` e o próprio `GET /health` pelo Apache deixou de responder em 10 s, ou seja, os demais sites do host também param. Com `MaxRequestWorkers 600` e `ServerLimit 24` os mesmos 300 WebSockets ficaram 180 s abertos, com `graceful` no meio, sem perda e sem `AH00484`. O volume de D20 (20 unidades com 3 totens, 2 painéis e 8 guichês) dá 260 conexões do `PafHub`, fora as abas de cadastro. Aumentar `MaxRequestWorkers`/`ServerLimit` no Apache compartilhado ou pôr um proxy dedicado ao PAF é decisão de Marcelo antes da produção; o vhost não resolve isso sozinho. Conexões abertas também atravessam um `graceful` presas ao processo antigo, que só sai quando elas fecham; cada `graceful` com o PAF no ar ocupa slots de `ServerLimit` até lá.
+- API: `reverse_proxy` para `api-a:8080` e `api-b:8080`, rodízio sem afinidade (opção B da ARQ seção 11: o `PafHub` conecta só por WebSockets com `SkipNegotiation`), verificação ativa em `/api/v1/paf/saude` a cada 2 s, verificação passiva por 2 s depois de uma falha de conexão e `lb_try_duration 5s`, para que a requisição que encontra uma instância parada tente a outra. Sem keep-alive para as APIs (`keepalive off`): no `SIGTERM` o Kestrel fecha as conexões ociosas, e um `POST` escrito numa delas nesse instante falhava depois de enviado e voltava 502 sem nova tentativa (visto no ensaio de 20/10/2026); com uma conexão por requisição a falha acontece na abertura e o Caddy tenta a outra instância.
+- Dashboard e admin: `reverse_proxy` para os contêineres respectivos.
+- Log de acesso em JSON na saída do contêiner, com a query string removida de `request>uri` em todos os hosts, porque o hub do PAF, o hub do kit e `/notifications` levam `?access_token=`. `Authorization` e `Cookie` já saem como `REDACTED` por padrão. Sintaxe do filtro conferida em https://caddyserver.com/docs/caddyfile/directives/log.
+- IP do cliente: `trusted_proxies` igual a `PAF_SUBNET` e `client_ip_headers CF-Connecting-IP`, e a API recebe `X-Forwarded-For` com esse único valor e `X-Forwarded-Proto https`. Como a origem não tem porta aberta, só o `cloudflared` alcança o Caddy, e o `CF-Connecting-IP` vem da borda da Cloudflare. Um `X-Forwarded-For` enviado pelo cliente nunca é lido. A API continua com `TrustedProxyOptions:KnownNetworks` igual à subnet e `ForwardLimit` 1.
+- Recarregar o Caddyfile fecha todos os WebSockets por padrão. Nenhuma operação de rotina recarrega o Caddy: o deploy troca instâncias pela verificação de saúde. Mudança no `Caddyfile` ou no `config.yml` é passo manual, fora do horário de atendimento: `docker compose ... up -d --force-recreate caddy`, ou, para o `cloudflared`, recriar uma réplica de cada vez.
 
-### ensaio-apache.sh
+O `deploy.sh` sobe o Caddy se faltar e nunca o recria; o `cloudflared` ele nunca toca. Atualizar a imagem de qualquer um dos dois é passo humano: trocar a tag no `compose.yml`, recriar o Caddy (os clientes reconectam sozinhos) e o `cloudflared` uma réplica por vez, com o ambiente respondendo entre uma e outra.
 
-```bash
-deploy/paf/apache/ensaio-apache.sh spike-ws-app <conexoes> <segundos>
-```
+### Passo humano na Cloudflare, uma vez por ambiente
 
-Ensaio local, nunca na VPS: Apache 2.4.52 do `ubuntu:22.04` em contêiner (`paf-ensaio-apache*`, removidos ao sair), o `aplicar-vhost.sh` rodando dentro dele sobre o vhost gerado do exemplo de produção com duas instâncias, certificados autoassinados e o hub do spike de WebSocket (`PAFV2/spikes/websocket/app`, imagem `spike-ws-app`) nas portas do ambiente. Confere redirecionamento, roteamento por host, handshake 101 em WebSockets, `docker kill` da instância conectada com reconexão na outra e retorno dela ao grupo, N conexões por S segundos com broadcast por minuto e `graceful` no meio, zero `access_token=` e zero marcador do token nos logs (com as linhas 101 do hub presentes como controle), zero `AH00484`/`AH00485`, `configtest` falho sem troca de arquivo nem `graceful`, e módulo ausente abortando antes de tocar no arquivo. Código 0 só com tudo verde. Não cobre: TLS real, Cloudflare ou outro proxy à frente, o Apache no host chegando pela rede do Docker, e o p95 dos outros sites da VPS.
+Nada disto foi executado. Começa pela homologação e só depois de CA1 a CA10 verdes passa para a produção.
+
+- [ ] Na máquina de quem administra a zona `codefi.com.br`: `cloudflared tunnel login`, depois `cloudflared tunnel create paf-homologacao`. O comando imprime o UUID e grava `<UUID>.json`.
+- [ ] No `ambientes/homologacao.env` do host: `PAF_TUNEL_ID=<UUID>` e `PAF_TUNEL_CREDENCIAIS=` seguido do conteúdo de `<UUID>.json` numa linha só. Apagar o `.json` local depois.
+- [ ] Rotas DNS, uma por host do ambiente: `cloudflared tunnel route dns paf-homologacao <host>` para os hosts de `PAF_API_URL`, `PAF_DASHBOARD_URL` e `PAF_ADMIN_URL`. Cada uma cria um CNAME com proxy para `<UUID>.cfargotunnel.com`. Se o host já tiver registro, anotar o valor anterior antes, para a volta atrás.
+- [ ] Regra de configuração da zona para os hosts do PAF, com confirmação de Marcelo (Q6): nível de segurança baixo e verificação de navegador desligada. Bot Fight Mode da zona continua desligado.
+- [ ] No host: `bash deploy/paf/verificar-ambiente.sh ambientes/producao.env ambientes/homologacao.env`, depois `docker compose -f deploy/paf/compose.yml --env-file deploy/paf/ambientes/homologacao.env up -d caddy cloudflared` e conferir nos logs das duas réplicas a linha `Registered tunnel connection`.
+- [ ] Medir CA1 a CA10 pelo host público (lista abaixo) e registrar o resultado.
+
+Volta atrás (CA10): os CNAMEs dos hosts do PAF são apagados no painel de DNS e os registros anteriores, se havia, são restaurados; depois `docker compose ... stop cloudflared`. O Apache nunca foi tocado, então não há nada a desfazer nele.
+
+### Critérios de aceite (seção 7 da proposta)
+
+Medidos em homologação, pelo host público, antes de produção: CA1 upgrade do hub com 101 sem negociação; CA2 conexão ociosa por 30 minutos e 30 de 30 eventos; CA3 `docker kill` da instância conectada com reconexão em até 30 s e p95 abaixo de 5 s, dez vezes; CA4 reinício de uma réplica do `cloudflared` e do Caddy com retorno em até 30 s; CA5 300 WebSockets por 30 minutos sem afetar os outros sites do host; CA6 zero `access_token=` nos logs do Caddy e do `cloudflared`; CA7 IP auditado igual ao do cliente, com `X-Forwarded-For` forjado sem efeito; CA8 deploy em sequência sem 5xx na emissão e com todo evento no painel; CA9 nenhuma porta do PAF respondendo pelo IP público; CA10 volta atrás em menos de 5 minutos. O `ensaio-deploy.sh` prova localmente CA1, CA3 (três quedas), CA6 no Caddy, CA7 e CA8, sem Cloudflare na frente.
 
 ## CI e promoção (O08, RNF16, RNF17)
 
@@ -256,7 +269,7 @@ PostgreSQL migrado e com o `seed-demo`, MinIO no lugar dos dois buckets e um rec
 
 ## Limite de taxa (O12, ARQ l.380 e l.382, D20)
 
-O limitador do kit (janela fixa de 60 s, sem fila, em memória por instância) fica ligado em produção com os limites do arquivo de ambiente, medidos e não chutados. `RateLimitingOptions__Ip__PermitLimit=800`, `__Tenant__PermitLimit=16000` e `__Auth__PermitLimit=30` estão nos dois `.env.exemplo`; `User` fica no valor do kit (200). Sem `TrustedProxyOptions__KnownNetworks__0` igual à subnet do projeto, toda loja cai na partição do IP do Apache e o limite vira um teto para a base inteira; o teste de integração prova isso (mutação com a máscara errada: 429 já nos logins da primeira loja).
+O limitador do kit (janela fixa de 60 s, sem fila, em memória por instância) fica ligado em produção com os limites do arquivo de ambiente, medidos e não chutados. `RateLimitingOptions__Ip__PermitLimit=800`, `__Tenant__PermitLimit=16000` e `__Auth__PermitLimit=30` estão nos dois `.env.exemplo`; `User` fica no valor do kit (200). Sem `TrustedProxyOptions__KnownNetworks__0` igual à subnet do projeto, toda loja cai na partição do IP do Caddy e o limite vira um teto para a base inteira; o teste de integração prova isso (mutação com a máscara errada: 429 já nos logins da primeira loja).
 
 Medição de 19/10/2026, com `clients/dashboard/tests/e2e/paf-abertura-loja.medicao.mjs` contra a API real (`PAF_WALK=tests/e2e/paf-abertura-loja.medicao.mjs deploy/paf/walk-local.sh`), requisições por estação no minuto da abertura, contando toda rota da tela (shell do kit, upgrades de WebSocket):
 
@@ -272,7 +285,7 @@ Com o volume D20 (por loja 8 guichês, 3 totens e 2 painéis; 20 lojas) e o pico
 
 A partição própria para estação (ADR 0008, linha "Partição de limite de taxa por estação") não entra: com os limites acima, os 60 totens das 20 lojas emitem no mesmo minuto sem recusa.
 
-Barreiras: `verificar-ambiente.sh` reprova `Auth` abaixo de 15, `Ip` abaixo de 387 e `Tenant` abaixo de 7740 (ausente conta como o valor do kit); `src/Tests/Integration.Tests/Tests/PAF/PafLimiteTaxaTests.cs` sobe a API com `appsettings.Production.json` e as linhas deste arquivo de ambiente e prova os 15 logins pelo Apache, o `X-Forwarded-For` forjado, o pico da loja e do tenant e o 429 com `Retry-After` e sem ficha. Nada disso passou por um Apache de verdade: o teste apresenta o Apache como o gateway da rede do Docker.
+Barreiras: `verificar-ambiente.sh` reprova `Auth` abaixo de 15, `Ip` abaixo de 387 e `Tenant` abaixo de 7740 (ausente conta como o valor do kit); `src/Tests/Integration.Tests/Tests/PAF/PafLimiteTaxaTests.cs` sobe a API com `appsettings.Production.json` e as linhas deste arquivo de ambiente e prova os 15 logins pelo proxy, o `X-Forwarded-For` forjado, o pico da loja e do tenant e o 429 com `Retry-After` e sem ficha. O teste apresenta o proxy como um endereço da rede do Docker, que é o caso do Caddy; o caminho real pelo Caddy, com `CF-Connecting-IP` e `X-Forwarded-For` forjado, é o CA7 do `ensaio-deploy.sh`.
 
 ## Deploy em sequência (O06, RNF16, ARQ seção 11)
 
@@ -287,9 +300,9 @@ A tag anterior é a tag em execução que não é a do deploy. Depois de um depl
 Sequência, cada passo com código próprio:
 
 1. `flock -n` em `ambientes/<ambiente>.deploy.lock`: o segundo deploy simultâneo do mesmo ambiente sai na hora com 3.
-2. Conferências sem mutação: os dois arquivos de ambiente, `verificar-ambiente.sh` (inclui `QuotaOptions__Enabled=false`, RNF09), o balancer-manager do vhost com cada membro, as quatro imagens presentes ou baixadas.
-3. PostgreSQL e Valkey sobem se faltarem, nunca são recriados; o migrator da tag nova roda antes de qualquer instância. Só expandir: quem garante é a barreira da O07 no CI, o deploy não sabe distinguir.
-4. Por instância (`api-a`, depois `api-b` com `duas-instancias`): a outra precisa estar saudável e habilitada; drena no balanceador pelo balancer-manager (`/paf-balanceador`, só loopback, sem reload do Apache) e relê até aparecer `Drn`; espera `Busy` 0 ou 60 s; para com `stop_grace_period` 30 s; sobe a tag nova; espera `GET api/v1/paf/saude` 200 na porta da instância em até 90 s; reabilita. Falha: a instância volta para a imagem anterior, é reabilitada e o deploy sai sem tocar na seguinte.
+2. Conferências sem mutação: os dois arquivos de ambiente, `verificar-ambiente.sh` (inclui `QuotaOptions__Enabled=false`, RNF09, e o túnel e o Caddy), as quatro imagens presentes ou baixadas.
+3. PostgreSQL, Valkey e Caddy sobem se faltarem, nunca são recriados; o migrator da tag nova roda antes de qualquer instância. Só expandir: quem garante é a barreira da O07 no CI, o deploy não sabe distinguir.
+4. Por instância, `api-a` e `api-b`, com a que não tem contêiner em execução primeiro (subir uma instância nova não para nada, e a existente ganha uma parceira saudável): a outra precisa responder `GET api/v1/paf/saude` 200 na sua porta, senão o deploy sai com 4 sem parar nada; para esta instância com `SIGTERM` e `stop_grace_period` 30 s, em que o Kestrel termina as requisições em andamento e fecha os WebSockets, cujos clientes reconectam pelo Caddy na outra; sobe a tag nova; espera saúde 200 na porta da instância em até 90 s; espera 6 s para a verificação ativa do Caddy (2 s) e a passiva (2 s) a devolverem ao rodízio antes de parar a seguinte. Não há dreno explícito (Q4): a nova conexão que chega à instância parada falha na abertura e o Caddy tenta a outra. Falha: a instância volta para a imagem anterior e o deploy sai sem tocar na seguinte.
 5. Dashboard e admin na tag nova, depois das APIs.
 6. `ambientes/<ambiente>.imagens.env` registra as quatro imagens em execução; um `docker compose` à mão passa `--env-file ambientes/<ambiente>.env --env-file ambientes/<ambiente>.imagens.env`.
 
@@ -301,20 +314,20 @@ Sequência, cada passo com código próprio:
 | 4 | conferência reprovou; nada foi tocado |
 | 5 | imagem indisponível; nada foi tocado |
 | 6 | infraestrutura ou migrator falhou; nenhuma instância foi tocada |
-| 7 | uma instância falhou e voltou à imagem anterior, saudável e habilitada; a seguinte ficou intocada |
+| 7 | uma instância falhou e voltou à imagem anterior, saudável; a seguinte ficou intocada |
 | 8 | uma instância falhou e não voltou (sem imagem anterior, ou a anterior também sem saúde): ação manual |
 | 9 | APIs na tag nova; dashboard ou admin falharam e voltaram às imagens anteriores |
 | 10 | dashboard ou admin falharam e não voltaram |
 
-Homologação tem uma instância: a drenagem tira o único membro e a API fica fora do ar durante a troca, o que o RNF16 aceita lá. Interrompido (SIGTERM do `timeout 1800`), o deploy reabilita o membro drenado se a instância responde saúde; senão imprime `RESIDUO` e o membro fica drenado até alguém reabilitar em `https://<host da API>/paf-balanceador` a partir do host.
+Homologação e produção têm as duas instâncias, então nenhum deploy deixa a API fora do ar. Interrompido (SIGTERM do `timeout 1800`) entre a parada e a subida de uma instância, ela fica parada e o Caddy atende pela outra; o deploy seguinte a encontra sem contêiner e a sobe primeiro.
 
-Passo humano antes do primeiro deploy com este script: reaplicar o vhost (`sudo deploy/paf/apache/aplicar-vhost.sh deploy/paf/ambientes/<ambiente>.env`), que agora traz o balancer-manager. O balancer-manager não precisa de `mod_status` (conferido em 19/10/2026 num Apache 2.4.52 do Ubuntu 22.04 com `a2dismod status` e `graceful`: a página continuou respondendo 200). Ele recusa requisição com `X-Forwarded-For` ou `Cf-Connecting-Ip`, para que um túnel que conecte no host por `127.0.0.1` não conte como local.
+Passo humano antes do primeiro deploy com este script: o túnel do ambiente criado e o `cloudflared` no ar (seção "Túnel e Caddy"). Num host que rodava só `api-a`, o primeiro deploy sobe `api-b` antes de parar `api-a`. Um `COMPOSE_PROFILES=duas-instancias` que tenha ficado no arquivo de ambiente não tem mais efeito e pode sair.
 
 ### ensaio-deploy.sh
 
 ```bash
 deploy/paf/ensaio-deploy.sh paf-api:<tag> paf-dbmigrator:<tag> paf-dashboard:<tag>   # local, nunca na VPS
-deploy/paf/deploy.test.sh                                                           # erros de uso, sem Docker
+deploy/paf/deploy.test.sh                                                           # caminhos de falha, sem Docker
 ```
 
-Um contêiner Ubuntu 22.04 faz o papel do host (Apache 2.4.52, `docker compose`, `flock`, `curl`) na rede da VM do Docker (`--network host`), com a mesma árvore que o `implantar-remoto.sh` envia. Confere: primeira implantação; deploy sob o walk em laço (totem com retry pela mesma chave, guichê com chamar, iniciar e encerrar, painel e guichê no hub pelo vhost com reconexão); drenagem registrada das duas instâncias; segundo deploy simultâneo com 3 pelo `flock`; imagem sem saúde com 7, a instância de volta e a outra intocada (mesmo contêiner); migrator que falha com 6 sem tocar instância; nenhum 5xx na emissão, fichas novas iguais às chaves com 200, toda senha chamada no painel, todo `EventoId` de `SenhaChamada` da caixa de saída recebido pelo hub ou recuperado pela reconsulta do painel ao reconectar (o evento enviado na janela entre o WebSocket fechado e o novo não chega pelo hub; no ensaio de 19/10/2026, 1 de 495), `AtividadesSessao` e `SessoesEstacao` inalteradas. Não cobre: o Apache real da Contabo, TLS real, Cloudflare na frente, imagens puxadas do GHCR.
+Um contêiner Ubuntu 22.04 faz o papel do host (`docker compose`, `flock`, `curl`) na rede da VM do Docker (`--network host`), com a mesma árvore que o `implantar-remoto.sh` envia. O `cloudflared` não roda no ensaio, porque precisa de uma credencial de túnel real e conectaria na Cloudflare; o `deploy.sh` também nunca o sobe. No lugar dele, os clientes do ensaio entram na rede do projeto e chegam ao Caddy com o host público, e o CA7 manda `CF-Connecting-IP` como o `cloudflared` faz. Confere: primeira implantação com o Caddy roteando por host (API 200, dashboard 200, host desconhecido 404) e nenhum contêiner do `cloudflared`; deploy sob o walk em laço pelo Caddy (totem com retry pela mesma chave, guichê com chamar, iniciar e encerrar, painel e guichê no hub com reconexão), com o upgrade direto do hub em 101 sem negociação (CA1); troca registrada das duas instâncias, uma de cada vez; segundo deploy simultâneo com 3 pelo `flock`; imagem sem saúde com 7, a instância de volta e a outra intocada (mesmo contêiner); migrator que falha com 6 sem tocar instância; nenhum 5xx na emissão, fichas novas iguais às chaves com 200, toda senha chamada no painel, todo `EventoId` de `SenhaChamada` da caixa de saída recebido pelo hub ou recuperado pela reconsulta do painel ao reconectar (o evento enviado na janela entre o WebSocket fechado e o novo não chega pelo hub; no ensaio de 19/10/2026, 1 de 495), `AtividadesSessao` e `SessoesEstacao` inalteradas (CA8); `docker kill` de `api-a`, `api-b` e `api-a` com o walk no ar e todo cliente do hub reconectado na outra instância em até 30 s (CA3, três quedas; os erros dessas quedas propositais ficam fora do critério de deploy e são impressos à parte); zero `access_token=` e zero JWT no log do Caddy, com as linhas do hub presentes como controle (CA6); IP auditado no login igual ao `CF-Connecting-IP` com `X-Forwarded-For` forjado, e o forjado ignorado também sem `CF-Connecting-IP` (CA7, antes do walk). Se o walk reprovar, imprime as linhas de erro dos logs de todos os contêineres da API do ensaio, inclusive dos já recriados. Não cobre: a Cloudflare na frente (borda, túnel real, réplicas do `cloudflared`, CA2, CA4, CA5, CA9 e CA10), TLS real, imagens puxadas do GHCR.

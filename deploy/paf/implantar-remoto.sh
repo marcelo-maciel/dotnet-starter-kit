@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # CI side of a PAF deploy (O08): copies deploy/paf of this checkout to the host over SSH and runs
-# deploy/paf/deploy.sh <ambiente> <sha> there (O06 owns that script: drain, health and rollback per instance).
+# deploy/paf/deploy.sh <ambiente> <sha> there (O06 owns that script: one instance at a time behind Caddy, health
+# and rollback).
 # Images are expected at $PAF_REGISTRO/paf-{api,dbmigrator,dashboard,admin}:<sha>, pushed by the homologação job.
 #
 # Usage: deploy/paf/implantar-remoto.sh <homologacao|producao> <sha de 40 hex>
