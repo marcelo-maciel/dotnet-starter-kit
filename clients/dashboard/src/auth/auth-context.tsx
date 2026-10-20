@@ -6,6 +6,7 @@ import { issueToken } from "@/auth/api";
 import { refreshAccessToken } from "@/lib/api-client";
 import { endImpersonation, getMyPermissions, startImpersonation } from "@/api/identity";
 import { logoutPeloServidor } from "@/features/paf/sessao/logout-pelo-servidor";
+import { umLogoutPorVez } from "@/features/paf/sessao/logout-unico";
 
 export type AuthUser = {
   id: string;
@@ -249,20 +250,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [queryClient],
   );
 
-  const logout = useCallback(() => {
-    const limpar = () => {
-      tokenStore.clear();
-      queryClient.clear();
-    };
-    // PAF (ADR 0008, "Logout pelo servidor"): revoke the session and release licence and guichê while the
-    // token still exists. Bounded and never rejects; null (impersonation, no session claim) clears at once.
-    const servidor = logoutPeloServidor();
-    if (servidor === null) {
-      limpar();
-      return;
-    }
-    void servidor.then(limpar);
-  }, [queryClient]);
+  // PAF: umLogoutPorVez drops the SessaoInvalidada-triggered call that arrives while this logout is in flight.
+  const logout = useMemo(
+    () =>
+      umLogoutPorVez(() => {
+        const limpar = () => {
+          tokenStore.clear();
+          queryClient.clear();
+        };
+        // PAF (ADR 0008, "Logout pelo servidor"): revoke the session and release licence and guichê while the
+        // token still exists. Bounded and never rejects; null (impersonation, no session claim) clears at once.
+        const servidor = logoutPeloServidor();
+        if (servidor === null) {
+          limpar();
+          return Promise.resolve();
+        }
+        return servidor.then(limpar);
+      }),
+    [queryClient],
+  );
 
   const beginImpersonation = useCallback(
     async (input: { targetUserId: string; targetTenantId: string; reason?: string }) => {
