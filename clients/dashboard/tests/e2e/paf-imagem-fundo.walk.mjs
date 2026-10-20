@@ -192,7 +192,7 @@ try {
   await emissao.getByLabel("Imagem de fundo do totem").selectOption({ label: "Parede clara" });
   const respostaRecusa = pAdmin.waitForResponse((r) => r.url().endsWith(`/api/v1/paf/estacoes/${estacao.id}`) && r.request().method() === "PUT", { timeout: TIMEOUT });
   await esperarAte(pAdmin, () => !document.body.textContent?.includes("Medindo o contraste da imagem"));
-  await pAdmin.getByRole("button", { name: "Salvar" }).click();
+  await pAdmin.getByRole("button", { name: "Salvar", exact: true }).click();
   const recusa = await respostaRecusa;
   check("servidor: texto branco sobre a imagem clara 400", recusa.status() === 400, `${recusa.status()}`);
   check(
@@ -211,7 +211,7 @@ try {
   );
   await esperarAte(pAdmin, () => !document.body.textContent?.includes("Medindo o contraste da imagem"));
   const respostaOk = pAdmin.waitForResponse((r) => r.url().endsWith(`/api/v1/paf/estacoes/${estacao.id}`) && r.request().method() === "PUT", { timeout: TIMEOUT });
-  await pAdmin.getByRole("button", { name: "Salvar" }).click();
+  await pAdmin.getByRole("button", { name: "Salvar", exact: true }).click();
   const ok = await respostaOk;
   check("servidor: texto preto sobre a imagem clara 200", ok.status() === 200, `${ok.status()} ${ok.status() === 200 ? "" : await ok.text()}`);
   const gravada = (await api("GET", "/api/v1/paf/estacoes", await token())).find((e) => e.id === estacao.id);
