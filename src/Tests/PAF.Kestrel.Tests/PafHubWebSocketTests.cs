@@ -17,7 +17,8 @@ namespace PAF.Kestrel.Tests;
 /// <summary>
 /// O16: the PafHub over a real WebSocket on Kestrel, with the front's client configuration (WebSockets only,
 /// SkipNegotiation, token and tenant in the query). Integration.Tests covers the same rules on long polling, except
-/// the SessaoInvalidada notice of a revocation that follows the connect, which long polling cannot deliver reliably.
+/// the SessaoInvalidada notice of a revocation, which long polling cannot deliver reliably: every scenario of that
+/// notice on one instance is here (the two-instance path is Integration.Tests' PafRegistroConexoesTests).
 /// </summary>
 [Collection(PafKestrelColecao.Nome)]
 public sealed class PafHubWebSocketTests(PafKestrelFactory factory) : IAsyncLifetime
@@ -29,6 +30,9 @@ public sealed class PafHubWebSocketTests(PafKestrelFactory factory) : IAsyncLife
 
     // A WebSocket gets no request after the upgrade: absence of a server-side close is watched this long.
     private static readonly TimeSpan SilencioEsperado = TimeSpan.FromSeconds(1.5);
+
+    // Seção 7 criterion for the single-session drop of the previous machine.
+    private static readonly TimeSpan LimiteDerrubada = TimeSpan.FromSeconds(1);
 
     private readonly TenantPaf _tenant = new(factory);
     private readonly List<ConexaoWebSocket> _conexoes = [];
@@ -297,6 +301,89 @@ public sealed class PafHubWebSocketTests(PafKestrelFactory factory) : IAsyncLife
         var aviso = await AvisoAntesDoFechamentoAsync(avisos);
         aviso.SessaoId.ShouldBe(sessaoId);
         aviso.Motivo.ShouldBe(SessaoRevogadaPafHandler.MensagemSessaoEncerrada);
+    }
+
+    // Seção 7 (RF22): a login on another machine revokes the previous session in the PAF (single session), so the old
+    // machine gets the notice and drops in under a second, without waiting for the kit's event; the kit's copy of that
+    // revocation, delivered later, reaches neither the new session nor the old one a second time. On WebSockets for the
+    // same reason as above: on long polling the poll after the revocation is refused with 401 and the notice is lost.
+    [Fact]
+    public async Task LoginEmOutraMaquina_AvisaEDerrubaAAnteriorEmMenosDeUmSegundo_ENaoAvisaANova()
+    {
+        var c = await _tenant.CriarUnidadeAsync();
+        var atendente = await _tenant.CriarAtendenteAsync(c.UnidadeId);
+        var tokenA = await _tenant.EntrarAsync(atendente);
+        var maquinaA = Conexao(_tenant.TenantId, () => Task.FromResult(tokenA));
+        var avisosA = Avisos(maquinaA);
+        var quedaA = maquinaA.Queda();
+        var fechamentoA = maquinaA.Fechamento();
+        await maquinaA.Hub.StartAsync();
+        await maquinaA.ProntaAsync();
+
+        // Measured from B's login answer, when the revocation is committed: the login's own cost (password hash,
+        // licence) is not the drop latency the criterion bounds. The drop is the server's abort; Closed comes only
+        // after the client's reconnect attempts are refused.
+        var tokenB = await _tenant.EntrarAsync(atendente);
+        var antes = DateTimeOffset.UtcNow;
+        var caiuEm = await quedaA.WaitAsync(Espera);
+
+        (caiuEm - antes).ShouldBeLessThan(LimiteDerrubada, "a revogação nascida no PAF não espera o evento do kit");
+        var aviso = await AvisoAntesDoFechamentoAsync(avisosA);
+        aviso.SessaoId.ShouldBe(TenantPaf.SessaoDoToken(tokenA));
+        aviso.Motivo.ShouldBe(GenerateTokenLicenseBehavior.MensagemSessaoUnica);
+        await fechamentoA.WaitAsync(Espera);
+
+        // B is connected and in the user group when the kit's copy of A's revocation is delivered (seção 7): it must
+        // not reach B, which would log B out by itself.
+        var maquinaB = Conexao(_tenant.TenantId, () => Task.FromResult(tokenB));
+        var avisosB = Avisos(maquinaB);
+        await maquinaB.Hub.StartAsync();
+        await maquinaB.ProntaAsync();
+        await _tenant.DrenarCaixaDeSaidaAsync();
+        await Task.Delay(SilencioEsperado);
+
+        avisosB.Itens.ShouldBeEmpty("o aviso vai às conexões da sessão revogada, nunca ao grupo do usuário");
+        maquinaB.Hub.State.ShouldBe(HubConnectionState.Connected);
+        avisosA.Itens.Count.ShouldBe(1, "o evento do kit depois da revogação do PAF não gera segundo aviso");
+    }
+
+    // Seção 7: the kit's session screen writes only the UserSession, so nothing tells the open screen until the
+    // SessionRevoked event is consumed; then the notice goes out before the close and the licence is released with it,
+    // while other credentials' connections stay. An open WebSocket is not re-authenticated, so the connection is still
+    // there when the event arrives (on long polling the next poll would be refused first and the notice lost).
+    [Fact]
+    public async Task RevogacaoPelaTelaDoKit_AvisaEDerrubaDepoisDoEvento_ESoltaALicenca()
+    {
+        var c = await _tenant.CriarUnidadeAsync();
+        var atendente = await _tenant.CriarAtendenteAsync(c.UnidadeId);
+        var token = await _tenant.EntrarAsync(atendente);
+        var sessaoId = TenantPaf.SessaoDoToken(token);
+        var conexao = Conexao(_tenant.TenantId, () => Task.FromResult(token));
+        var avisos = Avisos(conexao);
+        var fechamento = conexao.Fechamento();
+        await conexao.Hub.StartAsync();
+        await conexao.ProntaAsync();
+        var painel = await _tenant.CredencialAsync(c.UnidadeId, c.Painel, PafPapeisEstacao.Painel);
+        var controle = Conexao(_tenant.TenantId, () => Task.FromResult(painel.AccessToken));
+        await controle.Hub.StartAsync();
+        await controle.ProntaAsync();
+
+        using (var resposta = await _tenant.Admin.DeleteAsync($"{TestConstants.IdentityBasePath}/users/{atendente.UsuarioId}/sessions/{sessaoId}"))
+        {
+            resposta.IsSuccessStatusCode.ShouldBeTrue(await resposta.Content.ReadAsStringAsync());
+        }
+
+        await Task.Delay(SilencioEsperado);
+        avisos.Itens.ShouldBeEmpty("sem o evento, a tela ainda não sabe");
+
+        await _tenant.DrenarCaixaDeSaidaAsync();
+
+        await fechamento.WaitAsync(Espera);
+        var aviso = await AvisoAntesDoFechamentoAsync(avisos);
+        aviso.SessaoId.ShouldBe(sessaoId);
+        aviso.Motivo.ShouldBe(SessaoRevogadaPafHandler.MensagemSessaoEncerrada);
+        (await _tenant.AtividadesAsync(atendente.UsuarioId)).ShouldBeEmpty("a licença sai junto, sem esperar a marca vencer");
+        controle.Hub.State.ShouldBe(HubConnectionState.Connected, "conexões de outras credenciais seguem abertas");
     }
 
     private static AvisosRecebidos Avisos(ConexaoWebSocket conexao)
