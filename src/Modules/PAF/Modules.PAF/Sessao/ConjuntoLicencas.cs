@@ -423,11 +423,16 @@ public sealed class ConjuntoLicencas(
         }
     }
 
+    private static bool ServidorOcupado(Exception ex) =>
+        ex is RedisServerException servidor
+        && (servidor.Message.StartsWith("BUSY", StringComparison.Ordinal) || servidor.Message.StartsWith("LOADING", StringComparison.Ordinal));
+
     // Whole milliseconds, at least one: PX 0 is an error and would abort the script.
     private static long Milissegundos(TimeSpan prazo) => Math.Max(1, (long)prazo.TotalMilliseconds);
 
-    // Null means unavailable. Only connection and timeout failures degrade; a server error (a broken script)
-    // propagates, because turning it into the degraded mode would hide it.
+    // Null means unavailable. Connection and timeout failures degrade, and so do the server's own "not now" answers:
+    // BUSY (a long script past busy-reply-threshold) and LOADING (a restart still loading the AOF). Any other server
+    // error (a broken script) propagates, because turning it into the degraded mode would hide it.
     private async Task<RedisResult?> TentarAsync(Func<IDatabase, Task<RedisResult>> operacao, CancellationToken ct)
     {
         if (_valkey is not { IsConnected: true } valkey)
@@ -439,7 +444,7 @@ public sealed class ConjuntoLicencas(
         {
             return await operacao(valkey.GetDatabase()).WaitAsync(PrazoChamada, ct);
         }
-        catch (Exception ex) when (ex is RedisConnectionException or TimeoutException)
+        catch (Exception ex) when (ex is RedisConnectionException or TimeoutException || ServidorOcupado(ex))
         {
             logger.LogWarning(ex, "Valkey indisponível para o conjunto de licenças; modo degradado");
             // A stall too short to drop the connection raises no ConnectionRestored, yet the degraded mode may

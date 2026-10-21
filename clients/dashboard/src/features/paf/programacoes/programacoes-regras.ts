@@ -100,11 +100,32 @@ export type ProgramacaoValidada = { ok: true; corpo: CorpoProgramacao } | { ok: 
 
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
 
+/** The mídia a saved programação points at, as the search returns it: kept while editing without the mídia list. */
+export type MidiaAtual = { id: string; descricao: string; duracaoSegundos: number };
+
+/**
+ * Duration of the chosen mídia: from the unidade's mídia list, or, for the mídia the programação already has, from
+ * the programação itself. Without Midias.View the list is refused, and an edit keeping the same mídia still works.
+ */
+export function duracaoDaMidia(
+  midias: ReadonlyArray<{ id: string; duracaoSegundos: number }> | null,
+  midiaAtual: MidiaAtual | null,
+  midiaId: string,
+): number | null {
+  const daLista = midias?.find((m) => m.id === midiaId)?.duracaoSegundos;
+  if (daLista !== undefined) return daLista;
+  return midiaAtual?.id === midiaId ? midiaAtual.duracaoSegundos : null;
+}
+
+export const MENSAGEM_SEM_LISTA_DE_MIDIAS =
+  "Sem a permissão de ver os arquivos de mídia não há como escolher outra mídia: a programação só pode manter a mídia que já tem.";
+
 export function validarProgramacao(form: FormProgramacao, duracaoMidiaSegundos: number | null): ProgramacaoValidada {
   const nome = form.nome.trim();
   if (nome === "") return { ok: false, mensagem: "O nome é obrigatório." };
   if (nome.length > NOME_MAXIMO) return { ok: false, mensagem: `O nome tem no máximo ${NOME_MAXIMO} caracteres.` };
-  if (form.midiaId === "" || duracaoMidiaSegundos === null) return { ok: false, mensagem: "Escolha a mídia." };
+  if (form.midiaId === "") return { ok: false, mensagem: "Escolha a mídia." };
+  if (duracaoMidiaSegundos === null) return { ok: false, mensagem: MENSAGEM_SEM_LISTA_DE_MIDIAS };
   if (!DATA.test(form.dataInicial) || !DATA.test(form.dataFinal)) return { ok: false, mensagem: "Informe a data inicial e a data final." };
   // ISO dates compare as text: no Date round trip, which would shift a day across the browser's time zone.
   if (form.dataFinal < form.dataInicial) return { ok: false, mensagem: "A data final não pode ser anterior à inicial." };

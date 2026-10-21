@@ -35,6 +35,8 @@ PRAZO_SNAPSHOT_S=30
 PRAZO_ALERTA_S=10
 PRAZO_CONEXAO_S3_S=15
 PRAZO_LEITURA_S3_S=120
+# R2's answer to an overwrite or delete refused by the bucket lock (README, verificar-bloqueio VERIFICADO 19/10/2026).
+CODIGO_BLOQUEIO="ObjectLockedByBucketPolicy"
 MODO="${1:-}"
 
 json() {
@@ -232,19 +234,33 @@ verificar_bloqueio() {
   echo "original" >"$dir/original"
   echo "sobrescrita" >"$dir/sobrescrita"
   enviar_sem_sobrescrever "$dir/original" "$chave"
-  # Unconditional on purpose: this is what a compromised host would send.
-  if s3_backup put-object --bucket "$PAF_BACKUP_BUCKET" --key "$chave" --body "$dir/sobrescrita" >/dev/null 2>&1; then
+  # Unconditional on purpose: this is what a compromised host would send. A refusal counts only with the lock's own
+  # error code: a credential, policy or network refusal says nothing about the lock (it would pass a bucket without one).
+  if s3_backup put-object --bucket "$PAF_BACKUP_BUCKET" --key "$chave" --body "$dir/sobrescrita" >"$dir/saida" 2>&1; then
     echo "FAIL sobrescrita aceita em $chave: o bucket não tem bloqueio"
     falhas=$((falhas + 1))
+  elif grep -q "$CODIGO_BLOQUEIO" "$dir/saida"; then
+    echo "PASS sobrescrita recusada pelo bloqueio ($CODIGO_BLOQUEIO)"
   else
-    echo "PASS sobrescrita recusada"
+    echo "FAIL sobrescrita recusada por outro motivo, sem provar o bloqueio: $(tail -n 1 "$dir/saida")"
+    falhas=$((falhas + 1))
   fi
-  if s3_backup delete-object --bucket "$PAF_BACKUP_BUCKET" --key "$chave" >/dev/null 2>&1 \
-      && ! s3_backup head-object --bucket "$PAF_BACKUP_BUCKET" --key "$chave" >/dev/null 2>&1; then
+  if s3_backup delete-object --bucket "$PAF_BACKUP_BUCKET" --key "$chave" >"$dir/saida" 2>&1; then
     echo "FAIL exclusão aceita em $chave: o bucket não tem bloqueio"
     falhas=$((falhas + 1))
+  elif grep -q "$CODIGO_BLOQUEIO" "$dir/saida"; then
+    echo "PASS exclusão recusada pelo bloqueio ($CODIGO_BLOQUEIO)"
   else
-    echo "PASS exclusão recusada"
+    echo "FAIL exclusão recusada por outro motivo, sem provar o bloqueio: $(tail -n 1 "$dir/saida")"
+    falhas=$((falhas + 1))
+  fi
+  # Whatever the answers said, the object must still be there with its first content.
+  if s3_backup get-object --bucket "$PAF_BACKUP_BUCKET" --key "$chave" "$dir/lido" >/dev/null 2>"$dir/saida" \
+      && cmp -s "$dir/original" "$dir/lido"; then
+    echo "PASS conteúdo original intacto"
+  else
+    echo "FAIL $chave sem o conteúdo original depois das tentativas: $(tail -n 1 "$dir/saida")"
+    falhas=$((falhas + 1))
   fi
   [ "$falhas" -eq 0 ] || falhar "verificar-bloqueio" "bucket $PAF_BACKUP_BUCKET sem bloqueio efetivo ($falhas falha(s))"
   echo "VERIFICAR-BLOQUEIO OK ($chave fica retida pelo bloqueio e sai pelo ciclo de vida)"
