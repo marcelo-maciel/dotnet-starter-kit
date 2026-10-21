@@ -303,6 +303,25 @@ if [ "$codigo" -ne 0 ] && grep -q "FAIL sobrescrita aceita" "$SAIDA" && grep -q 
 else
   registrar FAIL "verificar-bloqueio: código $codigo"; tail -n 5 "$SAIDA"
 fi
+
+# 11b. A delete refused by a policy, not by a lock (AccessDenied): never counted as the lock refusing it. Before the
+# check on the lock's own code, any error passed, so a credential without delete permission proved a lock that does
+# not exist.
+docker exec "$S3" sh -c "mc alias set local http://127.0.0.1:9000 '$S3_USUARIO' '$S3_SENHA' >/dev/null \
+  && printf '%s' '{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":[\"s3:*\"],\"Resource\":[\"arn:aws:s3:::*\"]},{\"Effect\":\"Deny\",\"Action\":[\"s3:DeleteObject\"],\"Resource\":[\"arn:aws:s3:::*\"]}]}' >/tmp/sem-exclusao.json \
+  && mc admin policy create local sem-exclusao /tmp/sem-exclusao.json >/dev/null \
+  && mc admin user add local o11restrito o11-restrito-segredo >/dev/null \
+  && mc admin policy attach local sem-exclusao --user o11restrito >/dev/null" || abortar "usuário sem exclusão no minio"
+timeout "$PRAZO_S" docker run --rm --network "$REDE" -e PAF_AMBIENTE="$AMBIENTE" -e PAF_BACKUP_ENDPOINT="http://$S3:9000" \
+  -e PAF_BACKUP_BUCKET="$BUCKET_BACKUP" -e AWS_ACCESS_KEY_ID=o11restrito -e AWS_SECRET_ACCESS_KEY=o11-restrito-segredo \
+  -e AWS_DEFAULT_REGION=auto -e PAF_BACKUP_ALERTA_URL="http://$GANCHO:8080/alerta" "$IMAGEM_BACKUP" verificar-bloqueio >"$SAIDA" 2>&1
+codigo=$?
+if [ "$codigo" -ne 0 ] && grep -q "FAIL exclusão recusada por outro motivo" "$SAIDA" && grep -q "AccessDenied" "$SAIDA" \
+    && ! grep -q "PASS exclusão" "$SAIDA"; then
+  registrar PASS "verificar-bloqueio não conta recusa por política (AccessDenied) como bloqueio (código $codigo)"
+else
+  registrar FAIL "verificar-bloqueio com exclusão negada por política: código $codigo"; tail -n 6 "$SAIDA"
+fi
 registrar SKIPPED "sobrescrita e exclusão recusadas em 7 dias: só no R2 real (verificar-bloqueio, passo humano)"
 
 # 12. Scheduler: the next run is at 03:00 in Brasília; any other TZ is refused.
