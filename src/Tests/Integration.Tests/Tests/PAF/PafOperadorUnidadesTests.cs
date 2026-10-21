@@ -155,7 +155,7 @@ public sealed class PafOperadorUnidadesTests(FshWebApplicationFactory factory) :
     }
 
     [Fact]
-    public async Task TenantNovo_LoginSemContratoRecusado_OperadorGravaContratoDaUnidadeInicial_LoginAceito()
+    public async Task TenantNovo_ContratoPadraoAceitaLogin_OperadorEncerraERecusa_ReabreEAceita()
     {
         var tenantId = $"paf-c08n-{Guid.NewGuid().ToString("N")[..8]}";
         var adminEmail = $"admin-{tenantId}@paf.test";
@@ -177,19 +177,28 @@ public sealed class PafOperadorUnidadesTests(FshWebApplicationFactory factory) :
         await OutboxDrain.DrainAsync(factory.Services);
         await EsperarAdministradorAssociadoAsync(tenantId, adminEmail);
 
-        using var semContrato = await LoginAsync(tenantId, adminEmail);
-        semContrato.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        PafSessaoLicencaTests.Detalhe(await semContrato.Content.ReadAsStringAsync()).ShouldBe(Licencas.MensagemSemContrato);
+        // RF23 (21/10/2026): the default contract the initial unidade is born with lets the admin in at once.
+        using var padrao = await LoginAsync(tenantId, adminEmail);
+        padrao.StatusCode.ShouldBe(HttpStatusCode.OK, await padrao.Content.ReadAsStringAsync());
 
         using var raiz = await RaizNoTenantAsync(tenantId);
         var inicial = (await PafApi.OkAsync<List<UnidadeOperadorDto>>(raiz, HttpMethod.Get, RotaOperador, null, null)).ShouldHaveSingleItem();
         inicial.Inicial.ShouldBeTrue();
-        inicial.Contratos.ShouldBeEmpty();
-        // Started two days ago so the America/Sao_Paulo calendar day is inside the validity at any UTC hour.
-        await CriarContratoAsync(raiz, inicial.Id, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-2)), null, 2);
+        var contrato = inicial.Contratos.ShouldHaveSingleItem();
+        (contrato.Plano, contrato.LimiteSessoes, contrato.Politica, contrato.FimVigencia).ShouldBe(("Inicial", 5, "Recusar", (DateOnly?)null));
 
-        using var comContrato = await LoginAsync(tenantId, adminEmail);
-        comContrato.StatusCode.ShouldBe(HttpStatusCode.OK, await comContrato.Content.ReadAsStringAsync());
+        // The operator owns it: ended yesterday, the client is refused with the contract message; reopened, let in.
+        var hoje = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTime.UtcNow, "America/Sao_Paulo"));
+        await PafApi.OkAsync<Guid>(raiz, HttpMethod.Put, $"/contratos/{contrato.Id}", null,
+            new UpdateContratoUnidadeCommand(contrato.Id, hoje.AddDays(-2), hoje.AddDays(-1), "Inicial", 5, "Recusar"));
+        using var encerrado = await LoginAsync(tenantId, adminEmail);
+        encerrado.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        PafSessaoLicencaTests.Detalhe(await encerrado.Content.ReadAsStringAsync()).ShouldBe(Licencas.MensagemSemContrato);
+
+        await PafApi.OkAsync<Guid>(raiz, HttpMethod.Put, $"/contratos/{contrato.Id}", null,
+            new UpdateContratoUnidadeCommand(contrato.Id, hoje.AddDays(-2), null, "Inicial", 5, "Recusar"));
+        using var reaberto = await LoginAsync(tenantId, adminEmail);
+        reaberto.StatusCode.ShouldBe(HttpStatusCode.OK, await reaberto.Content.ReadAsStringAsync());
     }
 
     // ─── helpers ────────────────────────────────────────────────────────

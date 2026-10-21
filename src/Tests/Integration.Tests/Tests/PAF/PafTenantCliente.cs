@@ -51,8 +51,11 @@ internal sealed class PafTenantCliente(FshWebApplicationFactory factory, string 
             var inicial = await db.Unidades.Where(u => u.Inicial).Select(u => (Guid?)u.Id).SingleOrDefaultAsync();
             if (inicial is { } unidadeId && await db.UsuariosUnidade.AnyAsync(u => u.UnidadeId == unidadeId && u.Ordem == 0))
             {
+                // The initial unidade is born with the default contract (RF23): the tests resize it instead of
+                // adding a second one over the same days.
                 var inicio = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-2));
-                db.ContratosUnidade.Add(ContratoUnidade.Criar(unidadeId, inicio, null, "Teste", limiteSessoes, PoliticaLimiteLicenca.Recusar));
+                var contrato = await db.ContratosUnidade.IgnoreQueryFilters([PafQueryFilters.Unidade]).SingleAsync(c => c.UnidadeId == unidadeId);
+                contrato.Atualizar(inicio, null, "Teste", limiteSessoes, PoliticaLimiteLicenca.Recusar);
                 await db.SaveChangesAsync();
                 return unidadeId;
             }

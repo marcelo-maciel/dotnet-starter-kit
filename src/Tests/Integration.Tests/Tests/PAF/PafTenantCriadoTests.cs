@@ -30,7 +30,7 @@ public sealed class PafTenantCriadoTests(FshWebApplicationFactory factory) : IAs
     public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
-    public async Task TenantNovoPelaApi_UnidadeInicialEAdminEmpresaOrdem0_LoginSoDepoisDoContrato()
+    public async Task TenantNovoPelaApi_UnidadeInicialComContratoPadraoEAdminEmpresaOrdem0_LoginAceito()
     {
         var (tenantId, adminEmail) = await CriarTenantAsync("paf-c03a");
 
@@ -54,18 +54,14 @@ public sealed class PafTenantCriadoTests(FshWebApplicationFactory factory) : IAs
             associacao.Ordem.ShouldBe(0);
             (await db.UsuariosUnidade.CountAsync(u => u.UsuarioId == adminId)).ShouldBe(1);
             (await db.PerfisUsuario.SingleAsync(p => p.UsuarioId == adminId)).EscopoEmpresa.ShouldBeTrue();
-            (await db.ContratosUnidade.AnyAsync()).ShouldBeFalse("the initial unidade is born without a contract (RF23)");
-        }
-
-        var semContrato = await LoginAsync(tenantId, adminEmail);
-        semContrato.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        PafSessaoLicencaTests.Detalhe(await semContrato.Content.ReadAsStringAsync()).ShouldBe(Licencas.MensagemSemContrato);
-
-        await using (var escopo = Escopo(await TenantAsync(tenantId)))
-        {
-            var db = escopo.ServiceProvider.GetRequiredService<PafDbContext>();
-            db.ContratosUnidade.Add(ContratoUnidade.Criar(associacao.UnidadeId, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-2)), null, "Teste", 2, PoliticaLimiteLicenca.Recusar));
-            await db.SaveChangesAsync();
+            // RF23 (21/10/2026): the initial unidade is born with the default contract, valid from today in São Paulo.
+            var contrato = await db.ContratosUnidade.IgnoreQueryFilters([PafQueryFilters.Unidade]).SingleAsync();
+            contrato.UnidadeId.ShouldBe(iniciais[0].Id);
+            contrato.Plano.ShouldBe("Inicial");
+            contrato.LimiteSessoes.ShouldBe(5);
+            contrato.Politica.ShouldBe(PoliticaLimiteLicenca.Recusar);
+            contrato.InicioVigencia.ShouldBe(DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTime.UtcNow, "America/Sao_Paulo")));
+            contrato.FimVigencia.ShouldBeNull();
         }
 
         var comContrato = await LoginAsync(tenantId, adminEmail);
@@ -96,6 +92,7 @@ public sealed class PafTenantCriadoTests(FshWebApplicationFactory factory) : IAs
         await using var escopo = Escopo(await TenantAsync(tenantId));
         var db = escopo.ServiceProvider.GetRequiredService<PafDbContext>();
         (await db.Unidades.CountAsync(u => u.Inicial)).ShouldBe(1);
+        (await db.ContratosUnidade.IgnoreQueryFilters([PafQueryFilters.Unidade]).CountAsync()).ShouldBe(1, "the contract is written with the unidade, so the losers write none");
         (await db.UsuariosUnidade.CountAsync(u => u.UsuarioId == adminId)).ShouldBe(1);
         (await db.PerfisUsuario.CountAsync(p => p.UsuarioId == adminId)).ShouldBe(1);
 

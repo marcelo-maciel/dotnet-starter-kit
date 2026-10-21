@@ -6,14 +6,16 @@ using FSH.Modules.PAF.Data.Configurations;
 using FSH.Modules.PAF.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace FSH.Modules.PAF.Provisionamento;
 
 /// <summary>
-/// What a new client tenant gets from the PAF (RF23, ARQ seção 5): the initial unidade, and its initial admin with
+/// What a new client tenant gets from the PAF (RF23, ARQ seção 5): the initial unidade with its default contract
+/// (<see cref="OpcoesContratoInicial"/>), and its initial admin with
 /// escopo empresa and that unidade as principal. Each step is idempotent and safe under concurrent runs.
 /// </summary>
-internal sealed class ProvisionamentoTenantPaf(PafDbContext db)
+internal sealed class ProvisionamentoTenantPaf(PafDbContext db, IOptions<OpcoesContratoInicial> contratoInicial)
 {
     /// <summary>The full tenant (name, admin e-mail, connection) from the catalog; null when it is gone.</summary>
     public static async Task<AppTenantInfo?> LerTenantAsync(IServiceScopeFactory scopeFactory, string tenantId)
@@ -35,7 +37,11 @@ internal sealed class ProvisionamentoTenantPaf(PafDbContext db)
         return escopo;
     }
 
-    /// <summary>The initial unidade of the tenant, created when missing; a concurrent creator wins and its row is returned.</summary>
+    /// <summary>
+    /// The initial unidade of the tenant, created when missing together with its default contract in the same
+    /// SaveChanges; a concurrent creator wins and its row is returned. An existing unidade is never given a contract:
+    /// what it has was decided by the operator.
+    /// </summary>
     public async Task<Guid> GarantirUnidadeInicialAsync(string nome, CancellationToken ct)
     {
         if (await UnidadeInicialAsync(ct) is { } existente)
@@ -43,7 +49,11 @@ internal sealed class ProvisionamentoTenantPaf(PafDbContext db)
             return existente;
         }
 
-        db.Unidades.Add(Unidade.CriarInicial(nome));
+        var unidade = Unidade.CriarInicial(nome);
+        var contrato = contratoInicial.Value;
+        db.Unidades.Add(unidade);
+        db.ContratosUnidade.Add(ContratoUnidade.Criar(
+            unidade.Id, await PafRelogio.HojeAsync(db, ct), null, contrato.Plano, contrato.LimiteSessoes, contrato.Politica));
         try
         {
             await db.SaveChangesAsync(ct);

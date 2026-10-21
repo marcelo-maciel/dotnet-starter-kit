@@ -109,6 +109,7 @@ using FSH.Modules.PAF.Features.v1.Midias.UpdateMidia;
 using FSH.Modules.PAF.Features.v1.ProgramacoesMidia;
 using FSH.Modules.PAF.Observabilidade;
 using FSH.Modules.PAF.Parametros;
+using FSH.Modules.PAF.Provisionamento;
 using FSH.Modules.PAF.Saude;
 using FSH.Modules.PAF.Sessao;
 using FSH.Modules.PAF.TempoReal;
@@ -157,6 +158,7 @@ public sealed class PafModule : IModule
         AddTempoReal(builder.Services);
         ConfigurarSessao(builder.Services);
         OpcoesMidia.Registrar(builder.Services);
+        OpcoesContratoInicial.Registrar(builder.Services);
         RegistrarCadastroDeMidia(builder.Services);
         // RF03 (M04): signed read URL with the unidade check and a short cache.
         builder.Services.AddScoped<UrlLeituraMidia>();
