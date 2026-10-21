@@ -13,19 +13,32 @@ public sealed partial class ConexoesPaf
         var grupoDestino = PafGrupos.Unidade(tenantId, destino);
         var grupoOrigem = origem is { } id && id != destino ? PafGrupos.Unidade(tenantId, id) : null;
         var conexoes = await DaSessaoAsync(tenantId, sessaoId, ct).ConfigureAwait(false);
+        // Every connection at once: one without an owner costs its own wait, never the sum over the session.
+        await Task.WhenAll(conexoes.Select(connectionId => MoverParaUnidadeAsync(tenantId, connectionId, grupoOrigem, grupoDestino, ct)))
+            .ConfigureAwait(false);
+        return conexoes.Count;
+    }
+
+    private async Task MoverParaUnidadeAsync(string tenantId, string connectionId, string? grupoOrigem, string grupoDestino, CancellationToken ct)
+    {
         using var limite = Limite(ct);
-        foreach (var connectionId in conexoes)
+        if (grupoOrigem is not null)
         {
-            if (grupoOrigem is not null)
+            if (!await ConfirmadoAsync(connectionId, hub.Groups.RemoveFromGroupAsync(connectionId, grupoOrigem, limite.Token), limite.Token).ConfigureAwait(false))
             {
-                await hub.Groups.RemoveFromGroupAsync(connectionId, grupoOrigem, limite.Token).ConfigureAwait(false);
-                await EsquecerGrupoAsync(connectionId, tenantId, grupoOrigem, limite.Token).ConfigureAwait(false);
+                await EsquecerSemDonoAsync(tenantId, connectionId, limite.Token).ConfigureAwait(false);
+                return;
             }
 
-            await hub.Groups.AddToGroupAsync(connectionId, grupoDestino, limite.Token).ConfigureAwait(false);
-            await LembrarGrupoAsync(connectionId, tenantId, grupoDestino, limite.Token).ConfigureAwait(false);
+            await EsquecerGrupoAsync(connectionId, tenantId, grupoOrigem, limite.Token).ConfigureAwait(false);
         }
 
-        return conexoes.Count;
+        if (!await ConfirmadoAsync(connectionId, hub.Groups.AddToGroupAsync(connectionId, grupoDestino, limite.Token), limite.Token).ConfigureAwait(false))
+        {
+            await EsquecerSemDonoAsync(tenantId, connectionId, limite.Token).ConfigureAwait(false);
+            return;
+        }
+
+        await LembrarGrupoAsync(connectionId, tenantId, grupoDestino, limite.Token).ConfigureAwait(false);
     }
 }
