@@ -41,6 +41,10 @@ export function useMidiasDoPainel(habilitado: boolean, aoPerderCredencial: () =>
   const leituraRef = useRef(0);
   const novaLeituraRef = useRef<number | undefined>(undefined);
   const ultimaReleituraPorFalhaRef = useRef(0);
+  // The last read failed: the network or the API was out. The next read that succeeds brings the network back, and
+  // the URLs that failed meanwhile (store unreachable, not a broken file) get another try at once, as on a hub
+  // reconnection, instead of waiting out the quarantine (the re-read may sign the same cached URL).
+  const leituraFalhouRef = useRef(false);
   // The retry timer calls the latest `reler` without making it depend on itself.
   const releituraRef = useRef<() => void>(() => undefined);
 
@@ -52,6 +56,10 @@ export function useMidiasDoPainel(habilitado: boolean, aoPerderCredencial: () =>
       (dto) => {
         // Two re-reads in flight (notice + reconnection): only the last one asked counts.
         if (leitura !== leituraRef.current) return;
+        if (leituraFalhouRef.current) {
+          leituraFalhouRef.current = false;
+          falhasRef.current.clear();
+        }
         try {
           const nova = montarAgenda(dto, enviadoEm);
           agendaRef.current = nova;
@@ -68,6 +76,7 @@ export function useMidiasDoPainel(habilitado: boolean, aoPerderCredencial: () =>
           return;
         }
         // The last agenda keeps playing; its URLs are valid well past this retry.
+        leituraFalhouRef.current = true;
         console.warn("[paf-painel] leitura das mídias falhou; nova tentativa em 30 s", e);
         novaLeituraRef.current = window.setTimeout(() => releituraRef.current(), NOVA_LEITURA_APOS_ERRO_MS);
       },
