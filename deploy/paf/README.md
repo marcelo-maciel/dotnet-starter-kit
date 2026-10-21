@@ -138,7 +138,7 @@ O `deploy.sh` sobe o Caddy se faltar e nunca o recria; o `cloudflared` ele nunca
 
 ### Passo humano na Cloudflare, uma vez por ambiente
 
-Nada disto foi executado. Começa pela homologação e só depois de CA1 a CA10 verdes passa para a produção.
+Feito para a homologação em 20 e 21/10/2026 pela API da Cloudflare com o token da Codefi, no lugar do `cloudflared tunnel login`: túnel `paf-homologacao` criado com `config_src: local` e segredo gerado na hora (o JSON de credenciais é `{"AccountTag","TunnelSecret","TunnelID"}`), CNAMEs com proxy de `paf-homolog`, `paf-homolog-api` e `paf-homolog-admin` em `codefi.com.br` (um nível só, porque o Universal SSL da zona Free não cobre subdomínio de segundo nível) e a regra de configuração com `security_level` `essentially_off` e `bic` desligado nesses três hosts. A produção segue os mesmos passos depois da homologação estável.
 
 - [ ] Na máquina de quem administra a zona `codefi.com.br`: `cloudflared tunnel login`, depois `cloudflared tunnel create paf-homologacao`. O comando imprime o UUID e grava `<UUID>.json`.
 - [ ] No host: `ambientes/homologacao.env` com `PAF_TUNEL_ID=<UUID>` e `ambientes/homologacao.tunel.env` (copiado de `homologacao.tunel.env.exemplo`) com `TUNNEL_CRED_CONTENTS=` seguido do conteúdo de `<UUID>.json` numa linha só, com permissão só do dono (`chmod 600`). Apagar o `.json` local depois.
@@ -152,6 +152,23 @@ Volta atrás (CA10): os CNAMEs dos hosts do PAF são apagados no painel de DNS e
 ### Critérios de aceite (seção 7 da proposta)
 
 Medidos em homologação, pelo host público, antes de produção: CA1 upgrade do hub com 101 sem negociação; CA2 conexão ociosa por 30 minutos e 30 de 30 eventos; CA3 `docker kill` da instância conectada com reconexão em até 30 s e p95 abaixo de 5 s, dez vezes; CA4 reinício de uma réplica do `cloudflared` e do Caddy com retorno em até 30 s; CA5 300 WebSockets por 30 minutos sem afetar os outros sites do host; CA6 zero `access_token=` nos logs do Caddy e do `cloudflared`; CA7 IP auditado igual ao do cliente, com `X-Forwarded-For` forjado sem efeito; CA8 deploy em sequência sem 5xx na emissão e com todo evento no painel; CA9 nenhuma porta do PAF respondendo pelo IP público; CA10 volta atrás em menos de 5 minutos. O `ensaio-deploy.sh` prova localmente CA1, CA3 (três quedas), CA6 no Caddy, CA7 e CA8, sem Cloudflare na frente.
+
+Medição em homologação, 21/10/2026, imagem `558ad658`, pelo host público (script fora do repositório, com cliente SignalR por WebSocket sem negociação e ping de 15 s):
+
+| Critério | Resultado |
+|---|---|
+| CA1 | PASS: handshake do `PafHub` completo por `wss://paf-homolog-api.codefi.com.br`, sem negociação |
+| CA2 | PASS: conexão sem evento de aplicação aberta 30 min sem fechamento. A parte de 30 de 30 eventos não foi medida pelo host público |
+| CA3 | PASS em três rodadas: 10 `docker kill` alternados com 20 clientes, 190 de 190 reconexões, p95 de 1,9 s e a maior em 2,0 s |
+| CA4 | PASS: reinício de uma réplica do `cloudflared` sem nenhuma queda; reinício do Caddy com 20 de 20 de volta em 1,4 s |
+| CA5 | PASS: 300 WebSockets por 30 min sem falha de abertura; p95 de `app.codefi.com.br` pelo Apache do host de 194 para 204 ms (5,1%), memória do host de 4,0 para 4,2 GB. Observado: 18 das 300 conexões fechadas no meio da janela, sem aborto na API e sem erro no `cloudflared`, isto é, vindos da borda ou da rede do cliente; o cliente reconecta (CA3) |
+| CA6 | PASS: zero `access_token=` nos logs do Caddy, das duas réplicas do `cloudflared` e das duas APIs |
+| CA7 | PASS: IP auditado igual ao IP público de quem chamou, com `X-Forwarded-For` forjado; `CF-Connecting-IP` enviado pelo cliente é recusado pela borda com 403 |
+| CA8 | PASS: `deploy.sh homologacao` das duas instâncias com 128 de 128 chamadas autenticadas em 200 e 30 quedas do hub, todas de volta em até 1,6 s. A emissão em laço com entrega ao painel é a do ensaio local |
+| CA9 | PASS: portas 25432 e 28080 a 28083 sem resposta pelo IP público da VPS |
+| CA10 | PASS: CNAMEs apagados e `cloudflared` parado, PAF fora em 5 s; de volta em 10 s |
+
+Walk no Chrome pelo host público: login, escolha de guichê, `PafHub` por WebSocket, segunda aba na mesma sessão e saída pelo menu, com um POST de logout (204) na aba que saiu e nenhum na outra.
 
 ## CI e promoção (O08, RNF16, RNF17)
 
