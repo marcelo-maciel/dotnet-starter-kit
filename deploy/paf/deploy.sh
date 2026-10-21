@@ -28,7 +28,11 @@
 # touched); 5 image missing (nothing touched); 6 infra or migrator failed (no instance touched); 7 an instance failed
 # and is back on its previous image and healthy, the next one untouched; 8 an instance failed and could not be put
 # back (no previous image, or the previous one is not healthy either): manual action; 9 APIs deployed, dashboard or
-# admin failed and were put back on their previous images; 10 dashboard or admin failed and could not be put back.
+# admin failed and were put back on their previous images; 10 dashboard or admin failed and could not be put back;
+# 11 the other instance stopped answering health mid-deploy: this instance untouched, but the migrator already ran
+# and the instances deployed earlier in this run are on the new tag (retry or rollback).
+# Interrupted between stopping an instance and starting it again, the EXIT trap prints RESIDUO with its name: Caddy
+# serves through the other one, and the next deploy starts the stopped one first.
 # Needs on the host: bash, docker compose v2, flock, curl, timeout. Caddy (caddy/Caddyfile) balances the instances by
 # its own health check; deploy.sh never talks to it. cloudflared is not touched here (README, "Túnel e Caddy").
 set -euo pipefail
@@ -50,6 +54,8 @@ ESPERA_BALANCEADOR_S=6
 AMBIENTE=""
 TAG=""
 ARQUIVO=""
+# Instance this run stopped and has not started again; the EXIT trap reports it.
+PARADA=""
 
 falhar() {
   local codigo="$1"
@@ -124,6 +130,14 @@ garantir_imagem() {
   timeout "$TIMEOUT_PULL_S" docker pull -q "$imagem" >/dev/null
 }
 
+ao_sair() {
+  local codigo=$?
+  if [ -n "$PARADA" ]; then
+    echo "RESIDUO $PARADA ficou parada (saída com código $codigo entre a parada e a subida); o Caddy atende pela outra instância e o próximo deploy a sobe primeiro" >&2
+  fi
+  exit "$codigo"
+}
+
 implantar_instancia() {
   local servico="$1" porta="$2" outras="$3" anterior outra
   passo "instância $servico (:$porta)"
@@ -133,11 +147,12 @@ implantar_instancia() {
     # Stopping this one while the other does not answer would take the environment down: it must be serving first.
     for outra in $outras; do
       if ! saudavel "$outra"; then
-        falhar 4 "$servico: a outra instância (:$outra) não responde saúde 200; nada foi tocado nesta instância"
+        falhar 11 "$servico: a outra instância (:$outra) não responde saúde 200; esta instância não foi tocada, mas o migrator de $TAG já rodou"
       fi
     done
     # SIGTERM: Kestrel stops accepting at once, so Caddy's next dial fails and is retried on the other instance;
     # open WebSockets close within stop_grace_period and their clients reconnect through Caddy to the other one.
+    PARADA="$servico"
     compose stop "$servico" || falhar 8 "$servico: docker compose stop falhou"
     echo "$servico parada; Caddy atende pela outra instância"
   else
@@ -145,6 +160,7 @@ implantar_instancia() {
   fi
 
   if compose up -d --no-deps "$servico" && aguardar_saude "$porta"; then
+    PARADA=""
     sleep "$ESPERA_BALANCEADOR_S"
     echo "$servico em $PAF_IMAGEM_API, de volta no balanceador"
     return 0
@@ -156,6 +172,7 @@ implantar_instancia() {
     falhar 8 "$servico: sem imagem anterior para voltar"
   fi
   if PAF_IMAGEM_API="$anterior" compose up -d --no-deps "$servico" && aguardar_saude "$porta"; then
+    PARADA=""
     falhar 7 "$servico de volta em $anterior e saudável; as demais instâncias não foram tocadas"
   fi
   falhar 8 "$servico: a imagem anterior $anterior também não respondeu saúde 200; instância fora do balanceador"
@@ -210,10 +227,18 @@ principal() {
   if ! flock -n 9; then
     falhar 3 "outro deploy de $AMBIENTE está em andamento (flock em ambientes/$AMBIENTE.deploy.lock)"
   fi
+  trap ao_sair EXIT
+  trap 'exit 143' TERM
+  trap 'exit 130' INT
 
   passo "2. conferências antes de tocar em qualquer coisa"
   local outro=producao
   if [ "$AMBIENTE" = producao ]; then outro=homologacao; fi
+  # Only homologação may run on a host without the other file (produção does not exist yet); produção is deployed
+  # only with the cross checks against homologação.
+  if [ "$AMBIENTE" = producao ] && [ ! -f "$DIR/ambientes/homologacao.env" ]; then
+    falhar 4 "ambientes/homologacao.env inexistente: produção só sobe com as conferências cruzadas contra a homologação"
+  fi
   if [ "$AMBIENTE" = producao ]; then
     bash "$DIR/verificar-ambiente.sh" "$ARQUIVO" "$DIR/ambientes/$outro.env" || falhar 4 "verificar-ambiente.sh reprovou"
   else

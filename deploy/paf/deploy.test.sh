@@ -62,6 +62,7 @@ case " $* " in
   *" inspect "*)
     case "$ultimo" in id-api-a) echo "$STUB_IMAGEM_A" ;; id-api-b) echo "$STUB_IMAGEM_B" ;; *) exit 1 ;; esac
     exit 0 ;;
+  *" up -d --no-deps api-"*) exit "${STUB_UP_INSTANCIA:-${STUB_UP:-1}}" ;;
   *" up "*) exit "${STUB_UP:-1}" ;;
   *" run "* | *" stop "* | *" logs "*) exit 0 ;;
 esac
@@ -112,10 +113,10 @@ rm -f "$REGISTRADA"
 caso 6 "primeira implantação" "${STUBADO[@]}" STUB_IMAGEM_A= STUB_IMAGEM_B= bash "$DEPLOY" producao t1
 tag_registrada "" "primeira implantação: sem tag-anterior"
 
-# The other instance does not answer health: abort with 4 before stopping or recreating anything (Caddy would be
-# left with no instance).
+# The other instance does not answer health: abort with 11 (the migrator already ran) before stopping or recreating
+# anything (Caddy would be left with no instance).
 : >"$STUB_LOG"
-caso 4 "outra instância sem saúde" "${STUBADO[@]}" STUB_UP=0 STUB_SAUDAVEIS="18081" \
+caso 11 "outra instância sem saúde" "${STUBADO[@]}" STUB_UP=0 STUB_SAUDAVEIS="18081" \
   STUB_IMAGEM_A=ghcr.io/dono/paf-api:t1 STUB_IMAGEM_B=ghcr.io/dono/paf-api:t1 bash "$DEPLOY" producao t2
 if grep -q -e " stop " -e "--no-deps api-" "$STUB_LOG"; then
   echo "FAIL outra instância sem saúde: uma instância foi parada ou recriada"; sed 's/^/    /' "$STUB_LOG"; falhas=$((falhas + 1))
@@ -135,6 +136,28 @@ else
   echo "FAIL instância nova primeiro: api-b na linha '$linha_b', parada de api-a na linha '$linha_parada'"; sed 's/^/    /' "$STUB_LOG"
   falhas=$((falhas + 1))
 fi
+
+# Stopped, then neither the new image nor the previous one starts: exit 8, and the EXIT trap names the instance left
+# stopped (A7).
+caso 8 "instância parada sem subir" "${STUBADO[@]}" STUB_UP=0 STUB_UP_INSTANCIA=1 STUB_SAUDAVEIS="18081 18082" \
+  STUB_IMAGEM_A=ghcr.io/dono/paf-api:t1 STUB_IMAGEM_B=ghcr.io/dono/paf-api:t1 bash "$DEPLOY" producao t2
+if grep -q "^RESIDUO api-a ficou parada" "$TEMP/saida"; then echo "PASS instância parada sem subir: RESIDUO api-a impresso"
+else echo "FAIL instância parada sem subir: sem RESIDUO"; sed 's/^/    /' "$TEMP/saida"; falhas=$((falhas + 1)); fi
+caso 0 "instância nova primeiro, sem RESIDUO" "${STUBADO[@]}" STUB_UP=0 STUB_SAUDAVEIS="18081 18082 18083 18084" \
+  STUB_IMAGEM_A=ghcr.io/dono/paf-api:t1 STUB_IMAGEM_B=ghcr.io/dono/paf-api:t1 bash "$DEPLOY" producao t2
+if grep -q "RESIDUO" "$TEMP/saida"; then echo "FAIL deploy completo imprimiu RESIDUO"; falhas=$((falhas + 1))
+else echo "PASS deploy completo sem RESIDUO"; fi
+
+# Produção without homologacao.env: refused with 4 before verificar-ambiente.sh (the cross checks are mandatory).
+mv "$TEMP/paf/ambientes/homologacao.env" "$TEMP/paf/ambientes/homologacao.env.fora"
+printf '#!/usr/bin/env bash\necho chamado >"%s"\nexit 0\n' "$TEMP/verificador.chamado" >"$TEMP/paf/verificar-ambiente.sh"
+caso 4 "produção sem homologacao.env" "${STUBADO[@]}" STUB_IMAGEM_A= STUB_IMAGEM_B= bash "$DEPLOY" producao t1
+if [ ! -e "$TEMP/verificador.chamado" ] && grep -q "homologacao.env inexistente" "$TEMP/saida"; then
+  echo "PASS produção sem homologacao.env: recusada antes do verificador"
+else
+  echo "FAIL produção sem homologacao.env"; falhas=$((falhas + 1))
+fi
+mv "$TEMP/paf/ambientes/homologacao.env.fora" "$TEMP/paf/ambientes/homologacao.env"
 
 # A host with homologação only (no producao.env): the pre-flight does not refuse the missing file and hands both
 # paths to verificar-ambiente.sh, which skips the cross checks (verificar-ambiente.test.sh). The stub records them.

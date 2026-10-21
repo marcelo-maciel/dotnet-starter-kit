@@ -122,24 +122,29 @@ services:
     image: caddy:2.11.7-alpine
     restart: unless-stopped
     environment:
-      PAF_SUBNET: ${PAF_SUBNET}
+      PAF_SUBNET_DINAMICA: ${PAF_SUBNET_DINAMICA}
       PAF_API_URL: ${PAF_API_URL}
       PAF_DASHBOARD_URL: ${PAF_DASHBOARD_URL}
       PAF_ADMIN_URL: ${PAF_ADMIN_URL:?PAF_ADMIN_URL is required}
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-    networks: [ paf ]
+    # Fixed address outside the network's dynamic range: it is the API's only trusted proxy
+    # (TrustedProxyOptions:KnownProxies), so a process on the host reaching an API's loopback port arrives from the
+    # bridge gateway and its X-Forwarded-For is ignored.
+    networks:
+      paf:
+        ipv4_address: ${PAF_IP_CADDY:?PAF_IP_CADDY is required}
 
-  # Locally managed tunnel (Q7): the ingress is the versioned cloudflared/config.yml; the environment file holds only
-  # the tunnel's UUID and the contents of its credentials JSON (cloudflared tunnel create). Two replicas of the same
+  # Locally managed tunnel (Q7): the ingress is the versioned cloudflared/config.yml; the environment file holds the
+  # tunnel's UUID (public anyway: it is the target of the DNS CNAMEs), and the credentials JSON (cloudflared tunnel
+  # create) lives in its own file, read by this service only, never by the API or the migrator. Two replicas of the same
   # tunnel, so restarting one never drops the environment (CA4). Not started or recreated by deploy.sh: the first
   # `up` and image updates, one replica at a time, are human steps in the README.
   cloudflared:
     image: cloudflare/cloudflared:2026.10.2
     restart: unless-stopped
     command: [ "tunnel", "--no-autoupdate", "--config", "/etc/cloudflared/config.yml", "run", "${PAF_TUNEL_ID:?PAF_TUNEL_ID is required}" ]
-    environment:
-      TUNNEL_CRED_CONTENTS: ${PAF_TUNEL_CREDENCIAIS:?PAF_TUNEL_CREDENCIAIS is required}
+    env_file: [ "${PAF_ARQUIVO_TUNEL:?PAF_ARQUIVO_TUNEL is required}" ]
     volumes:
       - ./cloudflared/config.yml:/etc/cloudflared/config.yml:ro
     deploy:
@@ -182,11 +187,14 @@ services:
 
 networks:
   paf:
-    # Fixed subnet: it is the API's TrustedProxyOptions:KnownNetworks (ARQ 380), because Caddy reaches the APIs from
-    # inside it, and Caddy's trusted_proxies, because cloudflared reaches Caddy from inside it.
+    # Fixed subnet per environment (ARQ 380). The API trusts only Caddy's fixed address (PAF_IP_CADDY), and Caddy trusts
+    # only the dynamic range (PAF_SUBNET_DINAMICA), where cloudflared gets its address; the bridge gateway, which is how
+    # host processes arrive, is in neither.
     ipam:
       config:
         - subnet: ${PAF_SUBNET:?PAF_SUBNET is required}
+          # Every container but Caddy gets its address here; Caddy's fixed one and the gateway stay outside.
+          ip_range: ${PAF_SUBNET_DINAMICA:?PAF_SUBNET_DINAMICA is required}
 
 volumes:
   pg_data:

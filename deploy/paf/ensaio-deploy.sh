@@ -154,9 +154,11 @@ cp -r "$RAIZ/deploy/docker/postgres-init" "$TRABALHO/deploy/docker/postgres-init
 cp "$RAIZ/src/Host/FSH.Starter.Api/appsettings.Production.json" "$TRABALHO/src/Host/FSH.Starter.Api/"
 rm -f "$TRABALHO/deploy/paf/ambientes/"*.env "$TRABALHO/deploy/paf/ambientes/"*.deploy.lock "$TRABALHO/deploy/paf/ambientes/"*.tag-anterior
 gerar_ambiente() {
-  local exemplo="$1" destino="$2" projeto="$3" tunel="$4" base="$5" subnet="$6" url="$7"
+  local exemplo="$1" destino="$2" projeto="$3" tunel="$4" base="$5" rede="$6" url="$7"
   sed -e "s#^COMPOSE_PROJECT_NAME=.*#COMPOSE_PROJECT_NAME=$projeto#" \
-      -e "s#^PAF_SUBNET=.*#PAF_SUBNET=$subnet#" \
+      -e "s#^PAF_SUBNET=.*#PAF_SUBNET=$rede.0/24#" \
+      -e "s#^PAF_SUBNET_DINAMICA=.*#PAF_SUBNET_DINAMICA=$rede.128/25#" \
+      -e "s#^PAF_IP_CADDY=.*#PAF_IP_CADDY=$rede.10#" \
       -e "s#^PAF_PORTA_POSTGRES=.*#PAF_PORTA_POSTGRES=${base}432#" \
       -e "s#^PAF_PORTA_API_A=.*#PAF_PORTA_API_A=${base}080#" \
       -e "s#^PAF_PORTA_API_B=.*#PAF_PORTA_API_B=${base}081#" \
@@ -173,7 +175,6 @@ gerar_ambiente() {
       -e "s#^PAF_DASHBOARD_URL=.*#PAF_DASHBOARD_URL=https://$url#" \
       -e "s#^PAF_ADMIN_URL=.*#PAF_ADMIN_URL=https://admin.$url#" \
       -e "s#<uuid-do-tunel>#$tunel#" \
-      -e "s#<credenciais-json-do-tunel>#{\"AccountTag\":\"ensaio\",\"TunnelSecret\":\"$(segredo)\",\"TunnelID\":\"$tunel\"}#" \
       -e "s#<usuario>#ensaio#g" -e "s#<account-id>#ensaio#g" -e "s#<smtp>#smtp.ensaio.test#g" \
       -e "s#<webhook-de-alerta>#alerta.ensaio.test/x#g" -e "s#<tag>#v1#g" \
       "$exemplo" >"$destino"
@@ -181,11 +182,14 @@ gerar_ambiente() {
   while grep -q '<segredo>' "$destino"; do
     sed -i "0,/<segredo>/s//$(segredo)/" "$destino"
   done
+  # Fake credential in the tunnel's own file: cloudflared never runs here, the checker only reads it.
+  sed -e "s#<credenciais-json-do-tunel>#{\"AccountTag\":\"ensaio\",\"TunnelSecret\":\"$(segredo)\",\"TunnelID\":\"$tunel\"}#" \
+    "${exemplo%.env.exemplo}.tunel.env.exemplo" >"${destino%.env}.tunel.env"
 }
 gerar_ambiente "$AQUI/ambientes/producao.env.exemplo" "$TRABALHO/deploy/paf/ambientes/producao.env" \
-  "$PROJETO_PROD" 00000000-0000-4000-8000-0000000e0001 28 172.31.210.0/24 paf-ensaio-prod.test
+  "$PROJETO_PROD" 00000000-0000-4000-8000-0000000e0001 28 172.31.210 paf-ensaio-prod.test
 gerar_ambiente "$AQUI/ambientes/homologacao.env.exemplo" "$TRABALHO/deploy/paf/ambientes/homologacao.env" \
-  "$PROJETO_HOMOLOG" 00000000-0000-4000-8000-0000000e0002 29 172.31.220.0/24 paf-ensaio-homolog.test
+  "$PROJETO_HOMOLOG" 00000000-0000-4000-8000-0000000e0002 29 172.31.220 paf-ensaio-homolog.test
 HOST_API=api.paf-ensaio-prod.test
 SUBNET_PROD=172.31.210.0/24
 PORTA_A=28080
@@ -308,6 +312,17 @@ if [ "$codigo" = "200" ] && [ "$ip_auditado" != "$IP_FORJADO" ] && [ "$dentro_da
   registrar PASS "CA7: sem CF-Connecting-IP, o X-Forwarded-For forjado é ignorado (IP auditado $ip_auditado, o par na rede)"
 else
   registrar FAIL "CA7: sem CF-Connecting-IP, login $codigo, IP auditado '$ip_auditado'"
+fi
+# A process on the host reaching an API's loopback port (as deploy.sh does) arrives from the bridge gateway, which
+# the API does not trust (KnownProxies = Caddy's fixed IP only): its forged X-Forwarded-For must be ignored.
+# The host container works in the rehearsal's directory, so login.json is there under its own name.
+codigo="$(no_host "curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -H 'tenant: acme' -H 'Content-Type: application/json' \
+  -H 'X-Forwarded-For: $IP_FORJADO' --data @login.json http://127.0.0.1:$PORTA_A/api/v1/identity/token/issue")"
+ip_auditado="$(psql_prod "$SQL_IP")"
+if [ "$codigo" = "200" ] && [ -n "$ip_auditado" ] && [ "$ip_auditado" != "$IP_FORJADO" ]; then
+  registrar PASS "CA7: pela porta de loopback da API, o X-Forwarded-For forjado é ignorado (IP auditado $ip_auditado)"
+else
+  registrar FAIL "CA7: pela porta de loopback, login $codigo, IP auditado '$ip_auditado' (forjado $IP_FORJADO)"
 fi
 
 
@@ -517,6 +532,19 @@ if [ "$com_token" = "0" ] && [ "$com_jwt" = "0" ] && [ "$linhas_hub" -gt 0 ]; th
   registrar PASS "CA6: 0 access_token= e 0 JWT no log do Caddy, com $linhas_hub linhas do hub (sem query) como controle"
 else
   registrar FAIL "CA6: $com_token linhas com access_token=, $com_jwt com JWT, $linhas_hub linhas do hub"
+fi
+# Caddy's error logs (no upstream answering) carry the request too: with both APIs stopped, the hub URL with a token
+# must answer 502/503 and leave the marker in no log line. Last step: nothing runs on the APIs after it.
+MARCADOR="marcador-do-token-$(segredo)"
+docker stop "$(id_de api-a)" "$(id_de api-b)" >/dev/null
+codigo="$(pelo_caddy hub-sem-api.txt -H "Host: $HOST_API" "http://caddy/api/v1/paf/hub?tenant=acme&access_token=$MARCADOR")"
+docker logs "$(id_de caddy)" >"$TRABALHO/caddy.log" 2>&1
+com_marcador="$(grep -c "$MARCADOR" "$TRABALHO/caddy.log" || true)"
+linhas_erro="$(grep -c '"logger":"http.log.error' "$TRABALHO/caddy.log" || true)"
+if { [ "$codigo" = "502" ] || [ "$codigo" = "503" ]; } && [ "$com_marcador" = "0" ] && [ "$linhas_erro" -gt 0 ]; then
+  registrar PASS "CA6: APIs paradas, hub com token respondeu $codigo; 0 linhas com o token e $linhas_erro linhas de erro do Caddy como controle"
+else
+  registrar FAIL "CA6: APIs paradas, hub respondeu $codigo; $com_marcador linhas com o token, $linhas_erro linhas de erro"
 fi
 
 terminar

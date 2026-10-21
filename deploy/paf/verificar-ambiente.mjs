@@ -162,7 +162,14 @@ function conferirAmbiente({ rotulo, env, modelo, avisos }) {
   conferir(r("caddy presente no modelo"), caddy !== undefined);
   conferir(r("caddy sem porta publicada"), (caddy?.ports ?? []).length === 0);
   conferir(r("caddy com o Caddyfile versionado montado só leitura"), (caddy?.volumes ?? []).some((v) => v.target === "/etc/caddy/Caddyfile" && v.read_only === true && /[\\/]caddy[\\/]Caddyfile$/.test(v.source ?? "")));
-  conferir(r("caddy confia só na subnet do projeto"), caddy?.environment?.PAF_SUBNET === rede, `${caddy?.environment?.PAF_SUBNET} x ${rede}`);
+  // O03, A4: Caddy at a fixed address outside the dynamic range, the API trusting that address alone, and Caddy
+  // trusting only the dynamic range; the bridge gateway (first host of the subnet, how host processes arrive) in none.
+  const dinamica = modelo.networks?.paf?.ipam?.config?.[0]?.ip_range;
+  const ipCaddy = caddy?.networks?.paf?.ipv4_address;
+  const gateway = typeof rede === "string" && CIDR.test(rede) ? numeroParaIpv4(faixaCidr(rede)[0] + 1) : undefined;
+  conferir(r("faixa dinâmica dentro da subnet e sem o gateway"), CIDR.test(dinamica ?? "") && CIDR.test(rede ?? "") && contem(rede, dinamica) && !dentro(gateway, dinamica), `${dinamica} em ${rede}, gateway ${gateway}`);
+  conferir(r("IP fixo do Caddy dentro da subnet, fora da faixa dinâmica e diferente do gateway"), IPV4.test(ipCaddy ?? "") && CIDR.test(rede ?? "") && dentro(ipCaddy, rede) && CIDR.test(dinamica ?? "") && !dentro(ipCaddy, dinamica) && ipCaddy !== gateway && ipCaddy !== numeroParaIpv4(faixaCidr(rede)[0]), `${ipCaddy} em ${rede} fora de ${dinamica}`);
+  conferir(r("caddy confia só na faixa dinâmica"), caddy?.environment?.PAF_SUBNET_DINAMICA === dinamica, `${caddy?.environment?.PAF_SUBNET_DINAMICA} x ${dinamica}`);
   for (const chave of ["PAF_API_URL", "PAF_DASHBOARD_URL", "PAF_ADMIN_URL"]) {
     conferir(r(`caddy com ${chave} https://<host>`), /^https:\/\/[a-z0-9.-]+$/.test(caddy?.environment?.[chave] ?? ""), caddy?.environment?.[chave] ?? "ausente");
   }
@@ -177,8 +184,16 @@ function conferirAmbiente({ rotulo, env, modelo, avisos }) {
   conferir(r("PAF_TUNEL_ID é um UUID"), UUID.test(idTunel), idTunel || "ausente");
   conferir(r("cloudflared roda o túnel de PAF_TUNEL_ID"), (tunel?.command ?? []).at(-1) === idTunel && (tunel?.command ?? []).at(-2) === "run", JSON.stringify(tunel?.command));
   const credenciais = credenciaisDoTunel(tunel?.environment?.TUNNEL_CRED_CONTENTS);
-  conferir(r("PAF_TUNEL_CREDENCIAIS é o JSON de credenciais (AccountTag, TunnelSecret, TunnelID)"), credenciais !== undefined);
-  conferir(r("PAF_TUNEL_CREDENCIAIS é do túnel de PAF_TUNEL_ID"), credenciais?.TunnelID === idTunel, credenciais?.TunnelID);
+  conferir(r("TUNNEL_CRED_CONTENTS do arquivo do túnel é o JSON de credenciais (AccountTag, TunnelSecret, TunnelID)"), credenciais !== undefined);
+  conferir(r("TUNNEL_CRED_CONTENTS é do túnel de PAF_TUNEL_ID"), credenciais?.TunnelID === idTunel, credenciais?.TunnelID);
+  // The tunnel file is this environment's own: ambientes/<x>.env pairs with ambientes/<x>.tunel.env.
+  const arquivoTunel = env.get("PAF_ARQUIVO_TUNEL") ?? "";
+  const esperadoTunel = (env.get("PAF_ARQUIVO_AMBIENTE") ?? "").replace(/\.env$/, ".tunel.env");
+  conferir(r("arquivo do túnel é o do próprio ambiente"), arquivoTunel !== "" && arquivoTunel === esperadoTunel, `${arquivoTunel} x ${esperadoTunel}`);
+  // A3: the credential reaches cloudflared only; the API and the migrator get the whole environment file.
+  const comCredencial = SERVICOS_DOTNET.filter((n) => Object.entries(servicos[n]?.environment ?? {})
+    .some(([k, v]) => k === "TUNNEL_CRED_CONTENTS" || k.startsWith("PAF_TUNEL_CRED") || (credenciais !== undefined && String(v).includes(credenciais.TunnelSecret))));
+  conferir(r("API e migrator sem a credencial do túnel"), comCredencial.length === 0, comCredencial.join(", "));
 
   for (const nome of SERVICOS_DOTNET) {
     const servico = servicos[nome];
@@ -205,9 +220,11 @@ function conferirAmbiente({ rotulo, env, modelo, avisos }) {
     conferir(s("chave de assinatura não é o exemplo"), !chave.toLowerCase().includes("replace-with"));
     conferir(s("AccessTokenMinutes explícito"), inteiroNoIntervalo(e.JwtOptions__AccessTokenMinutes, 1, 1440), e.JwtOptions__AccessTokenMinutes ?? "ausente");
 
+    // A4: a network here would trust the bridge gateway too, i.e. any process on the host hitting the loopback port.
     const redesConfiaveis = Object.entries(e).filter(([k, v]) => k.startsWith("TrustedProxyOptions__KnownNetworks__") && v).map(([, v]) => v);
-    conferir(s("KnownNetworks não vazio"), redesConfiaveis.length > 0);
-    conferir(s("KnownNetworks = subnet da rede do projeto"), redesConfiaveis.includes(rede), `${redesConfiaveis.join(",")} x ${rede}`);
+    conferir(s("KnownNetworks vazio (só o Caddy é proxy confiável)"), redesConfiaveis.length === 0, redesConfiaveis.join(","));
+    const proxiesConfiaveis = Object.entries(e).filter(([k, v]) => k.startsWith("TrustedProxyOptions__KnownProxies__") && v).map(([, v]) => v);
+    conferir(s("KnownProxies = IP fixo do Caddy"), proxiesConfiaveis.length === 1 && proxiesConfiaveis[0] === ipCaddy, `${proxiesConfiaveis.join(",")} x ${ipCaddy}`);
 
     // Absent = the kit's appsettings.Production.json value (Auth 10, Ip 300, Tenant 1000), all below the floor.
     for (const [particao, piso] of Object.entries(PISOS_LIMITE_TAXA)) {
@@ -257,6 +274,33 @@ function conferirAmbiente({ rotulo, env, modelo, avisos }) {
       conferir(s(`console em JSON (Serilog__WriteTo__${indice}__Args__formatter)`), formatador.startsWith("Serilog.Formatting.Compact."), formatador || "ausente");
     }
   }
+}
+
+const IPV4 = /^\d+\.\d+\.\d+\.\d+$/;
+const CIDR = /^\d+\.\d+\.\d+\.\d+\/\d+$/;
+
+// First and last address of a CIDR block, as numbers.
+function faixaCidr(cidr) {
+  const [ip, bits] = cidr.split("/");
+  const tamanho = 2 ** (32 - Number(bits));
+  const inicio = Math.floor(ipv4ParaNumero(ip) / tamanho) * tamanho;
+  return [inicio, inicio + tamanho - 1];
+}
+
+function numeroParaIpv4(n) {
+  return [24, 16, 8, 0].map((d) => Math.floor(n / 2 ** d) % 256).join(".");
+}
+
+function dentro(ip, cidr) {
+  if (typeof ip !== "string" || !IPV4.test(ip) || typeof cidr !== "string" || !CIDR.test(cidr)) return false;
+  const [inicio, fim] = faixaCidr(cidr);
+  return ipv4ParaNumero(ip) >= inicio && ipv4ParaNumero(ip) <= fim;
+}
+
+function contem(externa, interna) {
+  const [ei, ef] = faixaCidr(externa);
+  const [ii, ifim] = faixaCidr(interna);
+  return ii >= ei && ifim <= ef;
 }
 
 function ipv4ParaNumero(ip) {

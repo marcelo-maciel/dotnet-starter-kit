@@ -4,9 +4,9 @@
 # environment files before every `docker compose up` (README).
 #
 # Usage: deploy/paf/verificar-ambiente.sh <producao.env> <homologacao.env>
-# A host that runs only one environment (homologação before produção exists) passes the path of the other file even
-# though it does not exist: that environment's checks and every cross check print SKIPPED, never PASS. At least one
-# file must exist.
+# A host that runs only homologação (before produção exists) passes the path of producao.env even though it does not
+# exist: produção's checks and every cross check print SKIPPED, never PASS. homologacao.env must always exist:
+# produção is never checked without the cross checks against it.
 # Needs: docker compose v2; node >= 18 on the host, else the node:22-alpine image runs the checker.
 set -uo pipefail
 
@@ -19,8 +19,8 @@ RAIZ="$(cd "$AQUI/../.." && pwd)"
 TRABALHO="$(mktemp -d)"
 trap 'rm -rf "$TRABALHO"' EXIT
 
-if [ ! -f "$1" ] && [ ! -f "$2" ]; then
-  echo "FAIL nenhum arquivo de ambiente existe: $1, $2" >&2
+if [ ! -f "$2" ]; then
+  echo "FAIL arquivo de ambiente da homologação inexistente: $2 (só a produção pode faltar, e as conferências cruzadas nunca)" >&2
   exit 1
 fi
 cp "$AQUI/verificar-ambiente.mjs" "$TRABALHO/"

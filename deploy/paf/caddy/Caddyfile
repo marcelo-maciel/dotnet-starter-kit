@@ -1,17 +1,26 @@
 # PAF V2, internal balancer of one environment (O03). The only client is this project's cloudflared (no port is
 # published on the host), so this is plain HTTP inside the `paf` network: TLS ends at the Cloudflare edge, no ACME and
 # no certificate here. The hosts come from the environment file through the container's environment
-# (PAF_API_URL, PAF_DASHBOARD_URL, PAF_ADMIN_URL, PAF_SUBNET), so one file serves both environments.
+# (PAF_API_URL, PAF_DASHBOARD_URL, PAF_ADMIN_URL, PAF_SUBNET_DINAMICA), so one file serves both environments.
 #
 # Reload closes every proxied WebSocket by default; no routine operation reloads this file (the deploy swaps
 # instances by health check, never by editing it). README, "Túnel e Caddy".
 {
 	# Never fetch certificates: the edge terminates TLS.
 	auto_https off
+	# Caddy's own logs (http.log.error.* when no upstream answers, among others) carry the request too: same filter as
+	# the access log below, so ?access_token= never reaches any log.
+	log default {
+		output stderr
+		format filter {
+			request>uri regexp "\?.*$" ""
+			wrap json
+		}
+	}
 	servers {
-		# Only cloudflared (inside PAF_SUBNET) may state the client IP, and only through CF-Connecting-IP, which the
+		# Only cloudflared (inside the network's dynamic range; the host's gateway is outside it) may state the client IP, and only through CF-Connecting-IP, which the
 		# Cloudflare edge always overwrites. A client's own X-Forwarded-For is never read (CA7).
-		trusted_proxies static {$PAF_SUBNET}
+		trusted_proxies static {$PAF_SUBNET_DINAMICA}
 		client_ip_headers CF-Connecting-IP
 	}
 }
@@ -35,16 +44,18 @@
 	handle @api {
 		# Option B of ARQ seção 11: every PafHub client connects WebSockets-only with SkipNegotiation, so no affinity.
 		# A stopped or dead instance fails the dial and the request is retried on the other one for up to 5 s; the
-		# active check takes it out within 2 s and puts it back on its first 200 (O06 swaps instances this way).
+		# active check takes it out after two failed probes (a probe may wait 4 s: the API's own PostgreSQL probe has a
+		# 2 s deadline) and puts it back on its first 200 (O06 swaps instances this way).
 		reverse_proxy api-a:8080 api-b:8080 {
 			lb_policy round_robin
 			lb_try_duration 5s
 			lb_try_interval 250ms
 			health_uri /api/v1/paf/saude
 			health_interval 2s
-			health_timeout 2s
+			health_timeout 4s
+			health_fails 2
 			fail_duration 2s
-			# The kit trusts X-Forwarded-For and X-Forwarded-Proto from KnownNetworks = PAF_SUBNET, ForwardLimit 1:
+			# The kit trusts X-Forwarded-For and X-Forwarded-Proto only from KnownProxies = PAF_IP_CADDY, ForwardLimit 1:
 			# one value, the client IP resolved above (CF-Connecting-IP from cloudflared, else the peer).
 			header_up X-Forwarded-For {client_ip}
 			header_up X-Forwarded-Proto https
