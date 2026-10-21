@@ -478,9 +478,10 @@ try {
   // ── B1: programação without Midias.View (RF08 individual grant of Programacoes.View and Update to an atendente) ──
   // The mídia list is refused; an edit keeps the current mídia with the programação's own duration, and the form says
   // why no other mídia is offered.
-  const tAlice = (await api("POST", "/api/v1/identity/token/issue", null, { email: "alice@acme.com", password: SENHA_DEMO })).accessToken;
-  const aliceId = JSON.parse(Buffer.from(tAlice.split(".")[1], "base64url").toString("utf8")).sub;
+  // Alice has no unidade yet, so she cannot log in: her id comes from the admin's user list.
   const tAdminB1 = await tokenDe(p);
+  const aliceId = (await api("GET", "/api/v1/identity/users", tAdminB1)).find((u) => u.email === "alice@acme.com")?.id;
+  check("B1: alice encontrada na lista de usuários", aliceId !== undefined);
   await api("PUT", `/api/v1/paf/usuarios/${aliceId}/unidades`, tAdminB1, { usuarioId: aliceId, unidades: [demo.id], escopoEmpresa: false });
   await api("PUT", `/api/v1/paf/usuarios/${aliceId}/permissoes`, tAdminB1, {
     usuarioId: aliceId,
