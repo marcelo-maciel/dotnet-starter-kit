@@ -5,8 +5,10 @@
 //   node verificar-ambiente.mjs <appsettings.Production.json> <producao.env> <producao.json> <producao.stderr> \
 //                               <homologacao.env> <homologacao.json> <homologacao.stderr>
 //
-// Prints one PASS/FAIL line per check and exits 1 when any check failed.
-import { readFileSync } from "node:fs";
+// An environment whose rendered model (.json) is absent was not given to verificar-ambiente.sh (a host that runs only
+// one environment): its checks and every cross check print SKIPPED, never PASS.
+// Prints one PASS/FAIL/SKIPPED line per check and exits 1 when any check failed.
+import { existsSync, readFileSync } from "node:fs";
 
 const FUSO = "America/Sao_Paulo";
 // RNF05 ceiling shared with the O19 test (src/Tests/PAF.Tests/PrazosEntradaSaida/RegrasDePrazo.cs, Teto = 30 s).
@@ -41,6 +43,10 @@ function lerArquivoDeAmbiente(caminho) {
 }
 
 function carregar(rotulo, arquivoEnv, arquivoJson, arquivoStderr) {
+  if (!existsSync(arquivoJson)) {
+    console.log(`SKIPPED ${rotulo}: ambiente não informado, nenhuma conferência dele`);
+    return undefined;
+  }
   return {
     rotulo,
     env: lerArquivoDeAmbiente(arquivoEnv),
@@ -54,10 +60,14 @@ const cabecalhosDoKit = appsettingsDoKit.CorsOptions.AllowedHeaders.map((h) => h
 // O10: positions of the kit's Serilog sinks, so the environment overrides the right index whatever the kit reorders.
 const sinksDoKit = (appsettingsDoKit.Serilog?.WriteTo ?? []).map((w, i) => ({ indice: i, nome: w.Name }));
 
-const ambientes = [
+const [producao, homologacao] = [
   carregar("producao", porAmbiente[0], porAmbiente[1], porAmbiente[2]),
   carregar("homologacao", porAmbiente[3], porAmbiente[4], porAmbiente[5]),
 ];
+if (producao === undefined && homologacao === undefined) {
+  console.error("nenhum ambiente para conferir");
+  process.exit(2);
+}
 
 // "key=value;key=value" with Npgsql's tolerance: keys case- and space-insensitive.
 function pares(texto, separador) {
@@ -82,6 +92,18 @@ function soWebSockets(transportes) {
 
 function subrede(modelo) {
   return modelo.networks?.paf?.ipam?.config?.[0]?.subnet;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// The file `cloudflared tunnel create` writes; undefined when it is not JSON or lacks a field cloudflared needs.
+function credenciaisDoTunel(texto) {
+  try {
+    const c = JSON.parse(texto ?? "");
+    return ["AccountTag", "TunnelSecret", "TunnelID"].every((k) => typeof c?.[k] === "string" && c[k] !== "") ? c : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function conferirAmbiente({ rotulo, env, modelo, avisos }) {
@@ -134,6 +156,45 @@ function conferirAmbiente({ rotulo, env, modelo, avisos }) {
   conferir(r("bucket de backup separado do bucket da aplicação"), Boolean(backup.PAF_BACKUP_BUCKET) && backup.PAF_BACKUP_BUCKET !== bucketAplicacao, `${backup.PAF_BACKUP_BUCKET} x ${bucketAplicacao}`);
   conferir(r("backup sem a credencial do Storage da aplicação"), Object.keys(backup).every((k) => !k.startsWith("Storage__")) && backup.AWS_ACCESS_KEY_ID !== servicos["api-a"]?.environment?.Storage__S3__AccessKey);
 
+  // O03: the environment's entrance is its own tunnel into Caddy; neither publishes a port (the check above covers
+  // every service) and both always run, never behind a profile.
+  const caddy = servicos.caddy;
+  conferir(r("caddy presente no modelo"), caddy !== undefined);
+  conferir(r("caddy sem porta publicada"), (caddy?.ports ?? []).length === 0);
+  conferir(r("caddy com o Caddyfile versionado montado só leitura"), (caddy?.volumes ?? []).some((v) => v.target === "/etc/caddy/Caddyfile" && v.read_only === true && /[\\/]caddy[\\/]Caddyfile$/.test(v.source ?? "")));
+  // O03, A4: Caddy at a fixed address outside the dynamic range, the API trusting that address alone, and Caddy
+  // trusting only the dynamic range; the bridge gateway (first host of the subnet, how host processes arrive) in none.
+  const dinamica = modelo.networks?.paf?.ipam?.config?.[0]?.ip_range;
+  const ipCaddy = caddy?.networks?.paf?.ipv4_address;
+  const gateway = typeof rede === "string" && CIDR.test(rede) ? numeroParaIpv4(faixaCidr(rede)[0] + 1) : undefined;
+  conferir(r("faixa dinâmica dentro da subnet e sem o gateway"), CIDR.test(dinamica ?? "") && CIDR.test(rede ?? "") && contem(rede, dinamica) && !dentro(gateway, dinamica), `${dinamica} em ${rede}, gateway ${gateway}`);
+  conferir(r("IP fixo do Caddy dentro da subnet, fora da faixa dinâmica e diferente do gateway"), IPV4.test(ipCaddy ?? "") && CIDR.test(rede ?? "") && dentro(ipCaddy, rede) && CIDR.test(dinamica ?? "") && !dentro(ipCaddy, dinamica) && ipCaddy !== gateway && ipCaddy !== numeroParaIpv4(faixaCidr(rede)[0]), `${ipCaddy} em ${rede} fora de ${dinamica}`);
+  conferir(r("caddy confia só na faixa dinâmica"), caddy?.environment?.PAF_SUBNET_DINAMICA === dinamica, `${caddy?.environment?.PAF_SUBNET_DINAMICA} x ${dinamica}`);
+  for (const chave of ["PAF_API_URL", "PAF_DASHBOARD_URL", "PAF_ADMIN_URL"]) {
+    conferir(r(`caddy com ${chave} https://<host>`), /^https:\/\/[a-z0-9.-]+$/.test(caddy?.environment?.[chave] ?? ""), caddy?.environment?.[chave] ?? "ausente");
+  }
+  const tunel = servicos.cloudflared;
+  conferir(r("cloudflared presente no modelo"), tunel !== undefined);
+  // api-b included: both environments run two instances, so the deploy never takes the API down (O06).
+  const comPerfil = Object.entries(servicos).filter(([, s]) => s.profiles !== undefined).map(([n]) => n);
+  conferir(r("nenhum serviço atrás de perfil"), comPerfil.length === 0, comPerfil.join(", "));
+  conferir(r("cloudflared com 2 réplicas (CA4)"), tunel?.deploy?.replicas === 2, tunel?.deploy?.replicas);
+  conferir(r("cloudflared com o config.yml versionado montado só leitura"), (tunel?.volumes ?? []).some((v) => v.target === "/etc/cloudflared/config.yml" && v.read_only === true && /[\\/]cloudflared[\\/]config\.yml$/.test(v.source ?? "")));
+  const idTunel = env.get("PAF_TUNEL_ID") ?? "";
+  conferir(r("PAF_TUNEL_ID é um UUID"), UUID.test(idTunel), idTunel || "ausente");
+  conferir(r("cloudflared roda o túnel de PAF_TUNEL_ID"), (tunel?.command ?? []).at(-1) === idTunel && (tunel?.command ?? []).at(-2) === "run", JSON.stringify(tunel?.command));
+  const credenciais = credenciaisDoTunel(tunel?.environment?.TUNNEL_CRED_CONTENTS);
+  conferir(r("TUNNEL_CRED_CONTENTS do arquivo do túnel é o JSON de credenciais (AccountTag, TunnelSecret, TunnelID)"), credenciais !== undefined);
+  conferir(r("TUNNEL_CRED_CONTENTS é do túnel de PAF_TUNEL_ID"), credenciais?.TunnelID === idTunel, credenciais?.TunnelID);
+  // The tunnel file is this environment's own: ambientes/<x>.env pairs with ambientes/<x>.tunel.env.
+  const arquivoTunel = env.get("PAF_ARQUIVO_TUNEL") ?? "";
+  const esperadoTunel = (env.get("PAF_ARQUIVO_AMBIENTE") ?? "").replace(/\.env$/, ".tunel.env");
+  conferir(r("arquivo do túnel é o do próprio ambiente"), arquivoTunel !== "" && arquivoTunel === esperadoTunel, `${arquivoTunel} x ${esperadoTunel}`);
+  // A3: the credential reaches cloudflared only; the API and the migrator get the whole environment file.
+  const comCredencial = SERVICOS_DOTNET.filter((n) => Object.entries(servicos[n]?.environment ?? {})
+    .some(([k, v]) => k === "TUNNEL_CRED_CONTENTS" || k.startsWith("PAF_TUNEL_CRED") || (credenciais !== undefined && String(v).includes(credenciais.TunnelSecret))));
+  conferir(r("API e migrator sem a credencial do túnel"), comCredencial.length === 0, comCredencial.join(", "));
+
   for (const nome of SERVICOS_DOTNET) {
     const servico = servicos[nome];
     conferir(r(`${nome} presente no modelo`), servico !== undefined);
@@ -159,9 +220,11 @@ function conferirAmbiente({ rotulo, env, modelo, avisos }) {
     conferir(s("chave de assinatura não é o exemplo"), !chave.toLowerCase().includes("replace-with"));
     conferir(s("AccessTokenMinutes explícito"), inteiroNoIntervalo(e.JwtOptions__AccessTokenMinutes, 1, 1440), e.JwtOptions__AccessTokenMinutes ?? "ausente");
 
+    // A4: a network here would trust the bridge gateway too, i.e. any process on the host hitting the loopback port.
     const redesConfiaveis = Object.entries(e).filter(([k, v]) => k.startsWith("TrustedProxyOptions__KnownNetworks__") && v).map(([, v]) => v);
-    conferir(s("KnownNetworks não vazio"), redesConfiaveis.length > 0);
-    conferir(s("KnownNetworks = subnet da rede do projeto"), redesConfiaveis.includes(rede), `${redesConfiaveis.join(",")} x ${rede}`);
+    conferir(s("KnownNetworks vazio (só o Caddy é proxy confiável)"), redesConfiaveis.length === 0, redesConfiaveis.join(","));
+    const proxiesConfiaveis = Object.entries(e).filter(([k, v]) => k.startsWith("TrustedProxyOptions__KnownProxies__") && v).map(([, v]) => v);
+    conferir(s("KnownProxies = IP fixo do Caddy"), proxiesConfiaveis.length === 1 && proxiesConfiaveis[0] === ipCaddy, `${proxiesConfiaveis.join(",")} x ${ipCaddy}`);
 
     // Absent = the kit's appsettings.Production.json value (Auth 10, Ip 300, Tenant 1000), all below the floor.
     for (const [particao, piso] of Object.entries(PISOS_LIMITE_TAXA)) {
@@ -213,6 +276,33 @@ function conferirAmbiente({ rotulo, env, modelo, avisos }) {
   }
 }
 
+const IPV4 = /^\d+\.\d+\.\d+\.\d+$/;
+const CIDR = /^\d+\.\d+\.\d+\.\d+\/\d+$/;
+
+// First and last address of a CIDR block, as numbers.
+function faixaCidr(cidr) {
+  const [ip, bits] = cidr.split("/");
+  const tamanho = 2 ** (32 - Number(bits));
+  const inicio = Math.floor(ipv4ParaNumero(ip) / tamanho) * tamanho;
+  return [inicio, inicio + tamanho - 1];
+}
+
+function numeroParaIpv4(n) {
+  return [24, 16, 8, 0].map((d) => Math.floor(n / 2 ** d) % 256).join(".");
+}
+
+function dentro(ip, cidr) {
+  if (typeof ip !== "string" || !IPV4.test(ip) || typeof cidr !== "string" || !CIDR.test(cidr)) return false;
+  const [inicio, fim] = faixaCidr(cidr);
+  return ipv4ParaNumero(ip) >= inicio && ipv4ParaNumero(ip) <= fim;
+}
+
+function contem(externa, interna) {
+  const [ei, ef] = faixaCidr(externa);
+  const [ii, ifim] = faixaCidr(interna);
+  return ii >= ei && ifim <= ef;
+}
+
 function ipv4ParaNumero(ip) {
   return ip.split(".").reduce((acc, octeto) => acc * 256 + Number(octeto), 0);
 }
@@ -239,21 +329,32 @@ function api(modelo) {
 }
 
 conferir("appsettings.Production.json: PafHub só em WebSockets", soWebSockets(appsettingsDoKit.PAF?.TempoReal?.Transportes), appsettingsDoKit.PAF?.TempoReal?.Transportes);
-for (const ambiente of ambientes) conferirAmbiente(ambiente);
+for (const ambiente of [producao, homologacao]) if (ambiente !== undefined) conferirAmbiente(ambiente);
 
-const [prod, homolog] = ambientes.map((a) => a.modelo);
-conferir("cruzado: nomes de projeto diferentes", prod.name !== homolog.name, `${prod.name} x ${homolog.name}`);
-conferir("cruzado: subnets sem sobreposição", !sobrepoe(subrede(prod), subrede(homolog)), `${subrede(prod)} x ${subrede(homolog)}`);
-const portasRepetidas = portasPublicadas(prod).filter((p) => portasPublicadas(homolog).includes(p));
-conferir("cruzado: portas publicadas distintas", portasRepetidas.length === 0, portasRepetidas.join(", "));
-conferir("cruzado: mesmo AccessTokenMinutes", api(prod).JwtOptions__AccessTokenMinutes === api(homolog).JwtOptions__AccessTokenMinutes, `${api(prod).JwtOptions__AccessTokenMinutes} x ${api(homolog).JwtOptions__AccessTokenMinutes}`);
-// Same key, issuer and audience would make a homologation token valid in production.
-conferir("cruzado: chaves de assinatura diferentes", api(prod).JwtOptions__SigningKey !== api(homolog).JwtOptions__SigningKey);
-conferir("cruzado: buckets do R2 diferentes", api(prod).Storage__S3__Bucket !== api(homolog).Storage__S3__Bucket, api(prod).Storage__S3__Bucket);
-const bucketBackup = (modelo) => modelo.services?.backup?.environment?.PAF_BACKUP_BUCKET;
-conferir("cruzado: buckets de backup diferentes", bucketBackup(prod) !== bucketBackup(homolog), bucketBackup(prod));
-// Same service name would mix homologation telemetry into production's in New Relic.
-conferir("cruzado: OTEL_SERVICE_NAME diferentes", api(prod).OTEL_SERVICE_NAME !== api(homolog).OTEL_SERVICE_NAME, api(prod).OTEL_SERVICE_NAME);
+function conferirCruzado(prod, homolog) {
+  conferir("cruzado: nomes de projeto diferentes", prod.name !== homolog.name, `${prod.name} x ${homolog.name}`);
+  conferir("cruzado: subnets sem sobreposição", !sobrepoe(subrede(prod), subrede(homolog)), `${subrede(prod)} x ${subrede(homolog)}`);
+  const portasRepetidas = portasPublicadas(prod).filter((p) => portasPublicadas(homolog).includes(p));
+  conferir("cruzado: portas publicadas distintas", portasRepetidas.length === 0, portasRepetidas.join(", "));
+  conferir("cruzado: mesmo AccessTokenMinutes", api(prod).JwtOptions__AccessTokenMinutes === api(homolog).JwtOptions__AccessTokenMinutes, `${api(prod).JwtOptions__AccessTokenMinutes} x ${api(homolog).JwtOptions__AccessTokenMinutes}`);
+  // Same key, issuer and audience would make a homologation token valid in production.
+  conferir("cruzado: chaves de assinatura diferentes", api(prod).JwtOptions__SigningKey !== api(homolog).JwtOptions__SigningKey);
+  conferir("cruzado: buckets do R2 diferentes", api(prod).Storage__S3__Bucket !== api(homolog).Storage__S3__Bucket, api(prod).Storage__S3__Bucket);
+  const bucketBackup = (modelo) => modelo.services?.backup?.environment?.PAF_BACKUP_BUCKET;
+  conferir("cruzado: buckets de backup diferentes", bucketBackup(prod) !== bucketBackup(homolog), bucketBackup(prod));
+  // One tunnel per environment (O03): a leaked homologation credential never reaches production.
+  const tunelDe = (modelo) => modelo.services?.cloudflared?.command?.at(-1);
+  conferir("cruzado: túneis diferentes", tunelDe(prod) !== tunelDe(homolog), tunelDe(prod));
+  // Same service name would mix homologation telemetry into production's in New Relic.
+  conferir("cruzado: OTEL_SERVICE_NAME diferentes", api(prod).OTEL_SERVICE_NAME !== api(homolog).OTEL_SERVICE_NAME, api(prod).OTEL_SERVICE_NAME);
+}
 
-console.log(falhas === 0 ? "VERIFICAR-AMBIENTE OK" : `VERIFICAR-AMBIENTE FALHOU (${falhas})`);
+const cruzadasPuladas = producao === undefined || homologacao === undefined;
+if (cruzadasPuladas) {
+  console.log(`SKIPPED cruzado: só ${(producao ?? homologacao).rotulo} informado; nomes, subnets, portas, chaves, buckets, túneis e OTEL_SERVICE_NAME entre ambientes não conferidos`);
+} else {
+  conferirCruzado(producao.modelo, homologacao.modelo);
+}
+
+console.log(falhas > 0 ? `VERIFICAR-AMBIENTE FALHOU (${falhas})` : cruzadasPuladas ? "VERIFICAR-AMBIENTE OK (conferências cruzadas SKIPPED)" : "VERIFICAR-AMBIENTE OK");
 process.exit(falhas === 0 ? 0 : 1);

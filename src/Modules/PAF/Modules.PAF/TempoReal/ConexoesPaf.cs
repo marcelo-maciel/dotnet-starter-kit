@@ -19,6 +19,13 @@ public sealed partial class ConexoesPaf(IHubContext<PafHub> hub, RegistroConexoe
     // A group change crosses the Redis backplane; a stalled Valkey must not hold the caller.
     private static readonly TimeSpan LimiteGrupo = TimeSpan.FromSeconds(5);
 
+    // Taking another instance's connection out of a group waits for that instance's ack over the backplane, which a
+    // live one sends in milliseconds. A connection the registry still lists after its instance died (SIGKILL: the
+    // entry lives until it expires) or after it closed gets no ack at all, and the login that revokes the previous
+    // session waits on this path. Past this wait the connection counts as gone: its groups are forgotten, and a live
+    // one that merely was slow is still refused by PafHubFilter on its next call and closed by the renewal cycle.
+    private static readonly TimeSpan LimiteConfirmacaoRemota = TimeSpan.FromSeconds(1);
+
     private readonly ConcurrentDictionary<string, Local> _locais = new(StringComparer.Ordinal);
 
     public async Task RegistrarAsync(HubCallerContext contexto, ConexaoPaf conexao, CancellationToken ct)
@@ -73,10 +80,9 @@ public sealed partial class ConexoesPaf(IHubContext<PafHub> hub, RegistroConexoe
     public async Task MoverSessaoParaGuicheAsync(string tenantId, Guid sessaoId, Guid? estacaoId, CancellationToken ct)
     {
         var grupo = estacaoId is { } id ? PafGrupos.Guiche(tenantId, id) : null;
-        foreach (var connectionId in await DaSessaoAsync(tenantId, sessaoId, ct).ConfigureAwait(false))
-        {
-            await MoverAsync(tenantId, connectionId, grupo, ct).ConfigureAwait(false);
-        }
+        // Every connection at once: one without an owner costs its own wait, never the sum over the session.
+        var conexoes = await DaSessaoAsync(tenantId, sessaoId, ct).ConfigureAwait(false);
+        await Task.WhenAll(conexoes.Select(connectionId => MoverAsync(tenantId, connectionId, grupo, ct))).ConfigureAwait(false);
     }
 
     internal Task MoverConexaoParaGuicheAsync(string connectionId, string tenantId, Guid estacaoId, CancellationToken ct) =>
@@ -91,10 +97,8 @@ public sealed partial class ConexoesPaf(IHubContext<PafHub> hub, RegistroConexoe
         var concessao = concessaoId.ToString("N");
         var grupo = estacaoId is { } id ? PafGrupos.Guiche(tenantId, id) : null;
         var locais = Filtrar(c => c is ConexaoPessoa p && p.TenantId == tenantId && p.Concessao == concessao);
-        foreach (var connectionId in Unir(locais, await registro.DaConcessaoAsync(tenantId, concessao, ct).ConfigureAwait(false)))
-        {
-            await MoverAsync(tenantId, connectionId, grupo, ct).ConfigureAwait(false);
-        }
+        var conexoes = Unir(locais, await registro.DaConcessaoAsync(tenantId, concessao, ct).ConfigureAwait(false));
+        await Task.WhenAll(conexoes.Select(connectionId => MoverAsync(tenantId, connectionId, grupo, ct))).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -217,28 +221,72 @@ public sealed partial class ConexoesPaf(IHubContext<PafHub> hub, RegistroConexoe
         return todas;
     }
 
-    private async Task RemoverDosGruposAsync(string tenantId, IReadOnlyCollection<string> conexoes, CancellationToken ct)
+    // Every connection at once: one without an owner costs its own wait, never the sum over the session.
+    private Task RemoverDosGruposAsync(string tenantId, IReadOnlyCollection<string> conexoes, CancellationToken ct) =>
+        Task.WhenAll(conexoes.Select(connectionId => RemoverDosGruposAsync(tenantId, connectionId, ct)));
+
+    private async Task RemoverDosGruposAsync(string tenantId, string connectionId, CancellationToken ct)
     {
         using var limite = Limite(ct);
-        foreach (var connectionId in conexoes)
+        var grupos = new HashSet<string>(await registro.GruposAsync(tenantId, connectionId, limite.Token).ConfigureAwait(false), StringComparer.Ordinal);
+        var local = _locais.TryGetValue(connectionId, out var encontrada) ? encontrada : null;
+        if (local is not null)
         {
-            var grupos = new HashSet<string>(await registro.GruposAsync(tenantId, connectionId, limite.Token).ConfigureAwait(false), StringComparer.Ordinal);
-            if (_locais.TryGetValue(connectionId, out var local))
+            lock (local)
             {
-                lock (local)
-                {
-                    grupos.UnionWith(local.Grupos);
-                    local.Grupos.Clear();
-                    local.GrupoGuiche = null;
-                }
+                grupos.UnionWith(local.Grupos);
+                local.Grupos.Clear();
+                local.GrupoGuiche = null;
             }
+        }
 
-            foreach (var grupo in grupos)
+        foreach (var grupo in grupos)
+        {
+            if (!await ConfirmadoAsync(connectionId, hub.Groups.RemoveFromGroupAsync(connectionId, grupo, limite.Token), limite.Token).ConfigureAwait(false))
             {
-                await hub.Groups.RemoveFromGroupAsync(connectionId, grupo, limite.Token).ConfigureAwait(false);
+                // No instance answered for this connection: the remaining groups would wait the same way.
+                LogConexaoSemDono(logger, tenantId, connectionId, grupos.Count);
+                break;
             }
+        }
 
-            await registro.EsquecerGruposAsync(tenantId, connectionId, limite.Token).ConfigureAwait(false);
+        await registro.EsquecerGruposAsync(tenantId, connectionId, limite.Token).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Waits for a group action on a connection held anywhere. Held here, the lifetime manager applies it directly.
+    /// Held elsewhere, the backplane waits for the holder's ack on its own timer (about 30 s) and ignores the token,
+    /// so the ceiling is applied on the wait, as in <see cref="AvisarAsync"/>. False when no instance confirmed it
+    /// within <see cref="LimiteConfirmacaoRemota"/>: the connection has no owner.
+    /// </summary>
+    private async Task<bool> ConfirmadoAsync(string connectionId, Task acao, CancellationToken ct)
+    {
+        if (_locais.ContainsKey(connectionId))
+        {
+            await acao.WaitAsync(ct).ConfigureAwait(false);
+            return true;
+        }
+
+        try
+        {
+            await acao.WaitAsync(LimiteConfirmacaoRemota, ct).ConfigureAwait(false);
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            _ = ObservarAbandonadaAsync(acao, connectionId);
+            return false;
+        }
+    }
+
+    // The abandoned wait ends later, cancelled by the backplane's ack timer, as expected when nobody holds the
+    // connection. A fault, with Valkey down, is logged here, which also keeps it from being an unobserved exception.
+    private async Task ObservarAbandonadaAsync(Task acao, string connectionId)
+    {
+        await Task.WhenAny(acao).ConfigureAwait(false);
+        if (acao.Exception is { } falha)
+        {
+            LogAbandonadaFalhou(logger, falha, connectionId);
         }
     }
 
@@ -266,7 +314,12 @@ public sealed partial class ConexoesPaf(IHubContext<PafHub> hub, RegistroConexoe
         var anterior = troca.Disponivel ? troca.Anterior : anteriorLocal;
         if (anterior is not null && anterior != grupo)
         {
-            await hub.Groups.RemoveFromGroupAsync(connectionId, anterior, limite.Token).ConfigureAwait(false);
+            if (!await ConfirmadoAsync(connectionId, hub.Groups.RemoveFromGroupAsync(connectionId, anterior, limite.Token), limite.Token).ConfigureAwait(false))
+            {
+                await EsquecerSemDonoAsync(tenantId, connectionId, limite.Token).ConfigureAwait(false);
+                return;
+            }
+
             await EsquecerGrupoAsync(connectionId, tenantId, anterior, limite.Token).ConfigureAwait(false);
         }
 
@@ -275,17 +328,34 @@ public sealed partial class ConexoesPaf(IHubContext<PafHub> hub, RegistroConexoe
             return;
         }
 
-        await hub.Groups.AddToGroupAsync(connectionId, grupo, limite.Token).ConfigureAwait(false);
+        if (!await ConfirmadoAsync(connectionId, hub.Groups.AddToGroupAsync(connectionId, grupo, limite.Token), limite.Token).ConfigureAwait(false))
+        {
+            await EsquecerSemDonoAsync(tenantId, connectionId, limite.Token).ConfigureAwait(false);
+            return;
+        }
+
         await LembrarGrupoAsync(connectionId, tenantId, grupo, limite.Token).ConfigureAwait(false);
 
         // A concurrent move may have swapped the target after this one read it: the newer move owns the
         // connection, so this group comes back out instead of lingering next to the newer one.
         if (await GuicheCorrenteAsync(tenantId, connectionId, local, limite.Token).ConfigureAwait(false) != grupo)
         {
-            await hub.Groups.RemoveFromGroupAsync(connectionId, grupo, limite.Token).ConfigureAwait(false);
+            if (!await ConfirmadoAsync(connectionId, hub.Groups.RemoveFromGroupAsync(connectionId, grupo, limite.Token), limite.Token).ConfigureAwait(false))
+            {
+                await EsquecerSemDonoAsync(tenantId, connectionId, limite.Token).ConfigureAwait(false);
+                return;
+            }
+
             await EsquecerGrupoAsync(connectionId, tenantId, grupo, limite.Token).ConfigureAwait(false);
             LogMovimentoSuperado(logger, connectionId, grupo);
         }
+    }
+
+    // A connection no instance holds: its recorded groups are dropped so the next revocation or move skips the wait.
+    private async Task EsquecerSemDonoAsync(string tenantId, string connectionId, CancellationToken ct)
+    {
+        LogConexaoSemDono(logger, tenantId, connectionId, 1);
+        await registro.EsquecerGruposAsync(tenantId, connectionId, ct).ConfigureAwait(false);
     }
 
     private async Task<string?> GuicheCorrenteAsync(string tenantId, string connectionId, Local? local, CancellationToken ct)
@@ -350,6 +420,14 @@ public sealed partial class ConexoesPaf(IHubContext<PafHub> hub, RegistroConexoe
     [LoggerMessage(EventId = 9105, Level = LogLevel.Warning,
         Message = "PafHub aviso SessaoInvalidada nao enviado {ConnectionId} sessao={SessaoId}; a conexao e encerrada assim mesmo")]
     private static partial void LogAvisoNaoEnviado(ILogger logger, Exception ex, string connectionId, Guid sessaoId);
+
+    [LoggerMessage(EventId = 9107, Level = LogLevel.Warning,
+        Message = "PafHub conexao sem dono no backplane tenant={TenantId} {ConnectionId}: saida de {Grupos} grupos sem confirmacao; grupos esquecidos")]
+    private static partial void LogConexaoSemDono(ILogger logger, string tenantId, string connectionId, int grupos);
+
+    [LoggerMessage(EventId = 9108, Level = LogLevel.Warning,
+        Message = "PafHub acao de grupo abandonada falhou depois do prazo {ConnectionId}")]
+    private static partial void LogAbandonadaFalhou(ILogger logger, Exception ex, string connectionId);
 
     [LoggerMessage(EventId = 9011, Level = LogLevel.Information,
         Message = "PafHub ultima conexao da sessao caiu tenant={TenantId} sessao={SessaoId}; soltura depois da carencia")]

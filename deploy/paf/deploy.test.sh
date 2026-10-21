@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Failure paths of deploy.sh (O06) that need no Docker and no Apache: usage errors (2), missing environment file (4)
-# and the lock held by another deploy (3), plus the rollback tag of the pre-flight on stubbed docker/curl. deploy.sh runs from a copy in a temporary directory, so nothing under
-# deploy/paf/ambientes is written. The full path (drain, health, rollback) is ensaio-deploy.sh.
+# Paths of deploy.sh (O06) that need no Docker: usage errors (2), missing environment file (4), the lock held by
+# another deploy (3), the rollback tag of the pre-flight, the other instance without health (4, nothing stopped) and
+# the order of the instances, all on stubbed docker/curl. deploy.sh runs from a copy in a temporary directory, so
+# nothing under deploy/paf/ambientes is written. The full path (Caddy, health, rollback) is ensaio-deploy.sh.
 # Usage: deploy/paf/deploy.test.sh   -> exit 0 only when every case got the expected exit code.
 set -uo pipefail
 
@@ -41,13 +42,15 @@ else
 fi
 
 # Rollback tag recorded in pre-flight, with docker, curl, flock and verificar-ambiente.sh stubbed: the stub docker
-# reports the running API images from STUB_IMAGEM_A / STUB_IMAGEM_B and fails `compose up`, so every run stops at
-# step 3 (exit 6) with nothing deployed, right after the tag-anterior decision under test.
+# reports the running API images from STUB_IMAGEM_A / STUB_IMAGEM_B and fails `compose up` unless STUB_UP=0, so
+# those runs stop at step 3 (exit 6) with nothing deployed, right after the tag-anterior decision under test. Every
+# docker call is appended to STUB_LOG; curl answers 200 only for the ports listed in STUB_SAUDAVEIS.
 STUBS="$TEMP/stubs"
 mkdir -p "$STUBS"
 cat >"$STUBS/docker" <<'STUB'
 #!/usr/bin/env bash
 ultimo="${!#}"
+echo "$*" >>"$STUB_LOG"
 case " $* " in
   *" image inspect "*) exit 0 ;;
   *" ps -q "*)
@@ -59,25 +62,30 @@ case " $* " in
   *" inspect "*)
     case "$ultimo" in id-api-a) echo "$STUB_IMAGEM_A" ;; id-api-b) echo "$STUB_IMAGEM_B" ;; *) exit 1 ;; esac
     exit 0 ;;
-  *" up "*) exit 1 ;;
+  *" up -d --no-deps api-"*) exit "${STUB_UP_INSTANCIA:-${STUB_UP:-1}}" ;;
+  *" up "*) exit "${STUB_UP:-1}" ;;
+  *" run "* | *" stop "* | *" logs "*) exit 0 ;;
 esac
 echo "docker stub: chamada inesperada: $*" >&2
 exit 1
 STUB
 cat >"$STUBS/curl" <<'STUB'
 #!/usr/bin/env bash
-echo '<tr><td><a href="/x">http://127.0.0.1:18081</a></td><td>a</td><td></td><td>1</td><td>0</td><td>Init Ok</td><td>0</td><td>0</td></tr>'
-echo '<tr><td><a href="/x">http://127.0.0.1:18082</a></td><td>b</td><td></td><td>1</td><td>0</td><td>Init Ok</td><td>0</td><td>0</td></tr>'
+porta="${!#}"
+porta="${porta#http://127.0.0.1:}"
+porta="${porta%%/*}"
+case " ${STUB_SAUDAVEIS:-} " in *" $porta "*) printf 200 ;; *) printf 000 ;; esac
 STUB
 printf '#!/usr/bin/env bash\nexit 0\n' >"$STUBS/flock"
 chmod +x "$STUBS/docker" "$STUBS/curl" "$STUBS/flock"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$TEMP/paf/verificar-ambiente.sh"
-printf 'COMPOSE_PROJECT_NAME=paf-prod\nPAF_API_URL=https://api.exemplo.test\nCOMPOSE_PROFILES=duas-instancias\nPAF_PORTA_API_A=18081\nPAF_PORTA_API_B=18082\n' \
+printf 'COMPOSE_PROJECT_NAME=paf-prod\nPAF_PORTA_API_A=18081\nPAF_PORTA_API_B=18082\nPAF_PORTA_DASHBOARD=18083\nPAF_PORTA_ADMIN=18084\n' \
   >"$TEMP/paf/ambientes/producao.env"
 : >"$TEMP/paf/ambientes/homologacao.env"
 REGISTRADA="$TEMP/paf/ambientes/producao.tag-anterior"
 
-STUBADO=(env PATH="$STUBS:$PATH" PAF_REGISTRO=ghcr.io/dono)
+STUB_LOG="$TEMP/docker.log"
+STUBADO=(env PATH="$STUBS:$PATH" PAF_REGISTRO=ghcr.io/dono STUB_LOG="$STUB_LOG")
 
 tag_registrada() {
   local esperada="$1" nome="$2" obtida=""
@@ -104,6 +112,64 @@ tag_registrada t0 "redeploy da tag em execução: tag-anterior intocada"
 rm -f "$REGISTRADA"
 caso 6 "primeira implantação" "${STUBADO[@]}" STUB_IMAGEM_A= STUB_IMAGEM_B= bash "$DEPLOY" producao t1
 tag_registrada "" "primeira implantação: sem tag-anterior"
+
+# The other instance does not answer health: abort with 11 (the migrator already ran) before stopping or recreating
+# anything (Caddy would be left with no instance).
+: >"$STUB_LOG"
+caso 11 "outra instância sem saúde" "${STUBADO[@]}" STUB_UP=0 STUB_SAUDAVEIS="18081" \
+  STUB_IMAGEM_A=ghcr.io/dono/paf-api:t1 STUB_IMAGEM_B=ghcr.io/dono/paf-api:t1 bash "$DEPLOY" producao t2
+if grep -q -e " stop " -e "--no-deps api-" "$STUB_LOG"; then
+  echo "FAIL outra instância sem saúde: uma instância foi parada ou recriada"; sed 's/^/    /' "$STUB_LOG"; falhas=$((falhas + 1))
+else
+  echo "PASS outra instância sem saúde: nenhuma instância parada nem recriada"
+fi
+
+# api-b without a container (a host that ran one instance): it starts first, and api-a stops only after it.
+: >"$STUB_LOG"
+caso 0 "instância nova primeiro" "${STUBADO[@]}" STUB_UP=0 STUB_SAUDAVEIS="18081 18082 18083 18084" \
+  STUB_IMAGEM_A=ghcr.io/dono/paf-api:t1 STUB_IMAGEM_B= bash "$DEPLOY" producao t2
+linha_b="$(grep -n -- "--no-deps api-b" "$STUB_LOG" | head -n 1 | cut -d: -f1)"
+linha_parada="$(grep -n "stop api-a" "$STUB_LOG" | head -n 1 | cut -d: -f1)"
+if [ -n "$linha_b" ] && [ -n "$linha_parada" ] && [ "$linha_b" -lt "$linha_parada" ]; then
+  echo "PASS instância nova primeiro: api-b sobe (linha $linha_b) antes de api-a parar (linha $linha_parada)"
+else
+  echo "FAIL instância nova primeiro: api-b na linha '$linha_b', parada de api-a na linha '$linha_parada'"; sed 's/^/    /' "$STUB_LOG"
+  falhas=$((falhas + 1))
+fi
+
+# Stopped, then neither the new image nor the previous one starts: exit 8, and the EXIT trap names the instance left
+# stopped (A7).
+caso 8 "instância parada sem subir" "${STUBADO[@]}" STUB_UP=0 STUB_UP_INSTANCIA=1 STUB_SAUDAVEIS="18081 18082" \
+  STUB_IMAGEM_A=ghcr.io/dono/paf-api:t1 STUB_IMAGEM_B=ghcr.io/dono/paf-api:t1 bash "$DEPLOY" producao t2
+if grep -q "^RESIDUO api-a ficou parada" "$TEMP/saida"; then echo "PASS instância parada sem subir: RESIDUO api-a impresso"
+else echo "FAIL instância parada sem subir: sem RESIDUO"; sed 's/^/    /' "$TEMP/saida"; falhas=$((falhas + 1)); fi
+caso 0 "instância nova primeiro, sem RESIDUO" "${STUBADO[@]}" STUB_UP=0 STUB_SAUDAVEIS="18081 18082 18083 18084" \
+  STUB_IMAGEM_A=ghcr.io/dono/paf-api:t1 STUB_IMAGEM_B=ghcr.io/dono/paf-api:t1 bash "$DEPLOY" producao t2
+if grep -q "RESIDUO" "$TEMP/saida"; then echo "FAIL deploy completo imprimiu RESIDUO"; falhas=$((falhas + 1))
+else echo "PASS deploy completo sem RESIDUO"; fi
+
+# Produção without homologacao.env: refused with 4 before verificar-ambiente.sh (the cross checks are mandatory).
+mv "$TEMP/paf/ambientes/homologacao.env" "$TEMP/paf/ambientes/homologacao.env.fora"
+printf '#!/usr/bin/env bash\necho chamado >"%s"\nexit 0\n' "$TEMP/verificador.chamado" >"$TEMP/paf/verificar-ambiente.sh"
+caso 4 "produção sem homologacao.env" "${STUBADO[@]}" STUB_IMAGEM_A= STUB_IMAGEM_B= bash "$DEPLOY" producao t1
+if [ ! -e "$TEMP/verificador.chamado" ] && grep -q "homologacao.env inexistente" "$TEMP/saida"; then
+  echo "PASS produção sem homologacao.env: recusada antes do verificador"
+else
+  echo "FAIL produção sem homologacao.env"; falhas=$((falhas + 1))
+fi
+mv "$TEMP/paf/ambientes/homologacao.env.fora" "$TEMP/paf/ambientes/homologacao.env"
+
+# A host with homologação only (no producao.env): the pre-flight does not refuse the missing file and hands both
+# paths to verificar-ambiente.sh, which skips the cross checks (verificar-ambiente.test.sh). The stub records them.
+mv "$TEMP/paf/ambientes/producao.env" "$TEMP/paf/ambientes/homologacao.env"
+printf '#!/usr/bin/env bash\necho "$@" >"%s"\nexit 0\n' "$TEMP/verificador.args" >"$TEMP/paf/verificar-ambiente.sh"
+caso 6 "só homologação no host" "${STUBADO[@]}" STUB_IMAGEM_A= STUB_IMAGEM_B= bash "$DEPLOY" homologacao t1
+if [ "$(cat "$TEMP/verificador.args")" = "$TEMP/paf/ambientes/producao.env $TEMP/paf/ambientes/homologacao.env" ] \
+   && [ ! -e "$TEMP/paf/ambientes/producao.env" ]; then
+  echo "PASS só homologação no host: verificar-ambiente.sh recebe o caminho de producao.env ausente e o deploy segue"
+else
+  echo "FAIL só homologação no host: argumentos '$(cat "$TEMP/verificador.args")'"; falhas=$((falhas + 1))
+fi
 
 if [ "$falhas" -eq 0 ]; then echo "DEPLOY-TEST OK"; exit 0; fi
 echo "DEPLOY-TEST FALHOU ($falhas)"

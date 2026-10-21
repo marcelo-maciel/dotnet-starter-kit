@@ -13,7 +13,7 @@ import {
   type ClaimsConexao,
 } from "@/features/paf/tempo-real/conexao-sessao";
 import { guardarAvisoParaRecarga, PafTempoRealContexto } from "@/features/paf/tempo-real/paf-tempo-real-contexto";
-import { avisoDaPropriaSessao, lerSessaoInvalidada, SESSAO_INVALIDADA } from "@/features/paf/tempo-real/sessao-invalidada";
+import { SESSAO_INVALIDADA, tratarSessaoInvalidada } from "@/features/paf/tempo-real/sessao-invalidada";
 import { useAuth } from "@/auth/use-auth";
 
 // Every authenticated screen keeps one PafHub connection (REQ RF22 "toda tela aberta mantém a conexão"): the
@@ -35,7 +35,7 @@ export function PafTempoRealProvider({ children }: { children: ReactNode }) {
   // Bumped to rebuild the connection after a unit switch: the server joins the unit group on connect only.
   const [epoca, setEpoca] = useState(0);
   const [abaId] = useState(() => crypto.randomUUID());
-  const { logout } = useAuth();
+  const { logoutLocal } = useAuth();
 
   useEffect(() => {
     if (chave === null) return;
@@ -52,20 +52,20 @@ export function PafTempoRealProvider({ children }: { children: ReactNode }) {
       credencialPerdida: () => false,
       handlers: {
         // The server closes the connection right after this (S04): show why instead of a silent drop, and leave.
-        [SESSAO_INVALIDADA]: (payload) => {
-          const aviso = lerSessaoInvalidada(payload);
-          if (!aviso || !avisoDaPropriaSessao(aviso, lerClaims()?.sid)) return;
-          conexao.parar();
-          toast.error(aviso.motivo);
-          logout();
-        },
+        // The session is already revoked, so the exit is local: a server logout would carry a dead token (401).
+        [SESSAO_INVALIDADA]: (payload) =>
+          tratarSessaoInvalidada(payload, lerClaims()?.sid, {
+            pararConexao: () => conexao.parar(),
+            avisar: (motivo) => toast.error(motivo),
+            sairLocalmente: logoutLocal,
+          }),
       },
       aoConectar: () => undefined,
       aoMudarEstado: () => undefined,
       aoPerderCredencial: () => undefined,
     });
     return () => conexao.parar();
-  }, [chave, epoca, logout]);
+  }, [chave, epoca, logoutLocal]);
 
   useEffect(() => {
     if (chave === null) return;

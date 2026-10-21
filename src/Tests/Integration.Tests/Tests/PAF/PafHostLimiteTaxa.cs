@@ -47,8 +47,8 @@ public sealed partial class PafHostLimiteTaxa : WebApplicationFactory<Program>, 
     /// <summary>Limites que o host está aplicando, lidos das opções já ligadas (não do arquivo).</summary>
     public RateLimitingOptions Limites => Services.GetRequiredService<IOptions<RateLimitingOptions>>().Value;
 
-    /// <summary>A rede do Docker de produção (<c>PAF_SUBNET</c> do arquivo de ambiente), de onde o Apache chega.</summary>
-    public string RedeConfiavel => _configuracaoDeProducao["TrustedProxyOptions:KnownNetworks:0"];
+    /// <summary>O IP fixo do Caddy de produção (<c>PAF_IP_CADDY</c> do arquivo de ambiente), o único proxy confiável.</summary>
+    public string ProxyConfiavel => _configuracaoDeProducao["TrustedProxyOptions:KnownProxies:0"];
 
     public async Task InitializeAsync()
     {
@@ -134,7 +134,7 @@ public sealed partial class PafHostLimiteTaxa : WebApplicationFactory<Program>, 
         builder.ConfigureServices(services =>
         {
             // TestServer has no socket: the connection IP comes from X-Test-Remote-Ip, stamped before
-            // UseForwardedHeaders, so a test presents itself as the Apache inside the Docker network or as anyone else.
+            // UseForwardedHeaders, so a test presents itself as Caddy at its fixed address or as anyone else.
             services.AddSingleton<IStartupFilter, TestRemoteIpStartupFilter>();
 
             var remover = services
@@ -219,7 +219,7 @@ public sealed partial class PafHostLimiteTaxa : WebApplicationFactory<Program>, 
         }
 
         resultado.ShouldContainKey("RateLimitingOptions:Enabled");
-        resultado.ShouldContainKey("TrustedProxyOptions:KnownNetworks:0");
+        resultado.ShouldContainKey("TrustedProxyOptions:KnownProxies:0");
         return resultado;
     }
 

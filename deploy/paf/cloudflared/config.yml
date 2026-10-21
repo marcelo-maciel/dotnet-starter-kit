@@ -1,0 +1,9 @@
+# PAF V2, ingress of the environment's Cloudflare Tunnel (O03, Q7: versioned here, never edited in the dashboard).
+# The tunnel's UUID and credentials come from the environment file (compose.yml, service cloudflared).
+#
+# One rule, which is also the mandatory final catch-all: every hostname routed to this tunnel goes to Caddy, and
+# Caddy keeps the PAF hosts explicit (caddy/Caddyfile, from PAF_API_URL, PAF_DASHBOARD_URL and PAF_ADMIN_URL) and
+# answers 404 to any other. cloudflared does not expand environment variables in this file and its image has no
+# shell to render one, so a rule per host here would hardcode the hostnames once per environment.
+ingress:
+  - service: http://caddy:80

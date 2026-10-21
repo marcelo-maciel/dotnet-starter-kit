@@ -11,12 +11,20 @@ AMBIENTES="$AQUI/ambientes"
 # Inside ambientes/ because the compose resolves PAF_ARQUIVO_AMBIENTE from deploy/paf; *.env is gitignored there.
 PROD="$AMBIENTES/teste-producao.env"
 HOMOLOG="$AMBIENTES/teste-homologacao.env"
+# The tunnel credential lives in its own file, next to the environment file (PAF_ARQUIVO_TUNEL).
+PROD_TUNEL="$AMBIENTES/teste-producao.tunel.env"
+HOMOLOG_TUNEL="$AMBIENTES/teste-homologacao.tunel.env"
 SAIDA="$(mktemp)"
-trap 'rm -f "$PROD" "$HOMOLOG" "$SAIDA"' EXIT
+trap 'rm -f "$PROD" "$HOMOLOG" "$PROD_TUNEL" "$HOMOLOG_TUNEL" "$SAIDA"' EXIT
 
 preencher() {
-  local exemplo="$1" destino="$2" sufixo="$3"
-  sed -e "s#^PAF_ARQUIVO_AMBIENTE=.*#PAF_ARQUIVO_AMBIENTE=ambientes/$(basename "$destino")#" \
+  local exemplo="$1" destino="$2" sufixo="$3" tunel base
+  # One tunnel per environment: a UUID derived from the suffix length keeps the two different.
+  tunel="$(printf '00000000-0000-4000-8000-%012d' "${#sufixo}")"
+  base="$(basename "$destino" .env)"
+  sed -e "s#<uuid-do-tunel>#$tunel#" \
+      -e "s#^PAF_ARQUIVO_AMBIENTE=.*#PAF_ARQUIVO_AMBIENTE=ambientes/$base.env#" \
+      -e "s#^PAF_ARQUIVO_TUNEL=.*#PAF_ARQUIVO_TUNEL=ambientes/$base.tunel.env#" \
       -e "s#^POSTGRES_PASSWORD=.*#POSTGRES_PASSWORD=pg-$sufixo-1#" \
       -e "s#^VALKEY_PASSWORD=.*#VALKEY_PASSWORD=vk-$sufixo-1#" \
       -e "s#^JwtOptions__SigningKey=.*#JwtOptions__SigningKey=paf-$sufixo-signing-key-ascii-0123456789abcdef#" \
@@ -25,6 +33,8 @@ preencher() {
       -e "s#^PAF_BACKUP_ACCESS_KEY=.*#PAF_BACKUP_ACCESS_KEY=backup-$sufixo-1#" \
       -e "s#<webhook-de-alerta>#alerta.teste/hook#" \
       "$exemplo" >"$destino"
+  sed -e "s#<credenciais-json-do-tunel>#{\"AccountTag\":\"conta-teste\",\"TunnelSecret\":\"segredo-do-tunel-$sufixo\",\"TunnelID\":\"$tunel\"}#" \
+      "${exemplo%.env.exemplo}.tunel.env.exemplo" >"$AMBIENTES/$base.tunel.env"
 }
 
 restaurar() {
@@ -81,14 +91,58 @@ codigo=$?
 if [ "$codigo" -eq 0 ] && grep -q "VERIFICAR-AMBIENTE OK" "$SAIDA"; then registrar PASS "par válido aprovado"
 else registrar FAIL "par válido reprovado (código $codigo)"; grep -F "FAIL" "$SAIDA" | head -n 10; fi
 
+# Homologação only on the host (before produção exists): its own checks run, the cross checks print SKIPPED and
+# never PASS, and an invariant of homologação still fails. Produção without homologação is refused: its cross checks
+# are mandatory.
+restaurar
+rm -f "$PROD"
+bash "$AQUI/verificar-ambiente.sh" "$PROD" "$HOMOLOG" >"$SAIDA" 2>&1
+codigo=$?
+if [ "$codigo" -eq 0 ] && grep -q "^SKIPPED cruzado" "$SAIDA" && grep -q "VERIFICAR-AMBIENTE OK (conferências cruzadas SKIPPED)" "$SAIDA" \
+   && ! grep -q "^PASS cruzado" "$SAIDA" && grep -q "^PASS homologacao: caddy presente" "$SAIDA"; then
+  registrar PASS "só homologação: aprovado, cruzadas SKIPPED"
+else
+  registrar FAIL "só homologação: código $codigo"; grep -E "FAIL|SKIPPED|VERIFICAR" "$SAIDA" | head -n 5
+fi
+restaurar
+rm -f "$HOMOLOG"
+bash "$AQUI/verificar-ambiente.sh" "$PROD" "$HOMOLOG" >"$SAIDA" 2>&1
+codigo=$?
+if [ "$codigo" -ne 0 ] && grep -q "homologação inexistente" "$SAIDA" && ! grep -q "^SKIPPED" "$SAIDA"; then
+  registrar PASS "só produção: reprovado (código $codigo), nada SKIPPED"
+else
+  registrar FAIL "só produção: código $codigo"
+fi
+restaurar
+rm -f "$PROD"
+trocar "$HOMOLOG" QuotaOptions__Enabled ""
+bash "$AQUI/verificar-ambiente.sh" "$PROD" "$HOMOLOG" >"$SAIDA" 2>&1
+codigo=$?
+if [ "$codigo" -ne 0 ] && grep -F "FAIL" "$SAIDA" | grep -qF "homologacao: api-a QuotaOptions__Enabled=false explícito"; then
+  registrar PASS "só homologação com invariante quebrada: reprovado (código $codigo)"
+else
+  registrar FAIL "só homologação com invariante quebrada: código $codigo"
+fi
+rm -f "$PROD" "$HOMOLOG"
+bash "$AQUI/verificar-ambiente.sh" "$PROD" "$HOMOLOG" >"$SAIDA" 2>&1
+codigo=$?
+if [ "$codigo" -ne 0 ] && grep -q "homologação inexistente" "$SAIDA"; then registrar PASS "nenhum arquivo: reprovado (código $codigo)"
+else registrar FAIL "nenhum arquivo: código $codigo"; fi
+
 caso "quotas ausente" "QuotaOptions__Enabled=false explícito" trocar "$PROD" QuotaOptions__Enabled ""
 caso "quotas true" "QuotaOptions__Enabled=false explícito" trocar "$HOMOLOG" QuotaOptions__Enabled "QuotaOptions__Enabled=true"
 caso "chave não ASCII" "chave de assinatura só ASCII imprimível" trocar "$PROD" JwtOptions__SigningKey "JwtOptions__SigningKey=paf-chave-de-assinatura-com-acentuação-0123456789"
 caso "chave curta" "chave de assinatura com 32+ caracteres" trocar "$PROD" JwtOptions__SigningKey "JwtOptions__SigningKey=curta-0123456789"
 caso "chave de exemplo" "chave de assinatura não é o exemplo" trocar "$PROD" JwtOptions__SigningKey "JwtOptions__SigningKey=replace-with-a-random-ascii-key-of-64-chars"
 caso "mesma chave nos dois" "chaves de assinatura diferentes" trocar "$HOMOLOG" JwtOptions__SigningKey "JwtOptions__SigningKey=paf-producao-signing-key-ascii-0123456789abcdef"
-caso "KnownNetworks vazio" "KnownNetworks não vazio" trocar "$PROD" TrustedProxyOptions__KnownNetworks__0 "TrustedProxyOptions__KnownNetworks__0="
-caso "KnownNetworks de outra rede" "KnownNetworks = subnet da rede do projeto" trocar "$PROD" TrustedProxyOptions__KnownNetworks__0 "TrustedProxyOptions__KnownNetworks__0=172.17.0.0/16"
+caso "KnownNetworks com a subnet" "KnownNetworks vazio" acrescentar "$PROD" 'TrustedProxyOptions__KnownNetworks__0=${PAF_SUBNET}'
+caso "KnownProxies vazio" "KnownProxies = IP fixo do Caddy" trocar "$PROD" TrustedProxyOptions__KnownProxies__0 "TrustedProxyOptions__KnownProxies__0="
+caso "KnownProxies com o gateway" "KnownProxies = IP fixo do Caddy" trocar "$PROD" TrustedProxyOptions__KnownProxies__0 "TrustedProxyOptions__KnownProxies__0=172.31.10.1"
+caso "Caddy na faixa dinâmica" "IP fixo do Caddy dentro da subnet" trocar "$HOMOLOG" PAF_IP_CADDY "PAF_IP_CADDY=172.31.20.200"
+caso "Caddy fora da subnet" "IP fixo do Caddy dentro da subnet" trocar "$PROD" PAF_IP_CADDY "PAF_IP_CADDY=172.31.99.10"
+caso "Caddy no gateway" "IP fixo do Caddy dentro da subnet" trocar "$PROD" PAF_IP_CADDY "PAF_IP_CADDY=172.31.10.1"
+caso "faixa dinâmica com o gateway" "faixa dinâmica dentro da subnet e sem o gateway" trocar "$PROD" PAF_SUBNET_DINAMICA "PAF_SUBNET_DINAMICA=172.31.10.0/25"
+caso "faixa dinâmica fora da subnet" "faixa dinâmica dentro da subnet e sem o gateway" trocar "$PROD" PAF_SUBNET_DINAMICA "PAF_SUBNET_DINAMICA=172.31.11.128/25"
 caso "limite auth do kit" "limite de taxa Auth >= 15" trocar "$PROD" RateLimitingOptions__Auth__PermitLimit "RateLimitingOptions__Auth__PermitLimit=10"
 caso "limite por IP ausente" "limite de taxa Ip >= 387" trocar "$HOMOLOG" RateLimitingOptions__Ip__PermitLimit ""
 caso "limite do tenant do kit" "limite de taxa Tenant >= 7740" trocar "$PROD" RateLimitingOptions__Tenant__PermitLimit "RateLimitingOptions__Tenant__PermitLimit=1000"
@@ -122,6 +176,20 @@ caso "OTLP sem prazo" "OTEL_EXPORTER_OTLP_TIMEOUT explícito" trocar "$PROD" OTE
 caso "mesmo serviço nos dois" "OTEL_SERVICE_NAME diferentes" trocar "$HOMOLOG" OTEL_SERVICE_NAME "OTEL_SERVICE_NAME=paf-api-producao"
 caso "sink OTLP do appsettings ligado" "sink OTLP do appsettings desligado" trocar "$PROD" Serilog__WriteTo__1__Name "Serilog__WriteTo__1__Name=OpenTelemetry"
 caso "console em texto" "console em JSON" trocar "$HOMOLOG" Serilog__WriteTo__0__Args__formatter ""
+caso "tunel sem id" "docker compose config falhou" trocar "$PROD" PAF_TUNEL_ID ""
+caso "tunel com id que não é UUID" "PAF_TUNEL_ID é um UUID" trocar "$PROD" PAF_TUNEL_ID "PAF_TUNEL_ID=paf-producao"
+caso "tunel sem arquivo de credencial" "docker compose config falhou" trocar "$HOMOLOG" PAF_ARQUIVO_TUNEL ""
+caso "arquivo de credencial inexistente" "docker compose config falhou" trocar "$HOMOLOG" PAF_ARQUIVO_TUNEL "PAF_ARQUIVO_TUNEL=ambientes/nao-existe.tunel.env"
+caso "arquivo de credencial do outro ambiente" "arquivo do túnel é o do próprio ambiente" trocar "$HOMOLOG" PAF_ARQUIVO_TUNEL "PAF_ARQUIVO_TUNEL=ambientes/teste-producao.tunel.env"
+caso "credencial vazia" "JSON de credenciais" trocar "$HOMOLOG_TUNEL" TUNNEL_CRED_CONTENTS "TUNNEL_CRED_CONTENTS="
+caso "credenciais que não são JSON" "JSON de credenciais" trocar "$PROD_TUNEL" TUNNEL_CRED_CONTENTS "TUNNEL_CRED_CONTENTS=eyJhIjoiYiJ9"
+caso "credenciais sem TunnelSecret" "JSON de credenciais" trocar "$PROD_TUNEL" TUNNEL_CRED_CONTENTS 'TUNNEL_CRED_CONTENTS={"AccountTag":"conta-teste","TunnelID":"00000000-0000-4000-8000-000000000008"}'
+caso "credenciais de outro túnel" "TUNNEL_CRED_CONTENTS é do túnel de PAF_TUNEL_ID" trocar "$PROD_TUNEL" TUNNEL_CRED_CONTENTS 'TUNNEL_CRED_CONTENTS={"AccountTag":"conta-teste","TunnelSecret":"segredo-do-tunel-producao","TunnelID":"00000000-0000-4000-8000-000000000011"}'
+caso "credencial do túnel no arquivo da API" "API e migrator sem a credencial do túnel" acrescentar "$PROD" 'TUNNEL_CRED_CONTENTS={"AccountTag":"conta-teste","TunnelSecret":"segredo-do-tunel-producao","TunnelID":"00000000-0000-4000-8000-000000000008"}'
+caso "credencial antiga no arquivo da API" "API e migrator sem a credencial do túnel" acrescentar "$HOMOLOG" 'PAF_TUNEL_CREDENCIAIS=qualquer'
+caso "mesmo túnel nos dois" "túneis diferentes" trocar "$HOMOLOG" PAF_TUNEL_ID "PAF_TUNEL_ID=00000000-0000-4000-8000-000000000008"
+caso "admin sem URL" "docker compose config falhou" trocar "$PROD" PAF_ADMIN_URL ""
+caso "API em http" "caddy com PAF_API_URL https://<host>" trocar "$HOMOLOG" PAF_API_URL "PAF_API_URL=http://api.homolog.paf.exemplo.com.br"
 caso "hub com long polling" "PafHub só em WebSockets" acrescentar "$PROD" "PAF__TempoReal__Transportes=WebSockets, LongPolling"
 caso "hub só long polling" "PafHub só em WebSockets" acrescentar "$HOMOLOG" "PAF__TempoReal__Transportes=LongPolling"
 
@@ -130,7 +198,13 @@ cp "$AMBIENTES/producao.env.exemplo" "$PROD"
 cp "$AMBIENTES/homologacao.env.exemplo" "$HOMOLOG"
 trocar "$PROD" PAF_ARQUIVO_AMBIENTE "PAF_ARQUIVO_AMBIENTE=ambientes/teste-producao.env"
 trocar "$HOMOLOG" PAF_ARQUIVO_AMBIENTE "PAF_ARQUIVO_AMBIENTE=ambientes/teste-homologacao.env"
+cp "$AMBIENTES/producao.tunel.env.exemplo" "$PROD_TUNEL"
+cp "$AMBIENTES/homologacao.tunel.env.exemplo" "$HOMOLOG_TUNEL"
+trocar "$PROD" PAF_ARQUIVO_TUNEL "PAF_ARQUIVO_TUNEL=ambientes/teste-producao.tunel.env"
+trocar "$HOMOLOG" PAF_ARQUIVO_TUNEL "PAF_ARQUIVO_TUNEL=ambientes/teste-homologacao.tunel.env"
 esperar_falha "exemplos sem preencher" "sem valor de exemplo"
+if grep -F "FAIL" "$SAIDA" | grep -qF "JSON de credenciais"; then registrar PASS "exemplo do arquivo do túnel reprovado"
+else registrar FAIL "exemplo do arquivo do túnel não reprovado"; fi
 
 echo "=== resultado"
 printf '%s\n' "${resultados[@]}"

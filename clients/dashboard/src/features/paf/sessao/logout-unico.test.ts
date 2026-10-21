@@ -16,7 +16,7 @@ function sairControlado(): { sair: () => Promise<void>; chamadas: () => number; 
   return { sair, chamadas: () => chamadas, concluir: () => concluir() };
 }
 
-test("o aviso da própria sessão durante o logout não dispara um segundo logout", () => {
+test("chamadas simultâneas na mesma aba disparam um único logout", () => {
   const { sair, chamadas } = sairControlado();
   const logout = umLogoutPorVez(sair);
 
