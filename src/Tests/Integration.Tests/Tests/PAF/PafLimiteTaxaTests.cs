@@ -22,7 +22,7 @@ namespace Integration.Tests.Tests.PAF;
 
 /// <summary>
 /// Limite de taxa e proxy confiável com a configuração de produção (O12, ARQ l.380 e l.382, volume D20 da REQ
-/// l.1072). O Apache chega pela rede do Docker (<see cref="PafHostLimiteTaxa.RedeConfiavel"/>) e repassa o IP da loja
+/// l.1072). O Caddy chega pela rede do Docker (<see cref="PafHostLimiteTaxa.ProxyConfiavel"/>) e repassa o IP da loja
 /// em <c>X-Forwarded-For</c>; a loja é um IP de NAT com todas as suas estações atrás. Cada teste usa IPs e tenant
 /// próprios, porque as janelas de 60 s do limitador vivem no host da coleção inteira.
 /// </summary>
@@ -117,7 +117,7 @@ public sealed class PafLimiteTaxaTests(PafHostLimiteTaxa host, ITestOutputHelper
     }
 
     [Fact]
-    public async Task Login_QuinzeAtendentesDaMesmaLojaAtrasDoApacheEm60s_TodosOk_EOIpAuditadoEODaLoja()
+    public async Task Login_QuinzeAtendentesDaMesmaLojaAtrasDoCaddyEm60s_TodosOk_EOIpAuditadoEODaLoja()
     {
         var unidade = await UnidadeAsync(licencas: LoginsDaAbertura + 5);
         var atendentes = new List<SeededUser>();
@@ -131,7 +131,7 @@ public sealed class PafLimiteTaxaTests(PafHostLimiteTaxa host, ITestOutputHelper
         var status = new List<HttpStatusCode>();
         foreach (var atendente in atendentes)
         {
-            using var resposta = await LoginAsync(atendente.Email, atendente.Password, IpApache(), ipLoja);
+            using var resposta = await LoginAsync(atendente.Email, atendente.Password, IpCaddy(), ipLoja);
             status.Add(resposta.StatusCode);
         }
 
@@ -152,14 +152,14 @@ public sealed class PafLimiteTaxaTests(PafHostLimiteTaxa host, ITestOutputHelper
             forjado.StatusCode.ShouldBe(HttpStatusCode.OK, await forjado.Content.ReadAsStringAsync());
         }
 
-        // Same header from the Apache: honoured. Without this arm the first one passes with forwarding off.
-        using (var peloApache = await LoginAsync(usuario.Email, usuario.Password, IpApache(), IpLoja(7)))
+        // Same header from Caddy: honoured. Without this arm the first one passes with forwarding off.
+        using (var peloCaddy = await LoginAsync(usuario.Email, usuario.Password, IpCaddy(), IpLoja(7)))
         {
-            peloApache.StatusCode.ShouldBe(HttpStatusCode.OK, await peloApache.Content.ReadAsStringAsync());
+            peloCaddy.StatusCode.ShouldBe(HttpStatusCode.OK, await peloCaddy.Content.ReadAsStringAsync());
         }
 
-        // ForwardLimit 1: only the hop the Apache appended is trusted, whatever the client wrote before it.
-        using (var cadeia = await LoginAsync(usuario.Email, usuario.Password, IpApache(), $"{IpLoja(9)}, {IpLoja(8)}"))
+        // ForwardLimit 1: only the hop Caddy appended is trusted, whatever the client wrote before it.
+        using (var cadeia = await LoginAsync(usuario.Email, usuario.Password, IpCaddy(), $"{IpLoja(9)}, {IpLoja(8)}"))
         {
             cadeia.StatusCode.ShouldBe(HttpStatusCode.OK, await cadeia.Content.ReadAsStringAsync());
         }
@@ -190,7 +190,7 @@ public sealed class PafLimiteTaxaTests(PafHostLimiteTaxa host, ITestOutputHelper
         var unidade = await UnidadeAsync(licencas: 5);
         var totens = await TotensAsync(unidade, IpLoja(1));
 
-        // The rest of the store's worst minute, through the Apache with the store's address: the opening of 8
+        // The rest of the store's worst minute, through Caddy with the store's address: the opening of 8
         // guichês and 2 painéis, the guichê operations of every ficha the totens print, and the totens' own
         // opening besides the configuration read below. Anonymous requests count in the IP partition like any other.
         var restante = PiorMinutoDaLoja - TotensPorLoja * (1 + FichasPorTotemNoPico);
@@ -267,14 +267,8 @@ public sealed class PafLimiteTaxaTests(PafHostLimiteTaxa host, ITestOutputHelper
 
     private string IpLoja(int loja) => $"{PrefixoLojas}.{loja / 250}.{(loja % 250) + 1}";
 
-    // The Docker network's gateway, the address the Apache on the host reaches the container from.
-    private string IpApache()
-    {
-        var rede = System.Net.IPNetwork.Parse(host.RedeConfiavel);
-        var bytes = rede.BaseAddress.GetAddressBytes();
-        bytes[^1] += 1;
-        return new IPAddress(bytes).ToString();
-    }
+    // Caddy's fixed address in the Docker network, the only proxy the API trusts (O03).
+    private string IpCaddy() => host.ProxyConfiavel;
 
     private async Task<Loja> UnidadeAsync(int licencas)
     {
@@ -302,7 +296,7 @@ public sealed class PafLimiteTaxaTests(PafHostLimiteTaxa host, ITestOutputHelper
         return new Loja(u, fila.Id, normal.Id, totens.Select(t => t.Id).ToList());
     }
 
-    /// <summary>Each totem of the store redeems its link from the store's address, through the Apache.</summary>
+    /// <summary>Each totem of the store redeems its link from the store's address, through Caddy.</summary>
     private async Task<List<HttpClient>> TotensAsync(Loja unidade, string ipLoja)
     {
         var clientes = new List<HttpClient>();
@@ -395,11 +389,11 @@ public sealed class PafLimiteTaxaTests(PafHostLimiteTaxa host, ITestOutputHelper
 
     // ─── pessoas ─────────────────────────────────────────────────────
 
-    /// <summary>A client whose connection is the Apache and whose original address is the store's NAT.</summary>
+    /// <summary>A client whose connection is Caddy and whose original address is the store's NAT.</summary>
     private HttpClient ClienteDaLoja(string ipLoja)
     {
         var cliente = host.CreateClient();
-        cliente.DefaultRequestHeaders.Add(TestRemoteIpStartupFilter.RemoteIpHeader, IpApache());
+        cliente.DefaultRequestHeaders.Add(TestRemoteIpStartupFilter.RemoteIpHeader, IpCaddy());
         cliente.DefaultRequestHeaders.Add("X-Forwarded-For", ipLoja);
         return cliente;
     }
