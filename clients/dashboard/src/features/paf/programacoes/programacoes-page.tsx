@@ -22,9 +22,11 @@ import {
   calcular,
   consultaDaPesquisa,
   DIAS,
+  duracaoDaMidia,
   duracaoLegivel,
   FILTROS_VAZIOS,
   horaDosSegundos,
+  MENSAGEM_SEM_LISTA_DE_MIDIAS,
   NOME_MAXIMO,
   periodoInvertido,
   rotuloDosDias,
@@ -32,6 +34,7 @@ import {
   validarProgramacao,
   type FiltrosPesquisa,
   type FormProgramacao,
+  type MidiaAtual,
 } from "@/features/paf/programacoes/programacoes-regras";
 
 const CHAVE = ["paf", "programacoes-midia"] as const;
@@ -42,7 +45,7 @@ const PERMISSAO_ALTERAR = "Permissions.PAF.Programacoes.Update";
 const PERMISSAO_EXCLUIR = "Permissions.PAF.Programacoes.Delete";
 const SELECT_CLASSES = "h-9 w-full rounded-md border border-[var(--color-input)] bg-[var(--color-card)] px-3 text-sm";
 
-type Edicao = { id: string | null; versao: number; form: FormProgramacao };
+type Edicao = { id: string | null; versao: number; form: FormProgramacao; midiaAtual: MidiaAtual | null };
 
 function mensagensDoErro(erro: unknown): string[] {
   if (erro instanceof ApiRequestError && erro.problem?.errors !== undefined) {
@@ -55,13 +58,15 @@ function mensagensDoErro(erro: unknown): string[] {
 
 function novaEdicao(): Edicao {
   const hoje = hojeEmSaoPaulo(new Date());
-  return { id: null, versao: 0, form: { midiaId: "", nome: "", dataInicial: hoje, dataFinal: hoje, horaInicial: "08:00", repeticoes: "1", dias: TODOS_OS_DIAS } };
+  return { id: null, versao: 0, midiaAtual: null, form: { midiaId: "", nome: "", dataInicial: hoje, dataFinal: hoje, horaInicial: "08:00", repeticoes: "1", dias: TODOS_OS_DIAS } };
 }
 
 function edicaoDe(p: ProgramacaoDto): Edicao {
   return {
     id: p.id,
     versao: p.versao,
+    // tempoMidiaSegundos is the mídia's own duration (AgendaMidia): the edit keeps it without the mídia list.
+    midiaAtual: { id: p.midiaId, descricao: p.midiaDescricao, duracaoSegundos: p.tempoMidiaSegundos },
     form: {
       midiaId: p.midiaId,
       nome: p.nome,
@@ -143,11 +148,9 @@ export function ProgramacoesPage() {
     }
   };
 
-  const duracaoDaMidia = (midiaId: string): number | null => midias.data?.find((m) => m.id === midiaId)?.duracaoSegundos ?? null;
-
   const salvar = async () => {
     if (!edicao) return;
-    const validada = validarProgramacao(edicao.form, duracaoDaMidia(edicao.form.midiaId));
+    const validada = validarProgramacao(edicao.form, duracaoDaMidia(midias.isError ? null : (midias.data ?? null), edicao.midiaAtual, edicao.form.midiaId));
     if (!validada.ok) {
       setErros([validada.mensagem]);
       return;
@@ -375,17 +378,23 @@ function FormularioProgramacao(props: {
 }) {
   const { form } = props.edicao;
   const mudar = (parcial: Partial<FormProgramacao>) => props.onMudar({ ...form, ...parcial });
-  const midiaEscolhida = props.midias?.find((m) => m.id === form.midiaId) ?? null;
-  const calculo = calcular(midiaEscolhida?.duracaoSegundos ?? null, form.horaInicial, form.repeticoes);
-  // Only active mídias are programmable; the current one stays listed when editing so the select does not go blank.
-  const opcoes = (props.midias ?? []).filter((m) => m.ativa || m.id === form.midiaId);
+  const calculo = calcular(duracaoDaMidia(props.midias, props.edicao.midiaAtual, form.midiaId), form.horaInicial, form.repeticoes);
+  // Only active mídias are programmable; the current one stays listed when editing so the select does not go blank,
+  // and without the mídia list (no Midias.View) it is the only option.
+  const atual = props.edicao.midiaAtual;
+  const opcoes =
+    props.midias !== null
+      ? props.midias.filter((m) => m.ativa || m.id === form.midiaId).map((m) => ({ id: m.id, rotulo: `${m.descricao} (${m.duracaoSegundos} s)${m.ativa ? "" : " (inativa)"}` }))
+      : atual !== null
+        ? [{ id: atual.id, rotulo: `${atual.descricao} (${atual.duracaoSegundos} s)` }]
+        : [];
 
   return (
     <section className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5" data-edicao-programacao>
       <h2 className="font-medium">{props.edicao.id === null ? "Nova programação" : `Editar ${form.nome}`}</h2>
       {props.midias === null && (
         <p role="note" className="text-sm text-[var(--color-destructive)]">
-          Não foi possível listar as mídias da unidade: sem elas não há o que programar.
+          {MENSAGEM_SEM_LISTA_DE_MIDIAS}
         </p>
       )}
       <div className="grid gap-3 sm:grid-cols-3">
@@ -396,7 +405,7 @@ function FormularioProgramacao(props: {
               <option value="">Escolha…</option>
               {opcoes.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.descricao} ({m.duracaoSegundos} s){m.ativa ? "" : " (inativa)"}
+                  {m.rotulo}
                 </option>
               ))}
             </select>

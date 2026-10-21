@@ -6,8 +6,10 @@ import {
   alternarDia,
   calcular,
   consultaDaPesquisa,
+  duracaoDaMidia,
   duracaoLegivel,
   FILTROS_VAZIOS,
+  MENSAGEM_SEM_LISTA_DE_MIDIAS,
   horaDosSegundos,
   periodoInvertido,
   rotuloDosDias,
@@ -113,4 +115,17 @@ test("duração legível", () => {
   assert.equal(duracaoLegivel(45), "45 s");
   assert.equal(duracaoLegivel(1800), "30 min 00 s");
   assert.equal(duracaoLegivel(3723), "1 h 02 min 03 s");
+});
+
+test("B1: sem Midias.View, a edição mantém a mídia atual com a duração da própria programação", () => {
+  const lista = [{ id: "m1", duracaoSegundos: 600 }];
+  const atual = { id: "m2", descricao: "Vídeo da manhã", duracaoSegundos: 90 };
+  assert.equal(duracaoDaMidia(lista, null, "m1"), 600, "da lista");
+  assert.equal(duracaoDaMidia(lista, atual, "m2"), 90, "fora da lista, a atual");
+  assert.equal(duracaoDaMidia(null, atual, "m2"), 90, "sem lista, a atual");
+  assert.equal(duracaoDaMidia(null, atual, "m3"), null, "sem lista, outra mídia");
+  assert.equal(duracaoDaMidia(null, null, "m2"), null, "nova programação sem lista");
+  assert.equal(validarProgramacao({ ...FORM, midiaId: "m2" }, duracaoDaMidia(null, atual, "m2")).ok, true);
+  assert.deepEqual(validarProgramacao(FORM, null), { ok: false, mensagem: MENSAGEM_SEM_LISTA_DE_MIDIAS });
+  assert.deepEqual(validarProgramacao({ ...FORM, midiaId: "" }, null), { ok: false, mensagem: "Escolha a mídia." });
 });

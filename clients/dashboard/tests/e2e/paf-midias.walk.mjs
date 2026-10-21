@@ -475,6 +475,35 @@ try {
   check("gerente: sem criar, editar nem excluir", (await pg.getByRole("button", { name: /Nova programação|Editar|Excluir/ }).count()) === 0);
   await ctxGerente.close();
 
+  // ── B1: programação without Midias.View (RF08 individual grant of Programacoes.View and Update to an atendente) ──
+  // The mídia list is refused; an edit keeps the current mídia with the programação's own duration, and the form says
+  // why no other mídia is offered.
+  const tAlice = (await api("POST", "/api/v1/identity/token/issue", null, { email: "alice@acme.com", password: SENHA_DEMO })).accessToken;
+  const aliceId = JSON.parse(Buffer.from(tAlice.split(".")[1], "base64url").toString("utf8")).sub;
+  const tAdminB1 = await tokenDe(p);
+  await api("PUT", `/api/v1/paf/usuarios/${aliceId}/unidades`, tAdminB1, { usuarioId: aliceId, unidades: [demo.id], escopoEmpresa: false });
+  await api("PUT", `/api/v1/paf/usuarios/${aliceId}/permissoes`, tAdminB1, {
+    usuarioId: aliceId,
+    permissoes: ["Permissions.PAF.Programacoes.View", "Permissions.PAF.Programacoes.Update"],
+  });
+  const ctxAlice = await browser.newContext({ viewport: { width: 1400, height: 1600 } });
+  const pa = await entrar(ctxAlice, "alice@acme.com");
+  const semLista = await chamar("GET", "/api/v1/paf/midias", await tokenDe(pa));
+  check("B1: alice sem Midias.View (GET mídias 403)", semLista.status === 403, String(semLista.status));
+  await pa.goto(`${WEB}/paf/programacoes`);
+  const linhaAlice = pa.locator("[data-programacao]", { hasText: `Manhã ${SUFIXO}` });
+  await linhaAlice.getByRole("button", { name: "Editar" }).click();
+  const formAlice = pa.locator("[data-edicao-programacao]");
+  check("B1: o formulário diz por que não há outra mídia", await visivel(formAlice.getByText("Sem a permissão de ver os arquivos de mídia")));
+  check("B1: a mídia atual continua escolhida", (await formAlice.getByLabel("Mídia").locator("option:checked").textContent()) === `Vídeo institucional ${SUFIXO} (8 s)`,
+    await formAlice.getByLabel("Mídia").locator("option:checked").textContent());
+  await formAlice.getByLabel("Repetições").fill("300");
+  check("B1: cálculo ao vivo com a duração da programação (300 × 8 s)", (await formAlice.locator("[data-hora-final-calculada]").textContent()) === "10:40:00",
+    await formAlice.locator("[data-hora-final-calculada]").textContent());
+  await formAlice.getByRole("button", { name: "Salvar" }).click();
+  check("B1: alterada pelo servidor, hora final 10:40:00", await visivel(linhaAlice.locator("[data-hora-final]", { hasText: "10:40:00" })));
+  await ctxAlice.close();
+
   // ── Unidade switch switches the list ──
   const ctxRegional = await browser.newContext();
   const pr = await entrar(ctxRegional, emailRegional);
