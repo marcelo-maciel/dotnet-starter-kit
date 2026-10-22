@@ -36,8 +36,8 @@ public sealed class Subscription : BaseEntity<Guid>
             Id = Guid.CreateVersion7(),
             TenantId = tenantId,
             PlanId = planId,
-            StartUtc = DateTime.SpecifyKind(startUtc, DateTimeKind.Utc),
-            EndUtc = endUtc is { } e ? DateTime.SpecifyKind(e, DateTimeKind.Utc) : null,
+            StartUtc = UtcInstant.From(startUtc),
+            EndUtc = endUtc is { } e ? UtcInstant.From(e) : null,
             Status = SubscriptionStatus.Active,
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -58,7 +58,7 @@ public sealed class Subscription : BaseEntity<Guid>
     public void Cancel(DateTime endUtc)
     {
         Status = SubscriptionStatus.Cancelled;
-        EndUtc = DateTime.SpecifyKind(endUtc, DateTimeKind.Utc);
+        EndUtc = UtcInstant.From(endUtc);
         UpdatedAtUtc = DateTime.UtcNow;
     }
 
@@ -69,7 +69,7 @@ public sealed class Subscription : BaseEntity<Guid>
     /// </summary>
     public void Extend(DateTime endUtc)
     {
-        var newEnd = DateTime.SpecifyKind(endUtc, DateTimeKind.Utc);
+        var newEnd = UtcInstant.From(endUtc);
         if (EndUtc is null || newEnd > EndUtc)
         {
             EndUtc = newEnd;
