@@ -41,7 +41,7 @@ public sealed class TenantServiceValidityKindTests
             NullLogger<TenantService>.Instance);
     }
 
-    [Fact]
+    [OffUtcFact]
     public async Task AdjustValidity_Should_ConvertALocalValue_ToTheSameUtcInstant()
     {
         // What System.Text.Json yields for "2026-05-01T00:00:00-03:00": Kind=Local, in the machine's zone.

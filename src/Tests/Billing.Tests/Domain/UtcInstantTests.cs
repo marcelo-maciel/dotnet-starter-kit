@@ -18,7 +18,7 @@ public sealed class UtcInstantTests
     private static DateTime ParsedWithOffset() =>
         new DateTimeOffset(2026, 5, 1, 0, 0, 0, TimeSpan.FromHours(-3)).LocalDateTime;
 
-    [Fact]
+    [OffUtcFact]
     public void From_Should_ConvertALocalValue_ToTheSameUtcInstant()
     {
         var local = ParsedWithOffset();
@@ -39,7 +39,7 @@ public sealed class UtcInstantTests
         utc.Kind.ShouldBe(DateTimeKind.Utc);
     }
 
-    [Fact]
+    [OffUtcFact]
     public void Issue_Should_StoreTheDueInstant_When_ItArrivesAsLocal()
     {
         var invoice = Invoice.CreateDraft("acme", "INV-1", 2026, 5, "BRL");
@@ -49,7 +49,7 @@ public sealed class UtcInstantTests
         invoice.DueAtUtc.ShouldBe(ExpectedUtc);
     }
 
-    [Fact]
+    [OffUtcFact]
     public void Subscription_Should_StoreTheTerm_When_ItArrivesAsLocal()
     {
         var subscription = Subscription.Create("acme", Guid.NewGuid(), ParsedWithOffset(), ParsedWithOffset().AddMonths(1));
@@ -58,7 +58,7 @@ public sealed class UtcInstantTests
         subscription.EndUtc.ShouldBe(ExpectedUtc.AddMonths(1));
     }
 
-    [Fact]
+    [OffUtcFact]
     public void SubscriptionInvoice_Should_StoreThePeriod_When_ItArrivesAsLocal()
     {
         var invoice = Invoice.CreateDraft("acme", "SUB-1", 2026, 5, "BRL",
