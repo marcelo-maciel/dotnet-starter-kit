@@ -1,6 +1,6 @@
-// C08 walk against a REAL API: the Codefi operator creates a client tenant in the admin, the client's admin is
-// refused for lack of contract, the operator records the contract of the initial unidade on the PAF page (client
-// tenant chosen there, sent explicitly), and the client's admin then signs in. The only interception is
+// C08 walk against a REAL API: the Codefi operator creates a client tenant in the admin, the client's admin signs in
+// on the default contract the initial unidade is born with (RF23, 21/10/2026), the operator sees that contract on the
+// PAF page (client tenant chosen there, sent explicitly) and changes it, and the client's admin signs in again. The only interception is
 // /config.json, pointing the production build at the API.
 //
 // Run (API up on a migrated + seeded database with its outbox dispatcher and Hangfire on, admin under `vite preview`):
@@ -15,9 +15,9 @@ if (!API || !WEB) {
   process.exit(2);
 }
 const ROOT_EMAIL = "admin@root.com";
-const SENHA = "123Pa$$word!";
+// The local seed password unless the run targets a deployed environment (PAF_SENHA_ROOT).
+const SENHA = process.env.PAF_SENHA_ROOT ?? "123Pa$$word!";
 const TIMEOUT = 15_000;
-const SEM_CONTRATO = "Nenhuma unidade do seu acesso tem contrato ativo. Procure o administrador da empresa.";
 
 let falhas = 0;
 function check(nome, ok, detalhe) {
@@ -96,16 +96,17 @@ try {
   await page.waitForURL(`**/tenants/${tenantId}`, { timeout: 60_000 });
   check("tenant criado pelo admin", true, tenantId);
 
-  // 2. The PAF reaches the tenant (outbox, then the Hangfire job): the admin is refused for lack of contract.
-  const recusa = await esperar(
-    "recusa sem contrato",
+  // 2. The PAF reaches the tenant (outbox, then the Hangfire job): the initial unidade is born with the default
+  // contract, so the client's admin gets in with nothing recorded by hand.
+  const entrada = await esperar(
+    "entrada com o contrato padrão",
     async () => {
       const t = await emitirToken(tenantId, adminEmail);
-      return { ok: t.status === 403 && t.detalhe === SEM_CONTRATO, ...t, token: undefined };
+      return { ok: t.status === 200, ...t, token: undefined };
     },
     90_000,
   );
-  check("admin do cliente recusado sem contrato", recusa.status === 403, recusa.detalhe);
+  check("admin do cliente entra com o contrato padrão", entrada.status === 200, `${entrada.status} ${entrada.detalhe ?? ""}`);
 
   // 3. PAF page through the menu; the client is chosen on the page and goes to the URL.
   const link = page.getByRole("link", { name: "Unidades e contratos" });
@@ -119,11 +120,18 @@ try {
   await page.getByRole("button", { name: /escolha o cliente/i }).click();
   await page.getByRole("menuitem", { name: new RegExp(tenantId) }).click();
   await page.waitForURL(`**/paf/unidades?tenant=${tenantId}`);
-  await page.getByText("Sem contrato: ninguém desta unidade entra").waitFor();
-  check("unidade inicial aparece sem contrato", await page.getByText("Inicial", { exact: true }).isVisible());
+  await page.getByText("Vigente", { exact: true }).waitFor();
+  const padrao = page.getByRole("row").filter({ has: page.getByRole("cell", { name: "Inicial", exact: true }) });
+  check(
+    "unidade inicial mostra o contrato padrão: Inicial, 5, Recusar, sem fim, vigente",
+    (await padrao.count()) === 1 && /sem fim/.test(await padrao.innerText()) && /\b5\b/.test(await padrao.innerText()) && /Recusar/.test(await padrao.innerText()),
+    (await padrao.allInnerTexts()).join(" | ").replace(/\s+/g, " "),
+  );
+  check("nenhum aviso de unidade sem contrato", !(await page.getByText("Sem contrato: ninguém desta unidade entra").isVisible()));
 
-  // 4. Negative paths of the form: end before start, then (after the first contract) an overlap; neither is sent.
-  await page.getByRole("button", { name: /novo contrato de/i }).click();
+  // 4. The operator changes the default contract; negative paths of the form: end before start, then an overlap with
+  // the open-ended contract; neither is sent.
+  await page.getByRole("button", { name: /alterar contrato de/i }).click();
   await page.locator("#contrato-inicio").fill("2026-06-01");
   await page.locator("#contrato-fim").fill("2026-05-31");
   check("fim antes do início explicado", await page.getByText("O fim da vigência não pode ser anterior ao início.").isVisible());
@@ -131,11 +139,12 @@ try {
   await page.locator("#contrato-inicio").fill(hojeMenos(2));
   await page.locator("#contrato-plano").fill("Básico");
   await page.locator("#contrato-limite").fill("3");
-  const gravacao = page.waitForResponse((r) => r.url().endsWith("/api/v1/paf/contratos") && r.request().method() === "POST");
+  const gravacao = page.waitForResponse((r) => /\/api\/v1\/paf\/contratos\/[0-9a-f-]+$/.test(r.url()) && r.request().method() === "PUT");
   await page.getByRole("button", { name: "Gravar contrato" }).click();
-  check("contrato gravado (200)", (await gravacao).status() === 200);
-  await page.getByText("Vigente", { exact: true }).waitFor();
-  check("tabela mostra o contrato vigente", await page.getByRole("cell", { name: "Básico" }).isVisible());
+  check("contrato padrão alterado (200)", (await gravacao).status() === 200);
+  await page.getByRole("cell", { name: "Básico" }).waitFor();
+  check("tabela mostra o contrato alterado, vigente, no lugar do padrão",
+    (await page.getByRole("cell", { name: "Inicial", exact: true }).count()) === 0 && await page.getByText("Vigente", { exact: true }).isVisible());
 
   const postsAntes = chamadasOperador.filter((c) => c.metodo === "POST").length;
   await page.getByRole("button", { name: /novo contrato de/i }).click();
@@ -165,7 +174,7 @@ try {
   const paginaCliente = await cliente.newPage();
   paginaCliente.setDefaultTimeout(TIMEOUT);
   const login = await entrar(paginaCliente, tenantId, adminEmail);
-  check("admin do cliente entra depois do contrato", login.status() === 200, String(login.status()));
+  check("admin do cliente entra com o contrato alterado", login.status() === 200, String(login.status()));
   await paginaCliente.waitForURL((u) => !u.pathname.startsWith("/login"));
   const lista = await fetch(`${API}/api/v1/paf/operador/unidades`, {
     headers: { tenant: tenantId, Authorization: `Bearer ${(await emitirToken(tenantId, adminEmail)).token}` },
