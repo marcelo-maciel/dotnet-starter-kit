@@ -11,6 +11,7 @@ public static class BillingPermissions
     public static IReadOnlyList<FshPermission> All { get; } =
     [
         new("View Billing",   ActionConstants.View, Resource, IsBasic: true),
-        new("Manage Billing", "Manage",             Resource),
+        // Root only: the plan catalog it edits is global, so a tenant admin holding it changed every tenant's plans.
+        new("Manage Billing", "Manage",             Resource, IsRoot: true),
     ];
 }

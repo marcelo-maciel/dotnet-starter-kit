@@ -83,7 +83,8 @@ public static class IdentityPermissions
         new("Delete Users",        ActionConstants.Delete, Users.Resource),
         new("Export Users",        ActionConstants.Export, Users.Resource),
         new("Manage User Roles",   "ManageRoles",          Users.Resource),
-        new("Impersonate User",    "Impersonate",          Users.Resource),
+        // Root only: a tenant admin impersonating a committee member would read a case that excludes the admin.
+        new("Impersonate User",    "Impersonate",          Users.Resource, IsRoot: true),
         new("Confirm User Email",  "ConfirmEmail",         Users.Resource),
 
         new("View User Roles",     ActionConstants.View,   UserRoles.Resource, IsBasic: true),
