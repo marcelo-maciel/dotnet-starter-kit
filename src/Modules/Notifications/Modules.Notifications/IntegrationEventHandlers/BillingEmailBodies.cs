@@ -16,10 +16,12 @@ namespace FSH.Modules.Notifications.IntegrationEventHandlers;
 /// The words come from the Notifications catalog (<c>Notifications.Billing.*</c>) in an explicit culture:
 /// these handlers run from the outbox or a scan job, with no request culture. Date and amount patterns
 /// live in the catalog too, so the neutral (en-US) catalog renders exactly the kit's original English.
+/// Unlike the kit, which printed the UTC day, every date is the Brasília day of the instant.
 /// </remarks>
 internal static class BillingEmailBodies
 {
     private static readonly ResourceManager Resources = new(typeof(NotificationsResources));
+    private static readonly TimeZoneInfo Brasilia = TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
 
     public static (string Subject, string Body, string TextBody) NearingExpiry(string tenantName, string? planKey, DateTime validUpto, int daysRemaining, CultureInfo culture)
     {
@@ -94,8 +96,14 @@ internal static class BillingEmailBodies
         return (subject, body, text);
     }
 
+    /// <summary>
+    /// The Brasília calendar day of a UTC instant. The tenants are in Brazil whatever language they read,
+    /// so an instant between 00:00 and 03:00 UTC is still the day before for them. The PAF module keeps its own
+    /// copy of the zone (<c>PafRelogio</c>), which this module cannot reference.
+    /// </summary>
     private static string Date(DateTime utc, CultureInfo culture) =>
-        utc.ToString(Text("Notifications.Billing.DateFormat", culture), culture);
+        TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), Brasilia)
+            .ToString(Text("Notifications.Billing.DateFormat", culture), culture);
 
     private static string Number(int value) => value.ToString(CultureInfo.InvariantCulture);
 

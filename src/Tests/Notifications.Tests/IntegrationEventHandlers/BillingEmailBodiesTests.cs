@@ -13,7 +13,11 @@ namespace Notifications.Tests.IntegrationEventHandlers;
 /// </summary>
 public sealed class BillingEmailBodiesTests
 {
-    private static readonly DateTime ValidUpto = new(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
+    // Midday UTC is the same calendar day in Brasília, so the verbatim copy below keeps its dates; the
+    // night hours, where the zone changes the day, have their own tests at the end.
+    private static readonly DateTime ValidUpto = new(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc);
+    // 01:30 UTC on 1 May is 22:30 on 30 April in Brasília (UTC-3, no daylight saving since 2019).
+    private static readonly DateTime NightUtc = new(2026, 5, 1, 1, 30, 0, DateTimeKind.Utc);
     private static readonly CultureInfo En = CultureInfo.GetCultureInfo("en-US");
     private static readonly CultureInfo Pt = CultureInfo.GetCultureInfo("pt-BR");
 
@@ -180,5 +184,47 @@ public sealed class BillingEmailBodiesTests
         subject.ShouldBe("Fatura INV-1 emitida");
         text.ShouldContain("Uma nova fatura INV-1, no valor de 1.234,50 BRL, foi emitida.");
         text.ShouldContain("Vencimento em 1 de maio de 2026.");
+    }
+
+    [Fact]
+    public void EveryDate_Should_BeTheBrasiliaCalendarDay_In_PtBR()
+    {
+        // The instants are UTC; the reader is in Brasília, where 01:30 UTC is still the day before.
+        BillingEmailBodies.NearingExpiry("Acme", "pro", NightUtc, daysRemaining: 3, Pt).TextBody
+            .ShouldContain("válida até 30 de abril de 2026");
+        BillingEmailBodies.Expired("Acme", "pro", NightUtc, Pt).TextBody.ShouldContain("30 de abril de 2026");
+        BillingEmailBodies.EnteredGrace("Acme", "pro", NightUtc, NightUtc.AddDays(7), Pt).TextBody
+            .ShouldContain("30 de abril de 2026");
+        BillingEmailBodies.EnteredGrace("Acme", "pro", NightUtc, NightUtc.AddDays(7), Pt).TextBody
+            .ShouldContain("7 de maio de 2026");
+        var (_, body, text) = BillingEmailBodies.InvoiceIssued("INV-1", 10m, "BRL", NightUtc, Pt);
+        text.ShouldContain("Vencimento em 30 de abril de 2026.");
+        body.ShouldContain("<strong>30 de abril de 2026</strong>");
+        text.ShouldNotContain("1 de maio");
+    }
+
+    [Fact]
+    public void EveryDate_Should_BeTheBrasiliaCalendarDay_In_EnUS()
+    {
+        // en-US changes the words, not the zone: the tenant is in Brazil whatever language it reads.
+        BillingEmailBodies.NearingExpiry("Acme", "pro", NightUtc, daysRemaining: 3, En).TextBody
+            .ShouldContain("valid until April 30, 2026");
+        BillingEmailBodies.Expired("Acme", "pro", NightUtc, En).TextBody.ShouldContain("expired on April 30, 2026");
+        BillingEmailBodies.EnteredGrace("Acme", "pro", NightUtc, NightUtc.AddDays(7), En).TextBody
+            .ShouldContain("expired on April 30, 2026. Your service continues during a grace period that ends on May 7, 2026.");
+        var (_, body, text) = BillingEmailBodies.InvoiceIssued("INV-1", 10m, "USD", NightUtc, En);
+        text.ShouldContain("Due by April 30, 2026.");
+        body.ShouldContain("<strong>April 30, 2026</strong>");
+        text.ShouldNotContain("May 1");
+    }
+
+    [Fact]
+    public void Date_Should_ReadAnUnspecifiedKindAsUtc()
+    {
+        // A DateTime read back without its kind is still a UTC instant by contract, since the fields are
+        // named Utc, and must never be taken as the container's local time.
+        var unspecified = DateTime.SpecifyKind(NightUtc, DateTimeKind.Unspecified);
+
+        BillingEmailBodies.Expired("Acme", "pro", unspecified, En).TextBody.ShouldContain("expired on April 30, 2026");
     }
 }
