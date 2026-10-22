@@ -1,0 +1,71 @@
+using Mediator;
+
+namespace FSH.Modules.PAF.Contracts.v1.Filas;
+
+/// <summary><paramref name="CorBotao"/>: <c>#RRGGBB</c>, null = the station's default.</summary>
+public sealed record FilaPrioridadeDto(Guid Id, Guid PrioridadeId, string Letra, int NumeroInicial, int Ordem, string? CorBotao);
+
+/// <summary><paramref name="CombinacoesSemCobertura"/>: ids of the <see cref="FilaPrioridadeDto"/> rows that no active guichê covers (RF02).</summary>
+public sealed record FilaDto(
+    Guid Id,
+    Guid UnidadeId,
+    string Nome,
+    string NomeExibicao,
+    TimeOnly? HoraInicial,
+    TimeOnly? HoraFinal,
+    bool Ativa,
+    Guid? SetorId,
+    AparenciaFilaDto Aparencia,
+    IReadOnlyList<FilaPrioridadeDto> Prioridades,
+    IReadOnlyList<Guid> CombinacoesSemCobertura);
+
+/// <summary>
+/// A fila x prioridade combination (the <see cref="FilaPrioridadeDto"/> row) named for a warning. Covered means an
+/// active station with the fila in its guichê role and the prioridade enabled (RF02, 03/10/2026).
+/// </summary>
+public sealed record CombinacaoFilaPrioridadeDto(Guid Id, Guid FilaId, string Fila, Guid PrioridadeId, string Prioridade, string Letra);
+
+/// <summary>
+/// Appearance of the fila's buttons (RF02). Colors are <c>#RRGGBB</c>; null = the station's default. Every button color
+/// (selected fila and each prioridade) needs <paramref name="CorFonte"/> with contrast of at least 4.5:1 (RNF19).
+/// </summary>
+public sealed record AparenciaFilaDto(string? Fonte, string? CorFonte, string? CorBotaoSelecionado);
+
+/// <summary>One line of the fila's priority grid (RF02): the senha letter is unique in the whole unidade.</summary>
+public sealed record FilaPrioridadeItem(Guid PrioridadeId, string Letra, int NumeroInicial, int Ordem, string? CorBotao);
+
+/// <summary>The fila is born with its grid: a fila without any prioridade is refused (RF04, "estação muda").</summary>
+public sealed record CreateFilaCommand(
+    string Nome,
+    string NomeExibicao,
+    TimeOnly? HoraInicial,
+    TimeOnly? HoraFinal,
+    Guid? SetorId,
+    AparenciaFilaDto Aparencia,
+    IReadOnlyList<FilaPrioridadeItem> Prioridades) : ICommand<Guid>, IEscritaDeCadastro;
+
+public sealed record UpdateFilaCommand(
+    Guid Id,
+    string Nome,
+    string NomeExibicao,
+    TimeOnly? HoraInicial,
+    TimeOnly? HoraFinal,
+    Guid? SetorId,
+    AparenciaFilaDto Aparencia) : ICommand<Guid>, IEscritaDeCadastro;
+
+public sealed record EnableFilaCommand(Guid Id) : ICommand<Guid>, IEscritaDeCadastro;
+
+public sealed record DisableFilaCommand(Guid Id) : ICommand<Guid>, IEscritaDeCadastro;
+
+public sealed record AddFilaPrioridadeCommand(Guid FilaId, Guid PrioridadeId, string Letra, int NumeroInicial, int Ordem, string? CorBotao) : ICommand<Guid>, IEscritaDeCadastro;
+
+public sealed record UpdateFilaPrioridadeCommand(Guid FilaId, Guid PrioridadeId, string Letra, int NumeroInicial, int Ordem, string? CorBotao) : ICommand<Guid>, IEscritaDeCadastro;
+
+/// <summary>Filas of the current unidade only.</summary>
+public sealed record ListFilasQuery : IQuery<IReadOnlyList<FilaDto>>;
+
+/// <summary>
+/// Filas of every unidade in the caller's scope, in one read (ADR 0003, explicit aggregation path):
+/// only the unit filter is turned off, the tenant filter stays.
+/// </summary>
+public sealed record ListFilasConsolidadasQuery : IQuery<IReadOnlyList<FilaDto>>;

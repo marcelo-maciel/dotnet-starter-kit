@@ -1,0 +1,397 @@
+import { useEffect, useId, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { tokenStore } from "@/auth/token-store";
+import { env } from "@/env";
+import { mensagemAmigavel } from "@/features/paf/paf-erros";
+import {
+  chamarProxima as chamarProximaApi,
+  definirGuiche,
+  definirUnidadeCorrente,
+  listarGuiches,
+  listarUnidades,
+  obterPosto,
+  operarAtendimento,
+  type GuicheDto,
+  type OperacaoAtendimento,
+  type PostoDto,
+} from "@/features/paf/guiche/guiche-api";
+import { conectarHubGuiche, type HubGuiche } from "@/features/paf/guiche/hub-guiche";
+import {
+  chamarProxima,
+  encerrarEChamar,
+  RecusaGuiche,
+  type AtendimentoNaTela,
+  type PassosGuiche,
+} from "@/features/paf/guiche/guiche-fluxo";
+import { decidirAviso, ESTADOS_FINAIS, type AvisoAtendimento } from "@/features/paf/guiche/avisos-guiche";
+import type { EstadoConexao } from "@/features/paf/paf-hub";
+import { CHAVE_ULTIMO_GUICHE, serializarUltimoGuiche, sugerirGuiche } from "@/features/paf/guiche/guiche-sugestao";
+import { EncaminharAtendimento } from "@/features/paf/guiche/encaminhar-atendimento";
+import { VipForm } from "@/features/paf/guiche/vip-form";
+import { TeclasAtalhoGuiche } from "@/features/paf/guiche/teclas-atalho-guiche";
+import { EmissaoGuiche } from "@/features/paf/guiche/emissao-guiche";
+
+// S11: impersonation badge.
+import { useAuth } from "@/auth/use-auth";
+import { textoSeloImpersonacao } from "@/features/paf/guiche/selo-impersonacao";
+
+// C20: waiting counts.
+import { AguardandoGuiche } from "@/features/paf/guiche/aguardando-guiche";
+
+type Ultimo = { senha: string; estado: string };
+
+// The server holds unit, guichê and atendimento (GET posto): a reload asks it again. Only the step of a
+// "Trocar" in progress lives here, because until the new choice is made the server still has the old one.
+type Etapa = "unidade" | "guiche" | "operar";
+
+const CHAVE_POSTO = ["paf", "guiche", "posto"] as const;
+
+const ROTULO_ESTADO: Record<string, string> = {
+  Chamado: "Chamada",
+  EmAtendimento: "Em atendimento",
+  Encerrado: "Encerrado",
+  Cancelado: "Cancelado",
+};
+
+const ROTULO_CONEXAO: Record<EstadoConexao, string> = {
+  conectando: "Conectando ao tempo real…",
+  conectado: "",
+  reconectando: "Tempo real reconectando…",
+  desconectado: "Tempo real desconectado.",
+};
+
+const SELECT_CLASSES =
+  "h-9 w-full rounded-md border border-[var(--color-input)] bg-[var(--color-card)] px-3 text-sm";
+
+function guardarUltimoGuiche(tenant: string, unidadeId: string, estacaoId: string) {
+  try {
+    localStorage.setItem(CHAVE_ULTIMO_GUICHE, serializarUltimoGuiche(tenant, unidadeId, estacaoId));
+  } catch (e) {
+    // The server already accepted the guichê; a full or blocked storage only loses the next suggestion, so it
+    // must not surface as a failed selection.
+    console.warn("PAF: não foi possível guardar o último guichê", e);
+  }
+}
+
+function lerUltimoGuicheGuardado(): string | null {
+  try {
+    return localStorage.getItem(CHAVE_ULTIMO_GUICHE);
+  } catch (e) {
+    // Blocked storage (browser policy) reads as "nothing saved": no suggestion, never a broken selection screen.
+    console.warn("PAF: não foi possível ler o último guichê", e);
+    return null;
+  }
+}
+
+function rotuloGuiche(g: GuicheDto): string {
+  if (g.meu) return `${g.nome} (seu)`;
+  if (g.ocupante) return `${g.nome} (em uso por ${g.ocupante})`;
+  return g.pendencia ? `${g.nome} (senha ${g.pendencia} pendente de outro atendente)` : g.nome;
+}
+
+export function GuichePage() {
+  const queryClient = useQueryClient();
+  const [troca, setTroca] = useState<Etapa | null>(null);
+  const [ultimo, setUltimo] = useState<Ultimo | null>(null);
+  const [unidadeEscolhida, setUnidadeEscolhida] = useState("");
+  // null = the user has not touched the select yet, so the suggestion of this machine (RF04) shows pre-marked.
+  const [guicheEscolhido, setGuicheEscolhido] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [conexao, setConexao] = useState<EstadoConexao>("conectando");
+  const hub = useRef<HubGuiche | null>(null);
+  const idUnidade = useId();
+  const idGuiche = useId();
+
+  // S11: impersonation badge.
+  const { impersonation, user } = useAuth();
+  const seloImpersonacao = textoSeloImpersonacao(impersonation, user?.name);
+
+  const posto = useQuery({ queryKey: CHAVE_POSTO, queryFn: obterPosto });
+  const etapa: Etapa | null = posto.data
+    ? (troca ?? (posto.data.unidadeId === null ? "unidade" : posto.data.estacaoId === null ? "guiche" : "operar"))
+    : null;
+
+  useEffect(() => {
+    // A notice only matters for the atendimento on screen with a newer Versao (seção 7): the server's post is
+    // re-read, so a change made elsewhere (manager cancel, another window) reaches the screen.
+    let versoes: Record<string, number> = {};
+    const aoAviso = (aviso: AvisoAtendimento, estado: string | null) => {
+      const atual = queryClient.getQueryData<PostoDto>(CHAVE_POSTO)?.atendimento;
+      const decisao = decidirAviso(versoes, atual, aviso, estado);
+      versoes = decisao.versoes;
+      if (!atual || !decisao.reler) return;
+      if (decisao.estadoFinal !== null) setUltimo({ senha: atual.senha, estado: decisao.estadoFinal });
+      void queryClient.invalidateQueries({ queryKey: CHAVE_POSTO });
+    };
+    const atual = conectarHubGuiche({
+      handlers: {
+        SenhaChamada: (p) => aoAviso(p as AvisoAtendimento, null),
+        SenhaRechamada: (p) => aoAviso(p as AvisoAtendimento, null),
+        AtendimentoAtualizado: (p) => {
+          const aviso = p as AvisoAtendimento & { estado: string };
+          aoAviso(aviso, aviso.estado);
+        },
+      },
+      aoMudarEstado: setConexao,
+    });
+    hub.current = atual;
+    return () => {
+      hub.current = null;
+      atual.parar();
+    };
+  }, [queryClient]);
+
+  const unidades = useQuery({ queryKey: ["paf", "guiche", "unidades"], queryFn: listarUnidades, enabled: etapa === "unidade" });
+  const guiches = useQuery({
+    queryKey: ["paf", "guiche", "guiches", posto.data?.unidadeId],
+    queryFn: listarGuiches,
+    enabled: etapa === "guiche",
+  });
+
+  const executar = async (acao: () => Promise<void>) => {
+    setOcupado(true);
+    setErro(null);
+    try {
+      await acao();
+    } catch (e) {
+      setErro(e instanceof RecusaGuiche ? e.message : mensagemAmigavel(e));
+    } finally {
+      // Success or refusal, the server's post is the truth: a guichê released elsewhere sends the screen
+      // back to the selection on its own.
+      await queryClient.invalidateQueries({ queryKey: CHAVE_POSTO });
+      setOcupado(false);
+    }
+  };
+
+  const escolherUnidade = () =>
+    executar(async () => {
+      if (unidadeEscolhida === "") return;
+      await definirUnidadeCorrente(unidadeEscolhida);
+      setUltimo(null);
+      setTroca("guiche");
+    });
+
+  const tenant = tokenStore.getTenant() ?? env.defaultTenant;
+  const unidadeAtual = posto.data?.unidadeId ?? null;
+  const sugestao =
+    unidadeAtual === null ? "" : sugerirGuiche(lerUltimoGuicheGuardado(), tenant, unidadeAtual, guiches.data ?? []);
+  const guicheMarcado = guicheEscolhido ?? sugestao;
+
+  // Another user's pendência on the chosen guichê is released only by an explicit choice (RF04): the button says so.
+  const pendenciaEscolhida = guiches.data?.find((g) => g.id === guicheMarcado)?.pendencia ?? null;
+
+  const escolherGuiche = () =>
+    executar(async () => {
+      if (guicheMarcado === "" || unidadeAtual === null) return;
+      await definirGuiche(guicheMarcado, pendenciaEscolhida !== null);
+      guardarUltimoGuiche(tenant, unidadeAtual, guicheMarcado);
+      hub.current?.entrarNoGuiche();
+      setTroca(null);
+    });
+
+  const operarNaTela = async (atual: AtendimentoNaTela, operacao: OperacaoAtendimento) => {
+    const alterado = await operarAtendimento(atual.atendimentoId, operacao);
+    if (ESTADOS_FINAIS.has(alterado.estado)) setUltimo({ senha: atual.senha, estado: alterado.estado });
+  };
+
+  // The first step records its outcome before the call, so an empty queue on the second step still shows it.
+  const passos: PassosGuiche = {
+    confirmar: (pergunta) => window.confirm(pergunta),
+    operar: operarNaTela,
+    chamar: chamarProximaApi,
+  };
+
+  const chamar = () =>
+    executar(async () => {
+      await chamarProxima(posto.data?.atendimento ?? null, passos);
+    });
+
+  const encerrarEChamarProxima = () =>
+    executar(async () => {
+      await encerrarEChamar(posto.data?.atendimento ?? null, passos);
+    });
+
+  const operar = (operacao: OperacaoAtendimento) =>
+    executar(async () => {
+      const atual = posto.data?.atendimento;
+      if (atual) await operarNaTela(atual, operacao);
+    });
+
+  const trocarPosto = () => {
+    setErro(null);
+    setUnidadeEscolhida("");
+    setGuicheEscolhido(null);
+    setTroca("unidade");
+  };
+
+  const atendimento = posto.data?.atendimento ?? null;
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-6">
+      <header className="space-y-1">
+        <h1 className="text-2xl font-semibold">Guichê</h1>
+
+        {/* S11: impersonation badge. */}
+        {seloImpersonacao && (
+          <p role="status" className="rounded-md border border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {seloImpersonacao}
+          </p>
+        )}
+
+        {posto.data?.unidade && (
+          <p className="text-sm text-[var(--color-muted-foreground)]">
+            {posto.data.unidade}
+            {posto.data.guiche && ` · ${posto.data.guiche}`}{" "}
+            {etapa !== "unidade" && (
+              <Button variant="link" size="xs" onClick={trocarPosto}>
+                Trocar
+              </Button>
+            )}
+          </p>
+        )}
+      </header>
+
+      {posto.isPending && <p className="text-[var(--color-muted-foreground)]">Carregando…</p>}
+      {posto.isError && <p role="alert">{mensagemAmigavel(posto.error)}</p>}
+      {ROTULO_CONEXAO[conexao] && (
+        <p role="status" className="text-sm text-[var(--color-muted-foreground)]">
+          {ROTULO_CONEXAO[conexao]}
+        </p>
+      )}
+
+      {erro && (
+        <p role="alert" className="rounded-md border border-[var(--color-destructive)] px-4 py-3 text-[var(--color-destructive)]">
+          {erro}
+        </p>
+      )}
+
+      {etapa === "unidade" && (
+        <section className="space-y-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5">
+          <Label htmlFor={idUnidade}>Unidade</Label>
+          {unidades.isError && <p role="alert">{mensagemAmigavel(unidades.error)}</p>}
+          <select
+            id={idUnidade}
+            className={SELECT_CLASSES}
+            value={unidadeEscolhida}
+            onChange={(e) => setUnidadeEscolhida(e.target.value)}
+          >
+            <option value="">{unidades.isPending ? "Carregando…" : "Selecione a unidade"}</option>
+            {(unidades.data ?? []).map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.nome}
+              </option>
+            ))}
+          </select>
+          <Button disabled={ocupado || unidadeEscolhida === ""} onClick={() => void escolherUnidade()}>
+            Usar esta unidade
+          </Button>
+        </section>
+      )}
+
+      {etapa === "guiche" && (
+        <section className="space-y-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5">
+          <Label htmlFor={idGuiche}>Guichê</Label>
+          {guiches.isError && <p role="alert">{mensagemAmigavel(guiches.error)}</p>}
+          {guiches.data?.length === 0 && <p>Nenhum guichê ativo nesta unidade.</p>}
+          <select
+            id={idGuiche}
+            className={SELECT_CLASSES}
+            value={guicheMarcado}
+            onChange={(e) => setGuicheEscolhido(e.target.value)}
+          >
+            <option value="">{guiches.isPending ? "Carregando…" : "Selecione o guichê"}</option>
+            {(guiches.data ?? []).map((g) => (
+              <option key={g.id} value={g.id}>
+                {rotuloGuiche(g)}
+              </option>
+            ))}
+          </select>
+          {pendenciaEscolhida && (
+            <p className="text-sm text-[var(--color-muted-foreground)]">
+              A senha {pendenciaEscolhida} ficou chamada ou em atendimento neste guichê por outro atendente. Usar o
+              guichê cancela esse atendimento.
+            </p>
+          )}
+          <Button
+            variant={pendenciaEscolhida ? "destructive" : "default"}
+            disabled={ocupado || guicheMarcado === ""}
+            onClick={() => void escolherGuiche()}
+          >
+            {pendenciaEscolhida ? `Liberar a senha ${pendenciaEscolhida} e usar este guichê` : "Usar este guichê"}
+          </Button>
+        </section>
+      )}
+
+      {etapa === "operar" && (
+        <section className="space-y-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5">
+          <div aria-live="polite" className="text-center">
+            {atendimento ? (
+              <>
+                <div className="text-sm text-[var(--color-muted-foreground)]">Senha atual</div>
+                <div className="text-6xl font-bold" data-senha-guiche>
+                  {atendimento.senha}
+                </div>
+                <div data-estado-guiche>{ROTULO_ESTADO[atendimento.estado] ?? atendimento.estado}</div>
+              </>
+            ) : (
+              <p className="text-[var(--color-muted-foreground)]">
+                Nenhum atendimento em curso.
+                {ultimo && ` Último: ${ultimo.senha} (${ROTULO_ESTADO[ultimo.estado] ?? ultimo.estado}).`}
+              </p>
+            )}
+          </div>
+          <AguardandoGuiche />
+
+          <div className="flex flex-wrap justify-center gap-3">
+            <Button size="lg" disabled={ocupado} onClick={() => void chamar()}>
+              Chamar próxima
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              disabled={ocupado || atendimento?.estado !== "Chamado"}
+              onClick={() => void operar("rechamar")}
+            >
+              Chamar novamente
+            </Button>
+            <Button
+              size="lg"
+              variant="secondary"
+              disabled={ocupado || atendimento?.estado !== "Chamado"}
+              onClick={() => void operar("iniciar")}
+            >
+              Iniciar atendimento
+            </Button>
+            <Button
+              size="lg"
+              variant="secondary"
+              disabled={ocupado || atendimento?.estado !== "EmAtendimento"}
+              onClick={() => void operar("encerrar")}
+            >
+              Encerrar atendimento
+            </Button>
+            <Button size="lg" variant="secondary" disabled={ocupado} onClick={() => void encerrarEChamarProxima()}>
+              Encerrar e chamar
+            </Button>
+            <EncaminharAtendimento estado={atendimento?.estado ?? null} desabilitado={ocupado} aoEncaminhar={(senha) => { setUltimo({ senha, estado: "Encerrado" }); void queryClient.invalidateQueries({ queryKey: CHAVE_POSTO }); }} />
+            <Button
+              size="lg"
+              variant="destructive"
+              disabled={ocupado || atendimento?.estado !== "Chamado"}
+              onClick={() => void operar("cancelar")}
+            >
+              Cancelar (não compareceu)
+            </Button>
+          </div>
+          <TeclasAtalhoGuiche estado={atendimento?.estado ?? null} ocupado={ocupado} executar={{ chamarProxima: () => void chamar(), encerrarEChamar: () => void encerrarEChamarProxima(), encerrar: () => void operar("encerrar"), iniciar: () => void operar("iniciar"), chamarNovamente: () => void operar("rechamar") }} />
+        </section>
+      )}
+
+      {etapa === "operar" && <VipForm bloqueado={ocupado || atendimento !== null} executar={executar} />}
+      {etapa === "operar" && <EmissaoGuiche />}
+    </div>
+  );
+}

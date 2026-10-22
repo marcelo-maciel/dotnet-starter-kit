@@ -14,6 +14,7 @@ import {
   MultitenancyPermissions,
   WebhooksPermissions,
 } from "@/lib/permissions";
+import { PermissoesOperadorPaf } from "@/features/paf/operador/api-operador";
 
 // Lazy-loaded pages — each `import()` becomes its own bundle chunk so the
 // initial paint only ships the shell + dashboard. We re-export the named
@@ -41,6 +42,8 @@ const TopupsListPage = lazyNamed(() => import("@/pages/billing/topups-list"), "T
 const AuditsListPage = lazyNamed(() => import("@/pages/audits/list"), "AuditsListPage");
 const HealthPage = lazyNamed(() => import("@/pages/health/page"), "HealthPage");
 const ImpersonationListPage = lazyNamed(() => import("@/pages/impersonation/list"), "ImpersonationListPage");
+const UnidadesOperadorPage = lazyNamed(() => import("@/features/paf/operador/unidades-operador-page"), "UnidadesOperadorPage");
+const EstacoesOperadorPage = lazyNamed(() => import("@/features/paf/operador/estacoes-operador-page"), "EstacoesOperadorPage");
 const WebhooksListPage = lazyNamed(() => import("@/pages/webhooks/list"), "WebhooksListPage");
 const WebhookDetailPage = lazyNamed(() => import("@/pages/webhooks/detail"), "WebhookDetailPage");
 const NotificationsInboxPage = lazyNamed(() => import("@/pages/notifications/inbox"), "NotificationsInboxPage");
@@ -210,6 +213,25 @@ export const router = createBrowserRouter([
             element: (
               <RouteGuard perms={[WebhooksPermissions.Subscriptions.View]}>
                 <WebhookDetailPage />
+              </RouteGuard>
+            ),
+          },
+
+          // PAF: Codefi operator side (ADR 0008, module registration)
+          {
+            path: "paf/unidades",
+            element: (
+              <RouteGuard perms={[PermissoesOperadorPaf.UnidadesOperar]}>
+                <UnidadesOperadorPage />
+              </RouteGuard>
+            ),
+          },
+          // O13: station monitoring (RNF20)
+          {
+            path: "paf/estacoes",
+            element: (
+              <RouteGuard perms={[PermissoesOperadorPaf.UnidadesOperar]}>
+                <EstacoesOperadorPage />
               </RouteGuard>
             ),
           },

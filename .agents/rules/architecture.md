@@ -81,10 +81,11 @@ In `src/BuildingBlocks/Web/Extensions.cs` (`UseHeroPlatform`):
 2. **CORS before HTTPS redirect** (so OPTIONS preflight isn't 307-redirected)
 3. HttpsRedirection → SecurityHeaders → static files → Routing
 4. **`UseAuthentication`**
-5. **`UseModuleMiddlewares`** — each module's `ConfigureMiddleware`, runs **after** auth
-6. RateLimiting → Quotas → `UseAuthorization` → `MapModules`
+5. **`UseHeroLocalization`** — request localization, sits **between `UseAuthentication` and `UseAuthorization`** so the user-`locale`-claim culture provider can read `HttpContext.User`
+6. **`UseModuleMiddlewares`** — each module's `ConfigureMiddleware`, runs **after** auth
+7. RateLimiting → Quotas → `UseAuthorization` → `MapModules`
 
-`app.UseHeroMultiTenantDatabases()` (Finbuckle `UseMultiTenant()`) runs in `Program.cs` **before** `UseHeroPlatform`, i.e. **before `UseAuthentication`** — so tenant resolution is header-driven, not claim-driven. See `modules/multitenancy.md`.
+`app.UseHeroMultiTenantDatabases()` (Finbuckle `UseMultiTenant()`) runs in `Program.cs` **before** `UseHeroPlatform`, i.e. **before `UseAuthentication`**. Finbuckle's `ClaimStrategy` authenticates on its own, so authenticated requests resolve by tenant claim and anonymous ones by the `tenant` header. See `modules/multitenancy.md`.
 
 ## Static/global state
 
@@ -95,5 +96,5 @@ No global mutable static collections enumerated under concurrency. `Audit` (Audi
 - `appsettings.json` (+ `.Development`/`.Production`) live in `src/Host/FSH.Starter.Api/`. DbMigrator links the same files.
 - Bind config with the Options pattern: `AddOptions<T>().BindConfiguration(nameof(T))`, section name == type name (e.g. `JwtOptions`, `DatabaseOptions`, `CachingOptions`, `CorsOptions`, `QuotaOptions`, `RateLimitingOptions`; **storage section is `Storage`**, not `StorageOptions`). Add `.ValidateDataAnnotations().ValidateOnStart()` for fail-fast.
 - Validate critical options via `IValidatableObject` — `JwtOptions` requires `SigningKey` ≥32 chars and **rejects placeholder strings containing `"replace-with"`**; `DatabaseOptions` rejects empty connection strings.
-- **Production fail-fast** (`Program.cs`, before service registration): missing `DatabaseOptions:ConnectionString`, `CachingOptions:Redis`, or `JwtOptions:SigningKey` throws. Dev secrets via `dotnet user-secrets` (AppHost has a `UserSecretsId`); MinIO creds are Aspire secret parameters.
+- **Production fail-fast** (`Program.cs`, before service registration): missing `DatabaseOptions:ConnectionString`, `CachingOptions:Redis`, or `JwtOptions:SigningKey` throws. Dev secrets via `dotnet user-secrets` (AppHost has a `UserSecretsId`); RustFS (S3) creds are Aspire secret parameters.
 - Platform composition is one call each: `builder.AddHeroPlatform(o => { o.Enable... })` (DI) and `app.UseHeroPlatform(...)` (middleware). Feature flags toggle Caching/Jobs/Mailing/Quotas/Sse/Realtime/OpenTelemetry/CORS/Idempotency.

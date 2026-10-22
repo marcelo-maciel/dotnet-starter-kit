@@ -5,6 +5,7 @@ import { ProtectedRoute } from "@/auth/protected-route";
 import { RouteError } from "@/components/route-error";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/cn";
+import { PafTempoRealProvider } from "@/features/paf/tempo-real/paf-tempo-real-provider";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Lazy route boundaries
@@ -114,6 +115,31 @@ const GroupDetailPage = lazyNamed(
 );
 const MyFilesPage = lazyNamed(() => import("@/pages/files/my-files"), "MyFilesPage");
 const ChatPage = lazyNamed(() => import("@/pages/chat/chat-page"), "ChatPage");
+// PAF (ADR 0008, module registration: PAF screens in the dashboard routes).
+const PafResgateVinculoPage = lazyNamed(
+  () => import("@/features/paf/estacao/resgate-vinculo-page"),
+  "ResgateVinculoPage",
+);
+const PafTotemPage = lazyNamed(() => import("@/features/paf/totem/totem-page"), "TotemPage");
+const PafPainelPage = lazyNamed(() => import("@/features/paf/painel/painel-page"), "PainelPage");
+const PafGuichePage = lazyNamed(() => import("@/features/paf/guiche/guiche-page"), "GuichePage");
+const PafLayout = lazyNamed(() => import("@/features/paf/layout/paf-layout"), "PafLayout");
+const PafUnidadesPage = lazyNamed(() => import("@/features/paf/unidades/unidades-page"), "UnidadesPage");
+const PafEstacoesPage = lazyNamed(() => import("@/features/paf/estacoes/estacoes-page"), "EstacoesPage");
+const PafFilasPage = lazyNamed(() => import("@/features/paf/filas/filas-page"), "FilasPage");
+const PafFichasDoDiaPage = lazyNamed(() => import("@/features/paf/fichas-do-dia/fichas-do-dia-page"), "FichasDoDiaPage");
+const PafFichasEmAtendimentoPage = lazyNamed(
+  () => import("@/features/paf/fichas-em-atendimento/fichas-em-atendimento-page"),
+  "FichasEmAtendimentoPage",
+);
+const PafConsultarFichaPage = lazyNamed(() => import("@/features/paf/consultar-ficha/consultar-ficha-page"), "ConsultarFichaPage");
+const PafFichaDeEsperaPage = lazyNamed(() => import("@/features/paf/ficha-de-espera/ficha-de-espera-page"), "FichaDeEsperaPage");
+const PafParametrosPage = lazyNamed(() => import("@/features/paf/parametros/parametros-page"), "ParametrosPage");
+const PafUsuariosPage = lazyNamed(() => import("@/features/paf/usuarios/usuarios-page"), "UsuariosPage");
+const PafPrioridadesPage = lazyNamed(() => import("@/features/paf/prioridades/prioridades-page"), "PrioridadesPage");
+const PafEstatisticaPage = lazyNamed(() => import("@/features/paf/estatistica/estatistica-page"), "EstatisticaPage");
+const PafMidiasPage = lazyNamed(() => import("@/features/paf/midias/midias-page"), "MidiasPage");
+const PafProgramacoesPage = lazyNamed(() => import("@/features/paf/programacoes/programacoes-page"), "ProgramacoesPage");
 
 /**
  * RouteFallback — what shows while a lazy chunk is downloading. Mirrors
@@ -190,12 +216,34 @@ export const router = createBrowserRouter([
     element: withSuspense(<ImpersonationEndedPage />),
     errorElement: <RouteError />,
   },
+  // PAF stations (totem, painel) run on the station credential, outside the user's route guard and
+  // inactivity sign-out: the panel on the wall must not go dark because nobody touched it.
+  {
+    path: "/paf/estacao/vinculo",
+    element: withSuspense(<PafResgateVinculoPage />),
+    errorElement: <RouteError />,
+  },
+  {
+    path: "/paf/totem",
+    element: withSuspense(<PafTotemPage />),
+    errorElement: <RouteError />,
+  },
+  {
+    path: "/paf/painel",
+    element: withSuspense(<PafPainelPage />),
+    errorElement: <RouteError />,
+  },
   {
     element: <ProtectedRoute />,
     errorElement: <RouteError />,
     children: [
       {
-        element: <AppShell />,
+        // PAF (ADR 0008, amended 17/10/2026): one PafHub connection on every screen keeps the licence alive.
+        element: (
+          <PafTempoRealProvider>
+            <AppShell />
+          </PafTempoRealProvider>
+        ),
         errorElement: <RouteError />,
         children: [
           { index: true, element: withSuspense(<OverviewPage />) },
@@ -211,6 +259,27 @@ export const router = createBrowserRouter([
           { path: "files", element: withSuspense(<MyFilesPage />) },
           { path: "chat", element: withSuspense(<ChatPage />) },
           { path: "chat/:channelId", element: withSuspense(<ChatPage />) },
+          {
+            // PAF screens of the signed-in user: current-unit selector on top (RF08). Later screens add children.
+            path: "paf",
+            element: withSuspense(<PafLayout />),
+            children: [
+              { path: "guiche", element: withSuspense(<PafGuichePage />) },
+              { path: "unidades", element: withSuspense(<PafUnidadesPage />) },
+              { path: "estacoes", element: withSuspense(<PafEstacoesPage />) },
+              { path: "filas", element: withSuspense(<PafFilasPage />) },
+              { path: "fichas-do-dia", element: withSuspense(<PafFichasDoDiaPage />) },
+              { path: "fichas-em-atendimento", element: withSuspense(<PafFichasEmAtendimentoPage />) },
+              { path: "consultar-ficha", element: withSuspense(<PafConsultarFichaPage />) },
+              { path: "ficha-de-espera", element: withSuspense(<PafFichaDeEsperaPage />) },
+              { path: "parametros", element: withSuspense(<PafParametrosPage />) },
+              { path: "usuarios", element: withSuspense(<PafUsuariosPage />) },
+              { path: "prioridades", element: withSuspense(<PafPrioridadesPage />) },
+              { path: "estatistica", element: withSuspense(<PafEstatisticaPage />) },
+              { path: "midias", element: withSuspense(<PafMidiasPage />) },
+              { path: "programacoes", element: withSuspense(<PafProgramacoesPage />) },
+            ],
+          },
           { path: "tickets", element: withSuspense(<TicketsPage />) },
           { path: "tickets/:ticketId", element: withSuspense(<TicketDetailPage />) },
           { path: "identity", element: <Navigate to="/identity/users" replace /> },

@@ -1,0 +1,80 @@
+using Microsoft.Extensions.Logging;
+using StackExchange.Redis;
+
+namespace FSH.Modules.PAF.Sessao;
+
+/// <summary>
+/// Unidade corrente escolhida pela sessão, guardada no Valkey (ADR 0006). Sem Valkey registrado, desconectado
+/// ou lento, responde como ausente: a unidade corrente cai na unidade da licença e a troca é recusada (seção 9).
+/// </summary>
+public sealed class EstadoSessao(IEnumerable<IConnectionMultiplexer> multiplexers, ILogger<EstadoSessao> logger)
+{
+    // ponytail: fixed per-call ceiling; tune once production Valkey latency is measured.
+    private static readonly TimeSpan PrazoChamada = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan Validade = TimeSpan.FromMinutes(Licencas.PrazoMarcaMinutos);
+
+    private readonly IConnectionMultiplexer? _valkey = multiplexers.FirstOrDefault();
+
+    public async Task<Guid?> LerUnidadeAsync(string tenantId, Guid sessaoId, CancellationToken ct)
+    {
+        var valor = await TentarAsync(sessaoId, db => db.StringGetAsync(Chave(tenantId, sessaoId)), RedisValue.Null, ct);
+        return Guid.TryParse(valor.ToString(), out var unidadeId) ? unidadeId : null;
+    }
+
+    /// <summary>Falso quando o Valkey não respondeu: a troca de unidade não aconteceu.</summary>
+    public Task<bool> DefinirUnidadeAsync(string tenantId, Guid sessaoId, Guid unidadeId, CancellationToken ct) =>
+        TentarAsync(sessaoId, db => db.StringSetAsync(Chave(tenantId, sessaoId), unidadeId.ToString(), Validade), false, ct);
+
+    public Task<bool> RenovarAsync(string tenantId, Guid sessaoId, CancellationToken ct) =>
+        TentarAsync(sessaoId, db => db.KeyExpireAsync(Chave(tenantId, sessaoId), Validade), false, ct);
+
+    public Task<bool> RemoverAsync(string tenantId, Guid sessaoId, CancellationToken ct) =>
+        TentarAsync(sessaoId, db => db.KeyDeleteAsync(Chave(tenantId, sessaoId)), false, ct);
+
+    // Tenant in the key: the Valkey is shared by every tenant of the environment (seção 9).
+    private static RedisKey Chave(string tenantId, Guid sessaoId) => $"paf:{tenantId}:sessao:{sessaoId}:unidade";
+
+    private async Task<T> TentarAsync<T>(Guid sessaoId, Func<IDatabase, Task<T>> operacao, T seIndisponivel, CancellationToken ct)
+    {
+        if (_valkey is not { IsConnected: true } valkey)
+        {
+            return seIndisponivel;
+        }
+
+        try
+        {
+            return await operacao(valkey.GetDatabase()).WaitAsync(PrazoChamada, ct);
+        }
+        // A stalled Valkey makes the client drop the connection and cancel its pending commands: a cancellation
+        // the caller did not ask for is the same unavailability as a timeout.
+        catch (Exception ex) when (ex is RedisException or TimeoutException
+            || (ex is OperationCanceledException && !ct.IsCancellationRequested))
+        {
+            logger.LogWarning(ex, "Valkey indisponível para o estado da sessão {SessaoId}; modo degradado", sessaoId);
+            return seIndisponivel;
+        }
+    }
+
+    // Impersonation (S10B): the grant's own current unit, keyed by the grant (jti), never by the user's session, so
+    // the support's switch never moves the real user (seção 9). It lives as long as the grant: a grant has no renewal.
+    public async Task<Guid?> LerUnidadeDaConcessaoAsync(string tenantId, Guid concessaoId, CancellationToken ct)
+    {
+        var valor = await TentarAsync(concessaoId, db => db.StringGetAsync(ChaveConcessao(tenantId, concessaoId)), RedisValue.Null, ct);
+        return Guid.TryParse(valor.ToString(), out var unidadeId) ? unidadeId : null;
+    }
+
+    /// <summary>Falso quando o Valkey não respondeu: a troca de unidade da impersonação não aconteceu.</summary>
+    public Task<bool> DefinirUnidadeDaConcessaoAsync(string tenantId, Guid concessaoId, Guid unidadeId, DateTimeOffset expiraEm, CancellationToken ct)
+    {
+        var validade = expiraEm - DateTimeOffset.UtcNow;
+        return validade <= TimeSpan.Zero
+            ? Task.FromResult(false)
+            : TentarAsync(concessaoId, db => db.StringSetAsync(ChaveConcessao(tenantId, concessaoId), unidadeId.ToString(), validade), false, ct);
+    }
+
+    /// <summary>S12: the grant ended or was revoked; its unit must not outlive it until the TTL. False when Valkey did not answer.</summary>
+    public Task<bool> RemoverUnidadeDaConcessaoAsync(string tenantId, Guid concessaoId, CancellationToken ct) =>
+        TentarAsync(concessaoId, db => db.KeyDeleteAsync(ChaveConcessao(tenantId, concessaoId)), false, ct);
+
+    private static RedisKey ChaveConcessao(string tenantId, Guid concessaoId) => $"paf:{tenantId}:concessao:{concessaoId:N}:unidade";
+}

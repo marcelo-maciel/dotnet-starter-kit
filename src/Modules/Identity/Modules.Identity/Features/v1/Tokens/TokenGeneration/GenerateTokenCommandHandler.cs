@@ -9,6 +9,7 @@ using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Contracts.v1.Tokens.TokenGeneration;
 using Mediator;
 using Microsoft.Extensions.Logging;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 
 namespace FSH.Modules.Identity.Features.v1.Tokens.TokenGeneration;
@@ -65,7 +66,7 @@ public sealed class GenerateTokenCommandHandler
             // 1) Audit failed login BEFORE throwing
             await _securityAudit.LoginFailedAsync(
                 subjectIdOrName: request.Email,
-                clientId: clientId!,
+                clientId: clientId,
                 reason: "InvalidCredentials",
                 ip: ip,
                 ct: cancellationToken);
@@ -80,34 +81,49 @@ public sealed class GenerateTokenCommandHandler
         await _securityAudit.LoginSucceededAsync(
             userId: subject,
             userName: claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value ?? request.Email,
-            clientId: clientId!,
+            clientId: clientId,
             ip: ip,
             userAgent: ua,
             ct: cancellationToken);
 
-        // Issue token
-        var token = await _tokenService.IssueAsync(subject, claims, /*extra*/ null, cancellationToken);
+        // PAF (ADR 0008, "Claim de sessão"): the access token carries the session id so each request can be
+        // checked against its session. The session must exist before signing, but the refresh token only exists
+        // after it, so the session is created under a provisional hash and re-keyed once the token is issued.
+        // Mandatory, no longer best-effort: a token without a session is refused on every request.
+        var provisionalRefreshHash = "pending-" + Guid.NewGuid().ToString("N");
+        var session = await _sessionService.CreateSessionAsync(
+            subject,
+            provisionalRefreshHash,
+            ip,
+            ua,
+            TimeProvider.System.GetUtcNow().UtcDateTime.AddDays(1),
+            cancellationToken);
+        var sessionClaims = claims.Append(new Claim(JwtRegisteredClaimNames.Sid, session.Id.ToString())).ToList();
 
-        // Persist refresh token (hashed) for this user
-        await _identityService.StoreRefreshTokenAsync(subject, token.RefreshToken, token.RefreshTokenExpiresAt, cancellationToken);
-
-        // Create user session for session management (non-blocking, fail gracefully)
+        TokenResponse token;
         try
         {
-            var refreshTokenHash = Sha256Short(token.RefreshToken);
-            await _sessionService.CreateSessionAsync(
-                subject,
-                refreshTokenHash,
-                ip,
-                ua,
+            // Issue token
+            token = await _tokenService.IssueAsync(subject, sessionClaims, /*extra*/ null, cancellationToken);
+
+            // Persist refresh token (hashed) for this user
+            await _identityService.StoreRefreshTokenAsync(subject, token.RefreshToken, token.RefreshTokenExpiresAt, cancellationToken);
+
+            await _sessionService.UpdateSessionRefreshTokenAsync(
+                provisionalRefreshHash,
+                Sha256Short(token.RefreshToken),
                 token.RefreshTokenExpiresAt,
                 cancellationToken);
         }
-        catch (Exception ex)
+        catch
         {
-            // Session creation is non-critical - don't fail the login
-            // This can happen if migrations haven't been applied yet
-            _logger.LogWarning(ex, "Failed to create user session for user {UserId}. Login will continue without session tracking.", subject);
+            // PAF: the pending session would otherwise stay active with no token behind it, listed and counted.
+            await _sessionService.RevokeSessionForAdminAsync(session.Id, subject, "Token issuance failed", CancellationToken.None);
+            throw;
+        }
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("Session {SessionId} bound to the access token of user {UserId}", session.Id, subject);
         }
 
         // 3) Audit token issuance with a fingerprint (never raw token)
@@ -115,7 +131,7 @@ public sealed class GenerateTokenCommandHandler
         await _securityAudit.TokenIssuedAsync(
             userId: subject,
             userName: claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value ?? request.Email,
-            clientId: clientId!,
+            clientId: clientId,
             tokenFingerprint: fingerprint,
             expiresUtc: token.AccessTokenExpiresAt,
             ct: cancellationToken);
@@ -132,7 +148,7 @@ public sealed class GenerateTokenCommandHandler
             Source: "Identity",
             UserId: subject,
             Email: request.Email,
-            ClientId: clientId!,
+            ClientId: clientId,
             IpAddress: ip,
             UserAgent: ua,
             TokenFingerprint: fingerprint,

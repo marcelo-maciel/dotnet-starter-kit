@@ -10,6 +10,7 @@ using FSH.Modules.Multitenancy.Contracts.v1.GetTenantStatus;
 using FSH.Modules.Webhooks;
 using FSH.Modules.Billing;
 using FSH.Modules.Catalog;
+using FSH.Modules.PAF;
 using FSH.Modules.Tickets;
 using FSH.Modules.Multitenancy.Features.v1.GetTenantStatus;
 using System.Reflection;
@@ -38,6 +39,15 @@ if (builder.Environment.IsProduction())
     Require(config, "DatabaseOptions:ConnectionString");
     Require(config, "CachingOptions:Redis");
     Require(config, "JwtOptions:SigningKey");
+
+    // Password-reset / confirmation links are built from this; without it those flows can only 500.
+    // Absolute http(s) only: on Unix, Uri.TryCreate also accepts "/path" as a file:// URI.
+    if (!Uri.TryCreate(config["FrontendOptions:DefaultOrigin"], UriKind.Absolute, out Uri? defaultOrigin)
+        || (defaultOrigin.Scheme != Uri.UriSchemeHttp && defaultOrigin.Scheme != Uri.UriSchemeHttps))
+    {
+        throw new InvalidOperationException(
+            "Missing required configuration 'FrontendOptions:DefaultOrigin' in Production: set it to your dashboard URL, e.g. \"https://app.example.com\".");
+    }
 }
 
 builder.Services.AddMediator(o =>
@@ -63,7 +73,9 @@ builder.Services.AddMediator(o =>
         typeof(FSH.Modules.Chat.Contracts.v1.Commands.CreateChannelCommand),
         typeof(FSH.Modules.Chat.ChatModule),
         typeof(FSH.Modules.Notifications.Contracts.v1.Commands.MarkNotificationReadCommand),
-        typeof(FSH.Modules.Notifications.NotificationsModule)];
+        typeof(FSH.Modules.Notifications.NotificationsModule),
+        typeof(FSH.Modules.PAF.Contracts.PafContractsMarker),
+        typeof(FSH.Modules.PAF.PafModule)];
 });
 
 var moduleAssemblies = new Assembly[]
@@ -78,6 +90,7 @@ var moduleAssemblies = new Assembly[]
     typeof(TicketsModule).Assembly,
     typeof(FSH.Modules.Chat.ChatModule).Assembly,
     typeof(FSH.Modules.Notifications.NotificationsModule).Assembly,
+    typeof(PafModule).Assembly,
 };
 
 builder.AddHeroPlatform(o =>

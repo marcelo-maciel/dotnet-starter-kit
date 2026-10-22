@@ -5,6 +5,8 @@ import { decodeJwt, isTokenExpired, type JwtClaims } from "@/auth/jwt";
 import { issueToken } from "@/auth/api";
 import { refreshAccessToken } from "@/lib/api-client";
 import { endImpersonation, getMyPermissions, startImpersonation } from "@/api/identity";
+import { logoutPeloServidor } from "@/features/paf/sessao/logout-pelo-servidor";
+import { umLogoutPorVez } from "@/features/paf/sessao/logout-unico";
 
 export type AuthUser = {
   id: string;
@@ -43,6 +45,8 @@ export type AuthContextValue = {
   impersonation: ImpersonationInfo | null;
   login: (input: { email: string; password: string; tenant: string }) => Promise<void>;
   logout: () => void;
+  /** Clears the local session with no call to the server: for when the server already ended it (SessaoInvalidada). */
+  logoutLocal: () => void;
   /** Re-fetch the permission set for the signed-in user (e.g. after a role change). */
   refreshPermissions: () => Promise<void>;
   /** Begin impersonating another user. Resolves once the new token is installed. */
@@ -248,7 +252,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [queryClient],
   );
 
-  const logout = useCallback(() => {
+  // PAF: umLogoutPorVez drops a second call (menu plus inactivity guard) while this logout is in flight.
+  const logout = useMemo(
+    () =>
+      umLogoutPorVez(() => {
+        const limpar = () => {
+          tokenStore.clear();
+          queryClient.clear();
+        };
+        // PAF (ADR 0008, "Logout pelo servidor"): revoke the session and release licence and guichê while the
+        // token still exists. Bounded and never rejects; null (impersonation, no session claim) clears at once.
+        const servidor = logoutPeloServidor();
+        if (servidor === null) {
+          limpar();
+          return Promise.resolve();
+        }
+        return servidor.then(limpar);
+      }),
+    [queryClient],
+  );
+
+  const logoutLocal = useCallback(() => {
     tokenStore.clear();
     queryClient.clear();
   }, [queryClient]);
@@ -328,11 +352,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       impersonation,
       login,
       logout,
+      logoutLocal,
       beginImpersonation,
       stopImpersonation,
       refreshPermissions,
     }),
-    [user, isInitializing, permissionsHydrated, impersonation, login, logout, beginImpersonation, stopImpersonation, refreshPermissions],
+    [user, isInitializing, permissionsHydrated, impersonation, login, logout, logoutLocal, beginImpersonation, stopImpersonation, refreshPermissions],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -220,7 +220,7 @@ public sealed class WebhookDeliveryTests
         var otherTenantId = $"wh-deliv-iso-{uniqueId}";
         var otherAdminEmail = $"wh-deliv-iso-{uniqueId}@tenant.com";
         await CreateTenantAsync(rootClient, otherTenantId, otherAdminEmail);
-        await WaitForProvisioningAsync(rootClient, otherTenantId);
+        await TenantProvisioningWait.WaitForProvisioningAsync(rootClient, otherTenantId);
         using var otherClient = await CreateTenantAdminClientWithRetryAsync(
             capturingFactory, otherAdminEmail, TestConstants.DefaultPassword, otherTenantId);
 
@@ -346,7 +346,7 @@ public sealed class WebhookDeliveryTests
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var result = await response.Content.ReadFromJsonAsync<PagedResponse<WebhookDeliveryDto>>();
         result.ShouldNotBeNull();
-        return result!;
+        return result;
     }
 
     private static void SetRootTenantContext(IServiceProvider sp)
@@ -370,33 +370,6 @@ public sealed class WebhookDeliveryTests
         });
         var body = await response.Content.ReadAsStringAsync();
         response.StatusCode.ShouldBe(HttpStatusCode.Created, $"Create tenant failed: {body}");
-    }
-
-    private static async Task WaitForProvisioningAsync(HttpClient client, string tenantId, int maxRetries = 60)
-    {
-        for (int i = 0; i < maxRetries; i++)
-        {
-            var statusResponse = await client.GetAsync(
-                $"{TestConstants.TenantsBasePath}/{tenantId}/provisioning");
-
-            if (statusResponse.IsSuccessStatusCode)
-            {
-                var content = await statusResponse.Content.ReadAsStringAsync();
-                if (content.Contains("Completed", StringComparison.OrdinalIgnoreCase))
-                {
-                    return;
-                }
-
-                if (content.Contains("Failed", StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new InvalidOperationException($"Tenant {tenantId} provisioning failed: {content}");
-                }
-            }
-
-            await Task.Delay(1000);
-        }
-
-        throw new TimeoutException($"Tenant {tenantId} provisioning did not complete within {maxRetries} seconds.");
     }
 
     /// <summary>

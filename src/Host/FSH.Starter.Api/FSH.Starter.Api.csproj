@@ -12,6 +12,12 @@
 		<ContainerUser>1654</ContainerUser>
 		<ContainerFamily>noble</ContainerFamily>
 		<ContainerRepository>fsh-api</ContainerRepository>
+
+		<!-- The chiseled runtime image ships without ICU and sets DOTNET_SYSTEM_GLOBALIZATION_INVARIANT,
+		     where only predefined cultures may be created, so request localization's new CultureInfo("pt-BR")
+		     kills startup. Named cultures are all it needs: resource lookup goes by name, and formatting is
+		     pinned to InvariantCulture by design (see UseHeroLocalization). -->
+		<PredefinedCulturesOnly>false</PredefinedCulturesOnly>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -40,6 +46,8 @@
     <ProjectReference Include="..\..\Modules\Catalog\Modules.Catalog.Contracts\Modules.Catalog.Contracts.csproj" />
     <ProjectReference Include="..\..\Modules\Tickets\Modules.Tickets\Modules.Tickets.csproj" />
     <ProjectReference Include="..\..\Modules\Tickets\Modules.Tickets.Contracts\Modules.Tickets.Contracts.csproj" />
+    <ProjectReference Include="..\..\Modules\PAF\Modules.PAF\Modules.PAF.csproj" />
+    <ProjectReference Include="..\..\Modules\PAF\Modules.PAF.Contracts\Modules.PAF.Contracts.csproj" />
     <ProjectReference Include="..\..\Modules\Files\Modules.Files\Modules.Files.csproj" />
     <ProjectReference Include="..\..\Modules\Files\Modules.Files.Contracts\Modules.Files.Contracts.csproj" />
     <ProjectReference Include="..\..\Modules\Chat\Modules.Chat\Modules.Chat.csproj" />
