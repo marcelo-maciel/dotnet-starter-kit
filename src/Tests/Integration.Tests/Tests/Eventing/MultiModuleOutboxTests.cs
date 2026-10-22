@@ -120,7 +120,8 @@ public sealed class MultiModuleOutboxTests
         Guid.CreateVersion7().ToString(),
         "outbox-1349@fullstackhero.net",
         "Out",
-        "Box");
+        "Box",
+        "en-US");
 
     private async Task<IServiceScope> CreateTenantScopeAsync()
     {

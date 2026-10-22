@@ -8,7 +8,9 @@ using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Data;
 using FSH.Modules.Identity.Domain;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Options;
 using System.Collections.ObjectModel;
 using System.Net;
 using System.Text;
@@ -22,7 +24,8 @@ internal sealed class UserPasswordService(
     IMailService mailService,
     IMultiTenantContextAccessor<AppTenantInfo> multiTenantContextAccessor,
     IPasswordHistoryService passwordHistoryService,
-    IPasswordExpiryService passwordExpiryService) : IUserPasswordService
+    IPasswordExpiryService passwordExpiryService,
+    IOptions<RequestLocalizationOptions> localizationOptions) : IUserPasswordService
 {
     public async Task ForgotPasswordAsync(string email, string origin, CancellationToken cancellationToken)
     {
@@ -54,15 +57,15 @@ internal sealed class UserPasswordService(
             });
         // The body is sent as text/html, so the link has to be an anchor: a bare URL in an HTML part is
         // not auto-linked by most clients, which is how the reset link reached users as dead text.
+        // Written in the user's language, or the deployment's when they chose none: the request's own
+        // culture is the anonymous caller's browser, not the account holder's.
+        var culture = IdentityEmails.CultureFor(user.Locale, localizationOptions.Value.DefaultRequestCulture.UICulture);
+        var (subject, html, text) = IdentityEmails.ResetPassword(resetPasswordUri, culture);
         var mailRequest = new MailRequest(
             new Collection<string> { user.Email },
-            "Reset Password",
-            HtmlEmail.LinkAction(
-                heading: "Reset your password",
-                intro: "Use the link below to choose a new password.",
-                actionUrl: resetPasswordUri,
-                actionLabel: "Reset password"),
-            textBody: $"Please reset your password using the following link: {resetPasswordUri}");
+            subject,
+            html,
+            textBody: text);
 
         jobService.Enqueue(() => mailService.SendAsync(mailRequest, CancellationToken.None));
     }

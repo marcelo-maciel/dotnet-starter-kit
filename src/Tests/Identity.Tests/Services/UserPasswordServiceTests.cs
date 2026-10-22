@@ -6,6 +6,7 @@ using FSH.Framework.Mailing.Services;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Domain;
 using FSH.Modules.Identity.Services;
+using Identity.Tests.Support;
 using Microsoft.AspNetCore.Identity;
 using NSubstitute;
 
@@ -48,7 +49,7 @@ public sealed class UserPasswordServiceTests
     }
 
     private UserPasswordService CreateSut() =>
-        new(_userManager, null!, _jobService, _mailService, _tenantAccessor, null!, null!);
+        new(_userManager, null!, _jobService, _mailService, _tenantAccessor, null!, null!, DeploymentCultureOptions.For("en-US"));
 
     private MailRequest CaptureSentMail()
     {

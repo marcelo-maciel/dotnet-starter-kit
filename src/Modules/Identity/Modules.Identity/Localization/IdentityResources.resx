@@ -268,4 +268,58 @@
   <data name="Identity.InScopeInitializationOnly" xml:space="preserve">
     <value>Method reserved for in-scope initialization</value>
   </data>
+  <data name="Identity.Email.Welcome.Subject" xml:space="preserve">
+    <value>Welcome!</value>
+  </data>
+  <data name="Identity.Email.Welcome.Greeting" xml:space="preserve">
+    <value>Hi {0}, thanks for registering.</value>
+  </data>
+  <data name="Identity.Email.Confirm.Subject" xml:space="preserve">
+    <value>Confirm Your Email Address</value>
+  </data>
+  <data name="Identity.Email.Confirm.Title" xml:space="preserve">
+    <value>Confirm Your Email</value>
+  </data>
+  <data name="Identity.Email.Confirm.Greeting" xml:space="preserve">
+    <value>Hi {0},</value>
+  </data>
+  <data name="Identity.Email.Confirm.Intro" xml:space="preserve">
+    <value>Thank you for registering! Please confirm your email address by clicking the button below:</value>
+  </data>
+  <data name="Identity.Email.Confirm.Action" xml:space="preserve">
+    <value>Confirm Email Address</value>
+  </data>
+  <data name="Identity.Email.Confirm.LinkFallback" xml:space="preserve">
+    <value>If the button doesn't work, copy and paste this link into your browser:</value>
+  </data>
+  <data name="Identity.Email.Confirm.Ignore" xml:space="preserve">
+    <value>If you didn't create an account, you can safely ignore this email.</value>
+  </data>
+  <data name="Identity.Email.Confirm.Footer" xml:space="preserve">
+    <value>This is an automated message. Please do not reply to this email.</value>
+  </data>
+  <data name="Identity.Email.Confirm.Text" xml:space="preserve">
+    <value>Please confirm your email address using the following link: {0}</value>
+  </data>
+  <data name="Identity.Email.Confirm.DefaultName" xml:space="preserve">
+    <value>User</value>
+  </data>
+  <data name="Identity.Email.Reset.Subject" xml:space="preserve">
+    <value>Reset Password</value>
+  </data>
+  <data name="Identity.Email.Reset.Heading" xml:space="preserve">
+    <value>Reset your password</value>
+  </data>
+  <data name="Identity.Email.Reset.Intro" xml:space="preserve">
+    <value>Use the link below to choose a new password.</value>
+  </data>
+  <data name="Identity.Email.Reset.Action" xml:space="preserve">
+    <value>Reset password</value>
+  </data>
+  <data name="Identity.Email.Reset.LinkFallback" xml:space="preserve">
+    <value>If the button does not work, copy this address into your browser:</value>
+  </data>
+  <data name="Identity.Email.Reset.Text" xml:space="preserve">
+    <value>Please reset your password using the following link: {0}</value>
+  </data>
 </root>

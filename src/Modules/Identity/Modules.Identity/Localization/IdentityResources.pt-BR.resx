@@ -268,4 +268,58 @@
   <data name="Identity.InScopeInitializationOnly" xml:space="preserve">
     <value>Método reservado para inicialização em escopo.</value>
   </data>
+  <data name="Identity.Email.Welcome.Subject" xml:space="preserve">
+    <value>Bem-vindo(a)!</value>
+  </data>
+  <data name="Identity.Email.Welcome.Greeting" xml:space="preserve">
+    <value>Olá, {0}! Agradecemos seu cadastro.</value>
+  </data>
+  <data name="Identity.Email.Confirm.Subject" xml:space="preserve">
+    <value>Confirme seu e-mail</value>
+  </data>
+  <data name="Identity.Email.Confirm.Title" xml:space="preserve">
+    <value>Confirme seu e-mail</value>
+  </data>
+  <data name="Identity.Email.Confirm.Greeting" xml:space="preserve">
+    <value>Olá, {0},</value>
+  </data>
+  <data name="Identity.Email.Confirm.Intro" xml:space="preserve">
+    <value>Agradecemos seu cadastro! Confirme seu e-mail clicando no botão abaixo:</value>
+  </data>
+  <data name="Identity.Email.Confirm.Action" xml:space="preserve">
+    <value>Confirmar e-mail</value>
+  </data>
+  <data name="Identity.Email.Confirm.LinkFallback" xml:space="preserve">
+    <value>Se o botão não funcionar, copie e cole este link no navegador:</value>
+  </data>
+  <data name="Identity.Email.Confirm.Ignore" xml:space="preserve">
+    <value>Se você não criou uma conta, pode ignorar este e-mail.</value>
+  </data>
+  <data name="Identity.Email.Confirm.Footer" xml:space="preserve">
+    <value>Esta é uma mensagem automática. Não responda a este e-mail.</value>
+  </data>
+  <data name="Identity.Email.Confirm.Text" xml:space="preserve">
+    <value>Confirme seu e-mail pelo link a seguir: {0}</value>
+  </data>
+  <data name="Identity.Email.Confirm.DefaultName" xml:space="preserve">
+    <value>usuário(a)</value>
+  </data>
+  <data name="Identity.Email.Reset.Subject" xml:space="preserve">
+    <value>Redefinição de senha</value>
+  </data>
+  <data name="Identity.Email.Reset.Heading" xml:space="preserve">
+    <value>Redefina sua senha</value>
+  </data>
+  <data name="Identity.Email.Reset.Intro" xml:space="preserve">
+    <value>Use o link abaixo para escolher uma nova senha.</value>
+  </data>
+  <data name="Identity.Email.Reset.Action" xml:space="preserve">
+    <value>Redefinir senha</value>
+  </data>
+  <data name="Identity.Email.Reset.LinkFallback" xml:space="preserve">
+    <value>Se o botão não funcionar, copie este endereço no navegador:</value>
+  </data>
+  <data name="Identity.Email.Reset.Text" xml:space="preserve">
+    <value>Redefina sua senha pelo link a seguir: {0}</value>
+  </data>
 </root>

@@ -2,6 +2,7 @@ using FSH.Framework.Mailing;
 using FSH.Framework.Mailing.Services;
 using FSH.Modules.Identity.Contracts.Events;
 using FSH.Modules.Identity.Events;
+using Identity.Tests.Support;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
@@ -16,7 +17,7 @@ public sealed class UserRegisteredEmailHandlerTests
     private readonly IMailService _mailService = Substitute.For<IMailService>();
 
     private UserRegisteredEmailHandler CreateSut() =>
-        new(_mailService, NullLogger<UserRegisteredEmailHandler>.Instance);
+        new(_mailService, NullLogger<UserRegisteredEmailHandler>.Instance, DeploymentCultureOptions.For("en-US"));
 
     private static UserRegisteredIntegrationEvent EventWithFirstName(string firstName) =>
         new(
@@ -28,7 +29,8 @@ public sealed class UserRegisteredEmailHandlerTests
             UserId: Guid.NewGuid().ToString(),
             Email: "new.user@codefi.com.br",
             FirstName: firstName,
-            LastName: "Maciel");
+            LastName: "Maciel",
+            Locale: "en-US");
 
     private MailRequest CaptureSentMail()
     {

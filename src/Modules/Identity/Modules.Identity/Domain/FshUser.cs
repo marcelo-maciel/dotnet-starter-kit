@@ -37,6 +37,7 @@ public class FshUser : IdentityUser, IHasDomainEvents
         AddDomainEvent(UserRegisteredEvent.Create(
             userId: Id,
             email: Email ?? string.Empty,
+            locale: Locale,
             firstName: FirstName,
             lastName: LastName,
             tenantId: tenantId));
