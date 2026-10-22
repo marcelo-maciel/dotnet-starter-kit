@@ -115,15 +115,17 @@ public sealed class UserEmailLanguageTests
     /// service (the welcome), plus the MailRequest arguments of the Hangfire jobs the API enqueued (reset and
     /// confirmation). The job arguments are read from the storage, not from the capture, because in this host
     /// those jobs reach Succeeded without ever showing up in NoOpMailService.Sent (observed 22/10/2026: no
-    /// existing test asserted a Hangfire-delivered mail). What is asserted is exactly what the API handed to
-    /// the job.
+    /// existing test asserted a Hangfire-delivered mail). Unconfirmed hypothesis: Hangfire's static job
+    /// storage and activator belong to whichever test host configured them last, so the job runs in another
+    /// host's container with another NoOpMailService. What is asserted is exactly what the API handed to the
+    /// job (the body is built at enqueue time, inside the request), not that the mail was delivered; failed
+    /// jobs are left out so a job that breaks does not count as a sent mail.
     /// </summary>
     private List<MailRequest> MailsTo(string to)
     {
         var monitor = JobStorage.Current.GetMonitoringApi();
         var jobs = monitor.SucceededJobs(0, 1000).Select(j => j.Value.Job)
             .Concat(monitor.ProcessingJobs(0, 1000).Select(j => j.Value.Job))
-            .Concat(monitor.FailedJobs(0, 1000).Select(j => j.Value.Job))
             .Concat(monitor.Queues().SelectMany(q => monitor.EnqueuedJobs(q.Name, 0, 1000)).Select(j => j.Value.Job));
         return Mail.Sent
             .Concat(jobs.Where(j => j is not null).SelectMany(j => j.Args.OfType<MailRequest>()))

@@ -100,7 +100,7 @@ public sealed class IdentityEmailCultureTests
         html.ShouldContain(HtmlEmail.Encode("Redefina sua senha"));
         html.ShouldContain(HtmlEmail.Encode("Use o link abaixo para escolher uma nova senha."));
         html.ShouldContain(HtmlEmail.Encode("Redefinir senha") + "</a>");
-        html.ShouldContain(HtmlEmail.Encode("Se o botão não funcionar, copie este endereço no navegador:"));
+        html.ShouldContain(HtmlEmail.Encode("Se o botão não funcionar, copie e cole este endereço no navegador:"));
         html.ShouldNotContain("If the button does not work");
         html.ShouldNotContain("Reset", Case.Sensitive);
     }
