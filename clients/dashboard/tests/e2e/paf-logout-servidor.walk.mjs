@@ -42,6 +42,24 @@ async function api(method, path, token, body) {
   return r.status === 204 ? null : r.json();
 }
 
+// Root token (no X-FSH-App: the dashboard refuses root sign-ins) and an impersonation of the target in TENANT.
+async function impersonarComoRoot(alvoId) {
+  const chamar = async (path, token, body) => {
+    const headers = { tenant: "root", "Content-Type": "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const r = await fetch(API + path, { method: "POST", headers, body: JSON.stringify(body), signal: AbortSignal.timeout(TIMEOUT) });
+    if (!r.ok) throw new Error(`POST ${path} (root) -> ${r.status} ${await r.text()}`);
+    return r.json();
+  };
+  const root = await chamar("/api/v1/identity/token/issue", null, { email: "admin@root.com", password: SENHA_DEMO });
+  const imp = await chamar("/api/v1/identity/impersonation/start", root.accessToken, {
+    targetUserId: alvoId,
+    targetTenantId: TENANT,
+    reason: "walk do logout durante a impersonação",
+  });
+  return imp.accessToken;
+}
+
 function sql(consulta) {
   return execFileSync("docker", ["exec", PG, "psql", "-U", "fsh", "-d", "fsh", "-tAc", consulta], {
     timeout: TIMEOUT,
@@ -166,10 +184,10 @@ try {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     const chamadas = registrarLogouts(page);
-    await entrar(page);
-    await page.goto(`${WEB}/identity/users/${alvo.id}`);
-    await page.getByRole("button", { name: "Impersonate" }).click();
-    await page.getByRole("button", { name: "Start impersonation" }).click();
+    // Impersonation is the Codefi operator's alone (Users.Impersonate is root-only): the root starts it through
+    // the API and hands the token to the dashboard the way the admin console does, by the #impersonate hash.
+    const imp = await impersonarComoRoot(alvo.id);
+    await page.goto(`${WEB}/#impersonate?token=${encodeURIComponent(imp)}&tenant=${TENANT}`);
     await page.getByRole("button", { name: /End impersonation/ }).waitFor({ timeout: TIMEOUT });
     const par = await tokens(page);
     const actSub = JSON.parse(Buffer.from(par.access.split(".")[1], "base64url").toString("utf8")).act_sub;
