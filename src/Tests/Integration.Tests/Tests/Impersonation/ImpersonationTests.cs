@@ -10,6 +10,7 @@ using System.Text.Json;
 using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Shared.Multitenancy;
+using FSH.Modules.Identity.Contracts.DTOs;
 using FSH.Modules.Identity.Domain;
 using Integration.Tests.Infrastructure;
 using Microsoft.AspNetCore.Identity;
@@ -772,6 +773,35 @@ public sealed class ImpersonationTests : IAsyncLifetime
         // Assert — the JWT validation hook short-circuits BEFORE the End handler
         // runs, so the caller sees 401, not a successful end with a fresh token.
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    #endregion
+
+    // ─── Current session marking ────────────────────────────────────────
+
+    #region Current session
+
+    [Fact]
+    public async Task Start_Should_IssueTokenWithoutSessionId_So_NoSessionIsMarkedCurrent()
+    {
+        // Arrange — the operator's own login token carries the id of the operator's session.
+        using var rootClient = await _auth.CreateRootAdminClientAsync();
+
+        // Act
+        var impersonationToken = await StartImpersonationAsync(rootClient, _tenantAdminUserId, _tenantId);
+
+        // Assert — the operator's session id must not travel into the impersonated identity.
+        var jwt = new JwtSecurityTokenHandler().ReadJwtToken(impersonationToken);
+        jwt.Claims.ShouldNotContain(c => c.Type == JwtRegisteredClaimNames.Sid);
+        jwt.Claims.ShouldNotContain(c => c.Type == System.Security.Claims.ClaimTypes.Sid);
+
+        using var impersonatedClient = ClientWithBearer(impersonationToken, _tenantId);
+        var response = await impersonatedClient.GetAsync($"{TestConstants.IdentityBasePath}/sessions/me");
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var sessions = await response.Content.ReadFromJsonAsync<List<UserSessionDto>>(Json);
+        sessions.ShouldNotBeNull();
+        sessions.ShouldNotBeEmpty();
+        sessions.ShouldAllBe(s => !s.IsCurrentSession);
     }
 
     #endregion

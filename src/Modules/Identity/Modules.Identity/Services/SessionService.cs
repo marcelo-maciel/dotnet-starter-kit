@@ -8,6 +8,8 @@ using FSH.Modules.Identity.Data;
 using FSH.Modules.Identity.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using UAParser;
 
 namespace FSH.Modules.Identity.Services;
@@ -98,7 +100,19 @@ public sealed class SessionService : ISessionService
             .OrderByDescending(s => s.LastActivityAt)
             .ToListAsync(cancellationToken);
 
-        return sessions.Select(s => MapToDto(s, isCurrentSession: false)).ToList();
+        var currentSessionId = ReadCurrentSessionId();
+        return sessions.Select(s => MapToDto(s, isCurrentSession: s.Id == currentSessionId)).ToList();
+    }
+
+    // The access token names its session in `sid`. JwtBearer's default inbound map leaves `sid` as is, but a map
+    // that renamed it would turn it into ClaimTypes.Sid, so both are read. A token without the claim (impersonation,
+    // or issued before the claim existed) marks no session as current.
+    private Guid? ReadCurrentSessionId()
+    {
+        var sid = _currentUser.GetUserClaims()?
+            .FirstOrDefault(c => c.Type is JwtRegisteredClaimNames.Sid or ClaimTypes.Sid)?
+            .Value;
+        return Guid.TryParse(sid, out var sessionId) ? sessionId : null;
     }
 
     public async Task<List<UserSessionDto>> GetUserSessionsForAdminAsync(
