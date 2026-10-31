@@ -10,7 +10,6 @@ import {
   CreditCard,
   Gauge,
   Lock,
-  Package,
   RefreshCw,
   ScrollText,
   Server,
@@ -393,9 +392,6 @@ function SubscriptionBody({
             Pick a plan to enable billing, quotas, and overage tracking.
           </p>
         </div>
-        <Button asChild variant="soft" size="sm">
-          <Link to="/subscription">View subscription</Link>
-        </Button>
       </div>
     );
   }
@@ -676,7 +672,9 @@ function RecentAuditRow({ row }: { row: AuditSummaryDto }) {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Quick actions — four shortcut tiles to the most useful destinations.
+// Quick actions — shortcut tiles to the most useful destinations. Catalog and
+// Subscription are not part of the PAF product (31/10/2026); their routes
+// redirect home, so they have no tile.
 // ────────────────────────────────────────────────────────────────────────
 
 type QuickAction = {
@@ -694,20 +692,6 @@ const QUICK_ACTIONS: QuickAction[] = [
     description: "Add teammates, assign roles.",
     icon: UsersRound,
     tone: "info",
-  },
-  {
-    to: "/catalog/products",
-    title: "Browse catalog",
-    description: "Products, brands, categories.",
-    icon: Package,
-    tone: "success",
-  },
-  {
-    to: "/subscription",
-    title: "Subscription",
-    description: "Plan, usage, invoices.",
-    icon: CreditCard,
-    tone: "primary",
   },
   {
     to: "/activity",
@@ -834,34 +818,20 @@ type SetupTileSpec = {
   tone: StatTone;
 };
 
+// No "Pick a plan" or "Browse catalog" step: Billing and Catalog are not part of
+// the PAF product (31/10/2026) and their routes redirect home.
 const SETUP_TILES: SetupTileSpec[] = [
   {
-    to: "/invoices",
-    step: "01",
-    title: "Pick a plan",
-    description: "Enable billing, quotas, and overage tracking.",
-    icon: Sparkles,
-    tone: "primary",
-  },
-  {
     to: "/identity/users",
-    step: "02",
+    step: "01",
     title: "Invite your team",
     description: "Add teammates, assign roles, and group them.",
     icon: UsersRound,
     tone: "info",
   },
   {
-    to: "/catalog/products",
-    step: "03",
-    title: "Browse catalog",
-    description: "Sample products, brands, categories ready to go.",
-    icon: Package,
-    tone: "success",
-  },
-  {
     to: "/activity",
-    step: "04",
+    step: "02",
     title: "Watch live",
     description: "SSE stream right into the dashboard.",
     icon: Activity,
@@ -907,7 +877,7 @@ function FirstRunPanel({
           Your tenant is provisioned and ready. Here's where most teams start.
         </p>
 
-        <ul className="mt-5 grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+        <ul className="mt-5 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
           {SETUP_TILES.map((tile, idx) => (
             <li
               key={tile.to}

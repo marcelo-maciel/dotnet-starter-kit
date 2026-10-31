@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { mockJsonResponse } from "../helpers/api-mocks";
 import { installShellMocks, paged } from "../helpers/shell-mocks";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
@@ -37,6 +37,34 @@ test.describe("overview (/overview)", () => {
     await expect(page.getByText("System status", { exact: true })).toBeVisible();
     // Empty usage → calm empty state, not a crash.
     await expect(page.getByText(/no usage captured yet/i)).toBeVisible();
+  });
+
+  // Chat, Files, Catalog, Helpdesk, Billing and Trash are not part of the PAF product (31/10/2026): their routes
+  // redirect home, so the overview must not offer a shortcut that bounces back.
+  const ROTAS_REMOVIDAS = ["/subscription", "/invoices", "/wallet", "/catalog", "/chat", "/files", "/tickets", "/system/trash"];
+  const linksParaRotasRemovidas = (page: Page) =>
+    page.locator(ROTAS_REMOVIDAS.map((rota) => `a[href^="${rota}"]`).join(", "));
+
+  test("visão geral com assinatura não tem atalho para rota removida", async ({ page }) => {
+    await page.goto("/overview");
+    const card = page.locator("section", { has: page.getByRole("heading", { name: "Quick actions" }) });
+    await expect(card.getByRole("link", { name: /invite users/i })).toBeVisible();
+    await expect(card.getByRole("link", { name: /live activity/i })).toBeVisible();
+    const assinatura = page.locator("section", { has: page.getByRole("heading", { name: "Subscription" }) });
+    await expect(assinatura.getByText("Scale", { exact: true })).toBeVisible();
+    await expect(linksParaRotasRemovidas(page)).toHaveCount(0);
+  });
+
+  test("visão geral sem assinatura mostra o primeiro acesso sem plano, catálogo nem assinatura", async ({ page }) => {
+    await mockJsonResponse(page, "**/api/v1/billing/subscriptions/me**", null);
+    await page.goto("/overview");
+    const primeiroAcesso = page.locator("section", { has: page.getByRole("heading", { name: /welcome to/i }) });
+    await expect(primeiroAcesso.getByRole("link")).toHaveCount(2);
+    await expect(primeiroAcesso.getByRole("link", { name: /invite your team/i })).toBeVisible();
+    await expect(primeiroAcesso.getByRole("link", { name: /watch live/i })).toBeVisible();
+    await expect(page.getByText("No active subscription", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: /view subscription/i })).toHaveCount(0);
+    await expect(linksParaRotasRemovidas(page)).toHaveCount(0);
   });
 
   // GET /audits requires AuditTrails.View; installShellMocks grants no permissions.
@@ -87,12 +115,12 @@ test.describe("overview (/overview)", () => {
   test("quick-action tiles are wide enough for their title and description", async ({ page }) => {
     // At desktop widths the card sits in a narrow column beside the 360px
     // rail, so tiles sized off the viewport squeeze titles past their box.
-    // A wide card must not spread the four tiles 3+1 or 4-up either.
+    // A wide card must not spread the tiles more than two-up either.
     for (const width of [1280, 2200]) {
       await page.setViewportSize({ width, height: 800 });
       await page.goto("/overview");
       const card = page.locator("section", { has: page.getByRole("heading", { name: "Quick actions" }) });
-      await expect(card.getByRole("link")).toHaveCount(4);
+      await expect(card.getByRole("link")).toHaveCount(2);
       await page.evaluate(() => document.fonts.ready);
 
       const columns = await card
