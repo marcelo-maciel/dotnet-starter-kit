@@ -4,6 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { findSectionForPath, visibleSections } from "@/components/layout/nav-data";
+import { primeiraTelaPaf } from "@/features/paf/navegacao/menu-paf";
 
 const GUICHE = "Permissions.PAF.Guiches.Selecionar";
 
@@ -80,4 +81,11 @@ test("estatística (E5) aparece só com Estatisticas.View e abre a seção do PA
   // ViewPorAtendente only widens type 4; without View the endpoint is a 403, so no menu entry.
   assert.deepEqual(itensPaf(["Permissions.PAF.Estatisticas.ViewPorAtendente"]), []);
   assert.equal(findSectionForPath("/paf/estatistica"), "paf");
+});
+
+test("a tela inicial é o guichê; sem ele, a primeira tela do PAF que a pessoa abre", () => {
+  assert.equal(primeiraTelaPaf([GUICHE, "Permissions.PAF.FichasDoDia.View"]), "/paf/guiche");
+  assert.equal(primeiraTelaPaf(["Permissions.PAF.Estatisticas.View", "Permissions.PAF.FichasDoDia.View"]), "/paf/fichas-do-dia");
+  assert.equal(primeiraTelaPaf(["Permissions.Users.Update"]), null);
+  assert.equal(primeiraTelaPaf([]), null);
 });

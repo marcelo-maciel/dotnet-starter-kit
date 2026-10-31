@@ -13,25 +13,7 @@ const SUBSCRIPTION = {
   status: "Active",
 };
 
-const INVOICE = {
-  id: "inv-1",
-  tenantId: "acme",
-  invoiceNumber: "INV-2026-05",
-  periodYear: 2026,
-  periodMonth: 5,
-  currency: "USD",
-  subtotalAmount: 149,
-  status: "Issued",
-  createdAtUtc: "2026-05-01T00:00:00Z",
-  issuedAtUtc: "2026-05-01T00:00:00Z",
-  dueAtUtc: "2026-05-15T00:00:00Z",
-  paidAtUtc: null,
-  voidedAtUtc: null,
-  notes: null,
-  lineItems: [],
-};
-
-test.describe("overview (/)", () => {
+test.describe("overview (/overview)", () => {
   test.beforeEach(async ({ page }) => {
     await seedAuthedSession(page, TEST_USER);
     await installShellMocks(page);
@@ -41,7 +23,7 @@ test.describe("overview (/)", () => {
   });
 
   test("renders the greeting header and the four stat cards", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/overview");
     await expect(page.getByRole("heading", { name: /good (morning|afternoon|evening), alice/i })).toBeVisible();
     await expect(page.getByText("Plan", { exact: true })).toBeVisible();
     await expect(page.getByText("Resources", { exact: true })).toBeVisible();
@@ -49,7 +31,7 @@ test.describe("overview (/)", () => {
   });
 
   test("renders the recent-audits + usage + system-status sections", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/overview");
     await expect(page.getByText("Recent audits", { exact: true })).toBeVisible();
     await expect(page.getByText("Usage by resource", { exact: true })).toBeVisible();
     await expect(page.getByText("System status", { exact: true })).toBeVisible();
@@ -66,7 +48,7 @@ test.describe("overview (/)", () => {
     const errors: string[] = [];
     page.on("pageerror", (err) => errors.push(err.message));
 
-    await page.goto("/");
+    await page.goto("/overview");
     const card = page.locator("section", { has: page.getByRole("heading", { name: "Recent audits" }) });
     await expect(card.getByText("No access to audits")).toBeVisible();
     await expect(card.getByRole("link", { name: /see all/i })).toHaveCount(0);
@@ -96,7 +78,7 @@ test.describe("overview (/)", () => {
       ]),
     );
 
-    await page.goto("/");
+    await page.goto("/overview");
     const card = page.locator("section", { has: page.getByRole("heading", { name: "Recent audits" }) });
     await expect(card.getByText("api.identity.IssueJwtToken")).toBeVisible();
     await expect(card.getByRole("link", { name: /see all/i })).toBeVisible();
@@ -108,7 +90,7 @@ test.describe("overview (/)", () => {
     // A wide card must not spread the four tiles 3+1 or 4-up either.
     for (const width of [1280, 2200]) {
       await page.setViewportSize({ width, height: 800 });
-      await page.goto("/");
+      await page.goto("/overview");
       const card = page.locator("section", { has: page.getByRole("heading", { name: "Quick actions" }) });
       await expect(card.getByRole("link")).toHaveCount(4);
       await page.evaluate(() => document.fonts.ready);
@@ -166,7 +148,7 @@ test.describe("overview (/)", () => {
       expiryState: "InGrace",
       graceEndsUtc: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
     });
-    await page.goto("/");
+    await page.goto("/overview");
     await expect(page.getByText("Valid for", { exact: true })).toBeVisible();
     // Grace surfaces the grace-end caption on the stat card.
     await expect(page.getByText(/grace ends/i)).toBeVisible();
@@ -185,71 +167,10 @@ test.describe("overview (/)", () => {
       expiryState: "Expired",
       graceEndsUtc: new Date(Date.now() - 16 * 24 * 60 * 60 * 1000).toISOString(),
     });
-    await page.goto("/");
+    await page.goto("/overview");
     await expect(page.getByText("Valid for", { exact: true })).toBeVisible();
     // The stat card reads "Expired" rather than a healthy day count.
     await expect(page.getByText("Expired", { exact: true })).toBeVisible();
   });
 });
 
-test.describe("invoices (/invoices)", () => {
-  test.beforeEach(async ({ page }) => {
-    await seedAuthedSession(page, TEST_USER);
-    await installShellMocks(page);
-  });
-
-  test("renders an invoice row from the API", async ({ page }) => {
-    await mockJsonResponse(page, "**/api/v1/billing/invoices/me**", paged([INVOICE]));
-    await page.goto("/invoices");
-    await expect(page.getByRole("heading", { name: /invoices/i })).toBeVisible();
-    // Invoice number + status render in both a (hidden) mobile card and the
-    // desktop table row; the desktop one is last in the DOM on a wide viewport.
-    await expect(page.getByText("INV-2026-05").last()).toBeVisible();
-    await expect(page.getByText("Issued").last()).toBeVisible();
-  });
-
-  test("shows the empty state when there are no invoices", async ({ page }) => {
-    await mockJsonResponse(page, "**/api/v1/billing/invoices/me**", paged([]));
-    await page.goto("/invoices");
-    await expect(page.getByText(/no invoices yet/i)).toBeVisible();
-  });
-
-  test("filters by search term", async ({ page }) => {
-    await mockJsonResponse(page, "**/api/v1/billing/invoices/me**", paged([INVOICE]));
-    await page.goto("/invoices");
-    await expect(page.getByText("INV-2026-05").last()).toBeVisible();
-    await page.getByPlaceholder(/search by invoice number/i).fill("nomatch-xyz");
-    await expect(page.getByText(/no invoices found/i)).toBeVisible();
-  });
-
-  test("paginates across pages using the PagedResult envelope", async ({ page }) => {
-    const PAGE_1 = { ...INVOICE, id: "inv-1", invoiceNumber: "INV-2026-05" };
-    const PAGE_2 = { ...INVOICE, id: "inv-2", invoiceNumber: "INV-2026-04", periodMonth: 4 };
-
-    // Serve page 1 or page 2 based on the requested pageNumber so the next
-    // control drives a real envelope transition. totalCount=2, totalPages=2.
-    await page.route("**/api/v1/billing/invoices/me**", async (route) => {
-      const url = new URL(route.request().url());
-      const pageNumber = Number(url.searchParams.get("pageNumber") ?? "1");
-      const item = pageNumber >= 2 ? PAGE_2 : PAGE_1;
-      await route.fulfill({
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          paged([item], { pageNumber, pageSize: 20, totalCount: 2, totalPages: 2 }),
-        ),
-      });
-    });
-
-    await page.goto("/invoices");
-    // Header reflects the TRUE total, not the loaded page size.
-    await expect(page.getByText(/showing 1 of 2 invoices/i)).toBeVisible();
-    await expect(page.getByText("INV-2026-05").last()).toBeVisible();
-    await expect(page.getByText("Page 1 of 2", { exact: true })).toBeVisible();
-
-    await page.getByRole("button", { name: /next page/i }).click();
-
-    await expect(page.getByText("INV-2026-04").last()).toBeVisible();
-    await expect(page.getByText("Page 2 of 2", { exact: true })).toBeVisible();
-  });
-});

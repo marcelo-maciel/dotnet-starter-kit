@@ -49,3 +49,8 @@ export const secaoMenuPaf: NavSection = {
     { to: "/paf/programacoes", label: "Programação de mídias", icon: CalendarClock, perm: "Permissions.PAF.Programacoes.View" },
   ],
 };
+
+/** First PAF screen the permissions open, in menu order (the guichê leads); null when none does. */
+export function primeiraTelaPaf(permissoes: readonly string[]): string | null {
+  return secaoMenuPaf.items.find((item) => item.perm !== undefined && permissoes.includes(item.perm))?.to ?? null;
+}

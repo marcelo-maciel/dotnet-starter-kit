@@ -1,22 +1,13 @@
 import {
   Activity,
-  CreditCard,
-  FolderOpen,
-  FolderTree,
   HeartPulse,
   LayoutDashboard,
-  MessageCircle,
-  Package,
-  Receipt,
   ScrollText,
   Settings,
   ShieldCheck,
-  Tags,
-  Ticket,
   Trash2,
   Users,
   UsersRound,
-  Wallet,
   Wifi,
 } from "lucide-react";
 import { ALL_TRASH_PERMISSIONS } from "@/lib/trash-permissions";
@@ -55,12 +46,9 @@ export type NavSection = {
 // Top-level items live OUTSIDE any section. Overview opens the app;
 // Settings is account-scoped and lives at the very bottom.
 export const topNavTop: NavSpec[] = [
-  { to: "/", label: "Overview", icon: LayoutDashboard },
-  // Each gate mirrors the permission the page's primary list endpoint enforces
-  // server-side (Chat → channels list, Files → /files/mine). Same convention
-  // as trash-permissions.ts: if the endpoint's permission changes, mirror it.
-  { to: "/chat", label: "Chat", icon: MessageCircle, perm: "Permissions.Chat.Channels.View" },
-  { to: "/files", label: "My Files", icon: FolderOpen, perm: "Permissions.Files.Upload" },
+  // "/" opens the PAF (InicioPaf); the kit overview lives at /overview. Chat, Files, Catalog, Helpdesk and
+  // Billing are not part of the PAF product (31/10/2026): out of the menu, and their routes redirect home.
+  { to: "/overview", label: "Overview", icon: LayoutDashboard },
 ];
 
 export const topNavBottom: NavSpec[] = [
@@ -77,27 +65,6 @@ export const sections: NavSection[] = [
     items: [
       // Live activity is SSE-backed; the stream is auth-only (no permission), so no gate.
       { to: "/activity", label: "Live activity", icon: Activity },
-      { to: "/subscription", label: "Subscription", icon: CreditCard, perm: "Permissions.Billing.View" },
-      { to: "/wallet", label: "WhatsApp wallet", icon: Wallet, perm: "Permissions.Billing.View" },
-      { to: "/invoices", label: "Invoices", icon: Receipt, perm: "Permissions.Billing.View" },
-    ],
-  },
-  {
-    id: "catalog",
-    caption: "Catalog",
-    icon: Package,
-    items: [
-      { to: "/catalog/products", label: "Products", icon: Package, perm: "Permissions.Catalog.Products.View" },
-      { to: "/catalog/brands", label: "Brands", icon: Tags, perm: "Permissions.Catalog.Brands.View" },
-      { to: "/catalog/categories", label: "Categories", icon: FolderTree, perm: "Permissions.Catalog.Categories.View" },
-    ],
-  },
-  {
-    id: "helpdesk",
-    caption: "Helpdesk",
-    icon: Ticket,
-    items: [
-      { to: "/tickets", label: "Tickets", icon: Ticket, perm: "Permissions.Tickets.View" },
     ],
   },
   {
