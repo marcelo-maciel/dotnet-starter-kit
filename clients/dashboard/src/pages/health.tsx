@@ -192,8 +192,8 @@ export function HealthPage() {
   return (
     <div className="space-y-7 pb-12">
       <PageHero
-        eyebrow="System · Health"
-        title="Health"
+        eyebrow="Sistema · Saúde"
+        title="Saúde"
         subtitle={
           <>
             Live readiness probe across every registered dependency. Polled every{" "}

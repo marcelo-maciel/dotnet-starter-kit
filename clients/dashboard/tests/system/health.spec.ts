@@ -43,6 +43,9 @@ test.describe("system/health", () => {
 
     await page.goto("/system/health");
 
+    await expect(page.getByRole("heading", { name: "Saúde", level: 1 })).toBeVisible();
+    await expect(page.getByText("Sistema · Saúde", { exact: true })).toBeVisible();
+
     // Hero status headline (Outfit h2) for the Healthy path.
     await expect(
       page.getByRole("heading", { name: /all systems operational/i }),

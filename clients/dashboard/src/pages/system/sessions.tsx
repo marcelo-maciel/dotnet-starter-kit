@@ -135,7 +135,7 @@ export function SessionsPage() {
     <div className="space-y-4 sm:space-y-6">
       <EntityPageHeader
         icon={UserCog}
-        title="Active sessions"
+        title="Sessões ativas"
         total={data?.totalCount ?? null}
         unit="session"
         description={`Every browser and device currently signed in to ${user?.tenant ?? "this tenant"}. Refreshes every 30 seconds.`}

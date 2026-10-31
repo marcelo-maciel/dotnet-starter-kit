@@ -63,6 +63,47 @@ test.describe("PAF: tela inicial e menu do cliente", () => {
     await expect(menu.locator('a[href="/overview"]')).toBeAttached();
     await expect(menu.locator('a[href="/activity"]')).toBeAttached();
   });
+
+  test("o menu e a paleta de comandos mostram em português os itens herdados do kit", async ({ page }) => {
+    await mockJsonResponse(page, "**/api/v1/identity/permissions", [
+      "Permissions.Users.Update",
+      "Permissions.Roles.Update",
+      "Permissions.Groups.Update",
+      "Permissions.AuditTrails.View",
+      "Permissions.Sessions.ViewAll",
+    ]);
+    await page.goto("/overview");
+    const menu = page.locator("aside");
+    const itens: [string, string][] = [
+      ["/overview", "Visão geral"],
+      ["/activity", "Atividade ao vivo"],
+      ["/identity/users", "Usuários"],
+      ["/identity/roles", "Papéis"],
+      ["/identity/groups", "Grupos"],
+      ["/system/health", "Saúde"],
+      ["/system/audits", "Trilha de auditoria"],
+      ["/system/sessions", "Sessões"],
+    ];
+    for (const [href, rotulo] of itens) {
+      await expect(menu.locator(`a[href="${href}"]`)).toHaveText(rotulo);
+    }
+    for (const secao of ["Operações", "Identidade", "Sistema"]) {
+      await expect(menu.getByRole("button", { name: secao, exact: true })).toBeVisible();
+    }
+    for (const ingles of ["Overview", "Operations", "Live activity", "Identity", "Users", "Roles", "Groups", "System", "Health", "Audit trail", "Sessions"]) {
+      await expect(menu.getByText(ingles, { exact: true })).toHaveCount(0);
+    }
+    await menu.getByRole("button", { name: "Sistema", exact: true }).click();
+    await expect(menu.getByRole("link", { name: "Trilha de auditoria" })).toBeVisible();
+
+    await page.getByRole("banner").getByRole("button", { name: /search/i }).click();
+    const paleta = page.getByRole("dialog");
+    await expect(paleta.getByText("Navegar", { exact: true })).toBeVisible();
+    for (const [, rotulo] of itens) {
+      await expect(paleta.getByRole("option", { name: new RegExp(`^${rotulo}`) })).toBeVisible();
+    }
+    await expect(paleta.getByRole("option", { name: /^(Overview|Live activity|Users|Roles|Groups|Health|Audit trail|Sessions)\b/ })).toHaveCount(0);
+  });
 });
 
 test.describe("PAF: tela inicial depois do login", () => {

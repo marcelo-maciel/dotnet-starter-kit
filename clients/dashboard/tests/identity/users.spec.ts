@@ -45,7 +45,7 @@ test.describe("identity/users — list", () => {
     await page.goto("/identity/users");
 
     await expect(
-      page.getByRole("heading", { name: "Users", level: 1 }),
+      page.getByRole("heading", { name: "Usuários", level: 1 }),
     ).toBeVisible();
 
     // Both a hidden mobile card AND a desktop row carry "Bob Patel". The

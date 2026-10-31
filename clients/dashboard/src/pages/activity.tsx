@@ -138,7 +138,7 @@ export function ActivityPage() {
     <div className="space-y-6 sm:space-y-8">
       <EntityPageHeader
         icon={Activity}
-        title="Live activity"
+        title="Atividade ao vivo"
         total={eventCount}
         unit="event"
         description={

@@ -140,7 +140,7 @@ export function UsersPage() {
     <div className="space-y-4 sm:space-y-6">
       <EntityPageHeader
         icon={Users}
-        title="Users"
+        title="Usuários"
         total={data?.totalCount ?? null}
         unit="user"
         description="Every member with access to this tenant. Register newcomers, review status, and manage roles."

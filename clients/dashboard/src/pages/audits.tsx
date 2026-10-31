@@ -290,7 +290,7 @@ export function AuditsPage() {
     <div className="space-y-4 sm:space-y-6">
       <EntityPageHeader
         icon={ScrollText}
-        title="Audit trail"
+        title="Trilha de auditoria"
         total={paged?.totalCount ?? null}
         unit="event"
         description="Activity, security, entity-change, and exception events across the platform. Window enforced server-side; max 90 days."
