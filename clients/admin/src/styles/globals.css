@@ -1365,3 +1365,14 @@ body {
   .fsh-enter-1, .fsh-enter-2, .fsh-enter-3, .fsh-enter-4, .fsh-enter-5, .rule-draw { animation: none; }
   .card-shell-interactive:hover { transform: none; }
 }
+
+/* iPhone Safari zooms the page when a field under 16px takes focus. Phones get 16px fields; the rule
+   sits outside every @layer so it wins over the text-[14px] utilities on the inputs. A file picker opens no
+   keyboard, and at 16px its label runs past narrow cards. */
+@media (max-width: 767px) {
+  input:not([type="file"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

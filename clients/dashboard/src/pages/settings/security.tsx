@@ -158,7 +158,7 @@ export function SecuritySettings() {
       {/* Active sessions — already wired to the backend. */}
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between sm:gap-4">
             <div>
               <CardTitle className="flex items-center gap-2">
                 Active sessions
@@ -210,14 +210,14 @@ export function SecuritySettings() {
                   <li
                     key={s.id}
                     className={cn(
-                      "fsh-enter group/row flex items-center justify-between gap-4",
-                      "border-t border-[var(--color-border)] px-6 py-4 first:border-t-0",
+                      "fsh-enter group/row flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4",
+                      "border-t border-[var(--color-border)] px-4 py-4 first:border-t-0 sm:px-6",
                       "transition-colors",
                       !s.isActive && "opacity-60",
                     )}
                     style={{ animationDelay: `${50 * idx}ms` }}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
                       <span
                         aria-hidden
                         className={cn(
@@ -229,13 +229,13 @@ export function SecuritySettings() {
                       >
                         <Icon className="h-4 w-4" />
                       </span>
-                      <div className="space-y-0.5">
+                      <div className="min-w-0 space-y-0.5">
                         <div className="flex flex-wrap items-center gap-2 text-sm font-medium tracking-tight">
                           {describeDevice(s)}
                           {s.isCurrentSession && <Badge variant="brand">this device</Badge>}
                           {!s.isActive && <Badge variant="outline">revoked</Badge>}
                         </div>
-                        <div className="font-mono text-[11px] text-[var(--color-muted-foreground)]">
+                        <div className="break-all font-mono text-[11px] text-[var(--color-muted-foreground)]">
                           {s.ipAddress ?? "unknown ip"} · last activity {formatTimestamp(s.lastActivityAt)}
                           {" · expires "}{formatTimestamp(s.expiresAt)}
                         </div>
@@ -279,7 +279,7 @@ function PasswordCard() {
             Used to sign in to this tenant. Choose a strong, unique password.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex items-center justify-between gap-4 px-6 pb-5 pt-1">
+        <CardContent className="flex flex-col items-start gap-3 px-6 pb-5 pt-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="text-sm text-[var(--color-muted-foreground)]">
             We recommend a passphrase of 16+ characters with no reuse from other services.
           </div>

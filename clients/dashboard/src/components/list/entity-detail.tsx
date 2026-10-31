@@ -19,7 +19,8 @@ export function EntityDetailBack({
   return (
     <Link
       to={to}
-      className="group mb-4 inline-flex items-center gap-1.5 text-[12px] text-[var(--color-muted-foreground)] transition-colors hover:text-[var(--color-foreground)]"
+      // py-3 makes a 42px tap target for a finger; -mt-3 and mb-1 cancel it, so the text stays where it was.
+      className="group -mt-3 mb-1 inline-flex items-center gap-1.5 py-3 text-[12px] text-[var(--color-muted-foreground)] transition-colors hover:text-[var(--color-foreground)]"
     >
       <ArrowLeft className="size-3 transition-transform group-hover:-translate-x-0.5" />
       {label}

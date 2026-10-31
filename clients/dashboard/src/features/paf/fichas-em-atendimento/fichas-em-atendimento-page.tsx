@@ -97,7 +97,8 @@ export function FichasEmAtendimentoPage() {
       )}
 
       {lista.data && lista.data.atendimentos.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-card)]">
+        <div className="relative overflow-x-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-card)]">
+          {/* relative: the sr-only "Ações" header is absolute; without a positioned ancestor it escapes this scroll box and widens the page on a phone. */}
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--color-border)] text-left">

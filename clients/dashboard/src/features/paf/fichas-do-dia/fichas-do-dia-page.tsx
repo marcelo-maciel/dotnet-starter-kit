@@ -244,7 +244,8 @@ export function FichasDoDiaPage() {
           {dados.atendimentos.length === 0 ? (
             <p>Nenhuma ficha neste filtro.</p>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
+            <div className="relative overflow-x-auto rounded-xl border border-[var(--color-border)]">
+              {/* relative: the sr-only "Ações" header is absolute; without a positioned ancestor it escapes this scroll box and widens the page on a phone. */}
               <table className="w-full text-sm">
                 <thead className="bg-[var(--color-card)] text-left">
                   <tr>

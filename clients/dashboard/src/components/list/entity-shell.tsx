@@ -127,7 +127,7 @@ export function EntityFilterPill<T extends string | boolean | null>({
     <div
       role="group"
       aria-label={label}
-      className="inline-flex h-8 items-center rounded-full border border-[var(--color-border)] bg-[var(--color-card)] p-0.5 text-[11px] font-semibold uppercase tracking-wider"
+      className="inline-flex h-8 max-w-full items-center overflow-x-auto rounded-full border border-[var(--color-border)] bg-[var(--color-card)] p-0.5 text-[11px] font-semibold uppercase tracking-wider"
     >
       {options.map((opt, i) => {
         const isActive = value === opt.value;
@@ -138,7 +138,7 @@ export function EntityFilterPill<T extends string | boolean | null>({
             onClick={() => onChange(opt.value)}
             aria-pressed={isActive}
             className={cn(
-              "h-7 cursor-pointer rounded-full px-3 transition-colors duration-[var(--duration-fast)]",
+              "h-7 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-3 transition-colors duration-[var(--duration-fast)]",
               isActive
                 ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)]"
                 : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]",
