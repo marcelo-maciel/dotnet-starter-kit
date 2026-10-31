@@ -62,6 +62,7 @@ import {
 } from "@/components/ui/dialog";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cn } from "@/lib/cn";
+import { SAO_PAULO } from "@/lib/list-helpers";
 
 const PAGE_SIZE = 25;
 const DESKTOP_COLS = "grid-cols-[minmax(0,1fr)_minmax(0,2fr)_96px_160px]";
@@ -119,20 +120,28 @@ function eventTypeIcon(eventType: AuditEventType): React.ComponentType<React.SVG
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Time formatting — mono ISO for the table, locale-aware for the drawer.
+// Time formatting — mono ISO for the table, locale-aware for the drawer, both in Brasília.
 // ────────────────────────────────────────────────────────────────────────
 
+// en-CA with h23 gives zero-padded numeric parts; "h23" and not `hour12: false`, which Chrome renders
+// as "24:05" just after midnight.
+const denseParts = new Intl.DateTimeFormat("en-CA", {
+  timeZone: SAO_PAULO,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
 function fmtIsoDense(iso: string): { date: string; time: string } {
-  // 2026-04-30 14:32:11.234
+  // 2026-04-30 14:32:11.234, Brasília wall clock
   const d = new Date(iso);
-  const yyyy = d.getUTCFullYear();
-  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  const hh = String(d.getUTCHours()).padStart(2, "0");
-  const mi = String(d.getUTCMinutes()).padStart(2, "0");
-  const ss = String(d.getUTCSeconds()).padStart(2, "0");
+  const p = Object.fromEntries(denseParts.formatToParts(d).map((x) => [x.type, x.value]));
   const ms = String(d.getUTCMilliseconds()).padStart(3, "0");
-  return { date: `${yyyy}-${mm}-${dd}`, time: `${hh}:${mi}:${ss}.${ms}` };
+  return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}:${p.second}.${ms}` };
 }
 
 function fmtRelative(iso: string, now: number = Date.now()): string {

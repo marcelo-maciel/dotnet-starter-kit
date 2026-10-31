@@ -100,6 +100,19 @@ test.describe("activity (/activity)", () => {
     expect(audits.count).toBe(2);
   });
 
+  test("an event just after midnight in Brasília reads 00:05 in English, never 24:05", async ({ page }) => {
+    // `hour12: false` makes Chrome print midnight as 24 for en-US; the formatters pin hourCycle h23.
+    const midnight = { ...HISTORY_ROW, id: "a-midnight", occurredAtUtc: "2026-05-01T03:05:00.000Z" };
+    await grantPermissions(page, [AUDIT_VIEW]);
+    await mockJsonResponse(page, "**/api/v1/audits**", paged([midnight]));
+    await mockSseOnce(page);
+
+    await page.goto("/activity");
+    const history = page.getByRole("region", { name: "Recent history", exact: true });
+    await expect(history.getByText(/00:05/)).toBeVisible();
+    await expect(history.getByText(/24:05/)).toHaveCount(0);
+  });
+
   test("history request drops the per-request system Activity noise", async ({ page }) => {
     await grantPermissions(page, [AUDIT_VIEW]);
     await mockJsonResponse(page, "**/api/v1/audits**", paged([HISTORY_ROW]));

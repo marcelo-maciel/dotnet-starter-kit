@@ -141,3 +141,48 @@ test.describe("system/audits", () => {
     await expect(dialog.getByText("Payload", { exact: true })).toBeVisible();
   });
 });
+
+// Every instant reads in Brasília, whatever the browser's zone (decision of 22/10/2026). This page used
+// to print the UTC wall clock; the browser here sits in Berlin, so neither UTC (01:30) nor Berlin
+// (03:30, 1 May) may show, only Brasília's 22:30 on 30 April.
+test.describe("system/audits in Brasília", () => {
+  test.use({ timezoneId: "Europe/Berlin" });
+
+  test("a row shows the Brasília day and time of the instant", async ({ page }) => {
+    await mockJsonResponse(
+      page,
+      "**/api/v1/audits**",
+      paged([row({ occurredAtUtc: "2026-05-01T01:30:05.042Z" })], { totalCount: 1 }),
+    );
+    await mockSummary(page);
+
+    await page.goto("/system/audits");
+
+    await expect(page.getByText("api.identity.RegisterUser").last()).toBeVisible();
+    await expect(page.getByText("22:30:05.042").last()).toBeVisible();
+    await expect(page.getByText("2026-04-30").last()).toBeVisible();
+    await expect(page.getByText("01:30:05.042")).toHaveCount(0);
+    await expect(page.getByText("03:30:05.042")).toHaveCount(0);
+  });
+
+  test("the shared list formatters name the Brasília day and hour", async ({ page }) => {
+    await mockJsonResponse(page, "**/api/v1/audits**", paged([], { totalCount: 0 }));
+    await mockSummary(page);
+    await page.goto("/system/audits");
+
+    const out = await page.evaluate(async () => {
+      const helpersUrl = "/src/lib/list-helpers.ts";
+      const m = await import(/* @vite-ignore */ helpersUrl);
+      return {
+        date: m.formatDate("2026-05-01T01:30:00Z"),
+        dateTime: m.formatDateTimeMono("2026-05-01T01:30:00Z"),
+        browserDay: new Date("2026-05-01T01:30:00Z").getDate(),
+      };
+    });
+
+    // The browser really is in Berlin, where it is already 1 May.
+    expect(out.browserDay).toBe(1);
+    expect(out.date).toBe("Apr 30, 2026");
+    expect(out.dateTime).toBe("APR 30 2026 · 10:30 PM");
+  });
+});

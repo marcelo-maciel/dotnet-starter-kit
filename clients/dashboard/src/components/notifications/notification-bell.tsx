@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { RealtimeStatusPill } from "@/components/realtime/realtime-status-pill";
 import { cn } from "@/lib/cn";
+import { SAO_PAULO } from "@/lib/list-helpers";
 
 /**
  * Bell icon + dropdown inbox. Calm header + scrollable list with a
@@ -267,5 +268,5 @@ function relativeTime(iso: string): string {
   if (days < 7) return `${days}d`;
   const weeks = Math.round(days / 7);
   if (weeks < 5) return `${weeks}w`;
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: SAO_PAULO });
 }

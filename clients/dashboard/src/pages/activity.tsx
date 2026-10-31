@@ -27,7 +27,7 @@ import {
   ErrorBand,
   type EntityStatusTone,
 } from "@/components/list";
-import { describe, formatRelative } from "@/lib/list-helpers";
+import { describe, formatRelative, SAO_PAULO } from "@/lib/list-helpers";
 
 // Live SSE events exist only in memory (SseProvider) — by design, so nothing
 // from one session can leak into the next after a logout or tenant switch.
@@ -45,7 +45,8 @@ const timeFmt = new Intl.DateTimeFormat("en-US", {
   hour: "2-digit",
   minute: "2-digit",
   second: "2-digit",
-  hour12: false,
+  hourCycle: "h23",
+  timeZone: SAO_PAULO,
 });
 
 function formatTime(ts: number) {
@@ -106,7 +107,8 @@ const auditTimeFmt = new Intl.DateTimeFormat("en-US", {
   day: "2-digit",
   hour: "2-digit",
   minute: "2-digit",
-  hour12: false,
+  hourCycle: "h23",
+  timeZone: SAO_PAULO,
 });
 
 function formatAuditTime(iso: string) {

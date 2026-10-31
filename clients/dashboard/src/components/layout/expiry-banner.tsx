@@ -4,6 +4,7 @@ import { AlertTriangle, Clock, X } from "lucide-react";
 import { getMyStatus, type TenantStatusDto } from "@/api/billing";
 import { useAuth } from "@/auth/use-auth";
 import { cn } from "@/lib/cn";
+import { SAO_PAULO } from "@/lib/list-helpers";
 
 // Days within which an "Active" subscription nearing its validUpto starts
 // surfacing the soft info bar.
@@ -23,6 +24,7 @@ type BannerView =
     };
 
 const dateFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: SAO_PAULO,
   month: "short",
   day: "2-digit",
   year: "numeric",

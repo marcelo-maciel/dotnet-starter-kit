@@ -1,6 +1,11 @@
 import { ApiRequestError } from "@/lib/api-client";
 
+/** Every instant reads in Brasília, whatever the browser's zone: the product and its tenants are in
+ *  Brazil, and the API sends UTC. */
+export const SAO_PAULO = "America/Sao_Paulo";
+
 const dateLong = new Intl.DateTimeFormat("en-US", {
+  timeZone: SAO_PAULO,
   month: "short",
   day: "2-digit",
   year: "numeric",
@@ -17,13 +22,14 @@ export function formatDateMono(iso: string | null | undefined) {
   return dateLong.format(new Date(iso)).toUpperCase().replace(",", "");
 }
 
-// "3:42 PM" — local wall-clock time. Intl renders in the browser's timezone.
+// "3:42 PM" — Brasília wall-clock time, never the browser's zone.
 const timeShort = new Intl.DateTimeFormat("en-US", {
+  timeZone: SAO_PAULO,
   hour: "numeric",
   minute: "2-digit",
 });
 
-// "APR 30 2026 · 3:42 PM" — date + local time for audit/detail panels.
+// "APR 30 2026 · 3:42 PM" — date + Brasília time for audit/detail panels.
 export function formatDateTimeMono(iso: string | null | undefined) {
   if (!iso) return "—";
   return `${formatDateMono(iso)} · ${timeShort.format(new Date(iso))}`;

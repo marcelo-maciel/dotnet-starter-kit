@@ -46,6 +46,7 @@ import { EntityDetailSection } from "@/components/list";
 import { useAuth } from "@/auth/use-auth";
 import { useSseEvents, useSseStatus, type SseEvent, type SseStatus } from "@/sse/sse-context";
 import { cn } from "@/lib/cn";
+import { SAO_PAULO } from "@/lib/list-helpers";
 
 // ────────────────────────────────────────────────────────────────────────
 // Shaping helpers — pure, tested via memoization at the call sites.
@@ -168,7 +169,8 @@ const timeFmt = new Intl.DateTimeFormat("en-US", {
   hour: "2-digit",
   minute: "2-digit",
   second: "2-digit",
-  hour12: false,
+  hourCycle: "h23",
+  timeZone: SAO_PAULO,
 });
 function formatClock(ts: number) {
   return timeFmt.format(new Date(ts));
@@ -403,6 +405,7 @@ function SubscriptionBody({
   const daysLeft = data.endUtc ? daysUntil(data.endUtc) : null;
 
   const dateFmt: Intl.DateTimeFormatOptions = {
+    timeZone: SAO_PAULO,
     month: "short",
     day: "2-digit",
     year: "numeric",
@@ -1037,6 +1040,7 @@ export function OverviewPage() {
   // ── Header strings ────────────────────────────────────────────────────
   const now = new Date();
   const dateCaption = now.toLocaleDateString("en-US", {
+    timeZone: SAO_PAULO,
     weekday: "long",
     day: "2-digit",
     month: "short",
@@ -1067,6 +1071,7 @@ export function OverviewPage() {
   // unavailable.
   const validity = useMemo(() => validityView(status.data), [status.data]);
   const validityDateFmt: Intl.DateTimeFormatOptions = {
+    timeZone: SAO_PAULO,
     month: "short",
     day: "2-digit",
     year: "numeric",

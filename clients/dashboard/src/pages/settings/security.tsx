@@ -53,10 +53,12 @@ import {
 } from "@/api/sessions";
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
+import { SAO_PAULO } from "@/lib/list-helpers";
 
 const PROFILE_KEY = ["identity", "me"] as const;
 
 const dateTimeFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: SAO_PAULO,
   month: "short",
   day: "2-digit",
   hour: "2-digit",

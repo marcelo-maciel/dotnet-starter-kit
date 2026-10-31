@@ -28,6 +28,7 @@ import {
   type ToneIconTileTone,
 } from "@/components/list";
 import { cn } from "@/lib/cn";
+import { SAO_PAULO } from "@/lib/list-helpers";
 
 // ────────────────────────────────────────────────────────────────────────
 // Tone helpers — keep status-to-aesthetic mapping in one place so the
@@ -354,7 +355,8 @@ function HeroPanel({
               label="Last poll"
               value={formatRelative(snapshot.fetchedAt)}
               hint={new Date(snapshot.fetchedAt).toLocaleTimeString("en-US", {
-                hour12: false,
+                hourCycle: "h23",
+                timeZone: SAO_PAULO,
               })}
             />
           </dl>
@@ -423,7 +425,7 @@ function HistoryPips({ ticks }: { ticks: Tick[] }) {
           className="h-6 flex-1 rounded-[2px] transition-colors"
           title={
             tick
-              ? `${tick.status} · ${new Date(tick.at).toLocaleTimeString()}`
+              ? `${tick.status} · ${new Date(tick.at).toLocaleTimeString(undefined, { timeZone: SAO_PAULO })}`
               : "no data"
           }
           style={{
