@@ -333,7 +333,7 @@ function CadastroUsuarios() {
               {!u.ativo && <span className="text-sm text-[var(--color-destructive)]">Inativo</span>}
             </div>
             <p className="text-sm text-[var(--color-muted-foreground)]">
-              {[u.papeis.join(", ") || "Sem perfil do PAF", u.funcao, u.ramal && `ramal ${u.ramal}`, u.escopoEmpresa ? "escopo empresa" : null]
+              {[u.papeis.join(", ") || (u.administradorDoCliente ? "Administrador do cliente" : "Sem perfil do PAF"), u.funcao, u.ramal && `ramal ${u.ramal}`, u.escopoEmpresa ? "escopo empresa" : null]
                 .filter(Boolean)
                 .join(" · ")}
             </p>

@@ -4,9 +4,11 @@ using FSH.Framework.Shared.Constants;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Domain;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace FSH.Modules.Identity.Data;
 
@@ -18,7 +20,8 @@ internal sealed class IdentityDbInitializer(
     TimeProvider timeProvider,
     IMultiTenantContextAccessor<AppTenantInfo> multiTenantContextAccessor,
     ITenantInitialPasswordBuffer passwordBuffer,
-    IConfiguration configuration) : IDbInitializer
+    IConfiguration configuration,
+    IOptions<RequestLocalizationOptions> localizationOptions) : IDbInitializer
 {
     public async Task MigrateAsync(CancellationToken cancellationToken)
     {
@@ -188,8 +191,9 @@ internal sealed class IdentityDbInitializer(
             string adminUserName = $"{multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id.Trim()}.{RoleConstants.Admin}".ToUpperInvariant();
             adminUser = new FshUser
             {
-                FirstName = multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id.Trim().ToUpperInvariant(),
-                LastName = RoleConstants.Admin,
+                // Shown as the person's name on the client's user screens, so the client's own name, not its identifier.
+                FirstName = "Administrador",
+                LastName = (multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Name ?? multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id)?.Trim(),
                 Email = multiTenantContextAccessor.MultiTenantContext.TenantInfo?.AdminEmail,
                 UserName = adminUserName,
                 EmailConfirmed = true,
@@ -200,7 +204,9 @@ internal sealed class IdentityDbInitializer(
                 // {OriginUrl}/… URL at seed time pinned it to the seeder's localhost origin
                 // (migrator has no OriginOptions). Leave null → the SPA renders initials.
                 ImageUrl = null,
-                IsActive = true
+                IsActive = true,
+                // The tenant admin reads the billing e-mails and opens the panel first: the deployment's language.
+                Locale = localizationOptions.Value.DefaultRequestCulture.UICulture.Name,
             };
 
             if (logger.IsEnabled(LogLevel.Information))

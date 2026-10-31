@@ -134,7 +134,7 @@ public sealed class HtmlEmailTests
         // this shell exists to prevent.
 
         // Act
-        var html = HtmlEmail.LinkAction("Reset your password", "Use the link below.", "https://app.test/reset", "Reset password");
+        var html = HtmlEmail.LinkAction("Reset your password", "Use the link below.", "https://app.test/reset", "Reset password", "Copy the address:");
 
         // Assert
         html.ShouldContain("<a href=\"https://app.test/reset\"");
@@ -148,7 +148,7 @@ public sealed class HtmlEmailTests
         // text/plain alternative, which is where the link-shape assertions live.
 
         // Act
-        var html = HtmlEmail.LinkAction("Confirm", "Intro", "https://app.test/c?token=a&email=b%2Bc", "Confirm");
+        var html = HtmlEmail.LinkAction("Confirm", "Intro", "https://app.test/c?token=a&email=b%2Bc", "Confirm", "Copy the address:");
 
         // Assert
         html.ShouldContain("token=a&amp;email=b%2Bc");
@@ -161,7 +161,7 @@ public sealed class HtmlEmailTests
         // An unencoded quote would close the href attribute and let the rest of the URL become markup.
 
         // Act
-        var html = HtmlEmail.LinkAction("Heading", "Intro", "https://app.test/x?q=\"onmouseover=alert(1)", "Go");
+        var html = HtmlEmail.LinkAction("Heading", "Intro", "https://app.test/x?q=\"onmouseover=alert(1)", "Go", "Copy the address:");
 
         // Assert — the raw quote must not appear inside the attribute value, which is what would
         // close href early and turn the rest of the URL into attributes. Asserting on the encoded
@@ -174,13 +174,28 @@ public sealed class HtmlEmailTests
     public void LinkAction_Should_EncodeIntroAndLabel_When_TheyContainMarkup()
     {
         // Act
-        var html = HtmlEmail.LinkAction("Heading", "<i>intro</i>", "https://app.test/x", "<i>label</i>");
+        var html = HtmlEmail.LinkAction("Heading", "<i>intro</i>", "https://app.test/x", "<i>label</i>", "Copy the address:");
 
         // Assert
         html.ShouldNotContain("<i>intro</i>");
         html.ShouldNotContain("<i>label</i>");
         html.ShouldContain("&lt;i&gt;intro&lt;/i&gt;");
         html.ShouldContain("&lt;i&gt;label&lt;/i&gt;");
+    }
+
+    [Fact]
+    public void LinkAction_Should_RenderTheCallersFallbackSentence_Encoded()
+    {
+        // The sentence above the repeated address used to be fixed in English; it now comes from the
+        // caller in the recipient's language, and is encoded like every other value.
+
+        // Act
+        var html = HtmlEmail.LinkAction("Redefina sua senha", "Intro", "https://app.test/x", "Ir", "Se o botão não funcionar, copie <este> endereço:");
+
+        // Assert
+        html.ShouldContain(HtmlEmail.Encode("Se o botão não funcionar, copie <este> endereço:") + "<br>");
+        html.ShouldNotContain("If the button does not work");
+        html.ShouldNotContain("<este>");
     }
 
     #endregion

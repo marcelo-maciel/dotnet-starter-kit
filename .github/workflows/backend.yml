@@ -95,6 +95,10 @@ jobs:
           echo "::endgroup::"
 
       - name: Run unit tests with coverage
+        # Brasília, where the product runs: tests that build a Local DateTime (UtcInstantTests,
+        # TenantServiceValidityKindTests) only catch a UTC relabel off UTC, and skip on a UTC machine.
+        env:
+          TZ: America/Sao_Paulo
         run: |
           for proj in Architecture Auditing Caching Generic Identity Multitenancy Billing Catalog Chat Files Framework Notifications Webhooks; do
             echo "::group::${proj}.Tests"

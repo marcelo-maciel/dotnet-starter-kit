@@ -83,7 +83,7 @@ public static class IdentityPermissions
         new("Delete Users",        ActionConstants.Delete, Users.Resource),
         new("Export Users",        ActionConstants.Export, Users.Resource),
         new("Manage User Roles",   "ManageRoles",          Users.Resource),
-        // Root only: a tenant admin impersonating a committee member would read a case that excludes the admin.
+        // Root only: acting as a client's user is support done by the Codefi operator, never by the client's own admin.
         new("Impersonate User",    "Impersonate",          Users.Resource, IsRoot: true),
         new("Confirm User Email",  "ConfirmEmail",         Users.Resource),
 

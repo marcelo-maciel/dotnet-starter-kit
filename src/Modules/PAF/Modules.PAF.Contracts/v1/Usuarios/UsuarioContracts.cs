@@ -5,7 +5,8 @@ namespace FSH.Modules.PAF.Contracts.v1.Usuarios;
 /// <summary>
 /// A PAF user as the cadastro screen lists it (RF08): kit identity (name, e-mail login, active flag), the PAF profile
 /// (free-text job title, extension) and the stored scope in its order, first = principal. <c>Papeis</c> holds only the
-/// PAF product roles the user has (Administrador, Gerente, Atendente).
+/// PAF product roles the user has (Administrador, Gerente, Atendente); <c>AdministradorDoCliente</c> flags the kit Admin
+/// role the tenant's seeded administrator holds instead.
 /// </summary>
 public sealed record UsuarioPafDto(
     Guid Id,
@@ -17,7 +18,8 @@ public sealed record UsuarioPafDto(
     string? Ramal,
     bool EscopoEmpresa,
     IReadOnlyList<Guid> Unidades,
-    IReadOnlyList<string> Papeis);
+    IReadOnlyList<string> Papeis,
+    bool AdministradorDoCliente);
 
 /// <summary>Only the users whose whole scope fits in the caller's (RF08); the tenant admin sees every user.</summary>
 public sealed record ListUsuariosPafQuery : IQuery<IReadOnlyList<UsuarioPafDto>>;

@@ -6,7 +6,7 @@ namespace FSH.Framework.Mailing;
 /// The shared HTML shell and the single encoder for outbound mail. Bodies are sent as
 /// <c>text/html</c>, so any value reaching the markup has to be encoded or it is parsed as markup
 /// rather than shown. Keeping the encoder here means a module cannot ship its own weaker escaping.
-/// The shell is not yet universal: <c>UserRegistrationService.BuildConfirmationEmailHtml</c> still
+/// The shell is not yet universal: <c>IdentityEmails.ConfirmEmailHtml</c> still
 /// builds its own document, because migrating it changes the layout of the most-seen e-mail in the
 /// product and deserves its own review.
 /// </summary>
@@ -74,17 +74,21 @@ public static class HtmlEmail
 
     /// <summary>
     /// A message whose point is a single action link, rendered as a real anchor so mail clients make
-    /// it clickable. The address is repeated as text underneath for clients that strip buttons.
+    /// it clickable. The address is repeated as text underneath for clients that strip buttons, after
+    /// <c>linkFallback</c>: plain text in the recipient's language (e.g. "If the button does not work, copy
+    /// this address into your browser:"), encoded here like every other value.
     /// </summary>
-    public static string LinkAction(string heading, string intro, string actionUrl, string actionLabel)
+    public static string LinkAction(string heading, string intro, string actionUrl, string actionLabel, string linkFallback)
     {
         ArgumentNullException.ThrowIfNull(intro);
         ArgumentNullException.ThrowIfNull(actionUrl);
         ArgumentNullException.ThrowIfNull(actionLabel);
+        ArgumentNullException.ThrowIfNull(linkFallback);
 
         string safeIntro = Encode(intro);
         string safeUrl = Encode(actionUrl);
         string safeLabel = Encode(actionLabel);
+        string safeFallback = Encode(linkFallback);
 
         return Shell(heading, $"""
             <p style="margin: 0 0 24px 0; font-size: 15px; line-height: 1.6; color: #334155;">{safeIntro}</p>
@@ -92,7 +96,7 @@ public static class HtmlEmail
                                             <a href="{safeUrl}" style="display: inline-block; padding: 12px 24px; background-color: #0f172a; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 15px;">{safeLabel}</a>
                                         </p>
                                         <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #64748b;">
-                                            If the button does not work, copy this address into your browser:<br>
+                                            {safeFallback}<br>
                                             <a href="{safeUrl}" style="color: #2563eb; word-break: break-all;">{safeUrl}</a>
                                         </p>
             """);

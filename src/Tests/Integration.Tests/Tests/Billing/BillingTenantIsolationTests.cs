@@ -155,9 +155,8 @@ public sealed class BillingTenantIsolationTests
         var (otherClient, _) = await CreateForeignTenantClientAsync(rootClient, "void");
         using var _o = otherClient;
 
-        // Tenant B tries to void root's invoice → refused, and the invoice must stay Draft. Canal made
-        // Billing.Manage root-only (22/10/2026), so B now stops at the permission gate (403) before the
-        // handler's ownership check (404) is reached.
+        // Tenant B tries to void root's invoice → refused, and the invoice must stay Draft. Billing.Manage is
+        // root-only, so B stops at the permission gate (403) before the handler's ownership check (404).
         using var crossResp = await otherClient.PostAsJsonAsync(
             $"{BillingBasePath}/invoices/{invoiceId}/void", new { reason = "malicious" });
         crossResp.StatusCode.ShouldBe(HttpStatusCode.Forbidden,
@@ -238,8 +237,8 @@ public sealed class BillingTenantIsolationTests
         var (otherClient, _) = await CreateForeignTenantClientAsync(rootClient, "capture");
         using var _o = otherClient;
 
-        // B asks to capture usage FOR ROOT. Canal made Billing.Manage root-only (22/10/2026), so B stops at
-        // the permission gate (403); the handler still pins to the caller as a second line.
+        // B asks to capture usage FOR ROOT. Billing.Manage is root-only, so B stops at the permission gate
+        // (403); the handler still pins to the caller as a second line.
         using var resp = await otherClient.PostAsJsonAsync(
             $"{BillingBasePath}/usage/snapshots/capture",
             new { tenantId = TestConstants.RootTenantId, periodYear = year, periodMonth = month });

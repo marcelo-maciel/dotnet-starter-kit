@@ -12,6 +12,8 @@ export type UsuarioPafDto = {
   escopoEmpresa: boolean;
   unidades: string[];
   papeis: string[];
+  /** Holds the kit Admin role (the client's seeded administrator) instead of a PAF role. */
+  administradorDoCliente: boolean;
 };
 
 export type AtendimentoEmCursoDto = {

@@ -20,10 +20,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Integration.Tests.Tests.PAF;
 
 /// <summary>
-/// Barreira de impersonação (RF22, RNF15, decisão de 06/10/2026): só a impersonação da Codefi (<c>act_tenant</c> raiz)
-/// opera o PAF; a do administrador do cliente recebe 403 nas rotas do PAF e no hub, e segue valendo nas telas do kit.
-/// O filtro do hub revalida a concessão a cada chamada. The impersonated user holds the permissions of every route
-/// exercised, so each 403 comes from the barrier (module middleware runs before authorization), not from a policy.
+/// Barreira de impersonação (RF22, RNF15): só a impersonação da Codefi (<c>act_tenant</c> raiz) opera o PAF. Desde que
+/// Users.Impersonate é só do root, o administrador do cliente não inicia impersonação pela API (403 em
+/// impersonation/start, coberto em <see cref="Roles.RootOnlyTenantPermissionsTests"/>); a barreira fica para um token
+/// forjado ou herdado de antes da mudança, emitido aqui direto pelo TokenService com a concessão gravada, e recebe 403
+/// nas rotas do PAF e no hub. O filtro do hub revalida a concessão a cada chamada. The impersonated user holds the
+/// permissions of every route exercised, so each 403 comes from the barrier (module middleware runs before
+/// authorization), not from a policy.
 /// </summary>
 [Collection(FshCollectionDefinition.Name)]
 public sealed class PafImpersonacaoBarreiraTests(FshWebApplicationFactory factory) : IAsyncLifetime
@@ -37,10 +40,10 @@ public sealed class PafImpersonacaoBarreiraTests(FshWebApplicationFactory factor
     public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
-    public async Task AdminDoCliente_Impersonando_RecusadoNasRotasDoPaf_SemGravar_EAceitoNoKit()
+    public async Task TokenDoAdminDoCliente_Impersonando_RecusadoNasRotasDoPaf_SemGravar_EAceitoNoKit()
     {
         var (unidade, alvo) = await AlvoComPermissoesAsync();
-        using var suporte = _tenant.Cliente(await IniciarAsync(_tenant.Admin, alvo));
+        using var suporte = _tenant.Cliente(await ForjarImpersonacaoDoAdminAsync(alvo));
 
         using var posto = await suporte.GetAsync($"{PafApi.Base}/guiche/posto");
         await RecusadaPelaBarreiraAsync(posto);
@@ -57,7 +60,7 @@ public sealed class PafImpersonacaoBarreiraTests(FshWebApplicationFactory factor
         await RecusadaPelaBarreiraAsync(negociar);
 
         using var perfil = await suporte.GetAsync($"{TestConstants.IdentityBasePath}/profile");
-        perfil.StatusCode.ShouldBe(HttpStatusCode.OK, "as telas do kit continuam aceitando a impersonação do administrador do cliente");
+        perfil.StatusCode.ShouldBe(HttpStatusCode.OK, "a barreira é só do PAF: no kit o token vale enquanto a concessão vale");
     }
 
     [Fact]
@@ -77,10 +80,10 @@ public sealed class PafImpersonacaoBarreiraTests(FshWebApplicationFactory factor
     }
 
     [Fact]
-    public async Task Filtro_ImpersonacaoDoAdminDoCliente_AbortaERecusa()
+    public async Task Filtro_TokenDeImpersonacaoDoAdminDoCliente_AbortaERecusa()
     {
         var (_, alvo) = await AlvoComPermissoesAsync();
-        var token = await IniciarAsync(_tenant.Admin, alvo);
+        var token = await ForjarImpersonacaoDoAdminAsync(alvo);
 
         var resultado = await InvocarFiltroAsync(Principal(token));
 
@@ -147,6 +150,56 @@ public sealed class PafImpersonacaoBarreiraTests(FshWebApplicationFactory factor
         resposta.StatusCode.ShouldBe(HttpStatusCode.OK, await resposta.Content.ReadAsStringAsync());
         using var json = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync());
         return json.RootElement.GetProperty("accessToken").GetString()!;
+    }
+
+    /// <summary>
+    /// The token StartImpersonation would issue to the client's admin, built the same way (target claims, own jti,
+    /// act_sub/act_tenant of the admin) plus its grant, so the kit's per-request grant check passes and only the PAF
+    /// barrier stands in the way. The endpoint itself refuses the admin since Users.Impersonate is root-only.
+    /// </summary>
+    private async Task<string> ForjarImpersonacaoDoAdminAsync(string alvo)
+    {
+        var admin = new JwtSecurityTokenHandler().ReadJwtToken(_tenant.Admin.DefaultRequestHeaders.Authorization!.Parameter).Subject;
+        var jti = Guid.NewGuid().ToString("N");
+        string token;
+        DateTime expira;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var tenant = await scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>().GetAsync(_tenant.TenantId);
+            scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>().MultiTenantContext =
+                new MultiTenantContext<AppTenantInfo>(tenant.ShouldNotBeNull());
+            var (sujeito, claims) = (await scope.ServiceProvider.GetRequiredService<IIdentityService>()
+                .BuildClaimsForUserAsync(alvo, _tenant.TenantId, CancellationToken.None)).ShouldNotBeNull();
+            Claim[] doAtor =
+            [
+                new(JwtRegisteredClaimNames.Jti, jti),
+                new(ClaimConstants.ActorSubject, admin),
+                new(ClaimConstants.ActorTenant, _tenant.TenantId),
+            ];
+            (token, expira) = await scope.ServiceProvider.GetRequiredService<ITokenService>().IssueAccessOnlyAsync(
+                sujeito, [.. claims.Where(c => c.Type != JwtRegisteredClaimNames.Jti), .. doAtor], lifetime: null, CancellationToken.None);
+        }
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            await InstalarRaizAsync(scope);
+            await scope.ServiceProvider.GetRequiredService<IImpersonationGrantService>().CreateAsync(new CreateGrantInput(
+                Jti: jti,
+                ActorUserId: admin,
+                ActorUserName: "admin do cliente",
+                ActorTenantId: _tenant.TenantId,
+                ImpersonatedUserId: alvo,
+                ImpersonatedUserName: "alvo",
+                ImpersonatedTenantId: _tenant.TenantId,
+                Reason: "token forjado para a barreira do PAF",
+                StartedAtUtc: DateTime.UtcNow,
+                ExpiresAtUtc: expira,
+                ClientId: null,
+                IpAddress: null,
+                UserAgent: null), CancellationToken.None);
+        }
+
+        return token;
     }
 
     private static async Task RecusadaPelaBarreiraAsync(HttpResponseMessage resposta)
