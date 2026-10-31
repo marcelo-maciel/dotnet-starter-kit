@@ -23,6 +23,8 @@ import { definirSenha } from "@/features/paf/usuarios/usuarios-api";
 import { senhaProntaParaDefinir } from "@/features/paf/usuarios/usuarios-regras";
 
 const CHAVE_USUARIOS = ["paf", "usuarios"] as const;
+// GET usuarios: the permission the menu entry asks for (menu-paf.ts).
+const PERMISSAO_VER = "Permissions.PAF.Usuarios.View";
 const CHAVE_UNIDADES = ["paf", "unidades", "cadastro"] as const;
 
 type Modo = "editar" | "escopo" | "copiar" | "desativar" | "senha";
@@ -115,7 +117,21 @@ function AtendimentosEmCurso(props: { usuarioId: string; unidades: string[] | "t
   );
 }
 
+// Opened by URL without the permission, the screen says so before mounting the form and its list request (D11).
 export function UsuariosPage() {
+  const { user, permissionsHydrated } = useAuth();
+  if (!permissionsHydrated) return <p className="text-[var(--color-muted-foreground)]">Carregando…</p>;
+  if (!(user?.permissions.includes(PERMISSAO_VER) ?? false)) {
+    return (
+      <p role="alert" data-sem-acesso className="rounded-md border border-[var(--color-border)] px-4 py-3">
+        Você não tem permissão para ver os usuários do PAF.
+      </p>
+    );
+  }
+  return <CadastroUsuarios />;
+}
+
+function CadastroUsuarios() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const usuarios = useQuery({ queryKey: CHAVE_USUARIOS, queryFn: listarUsuarios });
