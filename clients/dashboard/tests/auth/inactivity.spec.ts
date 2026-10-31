@@ -56,6 +56,6 @@ test.describe("inactivity auto-logout", () => {
     await expect(page.getByRole("button", { name: "I'm here" })).toBeVisible({ timeout: 9_000 });
 
     await expect(page).toHaveURL(/\/login$/, { timeout: WARNING_MS + 6_000 });
-    await expect(page.getByText(/signed out due to inactivity/i)).toBeVisible();
+    await expect(page.getByText(/encerrada por inatividade/i)).toBeVisible();
   });
 });

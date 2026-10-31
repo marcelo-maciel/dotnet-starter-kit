@@ -66,18 +66,19 @@ export function AuthShell({
         {/* Brand lockup — FSH logo + Outfit wordmark + .NET 10 caption */}
         <div className="mb-8 flex flex-col items-center">
           <div className="flex items-center gap-2.5">
-            <img
-              src="/logo-fullstackhero.png"
-              alt="fullstackhero"
-              className="size-9 object-contain"
-            />
+            <span
+              aria-hidden
+              className="brand-mark grid size-9 shrink-0 place-items-center rounded-lg font-display text-[13px] font-bold text-[var(--color-primary-foreground)]"
+            >
+              P
+            </span>
             <span className="font-display text-[26px] font-semibold tracking-tight text-[var(--color-foreground)]">
-              fullstack<span className="text-[var(--color-primary)]">hero</span>
+              Passo a <span className="text-[var(--color-primary)]">Frente</span>
             </span>
           </div>
           <div className="mt-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.7)]">
             <span aria-hidden className="h-px w-6 bg-[var(--color-border)]" />
-            <span>.NET 10 Starter Kit</span>
+            <span>Atendimento</span>
             <span aria-hidden className="h-px w-6 bg-[var(--color-border)]" />
           </div>
         </div>
@@ -95,10 +96,10 @@ export function AuthShell({
 
         <div className="mt-6 flex items-center justify-center gap-1.5 text-[11px] text-[var(--color-muted-foreground)]">
           <ShieldCheck className="size-3" />
-          <span>Encrypted in transit · JWT-secured session</span>
+          <span>Conexão criptografada · sessão protegida</span>
         </div>
         <p className="mt-4 text-center text-[10px] font-medium uppercase tracking-wider text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.5)]">
-          fullstackhero Administration
+          Passo a Frente
         </p>
       </div>
     </div>

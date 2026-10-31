@@ -96,15 +96,15 @@ export function Sidebar() {
               "font-display text-[12px] font-bold text-[var(--color-primary-foreground)]",
             )}
           >
-            F
+            P
           </span>
           {!collapsed && (
             <div className="flex flex-col">
               <span className="whitespace-nowrap font-display text-[15px] font-bold leading-none tracking-tight text-[var(--color-foreground)]">
-                fullstack<span className="text-[var(--color-primary)]">hero</span>
+                Passo a <span className="text-[var(--color-primary)]">Frente</span>
               </span>
               <span className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.7)]">
-                Dashboard
+                Atendimento
               </span>
             </div>
           )}
@@ -160,7 +160,7 @@ export function Sidebar() {
           </button>
         ) : (
           <p className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-[var(--color-muted-foreground)]">
-            v0.1 · dashboard
+            v0.1
           </p>
         )}
       </div>
