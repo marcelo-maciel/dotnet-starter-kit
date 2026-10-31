@@ -1,6 +1,11 @@
+using Finbuckle.MultiTenant;
+using Finbuckle.MultiTenant.Abstractions;
+using FSH.Framework.Shared.Multitenancy;
+using FSH.Modules.Identity.Domain;
 using Integration.Tests.Infrastructure;
 using Integration.Tests.Infrastructure.Extensions;
 using Integration.Tests.Tests.Sessions;
+using Microsoft.AspNetCore.Identity;
 
 namespace Integration.Tests.Tests.Users;
 
@@ -146,6 +151,56 @@ public sealed class UserProfileTests
         var dto = await profile.DeserializeAsync<UserDto>();
         dto.FirstName.ShouldBe("Ana Maria");
         dto.Locale.ShouldBe("pt-BR");
+    }
+
+    [Fact]
+    public async Task UpdateProfile_Should_ClearPhone_When_BodyCarriesAnEmptyPhoneNumber()
+    {
+        // Arrange
+        using var adminClient = await _auth.CreateRootAdminClientAsync();
+        var user = await IdentityUserSeeder.CreateLoginableUserAsync(_factory, adminClient, "clear-phone");
+        using var userClient = await _auth.CreateAuthenticatedClientAsync(user.Email, user.Password);
+        using (var withPhone = await PutProfileAsync(userClient, new { firstName = "Seeded", lastName = "User", phoneNumber = "1234567890" }, null))
+        {
+            withPhone.StatusCode.ShouldBe(HttpStatusCode.OK);
+        }
+
+        // Act
+        using var response = await PutProfileAsync(userClient, new { firstName = "Seeded", lastName = "User", phoneNumber = "" }, null);
+
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await StoredUserAsync(user.UserId)).PhoneNumber.ShouldBeNull("an empty phone is stored as null, not as \"\"");
+    }
+
+    [Fact]
+    public async Task UpdateProfile_Should_KeepPhoneNumberConfirmed_When_NoPhoneIsStoredAndBodyCarriesAnEmptyPhoneNumber()
+    {
+        // Arrange: a stored confirmation flag is the one thing a spurious SetPhoneNumberAsync resets. The ETag
+        // cannot tell the paths apart: UpdateAsync rotates the ConcurrencyStamp on every save, with or without it.
+        using var adminClient = await _auth.CreateRootAdminClientAsync();
+        var user = await IdentityUserSeeder.CreateLoginableUserAsync(_factory, adminClient, "keep-confirmed");
+        using var userClient = await _auth.CreateAuthenticatedClientAsync(user.Email, user.Password);
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var tenant = await scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>().GetAsync(TestConstants.RootTenantId);
+            scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>().MultiTenantContext =
+                new MultiTenantContext<AppTenantInfo>(tenant.ShouldNotBeNull());
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<FshUser>>();
+            var seeded = (await users.FindByIdAsync(user.UserId)).ShouldNotBeNull();
+            seeded.PhoneNumber = null;
+            seeded.PhoneNumberConfirmed = true;
+            (await users.UpdateAsync(seeded)).Succeeded.ShouldBeTrue();
+        }
+
+        // Act
+        using var response = await PutProfileAsync(userClient, new { firstName = "Seeded", lastName = "User", phoneNumber = "" }, null);
+
+        // Assert
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var stored = await StoredUserAsync(user.UserId);
+        stored.PhoneNumber.ShouldBeNull();
+        stored.PhoneNumberConfirmed.ShouldBeTrue("an empty phone against a null column is not a phone change");
     }
 
     #endregion
@@ -494,6 +549,15 @@ public sealed class UserProfileTests
         request.Headers.Add("tenant", TestConstants.RootTenantId);
         request.Content = JsonContent.Create(new { email, password });
         return await client.SendAsync(request);
+    }
+
+    private async Task<FshUser> StoredUserAsync(string userId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var tenant = await scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>().GetAsync(TestConstants.RootTenantId);
+        scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>().MultiTenantContext =
+            new MultiTenantContext<AppTenantInfo>(tenant.ShouldNotBeNull());
+        return (await scope.ServiceProvider.GetRequiredService<UserManager<FshUser>>().FindByIdAsync(userId)).ShouldNotBeNull();
     }
 
     private static async Task<HttpResponseMessage> PutProfileAsync(HttpClient client, object body, string? ifMatch)
