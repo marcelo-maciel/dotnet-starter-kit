@@ -188,8 +188,9 @@ internal sealed class IdentityDbInitializer(
             string adminUserName = $"{multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id.Trim()}.{RoleConstants.Admin}".ToUpperInvariant();
             adminUser = new FshUser
             {
-                FirstName = multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id.Trim().ToUpperInvariant(),
-                LastName = RoleConstants.Admin,
+                // Shown as the person's name on the client's user screens, so the client's own name, not its identifier.
+                FirstName = "Administrador",
+                LastName = (multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Name ?? multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id)?.Trim(),
                 Email = multiTenantContextAccessor.MultiTenantContext.TenantInfo?.AdminEmail,
                 UserName = adminUserName,
                 EmailConfirmed = true,

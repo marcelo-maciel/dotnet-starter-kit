@@ -1,5 +1,6 @@
 using System.Net;
 using FSH.Framework.Core.Exceptions;
+using FSH.Framework.Shared.Constants;
 using FSH.Modules.Identity.Contracts.DTOs;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.PAF.Escopo;
@@ -32,10 +33,18 @@ public sealed class PapeisDoUsuarioPaf(IRoleService papeis, IUserRoleService pap
         }
     }
 
-    public async Task<IReadOnlyList<string>> DoUsuarioAsync(Guid usuarioId, CancellationToken ct)
+    public async Task<IReadOnlyList<string>> DoUsuarioAsync(Guid usuarioId, CancellationToken ct) =>
+        (await ResumoDoUsuarioAsync(usuarioId, ct).ConfigureAwait(false)).Papeis;
+
+    /// <summary>
+    /// The PAF roles plus whether the user holds the kit Admin role, which the tenant's seeded administrator has instead of
+    /// a PAF role: the screen shows that user as the client's administrator, not as a user with no profile.
+    /// </summary>
+    public async Task<(IReadOnlyList<string> Papeis, bool AdministradorDoCliente)> ResumoDoUsuarioAsync(Guid usuarioId, CancellationToken ct)
     {
         var todos = await papeisDoUsuario.GetUserRolesAsync(usuarioId.ToString(), ct).ConfigureAwait(false);
-        return [.. Nomes.Where(nome => todos.Exists(r => r.Enabled && string.Equals(r.RoleName, nome, StringComparison.Ordinal)))];
+        bool Tem(string nome) => todos.Exists(r => r.Enabled && string.Equals(r.RoleName, nome, StringComparison.Ordinal));
+        return ([.. Nomes.Where(Tem)], Tem(RoleConstants.Admin));
     }
 
     /// <summary>Leaves the user with exactly <paramref name="papeisDoPaf"/> among the three; his other roles stay.</summary>
