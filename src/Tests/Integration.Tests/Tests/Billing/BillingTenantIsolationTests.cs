@@ -6,6 +6,7 @@ using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Framework.Shared.Quota;
 using FSH.Modules.Billing.Contracts;
+using FSH.Modules.Billing.Contracts.Authorization;
 using FSH.Modules.Billing.Contracts.Dtos;
 using FSH.Modules.Billing.Data;
 using FSH.Modules.Billing.Domain;
@@ -402,6 +403,7 @@ public sealed class BillingTenantIsolationTests
     private async Task<HttpClient> CreateTenantAdminClientWithRetryAsync(
         string email, string password, string tenant, int maxRetries = 30)
     {
+        await HiddenModulePermissions.GrantToTenantAdminAsync(_factory, tenant, [BillingPermissions.View]);
         for (int i = 0; i < maxRetries; i++)
         {
             try

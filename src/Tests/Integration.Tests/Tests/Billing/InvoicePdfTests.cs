@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using FSH.Modules.Billing.Contracts.Authorization;
 using Integration.Tests.Infrastructure;
 using Integration.Tests.Tests.PAF;
 
@@ -89,6 +90,7 @@ public sealed class InvoicePdfTests
     private async Task<HttpClient> CreateTenantAdminClientWithRetryAsync(
         string email, string password, string tenant, int maxRetries = 30)
     {
+        await HiddenModulePermissions.GrantToTenantAdminAsync(_factory, tenant, [BillingPermissions.View]);
         for (var i = 0; i < maxRetries; i++)
         {
             try

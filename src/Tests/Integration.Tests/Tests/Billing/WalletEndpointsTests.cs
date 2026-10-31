@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using FSH.Framework.Shared.Persistence;
 using FSH.Modules.Billing.Contracts;
+using FSH.Modules.Billing.Contracts.Authorization;
 using FSH.Modules.Billing.Contracts.Dtos;
 using Integration.Tests.Infrastructure;
 using Integration.Tests.Infrastructure.Extensions;
@@ -215,6 +216,7 @@ public sealed class WalletEndpointsTests
     private async Task<HttpClient> CreateTenantAdminClientWithRetryAsync(
         string email, string password, string tenant, int maxRetries = 30)
     {
+        await HiddenModulePermissions.GrantToTenantAdminAsync(_factory, tenant, [BillingPermissions.View]);
         for (int i = 0; i < maxRetries; i++)
         {
             try

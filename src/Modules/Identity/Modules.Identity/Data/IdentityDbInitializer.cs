@@ -57,7 +57,11 @@ internal sealed class IdentityDbInitializer(
             // Assign permissions
             if (roleName == RoleConstants.Basic)
             {
-                await AssignPermissionsToRoleAsync(context, PermissionConstants.Basic, role, cancellationToken);
+                // A root-only permission can also be basic; only the root tenant's Basic role gets it.
+                var basicPermissions = multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id == MultitenancyConstants.Root.Id
+                    ? PermissionConstants.Basic
+                    : [.. PermissionConstants.Basic.Where(p => !p.IsRoot)];
+                await AssignPermissionsToRoleAsync(context, basicPermissions, role, cancellationToken);
             }
             else if (roleName == RoleConstants.Admin)
             {

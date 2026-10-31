@@ -30,7 +30,12 @@ public sealed class RolePermissionSyncer(
         var tenantId = tenantAccessor.MultiTenantContext.TenantInfo?.Id;
         bool isRoot = tenantId == MultitenancyConstants.Root.Id;
 
-        int basicAdded = await SyncRoleAsync(RoleConstants.Basic, PermissionConstants.Basic, cancellationToken).ConfigureAwait(false);
+        // A root-only permission can also be basic (the root tenant's users get it by default); a client's Basic role
+        // must not, or the removal below would take it off again on every startup.
+        var basicPermissions = isRoot
+            ? PermissionConstants.Basic
+            : [.. PermissionConstants.Basic.Where(p => !p.IsRoot)];
+        int basicAdded = await SyncRoleAsync(RoleConstants.Basic, basicPermissions, cancellationToken).ConfigureAwait(false);
 
         // Admin gets all non-root permissions; the root tenant's Admin additionally gets Root permissions.
         var adminPermissions = isRoot
