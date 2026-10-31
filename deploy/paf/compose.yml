@@ -13,6 +13,10 @@ x-paf-api: &paf-api
   image: ${PAF_IMAGEM_API:?PAF_IMAGEM_API is required (deploy/paf/publicar-imagem-api.sh)}
   restart: unless-stopped
   env_file: [ "${PAF_ARQUIVO_AMBIENTE:?PAF_ARQUIVO_AMBIENTE is required}" ]
+  environment:
+    # Deployment language: account e-mails of users with no stored language, new users and API replies with no
+    # preference come out in pt-BR. The migrator gets the same value, so the tenant admin it seeds is born with it.
+    LocalizationOptions__DefaultCulture: pt-BR
   # O06: SIGTERM, then 30 s for Kestrel to finish in-flight requests and close the WebSockets before SIGKILL.
   stop_grace_period: 30s
   depends_on:
@@ -67,6 +71,8 @@ services:
     image: ${PAF_IMAGEM_MIGRATOR:?PAF_IMAGEM_MIGRATOR is required (deploy/paf/publicar-imagem-migrator.sh)}
     restart: "no"
     env_file: [ "${PAF_ARQUIVO_AMBIENTE}" ]
+    environment:
+      LocalizationOptions__DefaultCulture: pt-BR
     depends_on:
       postgres: { condition: service_healthy }
       valkey: { condition: service_healthy }
