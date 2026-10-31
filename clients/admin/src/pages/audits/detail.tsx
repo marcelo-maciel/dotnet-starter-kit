@@ -20,6 +20,7 @@ import {
   SheetContent,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/cn";
+import { formatStampPrecise as formatTimestamp } from "@/lib/format";
 
 // ─────────────────────────────────────────────────────────────────────────
 // AuditDetailSheet — side sheet shown when an audit row is clicked on the
@@ -414,12 +415,6 @@ function severityTone(s: string): { variant: "muted" | "info" | "warning" | "dan
   }
 }
 
-function formatTimestamp(value: string | undefined | null): string {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toISOString();
-}
 
 const TAG_NAMES: ReadonlyArray<{ bit: number; label: string }> = [
   { bit: 1 << 0, label: "PiiMasked" },

@@ -2,7 +2,7 @@
 // Run: node --test src/features/paf/operador/vigencia.test.ts (Node 22 strips the types, D21).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { contratoSobreposto, fimAntesDoInicio, hojeEmSaoPaulo, situacaoContrato, type Vigencia } from "./vigencia.ts";
+import { contratoSobreposto, diaBr, fimAntesDoInicio, hojeEmSaoPaulo, periodoVigencia, situacaoContrato, type Vigencia } from "./vigencia.ts";
 
 const PRIMEIRO: Vigencia = { id: "a", inicioVigencia: "2026-01-01", fimVigencia: "2026-06-30" };
 const ABERTO: Vigencia = { id: "b", inicioVigencia: "2026-07-01", fimVigencia: null };
@@ -43,4 +43,11 @@ test("hoje é o dia de São Paulo, não o de UTC", () => {
   // 02:00 UTC on 1 Jan is still 31 Dec in São Paulo (UTC-3, no DST since 2019).
   assert.equal(hojeEmSaoPaulo(new Date("2026-01-01T02:00:00Z")), "2025-12-31");
   assert.equal(hojeEmSaoPaulo(new Date("2026-01-01T03:00:00Z")), "2026-01-01");
+});
+
+test("a vigência aparece em dd/mm/aaaa, com o fim aberto por extenso", () => {
+  assert.equal(diaBr("2026-10-31"), "31/10/2026");
+  assert.equal(periodoVigencia(PRIMEIRO), "01/01/2026 a 30/06/2026");
+  assert.equal(periodoVigencia(ABERTO), "01/07/2026 a sem fim");
+  assert.equal(diaBr(""), "");
 });

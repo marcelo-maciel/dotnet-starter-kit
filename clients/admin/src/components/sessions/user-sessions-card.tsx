@@ -19,6 +19,7 @@ import {
 import { IdentityPermissions } from "@/lib/permissions";
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
+import { SAO_PAULO } from "@/lib/format";
 
 /**
  * UserSessionsCard — admin view on user-detail. Lists every session a user
@@ -202,7 +203,7 @@ function formatRelative(value?: string | null): string {
   if (hr < 24) return `${hr}h ago`;
   const day = Math.round(hr / 24);
   if (day < 14) return `${day}d ago`;
-  return d.toLocaleDateString();
+  return d.toLocaleDateString(undefined, { timeZone: SAO_PAULO });
 }
 
 function describe(err: unknown): string {

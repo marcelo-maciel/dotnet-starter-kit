@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ApiRequestError } from "@/lib/api-client";
+import { SAO_PAULO } from "@/lib/format";
 
 function formatMoney(amount: number, currency: string): string {
   try {
@@ -28,7 +29,7 @@ function formatMoney(amount: number, currency: string): string {
 function formatDate(value?: string | null): string {
   if (!value) return "—";
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString();
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString(undefined, { timeZone: SAO_PAULO });
 }
 
 /**

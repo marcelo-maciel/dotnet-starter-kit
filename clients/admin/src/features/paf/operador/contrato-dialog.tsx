@@ -22,7 +22,7 @@ import {
   type PoliticaLimite,
   type UnidadeOperadorDto,
 } from "./api-operador";
-import { contratoSobreposto, fimAntesDoInicio } from "./vigencia";
+import { contratoSobreposto, fimAntesDoInicio, periodoVigencia } from "./vigencia";
 
 type ContratoDialogProps = {
   tenantId: string;
@@ -56,7 +56,7 @@ export function ContratoDialog({ tenantId, unidade, contrato, onClose }: Contrat
     ? undefined
     : contratoSobreposto(unidade.contratos, { id: contrato?.id ?? "", inicioVigencia: inicio, fimVigencia: fimOuNulo });
   const erroSobreposicao = sobreposto
-    ? `A vigência se sobrepõe ao contrato de ${sobreposto.inicioVigencia} a ${sobreposto.fimVigencia ?? "sem fim"}.`
+    ? `A vigência se sobrepõe ao contrato de ${periodoVigencia(sobreposto)}.`
     : undefined;
   const erroPlano = plano.trim() === "" ? "Informe o plano." : plano.trim().length > 120 ? "Até 120 caracteres." : undefined;
   const erroLimite = limite === "" || !Number.isInteger(limiteNumero) || limiteNumero < 0

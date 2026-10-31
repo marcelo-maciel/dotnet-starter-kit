@@ -21,6 +21,7 @@ import {
 import { EmptyState } from "@/components/empty-state";
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
+import { SAO_PAULO } from "@/lib/format";
 
 type Filter = "all" | "unread";
 
@@ -168,7 +169,7 @@ function Row({
           <span className="font-medium">{notif.title}</span>
           <code className="code-chip">{notif.type}</code>
           <span className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-[var(--color-muted-foreground)]">
-            {new Date(notif.createdAtUtc).toLocaleString()}
+            {new Date(notif.createdAtUtc).toLocaleString(undefined, { timeZone: SAO_PAULO })}
           </span>
         </div>
         {notif.body && (

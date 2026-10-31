@@ -19,6 +19,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
+import { SAO_PAULO } from "@/lib/format";
 
 type Props = {
   grant: ImpersonationGrantDto | null;
@@ -150,7 +151,7 @@ function GrantSummary({ grant }: { grant: ImpersonationGrantDto }) {
         <span className="text-[var(--color-muted-foreground)]">{grant.reason || "—"}</span>
       </Row>
       <Row label="Expires">
-        <code className="code-chip">{new Date(grant.expiresAtUtc).toLocaleString()}</code>
+        <code className="code-chip">{new Date(grant.expiresAtUtc).toLocaleString(undefined, { timeZone: SAO_PAULO })}</code>
       </Row>
     </div>
   );

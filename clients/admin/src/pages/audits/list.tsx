@@ -30,6 +30,7 @@ import { ApiRequestError } from "@/lib/api-client";
 import { AuditingPermissions } from "@/lib/permissions";
 import { AuditDetailSheet } from "@/pages/audits/detail";
 import { cn } from "@/lib/cn";
+import { formatStampSeconds as formatTimestamp } from "@/lib/format";
 
 const PAGE_SIZE = 25;
 
@@ -340,10 +341,3 @@ function eventTypeVariant(type: AuditEventType) {
   }
 }
 
-function formatTimestamp(value: string): string {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  // Tight ISO-like local format: 04-30 14:22:01
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}

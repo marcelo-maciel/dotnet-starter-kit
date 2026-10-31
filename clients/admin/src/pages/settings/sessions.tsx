@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { ErrorBand, LoadingRow, SettingsSection } from "@/components/list";
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
+import { SAO_PAULO } from "@/lib/format";
 
 export function SessionsSettings() {
   const queryClient = useQueryClient();
@@ -216,7 +217,7 @@ function describeDevice(s: UserSessionDto): string {
 function formatDate(value?: string | null): string {
   if (!value) return "—";
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? value : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleString(undefined, { timeZone: SAO_PAULO });
 }
 
 function formatRelative(value?: string | null): string {
@@ -232,7 +233,7 @@ function formatRelative(value?: string | null): string {
   if (hr < 24) return `${hr}h ago`;
   const day = Math.round(hr / 24);
   if (day < 14) return `${day}d ago`;
-  return d.toLocaleDateString();
+  return d.toLocaleDateString(undefined, { timeZone: SAO_PAULO });
 }
 
 function describe(err: unknown): string {
