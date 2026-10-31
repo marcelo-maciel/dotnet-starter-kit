@@ -115,7 +115,9 @@ export function ProfileSettings() {
       expectedETag: editing.etag,
       firstName: firstName.trim() || null,
       lastName: lastName.trim() || null,
-      phoneNumber: phone.trim() || null,
+      // "" (not null) when the field was emptied: updateMyProfile reads null as "keep the stored
+      // value", so null here made a phone number impossible to remove.
+      phoneNumber: phone.trim(),
     });
   };
 

@@ -81,6 +81,24 @@ test.describe("settings/profile — wired to PUT /identity/profile", () => {
     });
   });
 
+  test("clearing the phone sends an empty string so the server removes it", async ({ page }) => {
+    await mockJsonResponse(page, "**/api/v1/identity/profile", { ...PROFILE, phoneNumber: "+1 555 000 1234" });
+    await mockJsonResponse(page, "**/api/v1/identity/profile", '""', { method: "PUT" });
+
+    await page.goto("/settings/profile");
+    await expect(page.getByLabel("Phone")).toHaveValue("+1 555 000 1234");
+
+    await page.getByLabel("Phone").fill("");
+    const putReqPromise = page.waitForRequest(
+      (req) => req.url().includes("/api/v1/identity/profile") && req.method() === "PUT",
+      { timeout: 5_000 },
+    );
+    await page.getByRole("button", { name: /save changes/i }).click();
+    const body = JSON.parse((await putReqPromise).postData() ?? "{}");
+
+    expect(body.phoneNumber).toBe("");
+  });
+
   test("shows a success toast on 200", async ({ page }) => {
     await mockJsonResponse(page, "**/api/v1/identity/profile", '""', { method: "PUT" });
 

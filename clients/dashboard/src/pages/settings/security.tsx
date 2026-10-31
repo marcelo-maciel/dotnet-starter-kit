@@ -234,7 +234,7 @@ export function SecuritySettings() {
                       <div className="min-w-0 space-y-0.5">
                         <div className="flex flex-wrap items-center gap-2 text-sm font-medium tracking-tight">
                           {describeDevice(s)}
-                          {s.isCurrentSession && <Badge variant="brand">this device</Badge>}
+                          {s.isCurrentSession && <Badge variant="brand">Este dispositivo</Badge>}
                           {!s.isActive && <Badge variant="outline">revoked</Badge>}
                         </div>
                         <div className="break-all font-mono text-[11px] text-[var(--color-muted-foreground)]">
