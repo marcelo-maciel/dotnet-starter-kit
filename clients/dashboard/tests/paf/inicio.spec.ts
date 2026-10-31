@@ -64,3 +64,40 @@ test.describe("PAF: tela inicial e menu do cliente", () => {
     await expect(menu.locator('a[href="/activity"]')).toBeAttached();
   });
 });
+
+test.describe("PAF: tela inicial depois do login", () => {
+  test("quem entra pela tela de login abre no guichê mesmo com as permissões chegando depois", async ({ page }) => {
+    const b64url = (obj: unknown) =>
+      btoa(JSON.stringify(obj)).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
+    const payload = {
+      sub: "u-atendente",
+      email: "atendente@acme.test",
+      given_name: "Ana",
+      family_name: "Atendente",
+      tenant: "acme",
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    };
+    const accessToken = [b64url({ alg: "HS256", typ: "JWT" }), b64url(payload), "sig"].join(".");
+    await installShellMocks(page);
+    await mockJsonResponse(page, "**/api/v1/paf/guiche/unidades", []);
+    await mockJsonResponse(page, "**/api/v1/identity/token/issue", {
+      accessToken,
+      refreshToken: "refresh",
+      accessTokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      refreshTokenExpiresAt: new Date(Date.now() + 7_200_000).toISOString(),
+    });
+    // The permission list arrives after the token: choosing the home before it would land on the overview.
+    await page.route("**/api/v1/identity/permissions", async (route) => {
+      await new Promise((r) => setTimeout(r, 800));
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([GUICHE]) });
+    });
+
+    await page.goto("/login");
+    await page.getByLabel("Empresa").fill("acme");
+    await page.getByLabel("E-mail").fill("atendente@acme.test");
+    await page.getByLabel("Senha", { exact: true }).fill("Senha123!");
+    await page.getByRole("button", { name: /^entrar$/i }).click();
+
+    await expect(page).toHaveURL(/\/paf\/guiche$/);
+  });
+});

@@ -170,6 +170,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (lastHydratedSubject.current === user.id && permissionsHydrated) {
       return;
     }
+    // login() flips the flag off, but the run with no user yet flips it back on before the token lands; a new
+    // subject must read as not hydrated until its own list arrives, or "/" picks the home from an empty list.
+    if (lastHydratedSubject.current !== user.id) setPermissionsHydrated(false);
     lastHydratedSubject.current = user.id;
     let cancelled = false;
     void (async () => {
