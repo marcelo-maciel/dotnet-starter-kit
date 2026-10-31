@@ -98,10 +98,10 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
             }
             return token;
           },
-          transport:
-            sr.HttpTransportType.WebSockets |
-            sr.HttpTransportType.ServerSentEvents |
-            sr.HttpTransportType.LongPolling,
+          // Negotiate and the WebSocket must hit the same API instance; behind a round-robin
+          // proxy they do not, and the hub 404s. Skipping negotiation needs WebSockets only.
+          transport: sr.HttpTransportType.WebSockets,
+          skipNegotiation: true,
         })
         // SignalR's automatic reconnect re-negotiates internally, bypassing connect()'s
         // token guard. When the user is signed out (token cleared/expired) every reconnect
