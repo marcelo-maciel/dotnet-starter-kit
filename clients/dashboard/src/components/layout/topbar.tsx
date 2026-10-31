@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { useCommandPalette } from "@/components/command-palette/command-palette";
 import { MobileNavTrigger } from "@/components/layout/mobile-nav";
-import { ChatUnreadBadge } from "@/components/notifications/chat-unread-badge";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { Button } from "@/components/ui/button";
 import {
@@ -240,10 +239,6 @@ export function Topbar() {
           ⌘K
         </kbd>
       </button>
-
-      {/* Chat unread badge — sums unreadCount across the user's channels.
-          Brand-primary chip to distinguish from the destructive-red bell. */}
-      <ChatUnreadBadge />
 
       {/* Notification bell — bell badge + dropdown inbox. */}
       <NotificationBell />

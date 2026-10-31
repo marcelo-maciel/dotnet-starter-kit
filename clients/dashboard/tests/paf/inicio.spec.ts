@@ -33,7 +33,7 @@ test.describe("PAF: tela inicial e menu do cliente", () => {
     await expect(page).toHaveURL(/\/overview$/);
   });
 
-  for (const antiga of ["/chat", "/files", "/catalog/products", "/tickets", "/subscription", "/wallet", "/invoices/inv-1"]) {
+  for (const antiga of ["/chat", "/files", "/catalog/products", "/tickets", "/subscription", "/wallet", "/invoices/inv-1", "/system/trash"]) {
     test(`${antiga} volta para o início do PAF`, async ({ page }) => {
       await mockJsonResponse(page, "**/api/v1/identity/permissions", [GUICHE]);
       await page.goto(antiga);
@@ -41,7 +41,7 @@ test.describe("PAF: tela inicial e menu do cliente", () => {
     });
   }
 
-  test("o menu não mostra Chat, Arquivos, Catálogo, Helpdesk nem Billing, mesmo com as permissões", async ({ page }) => {
+  test("o menu e a barra do topo não mostram Chat, Arquivos, Catálogo, Helpdesk, Billing nem Lixeira, mesmo com as permissões", async ({ page }) => {
     await mockJsonResponse(page, "**/api/v1/identity/permissions", [
       GUICHE,
       "Permissions.Chat.Channels.View",
@@ -50,13 +50,16 @@ test.describe("PAF: tela inicial e menu do cliente", () => {
       "Permissions.Tickets.View",
       "Permissions.Billing.View",
       "Permissions.Users.Update",
+      "Permissions.Catalog.Products.Restore",
     ]);
     await page.goto("/");
     const menu = page.locator("aside");
     await expect(menu.locator('a[href="/paf/guiche"]')).toBeAttached();
-    for (const href of ["/chat", "/files", "/catalog/products", "/tickets", "/subscription", "/wallet", "/invoices"]) {
+    for (const href of ["/chat", "/files", "/catalog/products", "/tickets", "/subscription", "/wallet", "/invoices", "/system/trash"]) {
       await expect(menu.locator(`a[href="${href}"]`)).toHaveCount(0);
     }
+    // The topbar chat badge (a button that navigates to /chat) is gone too.
+    await expect(page.getByRole("banner").getByRole("button", { name: /^Chat/ })).toHaveCount(0);
     await expect(menu.locator('a[href="/overview"]')).toBeAttached();
     await expect(menu.locator('a[href="/activity"]')).toBeAttached();
   });

@@ -75,7 +75,6 @@ const NotificationsSettings = lazyNamed(
 const ApiKeysSettings = lazyNamed(() => import("@/pages/settings/api-keys"), "ApiKeysSettings");
 const HealthPage = lazyNamed(() => import("@/pages/health"), "HealthPage");
 const AuditsPage = lazyNamed(() => import("@/pages/audits"), "AuditsPage");
-const TrashPage = lazyNamed(() => import("@/pages/system/trash"), "TrashPage");
 const SessionsPage = lazyNamed(() => import("@/pages/system/sessions"), "SessionsPage");
 const UsersPage = lazyNamed(() => import("@/pages/identity/users"), "UsersPage");
 const UserDetailPage = lazyNamed(
@@ -166,6 +165,8 @@ const TELAS_DO_KIT_FORA_DO_PRODUTO = [
   "tickets",
   "tickets/:ticketId",
   "catalog/*",
+  // Trash only lists Catalog, Tickets and Files records.
+  "system/trash",
 ];
 
 export const router = createBrowserRouter([
@@ -245,7 +246,6 @@ export const router = createBrowserRouter([
           ...TELAS_DO_KIT_FORA_DO_PRODUTO.map((path) => ({ path, element: <Navigate to="/" replace /> })),
           { path: "system/health", element: withSuspense(<HealthPage />) },
           { path: "system/audits", element: withSuspense(<AuditsPage />) },
-          { path: "system/trash", element: withSuspense(<TrashPage />) },
           { path: "system/sessions", element: withSuspense(<SessionsPage />) },
           {
             // PAF screens of the signed-in user: current-unit selector on top (RF08). Later screens add children.

@@ -30,7 +30,6 @@ import {
 import { useAuth } from "@/auth/use-auth";
 import { useTheme } from "@/components/theme/theme-provider";
 import { accents } from "@/components/theme/appearance-options";
-import { ALL_TRASH_PERMISSIONS } from "@/lib/trash-permissions";
 import { cn } from "@/lib/cn";
 
 /**
@@ -155,15 +154,6 @@ export function CommandPaletteDialog({
             keywords: ["audit", "log", "compliance", "security", "trace", "correlation"],
             perform: go("/system/audits"),
             perm: "Permissions.AuditTrails.View",
-          },
-          {
-            id: "nav-trash",
-            label: "Trash",
-            hint: "Soft-deleted records",
-            Icon: ScrollText,
-            keywords: ["recycle", "deleted", "restore"],
-            perform: go("/system/trash"),
-            anyPerm: ALL_TRASH_PERMISSIONS,
           },
           {
             id: "nav-sessions",

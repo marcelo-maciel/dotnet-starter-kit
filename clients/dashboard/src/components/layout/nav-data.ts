@@ -5,12 +5,10 @@ import {
   ScrollText,
   Settings,
   ShieldCheck,
-  Trash2,
   Users,
   UsersRound,
   Wifi,
 } from "lucide-react";
-import { ALL_TRASH_PERMISSIONS } from "@/lib/trash-permissions";
 // PAF (ADR 0008, menu entry amended 17/10/2026).
 import { secaoMenuPaf } from "@/features/paf/navegacao/menu-paf";
 
@@ -89,10 +87,6 @@ export const sections: NavSection[] = [
       { to: "/system/health", label: "Health", icon: HeartPulse },
       { to: "/system/audits", label: "Audit trail", icon: ScrollText, perm: "Permissions.AuditTrails.View" },
       { to: "/system/sessions", label: "Sessions", icon: Wifi, perm: "Permissions.Sessions.ViewAll" },
-      // Trash fronts five tabs, each gated on a different resource's restore /
-      // view-trash permission. Show the entry if the user can reach any tab; the
-      // page hides the individual tabs they can't (see trash-permissions.ts).
-      { to: "/system/trash", label: "Trash", icon: Trash2, anyPerm: ALL_TRASH_PERMISSIONS },
     ],
   },
 ];
