@@ -54,7 +54,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe("system/audits", () => {
-  test("renders the 'Audit trail' heading + a desktop audit row", async ({ page }) => {
+  test("renders the 'Trilha de auditoria' heading + a desktop audit row", async ({ page }) => {
     await mockJsonResponse(
       page,
       "**/api/v1/audits**",
@@ -67,7 +67,7 @@ test.describe("system/audits", () => {
     await page.goto("/system/audits");
 
     await expect(
-      page.getByRole("heading", { name: "Audit trail", level: 1 }),
+      page.getByRole("heading", { name: "Trilha de auditoria", level: 1 }),
     ).toBeVisible();
 
     // The source text renders in both the (hidden) mobile card and the
@@ -100,7 +100,7 @@ test.describe("system/audits", () => {
 
     await page.goto("/system/audits");
     await expect(
-      page.getByRole("heading", { name: "Audit trail", level: 1 }),
+      page.getByRole("heading", { name: "Trilha de auditoria", level: 1 }),
     ).toBeVisible();
 
     // Security → EventType=Security in the query string.

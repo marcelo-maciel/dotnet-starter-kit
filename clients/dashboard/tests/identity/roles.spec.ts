@@ -57,7 +57,7 @@ test.describe("identity/roles — list", () => {
     await page.goto("/identity/roles");
 
     await expect(
-      page.getByRole("heading", { name: "Roles", level: 1 }),
+      page.getByRole("heading", { name: "Papéis", level: 1 }),
     ).toBeVisible();
 
     // Editor is a non-system role unique to our mock. It appears in both a

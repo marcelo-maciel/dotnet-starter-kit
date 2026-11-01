@@ -45,7 +45,7 @@ test.describe("identity/groups — list", () => {
     await page.goto("/identity/groups");
 
     await expect(
-      page.getByRole("heading", { name: "Groups", level: 1 }),
+      page.getByRole("heading", { name: "Grupos", level: 1 }),
     ).toBeVisible();
 
     // The name appears in both a hidden mobile card and the desktop row; the

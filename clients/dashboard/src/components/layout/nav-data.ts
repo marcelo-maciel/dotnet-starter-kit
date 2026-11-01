@@ -46,7 +46,7 @@ export type NavSection = {
 export const topNavTop: NavSpec[] = [
   // "/" opens the PAF (InicioPaf); the kit overview lives at /overview. Chat, Files, Catalog, Helpdesk and
   // Billing are not part of the PAF product (31/10/2026): out of the menu, and their routes redirect home.
-  { to: "/overview", label: "Overview", icon: LayoutDashboard },
+  { to: "/overview", label: "Visão geral", icon: LayoutDashboard },
 ];
 
 export const topNavBottom: NavSpec[] = [
@@ -58,35 +58,35 @@ export const sections: NavSection[] = [
   secaoMenuPaf,
   {
     id: "operations",
-    caption: "Operations",
+    caption: "Operações",
     icon: Activity,
     items: [
       // Live activity is SSE-backed; the stream is auth-only (no permission), so no gate.
-      { to: "/activity", label: "Live activity", icon: Activity },
+      { to: "/activity", label: "Atividade ao vivo", icon: Activity },
     ],
   },
   {
     id: "identity",
-    caption: "Identity",
+    caption: "Identidade",
     icon: Users,
     items: [
       // Gate the identity-management pages on a manage permission (not View): View Users/Roles/Groups
       // are IsBasic so every member holds them (the chat/user picker relies on Users.View), but only
       // managers should see these admin pages. Basic lacks the *.Update perms, so the items hide for them.
-      { to: "/identity/users", label: "Users", icon: Users, perm: "Permissions.Users.Update" },
-      { to: "/identity/roles", label: "Roles", icon: ShieldCheck, perm: "Permissions.Roles.Update" },
-      { to: "/identity/groups", label: "Groups", icon: UsersRound, perm: "Permissions.Groups.Update" },
+      { to: "/identity/users", label: "Usuários", icon: Users, perm: "Permissions.Users.Update" },
+      { to: "/identity/roles", label: "Papéis", icon: ShieldCheck, perm: "Permissions.Roles.Update" },
+      { to: "/identity/groups", label: "Grupos", icon: UsersRound, perm: "Permissions.Groups.Update" },
     ],
   },
   {
     id: "system",
-    caption: "System",
+    caption: "Sistema",
     icon: HeartPulse,
     items: [
       // Health hits the anonymous /health/ready probe — visible to everyone.
-      { to: "/system/health", label: "Health", icon: HeartPulse },
-      { to: "/system/audits", label: "Audit trail", icon: ScrollText, perm: "Permissions.AuditTrails.View" },
-      { to: "/system/sessions", label: "Sessions", icon: Wifi, perm: "Permissions.Sessions.ViewAll" },
+      { to: "/system/health", label: "Saúde", icon: HeartPulse },
+      { to: "/system/audits", label: "Trilha de auditoria", icon: ScrollText, perm: "Permissions.AuditTrails.View" },
+      { to: "/system/sessions", label: "Sessões", icon: Wifi, perm: "Permissions.Sessions.ViewAll" },
     ],
   },
 ];

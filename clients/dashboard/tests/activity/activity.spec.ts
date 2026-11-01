@@ -79,7 +79,7 @@ test.describe("activity (/activity)", () => {
     const audits = countAuditCalls(page);
 
     await page.goto("/activity");
-    await expect(page.getByRole("heading", { name: /live activity/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /atividade ao vivo/i })).toBeVisible();
 
     // Live event and history row render in their own sections.
     const live = page.getByRole("region", { name: "Live", exact: true });
@@ -143,7 +143,7 @@ test.describe("activity (/activity)", () => {
     const audits = countAuditCalls(page);
 
     await page.goto("/activity");
-    await expect(page.getByRole("heading", { name: /live activity/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /atividade ao vivo/i })).toBeVisible();
     await expect(page.getByText("Showing live events only")).toBeVisible();
     await expect(page.getByRole("region", { name: "Recent history", exact: true })).toHaveCount(0);
 
@@ -157,7 +157,7 @@ test.describe("activity (/activity)", () => {
 
   test("renders the empty live state when the stream is offline", async ({ page }) => {
     await page.goto("/activity");
-    await expect(page.getByRole("heading", { name: /live activity/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /atividade ao vivo/i })).toBeVisible();
     await expect(page.getByText(/no events yet|listening for activity/i)).toBeVisible();
   });
 });

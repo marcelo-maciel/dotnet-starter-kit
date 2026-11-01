@@ -53,7 +53,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe("system/sessions", () => {
-  test("renders the 'Active sessions' heading + a session row (browser + IP)", async ({
+  test("renders the 'Sessões ativas' heading + a session row (browser + IP)", async ({
     page,
   }) => {
     await mockJsonResponse(
@@ -67,7 +67,7 @@ test.describe("system/sessions", () => {
     await page.goto("/system/sessions");
 
     await expect(
-      page.getByRole("heading", { name: "Active sessions", level: 1 }),
+      page.getByRole("heading", { name: "Sessões ativas", level: 1 }),
     ).toBeVisible();
 
     // Browser string is "Chrome 124"; rendered in both the hidden mobile
@@ -111,7 +111,7 @@ test.describe("system/sessions", () => {
 
     await page.goto("/system/sessions");
     await expect(
-      page.getByRole("heading", { name: "Active sessions", level: 1 }),
+      page.getByRole("heading", { name: "Sessões ativas", level: 1 }),
     ).toBeVisible();
 
     const reqPromise = page.waitForRequest(
