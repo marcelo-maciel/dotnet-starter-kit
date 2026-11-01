@@ -5,6 +5,7 @@ using FSH.Framework.Quota;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Framework.Shared.Quota;
 using FSH.Framework.Storage.Services;
+using FSH.Modules.Files.Contracts.Authorization;
 using FSH.Modules.Files.Contracts.v1.DTOs;
 using FSH.Modules.Files.Data;
 using FSH.Modules.Files.Jobs;
@@ -134,6 +135,8 @@ public sealed class PurgeJobsPerTenantTests
         await CreateTenantAsync(rootClient, dedicatedTenantId, dedicatedConnection);
         await TenantProvisioningWait.WaitForProvisioningAsync(rootClient, sharedTenantId);
         await TenantProvisioningWait.WaitForProvisioningAsync(rootClient, dedicatedTenantId);
+        await HiddenModulePermissions.GrantToTenantAdminAsync(_factory, sharedTenantId, FilesPermissions.All.Select(p => p.Name));
+        await HiddenModulePermissions.GrantToTenantAdminAsync(_factory, dedicatedTenantId, FilesPermissions.All.Select(p => p.Name));
 
         return
         [

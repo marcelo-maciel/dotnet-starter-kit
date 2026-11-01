@@ -11,6 +11,7 @@ TEMP="$(mktemp -d)"
 trap 'rm -rf "$TEMP"' EXIT
 mkdir -p "$TEMP/paf/ambientes"
 cp "$DIR/deploy.sh" "$TEMP/paf/deploy.sh"
+cp "$DIR/permissoes-root.txt" "$TEMP/paf/permissoes-root.txt"
 DEPLOY="$TEMP/paf/deploy.sh"
 
 falhas=0
@@ -44,7 +45,9 @@ fi
 # Rollback tag recorded in pre-flight, with docker, curl, flock and verificar-ambiente.sh stubbed: the stub docker
 # reports the running API images from STUB_IMAGEM_A / STUB_IMAGEM_B and fails `compose up` unless STUB_UP=0, so
 # those runs stop at step 3 (exit 6) with nothing deployed, right after the tag-anterior decision under test. Every
-# docker call is appended to STUB_LOG; curl answers 200 only for the ports listed in STUB_SAUDAVEIS.
+# docker call is appended to STUB_LOG; curl answers 200 only for the ports listed in STUB_SAUDAVEIS. The psql of step 7
+# (`compose exec`) fails when STUB_PSQL_FALHA is set; otherwise it answers the first line of the file STUB_CONTAGENS
+# (consumed while more than one is left, so "1 then 0" is a role sync still running), or 0 without the file.
 STUBS="$TEMP/stubs"
 mkdir -p "$STUBS"
 cat >"$STUBS/docker" <<'STUB'
@@ -52,6 +55,14 @@ cat >"$STUBS/docker" <<'STUB'
 ultimo="${!#}"
 echo "$*" >>"$STUB_LOG"
 case " $* " in
+  *" exec -T postgres psql "*)
+    if [ -n "${STUB_PSQL_FALHA:-}" ]; then echo "psql: error: connection refused" >&2; exit 2; fi
+    if [ -z "${STUB_CONTAGENS:-}" ]; then echo 0; exit 0; fi
+    head -n 1 "$STUB_CONTAGENS"
+    if [ "$(wc -l <"$STUB_CONTAGENS")" -gt 1 ]; then
+      tail -n +2 "$STUB_CONTAGENS" >"$STUB_CONTAGENS.resto" && mv "$STUB_CONTAGENS.resto" "$STUB_CONTAGENS"
+    fi
+    exit 0 ;;
   *" image inspect "*) exit 0 ;;
   *" ps -q "*)
     case "$ultimo" in
@@ -170,6 +181,68 @@ if [ "$(cat "$TEMP/verificador.args")" = "$TEMP/paf/ambientes/producao.env $TEMP
 else
   echo "FAIL só homologação no host: argumentos '$(cat "$TEMP/verificador.args")'"; falhas=$((falhas + 1))
 fi
+
+mv "$TEMP/paf/ambientes/homologacao.env" "$TEMP/paf/ambientes/producao.env"
+: >"$TEMP/paf/ambientes/homologacao.env"
+
+# Step 7, the read-only check that no non-root tenant role holds a root-only permission. A full deploy on the stubs;
+# `sleep` is stubbed too, so the retry window of the role sync (LIMITE_SINCRONIA_S) passes at once.
+mkdir -p "$STUBS/rapido"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$STUBS/rapido/sleep"
+chmod +x "$STUBS/rapido/sleep"
+COMPLETO=(env PATH="$STUBS/rapido:$STUBS:$PATH" PAF_REGISTRO=ghcr.io/dono STUB_LOG="$STUB_LOG" STUB_UP=0
+  STUB_SAUDAVEIS="18081 18082 18083 18084" STUB_IMAGEM_A=ghcr.io/dono/paf-api:t1 STUB_IMAGEM_B=ghcr.io/dono/paf-api:t1)
+CONTAGENS="$TEMP/contagens"
+
+conferir_saida() {
+  local nome="$1" esperado="$2" proibido="$3"
+  if grep -qF -- "$esperado" "$TEMP/saida" && ! grep -qF -- "$proibido" "$TEMP/saida"; then echo "PASS $nome"
+  else echo "FAIL $nome (esperado '$esperado', sem '$proibido')"; sed 's/^/    /' "$TEMP/saida"; falhas=$((falhas + 1)); fi
+}
+
+: >"$STUB_LOG"
+caso 0 "conferência root-only: zero linhas" "${COMPLETO[@]}" bash "$DEPLOY" producao t2
+conferir_saida "conferência root-only: zero linhas, mensagem" "permissões root-only em papéis de tenants não-root: 0" "FAIL"
+# The SQL reads the list file and only non-root tenants' roles.
+if grep -q "exec -T postgres psql .*\"TenantId\" <> 'root'.*'Permissions.Billing.View'.*'Permissions.Users.Impersonate'" "$STUB_LOG"; then
+  echo "PASS conferência root-only: o SQL usa permissoes-root.txt e só tenants não-root"
+else
+  echo "FAIL conferência root-only: SQL inesperado"; grep "psql" "$STUB_LOG" | sed 's/^/    /'; falhas=$((falhas + 1))
+fi
+
+printf '1\n0\n' >"$CONTAGENS"
+caso 0 "conferência root-only: sincronia ainda rodando, depois zero" "${COMPLETO[@]}" STUB_CONTAGENS="$CONTAGENS" bash "$DEPLOY" producao t2
+
+printf '1\n' >"$CONTAGENS"
+caso 12 "conferência root-only: uma linha" "${COMPLETO[@]}" STUB_CONTAGENS="$CONTAGENS" bash "$DEPLOY" producao t2
+conferir_saida "conferência root-only: uma linha, mensagem" "FAIL 1 permissão(ões) root-only em papéis de tenants não-root depois de 150s" "DEPLOY OK"
+
+caso 13 "conferência root-only: psql falha" "${COMPLETO[@]}" STUB_PSQL_FALHA=1 bash "$DEPLOY" producao t2
+conferir_saida "conferência root-only: psql falha, mensagem" "não leu o banco (psql falhou)" "DEPLOY OK"
+
+printf '\n' >"$CONTAGENS"
+caso 13 "conferência root-only: psql sem contagem" "${COMPLETO[@]}" STUB_CONTAGENS="$CONTAGENS" bash "$DEPLOY" producao t2
+conferir_saida "conferência root-only: psql sem contagem, mensagem" "no lugar de uma contagem" "DEPLOY OK"
+
+# A bad list fails in the pre-flight (4) with nothing touched: missing, empty, or a line that could close the SQL literal.
+cp "$TEMP/paf/permissoes-root.txt" "$TEMP/permissoes-root.txt.original"
+lista_reprovada() {
+  local nome="$1"
+  : >"$STUB_LOG"
+  caso 4 "$nome" "${COMPLETO[@]}" bash "$DEPLOY" producao t2
+  if grep -q -e " up " -e " stop " -e " run " "$STUB_LOG"; then
+    echo "FAIL $nome: algo foi tocado"; sed 's/^/    /' "$STUB_LOG"; falhas=$((falhas + 1))
+  else
+    echo "PASS $nome: nada tocado"
+  fi
+}
+rm "$TEMP/paf/permissoes-root.txt"
+lista_reprovada "lista root-only ausente"
+printf '# only a comment\n\n' >"$TEMP/paf/permissoes-root.txt"
+lista_reprovada "lista root-only vazia"
+printf "Permissions.Billing.View\nPermissions.X') or ('1' = '1\n" >"$TEMP/paf/permissoes-root.txt"
+lista_reprovada "lista root-only com aspas"
+cp "$TEMP/permissoes-root.txt.original" "$TEMP/paf/permissoes-root.txt"
 
 if [ "$falhas" -eq 0 ]; then echo "DEPLOY-TEST OK"; exit 0; fi
 echo "DEPLOY-TEST FALHOU ($falhas)"

@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Linq.Expressions;
 using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
-using FSH.Framework.Eventing.Outbox;
 using FSH.Framework.Jobs.Services;
 using FSH.Framework.Mailing;
 using FSH.Framework.Mailing.Services;
@@ -118,7 +117,7 @@ public sealed class IdentityEmailCultureTests
         var user = new FshUser { Id = "u1", Email = Email, UserName = "marcelo", FirstName = "Marcelo", EmailConfirmed = false, Locale = userLocale };
         _userManager.Users.Returns(new[] { user }.AsAsyncQueryable());
         _userManager.GenerateEmailConfirmationTokenAsync(user).Returns("raw-token");
-        var sut = new UserRegistrationService(_userManager, db: null!, _jobService, _mailService, _tenant, Substitute.For<IOutboxStore>(), DeploymentCultureOptions.For(deploymentDefault));
+        var sut = new UserRegistrationService(_userManager, db: null!, _jobService, _mailService, _tenant, DeploymentCultureOptions.For(deploymentDefault));
 
         // Act
         await sut.ResendConfirmationEmailAsync("u1", "https://app.test", CancellationToken.None);
@@ -136,7 +135,7 @@ public sealed class IdentityEmailCultureTests
         var user = new FshUser { Id = "u1", Email = Email, UserName = "marcelo", FirstName = "<b>Marcelo</b>", EmailConfirmed = false, Locale = null };
         _userManager.Users.Returns(new[] { user }.AsAsyncQueryable());
         _userManager.GenerateEmailConfirmationTokenAsync(user).Returns("raw-token");
-        var sut = new UserRegistrationService(_userManager, db: null!, _jobService, _mailService, _tenant, Substitute.For<IOutboxStore>(), DeploymentCultureOptions.For("pt-BR"));
+        var sut = new UserRegistrationService(_userManager, db: null!, _jobService, _mailService, _tenant, DeploymentCultureOptions.For("pt-BR"));
 
         // Act
         await sut.ResendConfirmationEmailAsync("u1", "https://app.test", CancellationToken.None);

@@ -1,13 +1,11 @@
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Core.Common;
 using FSH.Framework.Core.Exceptions;
-using FSH.Framework.Eventing.Outbox;
 using FSH.Framework.Jobs.Services;
 using FSH.Framework.Mailing;
 using FSH.Framework.Mailing.Services;
 using FSH.Framework.Shared.Constants;
 using FSH.Framework.Shared.Multitenancy;
-using FSH.Modules.Identity.Contracts.Events;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Data;
 using FSH.Modules.Identity.Domain;
@@ -30,7 +28,6 @@ internal sealed class UserRegistrationService(
     IJobService jobService,
     IMailService mailService,
     IMultiTenantContextAccessor<AppTenantInfo> multiTenantContextAccessor,
-    IOutboxStore outboxStore,
     IOptions<RequestLocalizationOptions> localizationOptions) : IUserRegistrationService
 {
     // Every new account starts in the deployment's language (pt-BR in production), so the e-mails it gets
@@ -52,7 +49,7 @@ internal sealed class UserRegistrationService(
 
         var user = await CreateUserFromPrincipalAsync(principal, email);
         await AssignDefaultRoleAndGroupsAsync(user, "ExternalAuth", cancellationToken);
-        await PublishUserRegisteredAsync(user, "Identity.ExternalAuth", cancellationToken);
+        await PublishUserRegisteredAsync(user, cancellationToken);
 
         return user.Id;
     }
@@ -73,7 +70,7 @@ internal sealed class UserRegistrationService(
         var user = await CreateUserWithPasswordAsync(firstName, lastName, email, userName, password, phoneNumber);
         await AssignDefaultRoleAndGroupsAsync(user, "System", cancellationToken);
         await SendConfirmationEmailAsync(user, origin, cancellationToken);
-        await PublishUserRegisteredAsync(user, "Identity", cancellationToken);
+        await PublishUserRegisteredAsync(user, cancellationToken);
 
         return user.Id;
     }
@@ -325,29 +322,17 @@ internal sealed class UserRegistrationService(
         jobService.Enqueue("email", () => mailService.SendAsync(mailRequest, cancellationToken));
     }
 
+    // The save dispatches UserRegisteredEvent, and UserRegisteredHandler turns it into the one
+    // UserRegisteredIntegrationEvent. Writing a second one here gave it a different id, so the inbox
+    // could not deduplicate it and every consumer (the welcome e-mail) ran twice.
     private async Task PublishUserRegisteredAsync(
         FshUser user,
-        string source,
         CancellationToken cancellationToken = default)
     {
         var tenantId = multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id;
         user.RecordRegistered(tenantId);
 
         await db.SaveChangesAsync(cancellationToken);
-
-        var integrationEvent = new UserRegisteredIntegrationEvent(
-            Id: Guid.NewGuid(),
-            OccurredOnUtc: TimeProvider.System.GetUtcNow().UtcDateTime,
-            TenantId: tenantId,
-            CorrelationId: Guid.NewGuid().ToString(),
-            Source: source,
-            UserId: user.Id,
-            Email: user.Email ?? string.Empty,
-            FirstName: user.FirstName ?? string.Empty,
-            LastName: user.LastName ?? string.Empty,
-            Locale: user.Locale);
-
-        await outboxStore.AddAsync(integrationEvent, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<string> GetEmailVerificationUriAsync(FshUser user, string origin)

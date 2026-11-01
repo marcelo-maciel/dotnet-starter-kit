@@ -3,10 +3,14 @@ using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Shared.Constants;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Billing.Contracts.Authorization;
+using FSH.Modules.Catalog.Contracts.Authorization;
+using FSH.Modules.Chat.Contracts.Authorization;
+using FSH.Modules.Files.Contracts.Authorization;
 using FSH.Modules.Identity.Authorization;
 using FSH.Modules.Identity.Contracts.Authorization;
 using FSH.Modules.Identity.Data;
 using FSH.Modules.Identity.Domain;
+using FSH.Modules.Tickets.Contracts.Authorization;
 using Integration.Tests.Infrastructure;
 using Integration.Tests.Infrastructure.Extensions;
 
@@ -14,13 +18,33 @@ namespace Integration.Tests.Tests.Roles;
 
 /// <summary>
 /// Billing.Manage and Users.Impersonate are root-only: the plan catalog Billing.Manage edits is global, and acting
-/// as a client's user is support done by the Codefi operator. A client's Admin never holds them, cannot hand them
-/// to a role, and a client seeded while they were still tenant permissions loses them on the startup role sync.
+/// as a client's user is support done by the Codefi operator. So are the kit modules the PAF does not ship (Billing,
+/// Catalog, Chat, Files and Helpdesk, 31/10/2026), except Files.Upload, which the profile photo needs. A client's
+/// roles never hold them, its Admin cannot hand them to a role, and a client seeded while they were still tenant
+/// permissions loses them on the startup role sync.
 /// </summary>
 [Collection(FshCollectionDefinition.Name)]
 public sealed class RootOnlyTenantPermissionsTests
 {
-    private static readonly string[] RootOnly = [BillingPermissions.Manage, IdentityPermissions.Users.Impersonate];
+    private static readonly string[] HiddenModules =
+    [
+        .. new[] { BillingPermissions.All, CatalogPermissions.All, ChatPermissions.All, FilesPermissions.All, TicketsPermissions.All }
+            .SelectMany(module => module)
+            .Select(p => p.Name)
+            .Where(name => name != FilesPermissions.Upload),
+    ];
+
+    private static readonly string[] RootOnly = [IdentityPermissions.Users.Impersonate, .. HiddenModules];
+
+    // One list endpoint per hidden module, each gated by a permission the client no longer holds.
+    private static readonly string[] HiddenModuleEndpoints =
+    [
+        "/api/v1/billing/invoices/me?pageNumber=1&pageSize=10",
+        "/api/v1/catalog/brands?pageNumber=1&pageSize=10",
+        "/api/v1/chat/channels?pageNumber=1&pageSize=10",
+        "/api/v1/files/trash?pageNumber=1&pageSize=10",
+        "/api/v1/tickets?pageNumber=1&pageSize=10",
+    ];
 
     private readonly FshWebApplicationFactory _factory;
     private readonly AuthHelper _auth;
@@ -85,20 +109,21 @@ public sealed class RootOnlyTenantPermissionsTests
     [Fact]
     public async Task RoleSync_Should_TakeRootOnlyClaims_OffATenantSeededBefore()
     {
-        // A client seeded while the two were still tenant permissions keeps their claims; the sync on startup takes
-        // them off every role of the client, a custom role included (its admin could hand them to any role before),
-        // and the root tenant's are untouched.
+        // A client seeded while these were still tenant permissions keeps their claims; the sync on startup takes
+        // them off every role of the client, Basic and a custom role included (its admin could hand them to any role
+        // before), and the root tenant's are untouched.
         using var root = await _auth.CreateRootAdminClientAsync();
         var (tenantAdmin, tenantId) = await ProvisionTenantAsync(root, "resync");
         using var _t = tenantAdmin;
         var customRoleId = await CreateRoleAsync(tenantAdmin, $"Resync-{Guid.NewGuid():N}"[..20]);
         var (adminRoleId, _) = await RoleAsync(tenantAdmin, RoleConstants.Admin);
+        var (basicRoleId, _) = await RoleAsync(tenantAdmin, RoleConstants.Basic);
         var tenant = await TenantAsync(tenantId);
 
         using (var scope = EnterTenant(tenant))
         {
             var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-            db.RoleClaims.AddRange(new[] { adminRoleId, customRoleId }.SelectMany(roleId => RootOnly, (roleId, p) => new FshRoleClaim
+            db.RoleClaims.AddRange(new[] { adminRoleId, basicRoleId, customRoleId }.SelectMany(roleId => RootOnly, (roleId, p) => new FshRoleClaim
             {
                 RoleId = roleId,
                 ClaimType = ClaimConstants.Permission,
@@ -117,16 +142,65 @@ public sealed class RootOnlyTenantPermissionsTests
         }
 
         var adminAfter = await PermissionsAsync(tenantAdmin, adminRoleId);
+        var basicAfter = await PermissionsAsync(tenantAdmin, basicRoleId);
         var customAfter = await PermissionsAsync(tenantAdmin, customRoleId);
         var (_, rootAfter) = await RoleAsync(root, RoleConstants.Admin);
         adminBefore.ShouldContain(BillingPermissions.Manage, "premise: the stale claim was written");
+        adminBefore.ShouldContain(ChatPermissions.Channels.View, "premise: the stale claim was written");
         customBefore.ShouldContain(IdentityPermissions.Users.Impersonate, "premise: the stale claim was written");
-        adminAfter.ShouldNotContain(BillingPermissions.Manage);
-        adminAfter.ShouldNotContain(IdentityPermissions.Users.Impersonate);
+        adminAfter.Intersect(RootOnly).ShouldBeEmpty();
+        basicAfter.Intersect(RootOnly).ShouldBeEmpty();
         adminAfter.ShouldNotBeEmpty("only the root-only claims go, the rest of the Admin role stays");
+        basicAfter.ShouldContain(FilesPermissions.Upload, "the profile photo keeps its upload permission");
         customAfter.ShouldBeEmpty();
-        rootAfter.ShouldContain(BillingPermissions.Manage);
-        rootAfter.ShouldContain(IdentityPermissions.Users.Impersonate);
+        RootOnly.ShouldBeSubsetOf(rootAfter);
+    }
+
+    [Fact]
+    public async Task ProvisionedTenant_Should_HoldNoHiddenModulePermission_ButKeepFilesUpload()
+    {
+        // The seed of a new client (IdentityDbInitializer) and the startup sync give its Admin and Basic roles none of
+        // the hidden modules' permissions, basic ones included; the root tenant's Admin keeps every one of them.
+        using var root = await _auth.CreateRootAdminClientAsync();
+        var (tenantAdmin, tenantId) = await ProvisionTenantAsync(root, "seed");
+        using var _t = tenantAdmin;
+        var (adminRoleId, adminSeeded) = await RoleAsync(tenantAdmin, RoleConstants.Admin);
+        var (basicRoleId, basicSeeded) = await RoleAsync(tenantAdmin, RoleConstants.Basic);
+        using (var scope = EnterTenant(await TenantAsync(tenantId)))
+        {
+            await scope.ServiceProvider.GetRequiredService<RolePermissionSyncer>().SyncAsync(CancellationToken.None);
+        }
+
+        var adminSynced = await PermissionsAsync(tenantAdmin, adminRoleId);
+        var basicSynced = await PermissionsAsync(tenantAdmin, basicRoleId);
+        var (_, rootAdmin) = await RoleAsync(root, RoleConstants.Admin);
+        foreach (var permissions in new[] { adminSeeded, basicSeeded, adminSynced, basicSynced })
+        {
+            permissions.Intersect(HiddenModules).ShouldBeEmpty();
+            permissions.ShouldContain(FilesPermissions.Upload, "the profile photo uploads through it");
+        }
+
+        HiddenModules.ShouldBeSubsetOf(rootAdmin);
+    }
+
+    [Fact]
+    public async Task TenantAdmin_Should_Get403_OnEveryHiddenModule_WhileRootGets2xx()
+    {
+        using var root = await _auth.CreateRootAdminClientAsync();
+        var (tenantAdmin, _) = await ProvisionTenantAsync(root, "hidden");
+        using var _t = tenantAdmin;
+
+        foreach (var endpoint in HiddenModuleEndpoints)
+        {
+            using var asTenant = await tenantAdmin.GetAsync(endpoint);
+            using var asRoot = await root.GetAsync(endpoint);
+            asTenant.StatusCode.ShouldBe(HttpStatusCode.Forbidden, $"{endpoint}: {await asTenant.Content.ReadAsStringAsync()}");
+            asRoot.IsSuccessStatusCode.ShouldBeTrue($"{endpoint} as root: {(int)asRoot.StatusCode} {await asRoot.Content.ReadAsStringAsync()}");
+        }
+
+        // Files.Upload stays a client permission (profile photo), so the client's own file list still answers.
+        using var mine = await tenantAdmin.GetAsync("/api/v1/files/mine?page=1&pageSize=10");
+        mine.StatusCode.ShouldBe(HttpStatusCode.OK, await mine.Content.ReadAsStringAsync());
     }
 
     // ─── helpers ─────────────────────────────────────────────────────
