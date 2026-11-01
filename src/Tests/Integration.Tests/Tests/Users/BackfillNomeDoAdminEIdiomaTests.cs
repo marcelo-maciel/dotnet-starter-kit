@@ -89,10 +89,51 @@ public sealed class BackfillNomeDoAdminEIdiomaTests(FshWebApplicationFactory fac
 
         await ExecutarMigracaoAsync(conexao);
         var aposPrimeira = await LerAsync(conexao, admin);
-        var alteradasNaSegunda = await ExecutarMigracaoAsync(conexao);
+        await ExecutarMigracaoAsync(conexao);
 
         (await LerAsync(conexao, admin)).ShouldBe(aposPrimeira);
-        alteradasNaSegunda.ShouldBe(0, "a segunda execução não encontra mais nenhuma linha no padrão antigo nem sem idioma");
+    }
+
+    [Fact]
+    public async Task Migracao_BancoDedicadoSemCatalogoDeTenants_PulaORenomeEGravaOLocale()
+    {
+        // A tenant with its own connection string gets the Identity migrations in a database that has no tenant schema.
+        await using (var compartilhado = await AbrirAsync())
+        {
+            // Separate commands: a multi-statement batch is an implicit transaction, which CREATE DATABASE refuses.
+            await using var apagar = new NpgsqlCommand("DROP DATABASE IF EXISTS bk_banco_dedicado WITH (FORCE)", compartilhado);
+            await apagar.ExecuteNonQueryAsync();
+            await using var criar = new NpgsqlCommand("CREATE DATABASE bk_banco_dedicado", compartilhado);
+            await criar.ExecuteNonQueryAsync();
+        }
+
+        var dedicado = new NpgsqlConnectionStringBuilder(factory.Services.GetRequiredService<IConfiguration>()["DatabaseOptions:ConnectionString"])
+        {
+            Database = "bk_banco_dedicado",
+        };
+        await using var conexao = new NpgsqlConnection(dedicado.ConnectionString);
+        await conexao.OpenAsync();
+        await using (var preparar = new NpgsqlBatch(conexao)
+        {
+            BatchCommands =
+            {
+                new NpgsqlBatchCommand("CREATE SCHEMA identity"),
+                new NpgsqlBatchCommand(
+                    """CREATE TABLE identity."Users" ("Id" text PRIMARY KEY, "FirstName" text, "LastName" text, "Locale" varchar(10), "TenantId" text, "NormalizedUserName" text)"""),
+                new NpgsqlBatchCommand(
+                    """INSERT INTO identity."Users" VALUES ('u1', 'DEDICADO', 'Admin', NULL, 'dedicado', 'DEDICADO.ADMIN')"""),
+            },
+        })
+        {
+            await preparar.ExecuteNonQueryAsync();
+        }
+
+        await ExecutarMigracaoAsync(conexao);
+
+        var (primeiro, ultimo, locale) = await LerAsync(conexao, "u1");
+        primeiro.ShouldBe("DEDICADO");
+        ultimo.ShouldBe("Admin");
+        locale.ShouldBe("pt-BR");
     }
 
     private async Task<NpgsqlConnection> AbrirAsync()
@@ -102,19 +143,18 @@ public sealed class BackfillNomeDoAdminEIdiomaTests(FshWebApplicationFactory fac
         return conexao;
     }
 
-    private static async Task<int> ExecutarMigracaoAsync(NpgsqlConnection conexao)
+    private static async Task ExecutarMigracaoAsync(NpgsqlConnection conexao)
     {
-        var sql = new BackfillNomeDoAdminEIdioma().UpOperations.OfType<SqlOperation>().Single().Sql;
-        // One batch command per statement: a batch cannot carry two statements in a single command, and
-        // NpgsqlCommand with a non-constant text trips CA2100. The migration text has no ';' inside literals.
+        // One batch command per migration statement (each SqlOperation is a single statement): NpgsqlCommand with a
+        // non-constant text trips CA2100.
         await using var lote = new NpgsqlBatch(conexao);
-        foreach (var instrucao in sql.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (var operacao in new BackfillNomeDoAdminEIdioma().UpOperations.OfType<SqlOperation>())
         {
-            lote.BatchCommands.Add(new NpgsqlBatchCommand(instrucao));
+            lote.BatchCommands.Add(new NpgsqlBatchCommand(operacao.Sql));
         }
 
         lote.BatchCommands.Count.ShouldBe(2);
-        return await lote.ExecuteNonQueryAsync();
+        await lote.ExecuteNonQueryAsync();
     }
 
     private static async Task InserirTenantAsync(NpgsqlConnection conexao, string id, string? nome)

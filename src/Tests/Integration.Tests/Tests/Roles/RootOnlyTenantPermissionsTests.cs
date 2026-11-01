@@ -40,6 +40,7 @@ public sealed class RootOnlyTenantPermissionsTests
     private static readonly string[] HiddenModuleEndpoints =
     [
         "/api/v1/billing/invoices/me?pageNumber=1&pageSize=10",
+        "/api/v1/billing/subscriptions/me",
         "/api/v1/catalog/brands?pageNumber=1&pageSize=10",
         "/api/v1/chat/channels?pageNumber=1&pageSize=10",
         "/api/v1/files/trash?pageNumber=1&pageSize=10",
