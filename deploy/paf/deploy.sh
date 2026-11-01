@@ -25,7 +25,8 @@
 #   6. ambientes/<ambiente>.imagens.env records the four images now running;
 #   7. read-only check in PostgreSQL: no role of a non-root tenant holds a permission of permissoes-root.txt (the
 #      root-only set of the C# registry). The API's RolePermissionSyncer removes them in the background at startup, so
-#      the check retries for up to LIMITE_SINCRONIA_S before failing.
+#      the check retries for up to LIMITE_SINCRONIA_S before failing. It reads only the shared database: a tenant
+#      with its own connection string is not checked here (none exists; the console allows creating one).
 #
 # Exit codes: 0 deployed; 2 usage; 3 another deploy of this environment holds the lock; 4 pre-flight failed (nothing
 # touched); 5 image missing (nothing touched); 6 infra or migrator failed (no instance touched); 7 an instance failed
