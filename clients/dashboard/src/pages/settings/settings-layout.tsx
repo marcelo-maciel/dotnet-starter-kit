@@ -1,9 +1,6 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
-  Bell,
-  Brush,
   ChevronRight,
-  KeyRound,
   Palette,
   Settings as SettingsIcon,
   Shield,
@@ -32,12 +29,7 @@ const TABS: Tab[] = [
   { to: "/settings/profile", label: "Perfil", hint: "Seus dados na empresa", icon: UserRound },
   { to: "/settings/security", label: "Segurança", hint: "Senha e sessões ativas", icon: Shield },
   { to: "/settings/appearance", label: "Aparência", hint: "Tema e preferências visuais", icon: Palette },
-  // Tenant-wide branding (palette + logos served on sign-in), distinct from the
-  // per-user Appearance prefs above. Gated on the same permission the /theme
-  // endpoints enforce server-side.
-  { to: "/settings/branding", label: "Marca", hint: "Cores e logotipos da empresa", icon: Brush, perm: "Permissions.Tenants.UpdateTheme" },
-  { to: "/settings/notifications", label: "Notificações", hint: "Como falamos com você", icon: Bell },
-  { to: "/settings/api-keys", label: "Chaves de API", hint: "Tokens de acesso pessoal", icon: KeyRound },
+  // Marca, Notificações and Chaves de API are not part of the PAF product (02/11/2026); their routes redirect home.
 ];
 
 const pad2 = (n: number) => n.toString().padStart(2, "0");
@@ -52,8 +44,7 @@ export function SettingsLayout() {
   const location = useLocation();
   const { user } = useAuth();
   const perms = user?.permissions ?? [];
-  // Drop tabs the user can't reach, same gate the sidebar uses. `branding`
-  // hides for users without Tenants.UpdateTheme.
+  // Drop tabs the user can't reach, same gate the sidebar uses.
   const tabs = TABS.filter((t) => !t.perm || perms.includes(t.perm));
   const activeIndex = Math.max(
     0,

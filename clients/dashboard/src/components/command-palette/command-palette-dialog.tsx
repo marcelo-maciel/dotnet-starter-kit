@@ -4,7 +4,6 @@ import { Command } from "cmdk";
 import {
   Activity,
   HeartPulse,
-  KeyRound,
   LayoutDashboard,
   LogOut,
   Monitor,
@@ -16,7 +15,6 @@ import {
   Settings as SettingsIcon,
   Shield,
   ShieldCheck,
-  Sparkles,
   Sun,
   Users,
   UserRound,
@@ -222,21 +220,6 @@ export function CommandPaletteDialog({
             Icon: Shield,
             keywords: ["password", "2fa", "sessions"],
             perform: go("/settings/security"),
-          },
-          {
-            id: "acc-keys",
-            label: "Chaves de API",
-            hint: "Gerar e trocar",
-            Icon: KeyRound,
-            keywords: ["token", "credentials"],
-            perform: go("/settings/api-keys"),
-          },
-          {
-            id: "acc-notifications",
-            label: "Notificações",
-            hint: "Preferências de e-mail",
-            Icon: Sparkles,
-            perform: go("/settings/notifications"),
           },
           {
             id: "acc-appearance",

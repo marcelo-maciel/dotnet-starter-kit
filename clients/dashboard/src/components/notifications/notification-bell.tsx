@@ -174,16 +174,6 @@ export function NotificationBell() {
 
         <div className="flex items-center justify-between border-t border-[var(--color-border)] px-4 py-2.5">
           <RealtimeStatusPill announce />
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              navigate("/settings/notifications");
-            }}
-            className="text-[11px] text-[var(--color-muted-foreground)] transition-colors hover:text-[var(--color-foreground)]"
-          >
-            Preferências ↗
-          </button>
         </div>
       </DropdownMenuContent>
     </DropdownMenu>

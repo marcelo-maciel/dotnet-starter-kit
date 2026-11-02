@@ -21,6 +21,9 @@ const FORA_DO_ESCOPO = [
   /^pages\/(catalog|chat|files|tickets)\//,
   /^pages\/(subscription|wallet|invoices|invoice-detail)\.tsx$/,
   /^pages\/system\/trash\.tsx$/,
+  // Minha conta keeps Perfil, Segurança and Aparência only (02/11/2026); these routes redirect home.
+  /^pages\/settings\/(api-keys|notifications|branding)\.tsx$/,
+  /^api\/tenants\.ts$/,
   /^components\/file\/(file-preview-dialog|product-image-manager|file-dropzone)\.tsx$/,
   /^components\/notifications\/chat-/,
   /^components\/identity\//,
