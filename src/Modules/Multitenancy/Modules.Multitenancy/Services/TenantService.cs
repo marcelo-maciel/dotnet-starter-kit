@@ -84,7 +84,7 @@ public sealed class TenantService : ITenantService
             Plan = planKey,
             // Set ValidUpto directly to the plan term: SetValidity() forbids moving the date backward, and
             // the ctor seeds now+1mo, so it would reject a term computed from an earlier 'now'.
-            ValidUpto = DateTime.SpecifyKind(validUpto, DateTimeKind.Utc),
+            ValidUpto = UtcInstant.From(validUpto),
         };
         await _tenantStore.AddAsync(tenant).ConfigureAwait(false);
         await RefreshTenantCacheAsync(tenant).ConfigureAwait(false);
@@ -228,7 +228,7 @@ public sealed class TenantService : ITenantService
 
         // Set directly rather than via SetValidity: this operator override is allowed to move the date
         // backward (e.g. immediate expiry / correcting a mistake), which SetValidity forbids.
-        var normalized = DateTime.SpecifyKind(validUpto, DateTimeKind.Utc);
+        var normalized = UtcInstant.From(validUpto);
         var previous = tenant.ValidUpto;
         tenant.ValidUpto = normalized;
 

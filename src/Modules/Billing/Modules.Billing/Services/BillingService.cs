@@ -321,8 +321,8 @@ public sealed class BillingService : IBillingService
             return null;
         }
 
-        var periodStart = DateTime.SpecifyKind(periodStartUtc, DateTimeKind.Utc);
-        var periodEnd = DateTime.SpecifyKind(periodEndUtc, DateTimeKind.Utc);
+        var periodStart = UtcInstant.From(periodStartUtc);
+        var periodEnd = UtcInstant.From(periodEndUtc);
         var invoiceNumber = BuildSubscriptionInvoiceNumber(tenantId, periodStart);
 
         // Idempotency: redelivery of the subscribe/renew event must not double-invoice the term.

@@ -96,7 +96,7 @@ export function InactivityDialog({
                   {Math.max(0, secondsLeft)}
                 </span>
                 <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-muted-foreground)]">
-                  seconds
+                  segundos
                 </span>
               </div>
             </div>
@@ -105,23 +105,23 @@ export function InactivityDialog({
           <div className="mb-1.5 flex items-center justify-center gap-2">
             <ShieldAlert className="size-4 text-[var(--color-primary)]" aria-hidden />
             <DialogPrimitive.Title className="font-display text-[18px] font-semibold tracking-tight text-[var(--color-foreground)]">
-              Still there?
+              Ainda está aí?
             </DialogPrimitive.Title>
           </div>
           <DialogPrimitive.Description
             id="inactivity-desc"
             className="mx-auto max-w-[300px] text-[13px] leading-relaxed text-[var(--color-muted-foreground)]"
           >
-            You&apos;ve been inactive for a while. We&apos;ll sign you out shortly to keep your
-            account secure.
+            Você está sem usar o sistema há algum tempo. A sessão vai ser encerrada em instantes
+            para manter sua conta segura.
           </DialogPrimitive.Description>
 
           <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-center">
             <Button variant="outline" onClick={onSignOut} className="sm:min-w-[120px]">
-              Sign out now
+              Sair agora
             </Button>
             <Button onClick={onStay} className="sm:min-w-[120px]" autoFocus>
-              I&apos;m here
+              Estou aqui
             </Button>
           </div>
         </DialogPrimitive.Content>

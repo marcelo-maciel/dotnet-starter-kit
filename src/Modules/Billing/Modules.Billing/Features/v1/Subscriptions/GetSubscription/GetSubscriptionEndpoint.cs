@@ -26,6 +26,7 @@ public static class GetSubscriptionEndpoint
                 (IMediator mediator, CancellationToken ct) =>
                     mediator.Send(new GetSubscriptionQuery(null), ct))
             .WithName("GetMySubscription")
-            .WithSummary("Get the active subscription for the current tenant");
+            .WithSummary("Get the active subscription for the current tenant")
+            .RequirePermission(BillingPermissions.View);
     }
 }

@@ -1,8 +1,14 @@
 import { ApiRequestError } from "@/lib/api-client";
 
-const dateLong = new Intl.DateTimeFormat("en-US", {
-  month: "short",
+/** Every instant reads in Brasília, whatever the browser's zone: the product and its tenants are in
+ *  Brazil, and the API sends UTC. */
+export const SAO_PAULO = "America/Sao_Paulo";
+
+// "30/04/2026" — the Brazilian calendar day of the instant.
+const dateLong = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: SAO_PAULO,
   day: "2-digit",
+  month: "2-digit",
   year: "numeric",
 });
 
@@ -11,41 +17,51 @@ export function formatDate(iso: string | null | undefined) {
   return dateLong.format(new Date(iso));
 }
 
-// "APR 30 2026" — mono-caps tabular form for ledger/registry rows.
+// Tabular form for ledger/registry rows; the numeric pt-BR day already lines up.
 export function formatDateMono(iso: string | null | undefined) {
-  if (!iso) return "—";
-  return dateLong.format(new Date(iso)).toUpperCase().replace(",", "");
+  return formatDate(iso);
 }
 
-// "3:42 PM" — local wall-clock time. Intl renders in the browser's timezone.
-const timeShort = new Intl.DateTimeFormat("en-US", {
-  hour: "numeric",
+// "22:30" — Brasília wall-clock time, never the browser's zone. "h23" and not `hour12: false`, which
+// Chrome renders as "24:05" just after midnight.
+const timeShort = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: SAO_PAULO,
+  hour: "2-digit",
   minute: "2-digit",
+  hourCycle: "h23",
 });
 
-// "APR 30 2026 · 3:42 PM" — date + local time for audit/detail panels.
+// "30/04/2026 22:30" — date + Brasília time for lists such as the session list.
+export function formatDateTime(iso: string | null | undefined) {
+  if (!iso) return "—";
+  return `${formatDate(iso)} ${timeShort.format(new Date(iso))}`;
+}
+
+// "30/04/2026 · 22:30" — date + Brasília time for audit/detail panels.
 export function formatDateTimeMono(iso: string | null | undefined) {
   if (!iso) return "—";
   return `${formatDateMono(iso)} · ${timeShort.format(new Date(iso))}`;
 }
 
-// "3d ago", "2mo ago" — terse relative time for the secondary line.
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+// "há 3 dias", "há 2 meses" — terse relative time for the secondary line.
 export function formatRelative(iso: string | null | undefined) {
   if (!iso) return "";
   const diffMs = Date.now() - new Date(iso).getTime();
   if (Number.isNaN(diffMs) || diffMs < 0) return "";
   const sec = Math.floor(diffMs / 1000);
-  if (sec < 60) return "just now";
+  if (sec < 60) return "agora";
   const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m ago`;
+  if (min < 60) return `há ${min} min`;
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
+  if (hr < 24) return `há ${hr} h`;
   const day = Math.floor(hr / 24);
-  if (day < 30) return `${day}d ago`;
+  if (day < 30) return `há ${plural(day, "dia", "dias")}`;
   const mo = Math.floor(day / 30);
-  if (mo < 12) return `${mo}mo ago`;
+  if (mo < 12) return `há ${plural(mo, "mês", "meses")}`;
   const yr = Math.floor(day / 365);
-  return `${yr}y ago`;
+  return `há ${plural(yr, "ano", "anos")}`;
 }
 
 export function pad2(n: number) {

@@ -53,6 +53,7 @@ public sealed partial class PafLogSemDadosPessoaisTests(PafHostValkey host) : IA
         });
         criar.StatusCode.ShouldBe(HttpStatusCode.Created, await criar.Content.ReadAsStringAsync());
         await TenantProvisioningWait.WaitForProvisioningAsync(root, _tenantId);
+        await HiddenModulePermissions.GrantToTenantAdminAsync(host, _tenantId, HiddenModulePermissions.IdentityAdministration);
         _admin = Cliente((await TokenAsync(_tenantId, adminEmail, TestConstants.DefaultPassword)).AccessToken);
 
         using var scope = host.Services.CreateScope();
@@ -168,8 +169,9 @@ public sealed partial class PafLogSemDadosPessoaisTests(PafHostValkey host) : IA
     [GeneratedRegex(@"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")]
     private static partial Regex Email();
 
-    // Formatted, or 11 bare digits not glued to other digits (ids, epoch ms and GUID runs stay out).
-    [GeneratedRegex(@"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b|(?<!\d)\d{11}(?!\d)")]
+    // Formatted, or 11 bare digits not glued to other digits or letters (ids, epoch ms, GUID runs and hex trace ids
+    // such as "36651454946e11fa…" stay out).
+    [GeneratedRegex(@"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b|(?<![0-9A-Za-z])\d{11}(?![0-9A-Za-z])")]
     private static partial Regex Cpf();
 
     private static string? Propriedade(JsonElement evento, string nome) =>

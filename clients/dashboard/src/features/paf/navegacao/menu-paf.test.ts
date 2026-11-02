@@ -4,6 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { findSectionForPath, visibleSections } from "@/components/layout/nav-data";
+import { primeiraTelaPaf } from "@/features/paf/navegacao/menu-paf";
 
 const GUICHE = "Permissions.PAF.Guiches.Selecionar";
 
@@ -17,14 +18,14 @@ test("quem seleciona guichê vê a entrada do guichê", () => {
 
 test("sem a permissão da listagem a seção some inteira", () => {
   assert.deepEqual(itensPaf([]), []);
-  assert.equal(visibleSections(["Permissions.Users.Update"]).some((s) => s.id === "paf"), false);
+  assert.equal(visibleSections(["Permissions.Sessions.ViewAll"]).some((s) => s.id === "paf"), false);
   // Near-miss names never pass: the gate is an exact match of the server constant.
   assert.deepEqual(itensPaf(["Permissions.PAF.Guiches", "permissions.paf.guiches.selecionar"]), []);
 });
 
 test("a seção do PAF não esconde nem mostra seção do kit por engano", () => {
-  const kit = visibleSections(["Permissions.Users.Update"]).map((s) => s.id);
-  const comPaf = visibleSections(["Permissions.Users.Update", GUICHE]).map((s) => s.id);
+  const kit = visibleSections(["Permissions.Sessions.ViewAll"]).map((s) => s.id);
+  const comPaf = visibleSections(["Permissions.Sessions.ViewAll", GUICHE]).map((s) => s.id);
   assert.deepEqual(comPaf.filter((id) => id !== "paf"), kit);
 });
 
@@ -54,7 +55,14 @@ test("rotas do PAF abrem a seção do PAF no menu", () => {
   assert.equal(findSectionForPath("/paf/ficha-de-espera"), "paf");
   assert.equal(findSectionForPath("/paf/usuarios"), "paf");
   assert.equal(findSectionForPath("/paf/prioridades"), "paf");
-  assert.equal(findSectionForPath("/identity/users"), "identity");
+  assert.equal(findSectionForPath("/system/sessions"), "system");
+});
+
+test("Usuários, Papéis e Grupos do kit saíram do menu, mesmo com as permissões (02/11/2026)", () => {
+  const antigas = ["Permissions.Users.Update", "Permissions.Roles.Update", "Permissions.Groups.Update", "Permissions.Users.View"];
+  assert.equal(visibleSections(antigas).some((s) => s.id === "identity"), false);
+  assert.equal(visibleSections(antigas).flatMap((s) => s.items).some((i) => i.to.startsWith("/identity")), false);
+  assert.equal(findSectionForPath("/identity/users"), null);
 });
 
 test("fichas do dia aparece só com FichasDoDia.View, não com cancelar ou reabilitar", () => {
@@ -80,4 +88,11 @@ test("estatística (E5) aparece só com Estatisticas.View e abre a seção do PA
   // ViewPorAtendente only widens type 4; without View the endpoint is a 403, so no menu entry.
   assert.deepEqual(itensPaf(["Permissions.PAF.Estatisticas.ViewPorAtendente"]), []);
   assert.equal(findSectionForPath("/paf/estatistica"), "paf");
+});
+
+test("a tela inicial é o guichê; sem ele, a primeira tela do PAF que a pessoa abre", () => {
+  assert.equal(primeiraTelaPaf([GUICHE, "Permissions.PAF.FichasDoDia.View"]), "/paf/guiche");
+  assert.equal(primeiraTelaPaf(["Permissions.PAF.Estatisticas.View", "Permissions.PAF.FichasDoDia.View"]), "/paf/fichas-do-dia");
+  assert.equal(primeiraTelaPaf(["Permissions.Sessions.ViewAll"]), null);
+  assert.equal(primeiraTelaPaf([]), null);
 });

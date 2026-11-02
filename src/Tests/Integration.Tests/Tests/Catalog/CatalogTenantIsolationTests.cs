@@ -1,3 +1,4 @@
+using FSH.Modules.Catalog.Contracts.Authorization;
 using FSH.Modules.Catalog.Contracts.Dtos;
 using Integration.Tests.Infrastructure;
 using Integration.Tests.Infrastructure.Extensions;
@@ -15,10 +16,12 @@ namespace Integration.Tests.Tests.Catalog;
 [Collection(FshCollectionDefinition.Name)]
 public sealed class CatalogTenantIsolationTests
 {
+    private readonly FshWebApplicationFactory _factory;
     private readonly AuthHelper _auth;
 
     public CatalogTenantIsolationTests(FshWebApplicationFactory factory)
     {
+        _factory = factory;
         _auth = new AuthHelper(factory);
     }
 
@@ -153,6 +156,7 @@ public sealed class CatalogTenantIsolationTests
     private async Task<HttpClient> CreateTenantAdminClientWithRetryAsync(
         string email, string password, string tenant, int maxRetries = 30)
     {
+        await HiddenModulePermissions.GrantToTenantAdminAsync(_factory, tenant, CatalogPermissions.All.Select(p => p.Name));
         for (int i = 0; i < maxRetries; i++)
         {
             try

@@ -22,7 +22,11 @@
 #      check to take it back before the next instance stops. A failure puts that instance back on its previous image
 #      and aborts without touching the next instance;
 #   5. dashboard and admin on the new tag (after the APIs: the old screens work on the new API, not the reverse);
-#   6. ambientes/<ambiente>.imagens.env records the four images now running.
+#   6. ambientes/<ambiente>.imagens.env records the four images now running;
+#   7. read-only check in PostgreSQL: no role of a non-root tenant holds a permission of permissoes-root.txt (the
+#      root-only set of the C# registry). The API's RolePermissionSyncer removes them in the background at startup, so
+#      the check retries for up to LIMITE_SINCRONIA_S before failing. It reads only the shared database: a tenant
+#      with its own connection string is not checked here (none exists; the console allows creating one).
 #
 # Exit codes: 0 deployed; 2 usage; 3 another deploy of this environment holds the lock; 4 pre-flight failed (nothing
 # touched); 5 image missing (nothing touched); 6 infra or migrator failed (no instance touched); 7 an instance failed
@@ -30,7 +34,9 @@
 # back (no previous image, or the previous one is not healthy either): manual action; 9 APIs deployed, dashboard or
 # admin failed and were put back on their previous images; 10 dashboard or admin failed and could not be put back;
 # 11 the other instance stopped answering health mid-deploy: this instance untouched, but the migrator already ran
-# and the instances deployed earlier in this run are on the new tag (retry or rollback).
+# and the instances deployed earlier in this run are on the new tag (retry or rollback); 12 everything deployed, but
+# a non-root tenant role still holds a root-only permission after LIMITE_SINCRONIA_S (the API's role sync failed:
+# its logs, "Role permission sync"); 13 everything deployed, but the step 7 check could not read the database.
 # Interrupted between stopping an instance and starting it again, the EXIT trap prints RESIDUO with its name: Caddy
 # serves through the other one, and the next deploy starts the stopped one first.
 # Needs on the host: bash, docker compose v2, flock, curl, timeout. Caddy (caddy/Caddyfile) balances the instances by
@@ -50,12 +56,17 @@ ROTA_SAUDE=/api/v1/paf/saude
 # Caddy's active check runs every 2 s and a failed dial keeps an upstream out for 2 s (caddy/Caddyfile): after this
 # wait a healthy new instance is back in the pool, so stopping the next one never leaves Caddy without either.
 ESPERA_BALANCEADOR_S=6
+# The role sync starts with each API instance and waits up to 2 min for the tenant catalog before it runs.
+LIMITE_SINCRONIA_S=150
 
 AMBIENTE=""
 TAG=""
 ARQUIVO=""
 # Instance this run stopped and has not started again; the EXIT trap reports it.
 PARADA=""
+# The root-only permissions as quoted SQL literals for step 7, read in the pre-flight so a bad list fails before any
+# change.
+PERMISSOES_ROOT=""
 
 falhar() {
   local codigo="$1"
@@ -198,6 +209,47 @@ implantar_frentes() {
   falhar 10 "dashboard ou admin não voltaram para as imagens anteriores"
 }
 
+ler_permissoes_root() {
+  local arquivo="$DIR/permissoes-root.txt" linha
+  if [ ! -f "$arquivo" ]; then
+    falhar 4 "lista de permissões root-only inexistente: $arquivo"
+  fi
+  while IFS= read -r linha || [ -n "$linha" ]; do
+    linha="${linha%$'\r'}"
+    case "$linha" in '' | '#'*) continue ;; esac
+    # Only the permission grammar reaches the SQL, so no line can close the quoted literal.
+    if ! [[ "$linha" =~ ^Permissions(\.[A-Za-z]+)+$ ]]; then
+      falhar 4 "permissoes-root.txt: linha fora do formato Permissions.<Recurso>.<Ação>: '$linha'"
+    fi
+    PERMISSOES_ROOT="$PERMISSOES_ROOT${PERMISSOES_ROOT:+, }'$linha'"
+  done <"$arquivo"
+  if [ -z "$PERMISSOES_ROOT" ]; then
+    falhar 4 "permissoes-root.txt sem nenhuma permissão"
+  fi
+}
+
+conferir_permissoes_root() {
+  local decorrido=0 contagem sql
+  passo "7. nenhum papel de tenant não-root com permissão root-only"
+  sql="select count(*) from identity.\"RoleClaims\" rc join identity.\"Roles\" r on r.\"Id\" = rc.\"RoleId\" where r.\"TenantId\" <> 'root' and rc.\"ClaimValue\" in ($PERMISSOES_ROOT)"
+  while :; do
+    contagem="$(compose exec -T postgres psql -X -A -t -v ON_ERROR_STOP=1 -U fsh -d fsh -c "$sql")" \
+      || falhar 13 "a conferência das permissões root-only não leu o banco (psql falhou); o deploy está no ar, mas a conferência não passou"
+    if ! [[ "$contagem" =~ ^[0-9]+$ ]]; then
+      falhar 13 "a conferência das permissões root-only recebeu do psql '$contagem' no lugar de uma contagem; o deploy está no ar, mas a conferência não passou"
+    fi
+    if [ "$contagem" -eq 0 ]; then
+      echo "permissões root-only em papéis de tenants não-root: 0"
+      return 0
+    fi
+    if [ "$decorrido" -ge "$LIMITE_SINCRONIA_S" ]; then
+      falhar 12 "$contagem permissão(ões) root-only em papéis de tenants não-root depois de ${LIMITE_SINCRONIA_S}s: a sincronia de papéis da API não as tirou (logs da API, 'Role permission sync'); o deploy está no ar"
+    fi
+    sleep "$INTERVALO_S"
+    decorrido=$((decorrido + INTERVALO_S))
+  done
+}
+
 principal() {
   if [ "$#" -ne 2 ]; then
     echo "uso: $0 <homologacao|producao> <tag>" >&2
@@ -244,6 +296,7 @@ principal() {
   else
     bash "$DIR/verificar-ambiente.sh" "$DIR/ambientes/$outro.env" "$ARQUIVO" || falhar 4 "verificar-ambiente.sh reprovou"
   fi
+  ler_permissoes_root
   # A new instance (no running container) goes first: starting it touches nothing, and then the existing one has a
   # healthy partner to hand its clients to.
   local servicos=() portas=() servico
@@ -317,6 +370,8 @@ principal() {
   passo "6. registro das imagens"
   printf 'PAF_IMAGEM_API=%s\nPAF_IMAGEM_MIGRATOR=%s\nPAF_IMAGEM_DASHBOARD=%s\nPAF_IMAGEM_ADMIN=%s\n' \
     "$PAF_IMAGEM_API" "$PAF_IMAGEM_MIGRATOR" "$PAF_IMAGEM_DASHBOARD" "$PAF_IMAGEM_ADMIN" >"$DIR/ambientes/$AMBIENTE.imagens.env"
+
+  conferir_permissoes_root
   echo "DEPLOY OK $AMBIENTE $TAG"
 }
 

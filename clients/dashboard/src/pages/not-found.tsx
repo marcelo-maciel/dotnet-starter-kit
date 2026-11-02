@@ -39,11 +39,11 @@ export function NotFoundPage() {
         </div>
 
         <h1 className="mb-2 font-display text-display-stat font-semibold tracking-tight text-[var(--color-foreground)]">
-          Page not found
+          Página não encontrada
         </h1>
         <p className="mb-2 max-w-[380px] text-[14px] leading-relaxed text-[var(--color-muted-foreground)]">
-          We couldn't find anything at that address. It may be a stale link, a
-          renamed route, or a path that never existed.
+          Não encontramos nada neste endereço. Pode ser um link antigo, uma
+          tela que mudou de lugar ou um endereço que nunca existiu.
         </p>
 
         {/* Requested path — soft inline display, no mono receipt */}
@@ -52,7 +52,7 @@ export function NotFoundPage() {
           title={requested}
         >
           <span className="text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.6)]">
-            Requested
+            Endereço pedido
           </span>
           <span className="truncate text-[var(--color-foreground)]">{requested}</span>
         </p>
@@ -62,7 +62,7 @@ export function NotFoundPage() {
           <Button asChild className="group h-11 px-5 text-[14px] font-semibold">
             <Link to="/">
               <Home className="size-4" />
-              <span>Back home</span>
+              <span>Voltar ao início</span>
             </Link>
           </Button>
           <Button
@@ -72,7 +72,7 @@ export function NotFoundPage() {
             className="h-11 px-5 text-[14px] font-semibold"
           >
             <Search className="size-4" />
-            <span>Open command palette</span>
+            <span>Abrir paleta de comandos</span>
           </Button>
         </div>
 
@@ -83,7 +83,7 @@ export function NotFoundPage() {
           className="mt-5 inline-flex items-center gap-1.5 text-[12px] text-[var(--color-muted-foreground)] transition-colors hover:text-[var(--color-foreground)]"
         >
           <ArrowLeft className="size-3.5" />
-          <span>Go back to the previous page</span>
+          <span>Voltar à página anterior</span>
         </button>
       </div>
     </div>

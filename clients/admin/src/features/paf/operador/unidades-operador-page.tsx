@@ -17,7 +17,7 @@ import {
   type UnidadeOperadorDto,
 } from "./api-operador";
 import { ContratoDialog } from "./contrato-dialog";
-import { hojeEmSaoPaulo, situacaoContrato } from "./vigencia";
+import { diaBr, hojeEmSaoPaulo, periodoVigencia, situacaoContrato } from "./vigencia";
 
 type Edicao = { unidade: UnidadeOperadorDto; contrato: ContratoUnidadeDto | null };
 
@@ -122,7 +122,7 @@ export function UnidadesOperadorPage() {
                   const situacao = situacaoContrato(c, hoje);
                   return (
                     <tr key={c.id} className="border-t border-[var(--color-border)]">
-                      <td className="py-2 tabular-nums">{c.inicioVigencia} a {c.fimVigencia ?? "sem fim"}</td>
+                      <td className="py-2 tabular-nums">{periodoVigencia(c)}</td>
                       <td className="py-2">{c.plano}</td>
                       <td className="py-2 tabular-nums">{c.limiteSessoes}</td>
                       <td className="py-2">{c.politica === "Recusar" ? "Recusar" : "Ultrapassar com aviso"}</td>
@@ -134,7 +134,7 @@ export function UnidadesOperadorPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            aria-label={`Alterar contrato de ${c.inicioVigencia}`}
+                            aria-label={`Alterar contrato de ${diaBr(c.inicioVigencia)}`}
                             onClick={() => setEdicao({ unidade, contrato: c })}
                           >
                             <Pencil className="h-4 w-4" />

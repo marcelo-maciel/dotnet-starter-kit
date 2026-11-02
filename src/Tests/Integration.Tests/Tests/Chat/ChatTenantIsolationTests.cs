@@ -1,3 +1,4 @@
+using FSH.Modules.Chat.Contracts.Authorization;
 using FSH.Modules.Chat.Contracts.v1.DTOs;
 using Integration.Tests.Infrastructure;
 using Integration.Tests.Infrastructure.Extensions;
@@ -20,10 +21,12 @@ namespace Integration.Tests.Tests.Chat;
 public sealed class ChatTenantIsolationTests
 {
     private const string ChatBasePath = "/api/v1/chat";
+    private readonly FshWebApplicationFactory _factory;
     private readonly AuthHelper _auth;
 
     public ChatTenantIsolationTests(FshWebApplicationFactory factory)
     {
+        _factory = factory;
         _auth = new AuthHelper(factory);
     }
 
@@ -238,6 +241,7 @@ public sealed class ChatTenantIsolationTests
     private async Task<HttpClient> CreateTenantAdminClientWithRetryAsync(
         string email, string password, string tenant, int maxRetries = 30)
     {
+        await HiddenModulePermissions.GrantToTenantAdminAsync(_factory, tenant, ChatPermissions.All.Select(p => p.Name));
         for (int i = 0; i < maxRetries; i++)
         {
             try

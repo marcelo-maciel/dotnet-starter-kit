@@ -5,6 +5,7 @@ using FSH.Framework.Web.Frontend;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Contracts.v1.Users.ForgotPassword;
 using FSH.Modules.Identity.Features.v1.Users.ForgotPassword;
+using Identity.Tests.Support;
 using NSubstitute;
 using Shouldly;
 using Xunit;
@@ -22,8 +23,24 @@ public sealed class ForgotPasswordCommandHandlerTests
     {
         _userService = Substitute.For<IUserService>();
         _originResolver = Substitute.For<IFrontendOriginResolver>();
-        _sut = new ForgotPasswordCommandHandler(_userService, _originResolver);
+        _sut = new ForgotPasswordCommandHandler(_userService, _originResolver, IdentityResourcesLocalizerFactory.Create());
         _fixture = new Fixture();
+    }
+
+    [Theory]
+    [InlineData("en-US", "Password reset email sent.")]
+    [InlineData("pt-BR", "E-mail de redefinição de senha enviado.")]
+    public async Task Handle_Should_ReturnConfirmationInTheRequestCulture(string culture, string expected)
+    {
+        // Arrange
+        var command = _fixture.Create<ForgotPasswordCommand>();
+        using var scope = new UiCultureScope(culture);
+
+        // Act
+        var result = await _sut.Handle(command, CancellationToken.None);
+
+        // Assert
+        result.ShouldBe(expected);
     }
 
     [Fact]
@@ -35,6 +52,7 @@ public sealed class ForgotPasswordCommandHandlerTests
         _originResolver.ResolveForCurrentRequest().Returns(origin);
 
         // Act
+        using var culture = new UiCultureScope("en-US");
         var result = await _sut.Handle(command, CancellationToken.None);
 
         // Assert

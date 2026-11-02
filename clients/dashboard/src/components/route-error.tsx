@@ -22,7 +22,7 @@ export function RouteError() {
     <div className="flex min-h-[60vh] items-center justify-center p-6">
       <Card className="w-full max-w-lg">
         <CardHeader>
-          <CardTitle>Something went wrong</CardTitle>
+          <CardTitle>Algo deu errado</CardTitle>
           <CardDescription>{title}</CardDescription>
         </CardHeader>
         {showDetail && (
@@ -33,8 +33,8 @@ export function RouteError() {
           </CardContent>
         )}
         <CardFooter className="gap-2">
-          <Button onClick={() => navigate(0)}>Reload</Button>
-          <Button variant="outline" onClick={() => navigate("/")}>Go home</Button>
+          <Button onClick={() => navigate(0)}>Recarregar</Button>
+          <Button variant="outline" onClick={() => navigate("/")}>Ir para o início</Button>
         </CardFooter>
       </Card>
     </div>
@@ -51,5 +51,5 @@ function describe(error: unknown): { title: string; detail?: string } {
   if (error instanceof Error) {
     return { title: error.message, detail: error.stack };
   }
-  return { title: "Unexpected error", detail: String(error) };
+  return { title: "Erro inesperado", detail: String(error) };
 }

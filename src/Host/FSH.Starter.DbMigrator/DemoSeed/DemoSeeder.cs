@@ -7,7 +7,6 @@ using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Billing.Contracts;
 using FSH.Modules.Billing.Data;
 using FSH.Modules.Billing.Domain;
-using FSH.Modules.Catalog.Contracts.Authorization;
 using FSH.Modules.Catalog.Data;
 using FSH.Modules.Catalog.Domain;
 using FSH.Modules.Chat.Data;
@@ -18,7 +17,6 @@ using FSH.Modules.Identity.Domain;
 using FSH.Modules.Multitenancy.Contracts;
 using FSH.Modules.Multitenancy.Data;
 using FSH.Modules.Multitenancy.Provisioning;
-using FSH.Modules.Tickets.Contracts.Authorization;
 using FSH.Modules.Tickets.Contracts.Dtos;
 using FSH.Modules.Tickets.Data;
 using FSH.Modules.Tickets.Domain;
@@ -745,44 +743,23 @@ internal sealed class DemoSeeder
     [
         new(
             "Manager",
-            "Operations manager — full catalog + tickets + read-only users.",
+            // Catalog, Tickets and the Users, Roles and Groups administration are root-only in the PAF (hidden from the
+            // client panel): granting them here would be written straight to the table and then stripped by the API's
+            // role sync on the next start.
+            "Operations manager — own sessions.",
             [
-                IdentityPermissions.Users.View,
-                IdentityPermissions.Users.Update,
                 IdentityPermissions.UserRoles.View,
-                IdentityPermissions.Roles.View,
                 IdentityPermissions.Sessions.View,
                 IdentityPermissions.Sessions.Revoke,
-                IdentityPermissions.Groups.View,
-                CatalogPermissions.Brands.View,
-                CatalogPermissions.Brands.Create,
-                CatalogPermissions.Brands.Update,
-                CatalogPermissions.Brands.Delete,
-                CatalogPermissions.Categories.View,
-                CatalogPermissions.Categories.Create,
-                CatalogPermissions.Categories.Update,
-                CatalogPermissions.Categories.Delete,
-                CatalogPermissions.Products.View,
-                CatalogPermissions.Products.Create,
-                CatalogPermissions.Products.Update,
-                CatalogPermissions.Products.Delete,
-                TicketsPermissions.Tickets.View,
-                TicketsPermissions.Tickets.Create,
-                TicketsPermissions.Tickets.Update,
-                TicketsPermissions.Tickets.Delete,
             ]),
 
         new(
             "Support",
-            "Support agent — full tickets + read-only users.",
+            "Support agent — own sessions.",
             [
-                IdentityPermissions.Users.View,
                 IdentityPermissions.UserRoles.View,
                 IdentityPermissions.Sessions.View,
                 IdentityPermissions.Sessions.Revoke,
-                TicketsPermissions.Tickets.View,
-                TicketsPermissions.Tickets.Create,
-                TicketsPermissions.Tickets.Update,
             ]),
     ];
 

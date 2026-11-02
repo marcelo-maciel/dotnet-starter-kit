@@ -361,6 +361,21 @@ public sealed class PafUsuariosTests(FshWebApplicationFactory factory) : IAsyncL
             .ShouldBe(HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task AdminCriadoComOTenant_ApareceComoAdministradorDoCliente_ComONomeDoCliente()
+    {
+        var colega = await _tenant.CriarUsuarioAsync(_tenant.UnidadeInicial);
+
+        var lista = await PafApi.OkAsync<List<UsuarioPafDto>>(_tenant.Admin, HttpMethod.Get, "/usuarios", null, null);
+
+        var admin = lista.Single(u => u.Email == $"admin-{_tenant.TenantId}@paf.test");
+        admin.Nome.ShouldBe("Administrador");
+        admin.Sobrenome.ShouldBe($"Tenant {_tenant.TenantId}", "o nome do cliente, não o identificador em maiúsculas");
+        admin.Papeis.ShouldBeEmpty("o admin do tenant tem o Admin do kit, não um papel do PAF");
+        admin.AdministradorDoCliente.ShouldBeTrue();
+        lista.Single(u => u.Id == Guid.Parse(colega.UserId)).AdministradorDoCliente.ShouldBeFalse();
+    }
+
     // ─── helpers ─────────────────────────────────────────────────────
 
     private sealed record AdminDaFilial(HttpClient Cliente) : IDisposable

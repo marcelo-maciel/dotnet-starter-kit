@@ -9,7 +9,6 @@ import {
 } from "@/components/layout/mobile-nav";
 import { SseProvider } from "@/sse/sse-context";
 import { RealtimeProvider } from "@/realtime/realtime-context";
-import { ChatGlobalNotifier } from "@/components/notifications/chat-global-notifier";
 import { CommandPaletteRoot } from "@/components/command-palette/command-palette";
 import { InactivityGuard } from "@/components/auth/inactivity-guard";
 import { cn } from "@/lib/cn";
@@ -32,7 +31,7 @@ export function AppShell() {
             "focus:ring-[var(--color-ring)] focus:ring-offset-2 focus:ring-offset-[var(--color-background)]",
           )}
         >
-          Skip to main content
+          Pular para o conteúdo principal
         </a>
 
         <div className="flex h-screen flex-col overflow-hidden bg-[var(--color-background)] text-[var(--color-foreground)]">
@@ -58,11 +57,6 @@ export function AppShell() {
             the Topbar. */}
         <MobileNavRoot />
       </MobileNavProvider>
-      {/* Background chat notifier — listens to ChatMessageCreated on the
-          shared SignalR connection and toasts when the user isn't currently
-          on that channel. Mounted inside the router subtree so the route
-          predicate (current /chat/:channelId) and navigate() both work. */}
-      <ChatGlobalNotifier />
 
       {/* Mounted inside the router subtree so useNavigate inside the
           palette resolves correctly. */}

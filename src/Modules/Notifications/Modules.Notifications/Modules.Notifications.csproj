@@ -3,7 +3,7 @@
 	<PropertyGroup>
 		<RootNamespace>FSH.Modules.Notifications</RootNamespace>
 		<AssemblyName>FSH.Modules.Notifications</AssemblyName>
-		<NoWarn>$(NoWarn);CA1031;CA1711;CA1812;CA1859;CA1002;CA2227;S3267</NoWarn>
+		<NoWarn>$(NoWarn);CA1031;CA1711;CA1812;CA1859;CA1002;CA2227;S3267;S2094</NoWarn>
 	</PropertyGroup>
 
 	<ItemGroup>

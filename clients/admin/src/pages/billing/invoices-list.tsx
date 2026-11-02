@@ -25,6 +25,7 @@ import { Select } from "@/components/list";
 import { KpiTile } from "@/components/kpi-tile";
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
+import { SAO_PAULO } from "@/lib/format";
 
 const PAGE_SIZE = 20;
 
@@ -41,6 +42,7 @@ function formatMoney(amount: number, currency: string) {
 }
 
 const dateShort = new Intl.DateTimeFormat(undefined, {
+  timeZone: SAO_PAULO,
   month: "short",
   day: "2-digit",
   year: "numeric",

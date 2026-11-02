@@ -43,6 +43,7 @@ public sealed class ListUsuariosPafQueryHandler(
             var perfil = await db.PerfisUsuario.AsNoTracking()
                 .FirstOrDefaultAsync(p => p.UsuarioId == usuarioId, cancellationToken)
                 .ConfigureAwait(false);
+            var (papeisDoPaf, administradorDoCliente) = await papeis.ResumoDoUsuarioAsync(usuarioId, cancellationToken).ConfigureAwait(false);
             lista.Add(new UsuarioPafDto(
                 usuarioId,
                 usuario.FirstName ?? string.Empty,
@@ -53,7 +54,8 @@ public sealed class ListUsuariosPafQueryHandler(
                 perfil?.Ramal,
                 perfil?.EscopoEmpresa ?? false,
                 unidades,
-                await papeis.DoUsuarioAsync(usuarioId, cancellationToken).ConfigureAwait(false)));
+                papeisDoPaf,
+                administradorDoCliente));
         }
 
         return [.. lista.OrderBy(u => u.Nome, StringComparer.CurrentCulture).ThenBy(u => u.Sobrenome, StringComparer.CurrentCulture)];

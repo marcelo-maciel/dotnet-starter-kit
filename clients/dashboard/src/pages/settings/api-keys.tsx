@@ -13,22 +13,22 @@ export function ApiKeysSettings() {
   return (
     <div className="space-y-5 fsh-enter">
       <SettingsSection
-        title="API keys"
+        title="Chaves de API"
         icon={KeyRound}
-        description="Long-lived credentials used by services to call the FSH API. Treat them like passwords."
+        description="Credenciais de longa duração usadas por serviços para chamar a API. Trate-as como senhas."
       >
         <div className="flex flex-col items-center justify-center py-10 text-center">
           <div className="mb-4 grid size-14 place-items-center rounded-2xl bg-[var(--color-muted)]">
             <KeyRound className="size-6 text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.4)]" />
           </div>
           <h3 className="mb-1.5 font-display text-[17px] font-semibold text-[var(--color-foreground)]">
-            API keys aren't available yet.
+            As chaves de API ainda não estão disponíveis.
           </h3>
           <p className="mb-6 max-w-[380px] text-[13px] text-[var(--color-muted-foreground)]">
-            Personal access tokens and service-to-service API keys are on the
-            v1.1 roadmap. For now, your access flows through the user-bound JWT
-            issued at sign-in. Track progress on the public roadmap or watch the
-            next release notes.
+            Tokens de acesso pessoal e chaves de API entre serviços estão previstos
+            para a v1.1. Por enquanto, seu acesso usa o JWT emitido para o seu
+            usuário na entrada. Acompanhe o andamento no roadmap público ou nas
+            notas da próxima versão.
           </p>
           <Button
             variant="outline"
@@ -42,7 +42,7 @@ export function ApiKeysSettings() {
             className="h-9 rounded-lg px-4 text-[13px]"
           >
             <ExternalLink className="mr-1.5 size-4" />
-            View roadmap
+            Ver roadmap
           </Button>
         </div>
       </SettingsSection>

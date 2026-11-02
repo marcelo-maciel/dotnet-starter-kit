@@ -12,10 +12,12 @@ namespace Integration.Tests.Tests.Roles;
 [Collection(FshCollectionDefinition.Name)]
 public sealed class RoleTenantIsolationTests
 {
+    private readonly FshWebApplicationFactory _factory;
     private readonly AuthHelper _auth;
 
     public RoleTenantIsolationTests(FshWebApplicationFactory factory)
     {
+        _factory = factory;
         _auth = new AuthHelper(factory);
     }
 
@@ -105,6 +107,7 @@ public sealed class RoleTenantIsolationTests
     private async Task<HttpClient> CreateTenantAdminClientWithRetryAsync(
         string email, string password, string tenant, int maxRetries = 30)
     {
+        await HiddenModulePermissions.GrantToTenantAdminAsync(_factory, tenant, HiddenModulePermissions.IdentityAdministration);
         for (int i = 0; i < maxRetries; i++)
         {
             try

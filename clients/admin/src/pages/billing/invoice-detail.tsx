@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { EntityPageHeader, SettingsSection, Field } from "@/components/list";
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
+import { SAO_PAULO } from "@/lib/format";
 import { useAuth } from "@/auth/use-auth";
 import { BillingPermissions } from "@/lib/permissions";
 
@@ -33,6 +34,7 @@ function formatMoney(amount: number, currency: string) {
 }
 
 const dateLong = new Intl.DateTimeFormat(undefined, {
+  timeZone: SAO_PAULO,
   month: "long",
   day: "numeric",
   year: "numeric",

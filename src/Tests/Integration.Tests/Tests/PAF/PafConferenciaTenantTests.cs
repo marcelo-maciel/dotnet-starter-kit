@@ -12,7 +12,7 @@ public sealed class PafConferenciaTenantTests : IAsyncLifetime
 {
     private const string RotaKit = $"{TestConstants.IdentityBasePath}/users/search?PageNumber=1&PageSize=50";
     private const string Renovar = "/api/v1/paf/estacoes/credencial/renovar";
-    private const string MensagemDaRecusa = "does not match the authenticated tenant";
+    private const string MensagemDaRecusa = "A empresa pedida não confere com a da sessão.";
 
     private readonly FshWebApplicationFactory _factory;
     private readonly AuthHelper _auth;
@@ -40,6 +40,7 @@ public sealed class PafConferenciaTenantTests : IAsyncLifetime
         await TenantProvisioningWait.WaitForProvisioningAsync(root, _tenantA);
         await TenantProvisioningWait.WaitForProvisioningAsync(root, _tenantB);
         await PafTenantCliente.PrepararAdministradorAsync(_factory, _tenantA, PafTenantCliente.LimiteDaUnidadeInicial);
+        await HiddenModulePermissions.GrantToTenantAdminAsync(_factory, _tenantA, HiddenModulePermissions.IdentityAdministration);
         _ = await TokenComRetentativaAsync(_adminA, _tenantA);
     }
 
@@ -50,7 +51,7 @@ public sealed class PafConferenciaTenantTests : IAsyncLifetime
     {
         using var r = await GetAsync(RotaKit, await TokenComRetentativaAsync(_adminA, _tenantA), _tenantB);
         r.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        (await r.Content.ReadAsStringAsync()).ShouldContain(MensagemDaRecusa);
+        (await DetalheAsync(r)).ShouldBe(MensagemDaRecusa);
     }
 
     [Fact]
@@ -64,7 +65,7 @@ public sealed class PafConferenciaTenantTests : IAsyncLifetime
 
         using var outro = await PostAsync($"/api/v1/paf/estacoes/{Guid.NewGuid()}/vinculo", token, _tenantB);
         outro.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        (await outro.Content.ReadAsStringAsync()).ShouldContain(MensagemDaRecusa);
+        (await DetalheAsync(outro)).ShouldBe(MensagemDaRecusa);
     }
 
     [Fact]
@@ -75,7 +76,7 @@ public sealed class PafConferenciaTenantTests : IAsyncLifetime
             new AuthenticationHeaderValue("Bearer", await TokenComRetentativaAsync(_adminA, _tenantA));
         using var r = await client.GetAsync($"{RotaKit}&tenant={_tenantB}");
         r.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        (await r.Content.ReadAsStringAsync()).ShouldContain(MensagemDaRecusa);
+        (await DetalheAsync(r)).ShouldBe(MensagemDaRecusa);
     }
 
     [Fact]
@@ -155,10 +156,17 @@ public sealed class PafConferenciaTenantTests : IAsyncLifetime
         comToken.DefaultRequestHeaders.Add("tenant", _tenantA);
         using var r = await comToken.GetAsync("/api/v1/paf/estacao/emissao/configuracao");
         r.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        (await r.Content.ReadAsStringAsync()).ShouldContain(MensagemDaRecusa);
+        (await DetalheAsync(r)).ShouldBe(MensagemDaRecusa);
     }
 
     // ─── helpers ────────────────────────────────────────────────────────
+
+    // The body escapes non-ASCII characters, so the Portuguese detail is compared after parsing.
+    private static async Task<string?> DetalheAsync(HttpResponseMessage resposta)
+    {
+        using var corpo = System.Text.Json.JsonDocument.Parse(await resposta.Content.ReadAsStringAsync());
+        return corpo.RootElement.GetProperty("detail").GetString();
+    }
 
     private async Task<HttpResponseMessage> GetAsync(string rota, string token, string tenant)
     {

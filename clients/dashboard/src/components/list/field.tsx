@@ -30,7 +30,7 @@ export function Field({
         {required && (
           <>
             <span aria-hidden className="text-[var(--color-destructive)]">·</span>
-            <span className="sr-only">required</span>
+            <span className="sr-only">obrigatório</span>
           </>
         )}
       </Label>

@@ -99,14 +99,14 @@ export function SessionsPage() {
     mutationFn: (s: UserSessionDto) =>
       adminRevokeUserSessionById(s.userId ?? "", s.id),
     onSuccess: () => {
-      toast.success("Session revoked");
+      toast.success("Sessão encerrada");
       void queryClient.invalidateQueries({ queryKey: ["identity", "sessions"] });
     },
     onError: (err) => {
       toast.error(
         err instanceof ApiRequestError
           ? err.problem?.detail ?? err.message
-          : "Could not revoke session.",
+          : "Não foi possível encerrar a sessão.",
       );
     },
   });
@@ -115,7 +115,7 @@ export function SessionsPage() {
     mutationFn: (userId: string) => adminRevokeAllUserSessions(userId),
     onSuccess: (data) => {
       toast.success(
-        `Revoked ${data.revokedCount} ${data.revokedCount === 1 ? "session" : "sessions"}`,
+        `${data.revokedCount} ${data.revokedCount === 1 ? "sessão encerrada" : "sessões encerradas"}`,
       );
       void queryClient.invalidateQueries({ queryKey: ["identity", "sessions"] });
     },
@@ -123,7 +123,7 @@ export function SessionsPage() {
       toast.error(
         err instanceof ApiRequestError
           ? err.problem?.detail ?? err.message
-          : "Could not revoke sessions.",
+          : "Não foi possível encerrar as sessões.",
       );
     },
   });
@@ -135,10 +135,11 @@ export function SessionsPage() {
     <div className="space-y-4 sm:space-y-6">
       <EntityPageHeader
         icon={UserCog}
-        title="Active sessions"
+        title="Sessões ativas"
         total={data?.totalCount ?? null}
-        unit="session"
-        description={`Every browser and device currently signed in to ${user?.tenant ?? "this tenant"}. Refreshes every 30 seconds.`}
+        unit="sessão"
+        units="sessões"
+        description={`Todos os navegadores e aparelhos conectados agora a ${user?.tenant ?? "esta empresa"}. Atualiza a cada 30 segundos.`}
       >
         <Button
           variant="outline"
@@ -147,34 +148,34 @@ export function SessionsPage() {
           className="h-9 flex-1 gap-1.5 rounded-lg px-4 text-[13px] font-semibold sm:flex-none"
         >
           <RefreshCw className={cn("size-4", query.isFetching && "animate-spin")} />
-          Refresh
+          Atualizar
         </Button>
       </EntityPageHeader>
 
       <EntitySearch
         value={search}
         onChange={setSearch}
-        placeholder="Find by user, email, or IP…"
+        placeholder="Buscar por usuário, e-mail ou IP…"
       />
 
       {/* Filter row */}
       <div className="flex flex-wrap items-center gap-2">
         <EntityFilterPill<boolean>
-          label="Visibility"
+          label="Visibilidade"
           value={includeInactive}
           onChange={setIncludeInactive}
           options={[
-            { value: false, label: "Live only" },
-            { value: true, label: "Include inactive" },
+            { value: false, label: "Só ativas" },
+            { value: true, label: "Incluir inativas" },
           ]}
         />
         {items.length > 0 && (
           <div className="ml-auto hidden items-center gap-3 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)] sm:flex">
-            <span>{stats.active} active</span>
+            <span>{stats.active} ativas</span>
             <span aria-hidden className="opacity-50">·</span>
-            <span>{stats.distinctUsers} users</span>
+            <span>{stats.distinctUsers} usuários</span>
             <span aria-hidden className="opacity-50">·</span>
-            <span>{stats.mobile} mobile</span>
+            <span>{stats.mobile} no celular</span>
           </div>
         )}
       </div>
@@ -185,22 +186,22 @@ export function SessionsPage() {
       ) : items.length === 0 ? (
         <EntityEmpty
           icon={ShieldCheck}
-          title={searchActive ? "No sessions found" : "No active sessions"}
+          title={searchActive ? "Nenhuma sessão encontrada" : "Nenhuma sessão ativa"}
           body={
             debouncedSearch
-              ? `Nothing matches "${debouncedSearch}". Try a different term, or toggle Include inactive to see expired sessions.`
-              : "Sessions appear when users sign in. Toggle Include inactive to see expired and revoked sessions."
+              ? `Nada corresponde a "${debouncedSearch}". Tente outro termo, ou marque Incluir inativas para ver as sessões expiradas.`
+              : "As sessões aparecem quando os usuários entram. Marque Incluir inativas para ver as sessões expiradas e encerradas."
           }
           action={
             <div className="flex items-center gap-2">
               {debouncedSearch && (
                 <Button variant="outline" onClick={() => setSearch("")} className="h-9 rounded-lg px-4 text-[13px]">
-                  Clear search
+                  Limpar busca
                 </Button>
               )}
               <Button onClick={() => void query.refetch()} className="h-9 rounded-lg px-4 text-[13px]">
                 <RefreshCw className="mr-1.5 size-4" />
-                Refresh
+                Atualizar
               </Button>
             </div>
           }
@@ -209,7 +210,7 @@ export function SessionsPage() {
         <div>
           <div className="mb-3 flex items-center justify-between">
             <p className="text-[12px] font-medium text-[var(--color-muted-foreground)]">
-              {data?.totalCount ?? 0} session{(data?.totalCount ?? 0) !== 1 ? "s" : ""} found
+              {data?.totalCount ?? 0} {(data?.totalCount ?? 0) !== 1 ? "sessões encontradas" : "sessão encontrada"}
             </p>
           </div>
 
@@ -235,11 +236,11 @@ export function SessionsPage() {
           {/* Desktop list */}
           <EntityListCard className="hidden md:block">
             <EntityListHeader className={DESKTOP_COLS}>
-              <span>User</span>
-              <span>Device</span>
+              <span>Usuário</span>
+              <span>Aparelho</span>
               <span>IP</span>
-              <span>Last activity</span>
-              <span className="text-right">Actions</span>
+              <span>Última atividade</span>
+              <span className="text-right">Ações</span>
             </EntityListHeader>
             {items.map((session, i) => (
               <SessionDesktopRow
@@ -303,9 +304,9 @@ function SessionMobileCard({
 }) {
   const isMobile = (session.deviceType ?? "").toLowerCase().includes("mobile");
   const DeviceIcon = isMobile ? Smartphone : MonitorSmartphone;
-  const displayName = session.userName ?? session.userEmail ?? "Unknown user";
+  const displayName = session.userName ?? session.userEmail ?? "Usuário desconhecido";
   const browser =
-    [session.browser, session.browserVersion].filter(Boolean).join(" ") || "Unknown browser";
+    [session.browser, session.browserVersion].filter(Boolean).join(" ") || "Navegador desconhecido";
 
   return (
     <div
@@ -324,10 +325,10 @@ function SessionMobileCard({
                 {displayName}
               </p>
               {session.isCurrentSession && (
-                <EntityStatusBadge tone="info">You</EntityStatusBadge>
+                <EntityStatusBadge tone="info">Você</EntityStatusBadge>
               )}
               {!session.isActive && (
-                <EntityStatusBadge tone="danger">Inactive</EntityStatusBadge>
+                <EntityStatusBadge tone="danger">Inativa</EntityStatusBadge>
               )}
             </div>
             {session.userEmail && session.userName && (
@@ -362,7 +363,7 @@ function SessionMobileCard({
               className="gap-1.5"
             >
               <ShieldCheck className="size-3.5" />
-              All devices
+              Todos os aparelhos
             </Button>
           )}
           <Button
@@ -373,7 +374,7 @@ function SessionMobileCard({
             className="gap-1.5"
           >
             <LogOut className="size-3.5" />
-            {isRevoking ? "Revoking…" : "Revoke"}
+            {isRevoking ? "Encerrando…" : "Encerrar"}
           </Button>
         </div>
       )}
@@ -402,9 +403,9 @@ function SessionDesktopRow({
 }) {
   const isMobile = (session.deviceType ?? "").toLowerCase().includes("mobile");
   const DeviceIcon = isMobile ? Smartphone : MonitorSmartphone;
-  const displayName = session.userName ?? session.userEmail ?? "Unknown user";
+  const displayName = session.userName ?? session.userEmail ?? "Usuário desconhecido";
   const browser =
-    [session.browser, session.browserVersion].filter(Boolean).join(" ") || "Unknown browser";
+    [session.browser, session.browserVersion].filter(Boolean).join(" ") || "Navegador desconhecido";
   const os = [session.operatingSystem, session.osVersion].filter(Boolean).join(" ");
 
   return (
@@ -418,10 +419,10 @@ function SessionDesktopRow({
               {displayName}
             </span>
             {session.isCurrentSession && (
-              <EntityStatusBadge tone="info">You</EntityStatusBadge>
+              <EntityStatusBadge tone="info">Você</EntityStatusBadge>
             )}
             {!session.isActive && (
-              <EntityStatusBadge tone="danger">Inactive</EntityStatusBadge>
+              <EntityStatusBadge tone="danger">Inativa</EntityStatusBadge>
             )}
           </div>
           {session.userEmail && session.userName && (
@@ -462,10 +463,10 @@ function SessionDesktopRow({
                 disabled={isRevokingAllForUser}
                 onClick={onRevokeAllForUser}
                 className="gap-1.5 text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
-                title="Sign this user out of all devices"
+                title="Encerrar as sessões deste usuário em todos os aparelhos"
               >
                 <ShieldCheck className="size-3.5" />
-                <span className="hidden lg:inline">All</span>
+                <span className="hidden lg:inline">Todas</span>
               </Button>
             )}
             <Button
@@ -476,7 +477,7 @@ function SessionDesktopRow({
               className="gap-1.5"
             >
               <LogOut className="size-3.5" />
-              {isRevoking ? "Revoking…" : "Revoke"}
+              {isRevoking ? "Encerrando…" : "Encerrar"}
             </Button>
           </>
         ) : (

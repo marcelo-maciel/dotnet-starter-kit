@@ -216,6 +216,7 @@ try {
   });
   check("totem: botão tocado com a cor de fila selecionada", selecionado);
   const senhaEmitida = await pTotem.locator("[data-senha-emitida]").textContent({ timeout: TIMEOUT });
+  const emitidaEm = Date.now();
 
   // ── Guichê calls the senha: the painel highlight alternates the call colors ──
   const gCtx = await browser.newContext();
@@ -233,6 +234,9 @@ try {
   await pGuiche.getByRole("button", { name: "Usar esta unidade" }).click();
   await pGuiche.getByLabel("Guichê").selectOption({ label: "Guichê 1" });
   await pGuiche.getByRole("button", { name: "Usar este guichê" }).click();
+  // A ficha only becomes callable 5 s after it was created (ChamadaDeFicha.Elegiveis); a fast login reaches the
+  // button sooner and the call answers "sem fichas".
+  await pGuiche.waitForTimeout(Math.max(0, 5_500 - (Date.now() - emitidaEm)));
   await pGuiche.getByRole("button", { name: "Chamar próxima" }).click();
   await pGuiche.locator("[data-senha-guiche]").waitFor({ timeout: TIMEOUT });
 

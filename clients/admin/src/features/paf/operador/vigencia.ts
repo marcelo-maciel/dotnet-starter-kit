@@ -17,6 +17,17 @@ export function hojeEmSaoPaulo(agora: Date): string {
   }).format(agora);
 }
 
+/** "2026-10-31" → "31/10/2026". A calendar day has no time or zone, so it is rearranged, never parsed as an instant. */
+export function diaBr(dia: string): string {
+  const [ano, mes, diaDoMes] = dia.split("-");
+  return diaDoMes && mes && ano ? `${diaDoMes}/${mes}/${ano}` : dia;
+}
+
+/** "31/10/2026 a sem fim": the validity of a contract as the operator reads it. */
+export function periodoVigencia(contrato: Pick<Vigencia, "inicioVigencia" | "fimVigencia">): string {
+  return `${diaBr(contrato.inicioVigencia)} a ${contrato.fimVigencia === null ? "sem fim" : diaBr(contrato.fimVigencia)}`;
+}
+
 export function fimAntesDoInicio(inicio: string, fim: string | null): boolean {
   return fim !== null && fim < inicio;
 }

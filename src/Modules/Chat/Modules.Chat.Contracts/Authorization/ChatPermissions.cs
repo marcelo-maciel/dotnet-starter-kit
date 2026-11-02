@@ -25,14 +25,15 @@ public static class ChatPermissions
         public const string DeleteAny = $"Permissions.{Resource}.DeleteAny";
     }
 
+    // Root only: chat is not part of the PAF product (31/10/2026), so a client's roles never reach it.
     public static IReadOnlyList<FshPermission> All { get; } =
     [
-        new("View Chat Channels",   ActionConstants.View,   Channels.Resource, IsBasic: true),
-        new("Create Chat Channels", ActionConstants.Create, Channels.Resource, IsBasic: true),
-        new("Manage All Channels",  "ManageAll",            Channels.Resource),
-        new("Send Messages",        "Send",                 Messages.Resource, IsBasic: true),
-        new("Edit Own Messages",    "EditOwn",              Messages.Resource, IsBasic: true),
-        new("Delete Own Messages",  "DeleteOwn",            Messages.Resource, IsBasic: true),
-        new("Delete Any Message",   "DeleteAny",            Messages.Resource),
+        new("View Chat Channels",   ActionConstants.View,   Channels.Resource, IsBasic: true, IsRoot: true),
+        new("Create Chat Channels", ActionConstants.Create, Channels.Resource, IsBasic: true, IsRoot: true),
+        new("Manage All Channels",  "ManageAll",            Channels.Resource, IsRoot: true),
+        new("Send Messages",        "Send",                 Messages.Resource, IsBasic: true, IsRoot: true),
+        new("Edit Own Messages",    "EditOwn",              Messages.Resource, IsBasic: true, IsRoot: true),
+        new("Delete Own Messages",  "DeleteOwn",            Messages.Resource, IsBasic: true, IsRoot: true),
+        new("Delete Any Message",   "DeleteAny",            Messages.Resource, IsRoot: true),
     ];
 }

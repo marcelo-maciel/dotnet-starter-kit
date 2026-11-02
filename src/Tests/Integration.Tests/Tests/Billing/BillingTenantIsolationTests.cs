@@ -6,6 +6,7 @@ using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Framework.Shared.Quota;
 using FSH.Modules.Billing.Contracts;
+using FSH.Modules.Billing.Contracts.Authorization;
 using FSH.Modules.Billing.Contracts.Dtos;
 using FSH.Modules.Billing.Data;
 using FSH.Modules.Billing.Domain;
@@ -146,7 +147,7 @@ public sealed class BillingTenantIsolationTests
     // alone is insufficient). Each test below has tenant B target root's resource; pre-fix these succeeded.
 
     [Fact]
-    public async Task VoidInvoice_Should_Return404_When_OwnedByDifferentTenant()
+    public async Task VoidInvoice_Should_BeRefused_When_OwnedByDifferentTenant()
     {
         var (year, month) = NextPeriod();
         var invoiceId = await SeedDraftInvoiceAsync(TestConstants.RootTenantId, year, month, basePrice: 77.00m);
@@ -155,10 +156,11 @@ public sealed class BillingTenantIsolationTests
         var (otherClient, _) = await CreateForeignTenantClientAsync(rootClient, "void");
         using var _o = otherClient;
 
-        // Tenant B tries to void root's invoice → must 404, and the invoice must stay Draft.
+        // Tenant B tries to void root's invoice → refused, and the invoice must stay Draft. Billing.Manage is
+        // root-only, so B stops at the permission gate (403) before the handler's ownership check (404).
         using var crossResp = await otherClient.PostAsJsonAsync(
             $"{BillingBasePath}/invoices/{invoiceId}/void", new { reason = "malicious" });
-        crossResp.StatusCode.ShouldBe(HttpStatusCode.NotFound,
+        crossResp.StatusCode.ShouldBe(HttpStatusCode.Forbidden,
             "a tenant must not be able to void another tenant's invoice by id");
 
         using var ownerRead = await rootClient.GetAsync($"{BillingBasePath}/invoices/{invoiceId}");
@@ -229,23 +231,19 @@ public sealed class BillingTenantIsolationTests
     }
 
     [Fact]
-    public async Task CaptureUsage_Should_BeScopedToCaller_When_NonRootPassesForeignTenantId()
+    public async Task CaptureUsage_Should_BeRefused_When_NonRootPassesForeignTenantId()
     {
         var (year, month) = NextPeriod();
         using var rootClient = await _auth.CreateRootAdminClientAsync();
         var (otherClient, _) = await CreateForeignTenantClientAsync(rootClient, "capture");
         using var _o = otherClient;
 
-        // B asks to capture usage FOR ROOT. The handler must pin to B, so nothing it returns/writes
-        // belongs to root.
+        // B asks to capture usage FOR ROOT. Billing.Manage is root-only, so B stops at the permission gate
+        // (403); the handler still pins to the caller as a second line.
         using var resp = await otherClient.PostAsJsonAsync(
             $"{BillingBasePath}/usage/snapshots/capture",
             new { tenantId = TestConstants.RootTenantId, periodYear = year, periodMonth = month });
-        resp.StatusCode.ShouldBe(HttpStatusCode.OK, await resp.Content.ReadAsStringAsync());
-
-        var snaps = await ParseAsync<List<UsageSnapshotDto>>(resp);
-        snaps.ShouldAllBe(s => s.TenantId != TestConstants.RootTenantId,
-            "a tenant capturing usage must be scoped to itself — never able to write another tenant's usage");
+        resp.StatusCode.ShouldBe(HttpStatusCode.Forbidden, await resp.Content.ReadAsStringAsync());
     }
 
     [Fact]
@@ -405,6 +403,7 @@ public sealed class BillingTenantIsolationTests
     private async Task<HttpClient> CreateTenantAdminClientWithRetryAsync(
         string email, string password, string tenant, int maxRetries = 30)
     {
+        await HiddenModulePermissions.GrantToTenantAdminAsync(_factory, tenant, [BillingPermissions.View]);
         for (int i = 0; i < maxRetries; i++)
         {
             try

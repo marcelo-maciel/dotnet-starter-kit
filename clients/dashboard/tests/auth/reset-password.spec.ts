@@ -8,9 +8,9 @@ const VALID_LINK =
 test.describe("reset-password page", () => {
   test("guards against malformed links (missing token/email/tenant)", async ({ page }) => {
     await page.goto("/reset-password");
-    await expect(page.getByRole("heading", { name: /this link is incomplete/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /este link está incompleto/i })).toBeVisible();
     // Should offer a recovery path, not a dead-end.
-    await expect(page.getByRole("link", { name: /request a new link/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /pedir um novo link/i })).toBeVisible();
   });
 
   test("renders the form when token + email + tenant are present", async ({ page }) => {
@@ -18,48 +18,48 @@ test.describe("reset-password page", () => {
 
     // The redesigned AuthShell drops the editorial eyebrow — assert on
     // the visible headline + echoed email/tenant + field labels.
-    await expect(page.getByRole("heading", { name: /set a new password/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /defina uma nova senha/i })).toBeVisible();
     await expect(page.getByText("alice@acme.com")).toBeVisible();
-    await expect(page.getByText(/on acme/i)).toBeVisible();
-    await expect(page.getByLabel("New password")).toBeVisible();
-    await expect(page.getByLabel("Confirm password")).toBeVisible();
+    await expect(page.getByText(/na empresa acme/i)).toBeVisible();
+    await expect(page.getByLabel("Nova senha")).toBeVisible();
+    await expect(page.getByLabel("Confirme a senha")).toBeVisible();
   });
 
   test("password strength meter reflects what the user types", async ({ page }) => {
     await page.goto(VALID_LINK);
 
-    const newPw = page.getByLabel("New password");
+    const newPw = page.getByLabel("Nova senha");
 
     await newPw.fill("short");
-    await expect(page.getByText(/^Weak$/)).toBeVisible();
+    await expect(page.getByText(/^Fraca$/)).toBeVisible();
 
     await newPw.fill("Abcdefg1");
-    await expect(page.getByText(/^Fair$/)).toBeVisible();
+    await expect(page.getByText(/^Razoável$/)).toBeVisible();
 
     await newPw.fill("VeryStrong!Passw0rd");
-    await expect(page.getByText(/^Strong$/)).toBeVisible();
+    await expect(page.getByText(/^Forte$/)).toBeVisible();
   });
 
   test("match indicator turns green when confirm matches", async ({ page }) => {
     await page.goto(VALID_LINK);
 
-    await page.getByLabel("New password").fill("VeryStrong!Passw0rd");
-    await page.getByLabel("Confirm password").fill("VeryStrong!Pas");
-    await expect(page.getByText(/doesn't match yet/i)).toBeVisible();
+    await page.getByLabel("Nova senha").fill("VeryStrong!Passw0rd");
+    await page.getByLabel("Confirme a senha").fill("VeryStrong!Pas");
+    await expect(page.getByText(/ainda não conferem/i)).toBeVisible();
 
-    await page.getByLabel("Confirm password").fill("VeryStrong!Passw0rd");
-    await expect(page.getByText(/passwords match/i)).toBeVisible();
+    await page.getByLabel("Confirme a senha").fill("VeryStrong!Passw0rd");
+    await expect(page.getByText(/as senhas conferem/i)).toBeVisible();
   });
 
   test("disables submit until the form is valid", async ({ page }) => {
     await page.goto(VALID_LINK);
-    const submit = page.getByRole("button", { name: /set new password/i });
+    const submit = page.getByRole("button", { name: /definir a nova senha/i });
 
     await expect(submit).toBeDisabled();
 
     // Strong + matching unlocks submit.
-    await page.getByLabel("New password").fill("VeryStrong!Passw0rd");
-    await page.getByLabel("Confirm password").fill("VeryStrong!Passw0rd");
+    await page.getByLabel("Nova senha").fill("VeryStrong!Passw0rd");
+    await page.getByLabel("Confirme a senha").fill("VeryStrong!Passw0rd");
     await expect(submit).toBeEnabled();
   });
 
@@ -67,9 +67,9 @@ test.describe("reset-password page", () => {
     const captured = captureRequest(page, "**/api/v1/identity/reset-password");
 
     await page.goto(VALID_LINK);
-    await page.getByLabel("New password").fill("VeryStrong!Passw0rd");
-    await page.getByLabel("Confirm password").fill("VeryStrong!Passw0rd");
-    await page.getByRole("button", { name: /set new password/i }).click();
+    await page.getByLabel("Nova senha").fill("VeryStrong!Passw0rd");
+    await page.getByLabel("Confirme a senha").fill("VeryStrong!Passw0rd");
+    await page.getByRole("button", { name: /definir a nova senha/i }).click();
 
     const { body, headers } = await captured.value();
     expect(body).toMatchObject({
@@ -90,9 +90,9 @@ test.describe("reset-password page", () => {
     });
 
     await page.goto(VALID_LINK);
-    await page.getByLabel("New password").fill("VeryStrong!Passw0rd");
-    await page.getByLabel("Confirm password").fill("VeryStrong!Passw0rd");
-    await page.getByRole("button", { name: /set new password/i }).click();
+    await page.getByLabel("Nova senha").fill("VeryStrong!Passw0rd");
+    await page.getByLabel("Confirme a senha").fill("VeryStrong!Passw0rd");
+    await page.getByRole("button", { name: /definir a nova senha/i }).click();
 
     const alert = page.getByRole("alert");
     await expect(alert).toBeVisible();
@@ -109,13 +109,13 @@ test.describe("reset-password page", () => {
     });
 
     await page.goto(VALID_LINK);
-    await page.getByLabel("New password").fill("VeryStrong!Passw0rd");
-    await page.getByLabel("Confirm password").fill("VeryStrong!Passw0rd");
-    await page.getByRole("button", { name: /set new password/i }).click();
+    await page.getByLabel("Nova senha").fill("VeryStrong!Passw0rd");
+    await page.getByLabel("Confirme a senha").fill("VeryStrong!Passw0rd");
+    await page.getByRole("button", { name: /definir a nova senha/i }).click();
     await expect(page.getByRole("alert")).toBeVisible();
 
     // Any keystroke in either password field should clear the alert.
-    await page.getByLabel("New password").fill("VeryStrong!Passw0rd2");
+    await page.getByLabel("Nova senha").fill("VeryStrong!Passw0rd2");
     await expect(page.getByRole("alert")).not.toBeVisible();
 
     // Avoid unused-variable lint by ensuring mockJsonResponse is also

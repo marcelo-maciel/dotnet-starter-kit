@@ -83,7 +83,7 @@ export function RolesPage() {
     <div className="space-y-4 sm:space-y-6">
       <EntityPageHeader
         icon={Shield}
-        title="Roles"
+        title="Papéis"
         total={query.data ? roles.length : null}
         unit="role"
         description="Roles bundle permissions into named bands of authority. Assign them from the user detail page."

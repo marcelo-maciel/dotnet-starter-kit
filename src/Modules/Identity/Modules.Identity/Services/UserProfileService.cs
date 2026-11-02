@@ -133,10 +133,15 @@ internal sealed class UserProfileService(
             user.Locale = locale;
         }
 
-        string? currentPhoneNumber = await userManager.GetPhoneNumberAsync(user);
-        if (phoneNumber != currentPhoneNumber)
+        // Clients send "" to clear the phone. Treated as null so an untouched empty field against a
+        // null column is not a change: SetPhoneNumberAsync would reset PhoneNumberConfirmed and
+        // write the row once more for nothing.
+        string? requestedPhoneNumber = string.IsNullOrWhiteSpace(phoneNumber) ? null : phoneNumber;
+        string? storedPhoneNumber = await userManager.GetPhoneNumberAsync(user);
+        string? currentPhoneNumber = string.IsNullOrWhiteSpace(storedPhoneNumber) ? null : storedPhoneNumber;
+        if (requestedPhoneNumber != currentPhoneNumber)
         {
-            await userManager.SetPhoneNumberAsync(user, phoneNumber);
+            await userManager.SetPhoneNumberAsync(user, requestedPhoneNumber);
         }
 
         var result = await userManager.UpdateAsync(user);

@@ -61,7 +61,7 @@ import {
   EntityDetailStat,
   ErrorBand,
 } from "@/components/list";
-import { describe } from "@/lib/list-helpers";
+import { describe, SAO_PAULO } from "@/lib/list-helpers";
 import { cn } from "@/lib/cn";
 
 type DialogState =
@@ -745,6 +745,7 @@ function ProfileRow({
 // ───────────────────────────────────────────────────────────────────────
 
 const sessionDateFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: SAO_PAULO,
   month: "short",
   day: "2-digit",
   hour: "2-digit",

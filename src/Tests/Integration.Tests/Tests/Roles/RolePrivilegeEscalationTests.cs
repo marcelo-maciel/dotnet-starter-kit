@@ -5,7 +5,8 @@ using Integration.Tests.Infrastructure.Extensions;
 namespace Integration.Tests.Tests.Roles;
 
 /// <summary>
-/// Privilege-escalation guard. A NON-root tenant admin legitimately holds Roles.Create/Update, but
+/// Privilege-escalation guard. A NON-root tenant admin that holds Roles.Create/Update (root-only since 02/11/2026; a
+/// client seeded before keeps them until the startup sync, so the test writes them back on its Admin role) still
 /// must NOT be able to grant ROOT-only permissions (Permissions.Tenants.* / Permissions.Platform.*)
 /// to a role. <c>RoleService.FilterRootPermissions</c> previously stripped only names with a
 /// "Permissions.Root." prefix — which matches NO real root permission — so the root permission was
@@ -17,12 +18,15 @@ public sealed class RolePrivilegeEscalationTests
 {
     // A real IsRoot permission (MultitenancyPermissions.Tenants.Update — flagged IsRoot: true).
     private const string RootPermission = "Permissions.Tenants.Update";
-    private const string AllowedPermission = IdentityPermissions.Groups.View;
+    // Groups.View went root-only with the rest of the Users, Roles and Groups administration; own sessions stay a client's.
+    private const string AllowedPermission = IdentityPermissions.Sessions.View;
 
+    private readonly FshWebApplicationFactory _factory;
     private readonly AuthHelper _auth;
 
     public RolePrivilegeEscalationTests(FshWebApplicationFactory factory)
     {
+        _factory = factory;
         _auth = new AuthHelper(factory);
     }
 
@@ -95,6 +99,7 @@ public sealed class RolePrivilegeEscalationTests
     private async Task<HttpClient> CreateTenantAdminClientWithRetryAsync(
         string email, string password, string tenant, int maxRetries = 30)
     {
+        await HiddenModulePermissions.GrantToTenantAdminAsync(_factory, tenant, HiddenModulePermissions.IdentityAdministration);
         for (var i = 0; i < maxRetries; i++)
         {
             try

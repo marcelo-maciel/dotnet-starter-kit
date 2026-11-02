@@ -6,6 +6,7 @@ import { RouteError } from "@/components/route-error";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/cn";
 import { PafTempoRealProvider } from "@/features/paf/tempo-real/paf-tempo-real-provider";
+import { InicioPaf } from "@/features/paf/navegacao/inicio-paf";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Lazy route boundaries
@@ -44,23 +45,6 @@ const ConfirmEmailPage = lazyNamed(
 );
 const OverviewPage = lazyNamed(() => import("@/pages/overview"), "OverviewPage");
 const ActivityPage = lazyNamed(() => import("@/pages/activity"), "ActivityPage");
-const InvoicesPage = lazyNamed(() => import("@/pages/invoices"), "InvoicesPage");
-const InvoiceDetailPage = lazyNamed(
-  () => import("@/pages/invoice-detail"),
-  "InvoiceDetailPage",
-);
-const SubscriptionPage = lazyNamed(
-  () => import("@/pages/subscription"),
-  "SubscriptionPage",
-);
-const WalletPage = lazyNamed(() => import("@/pages/wallet"), "WalletPage");
-const BrandsPage = lazyNamed(() => import("@/pages/catalog/brands"), "BrandsPage");
-const CategoriesPage = lazyNamed(() => import("@/pages/catalog/categories"), "CategoriesPage");
-const ProductsPage = lazyNamed(() => import("@/pages/catalog/products"), "ProductsPage");
-const ProductDetailPage = lazyNamed(
-  () => import("@/pages/catalog/product-detail"),
-  "ProductDetailPage",
-);
 const NotFoundPage = lazyNamed(() => import("@/pages/not-found"), "NotFoundPage");
 const TenantDeactivatedPage = lazyNamed(
   () => import("@/pages/tenant-deactivated"),
@@ -76,45 +60,13 @@ const SettingsLayout = lazyNamed(
 );
 const ProfileSettings = lazyNamed(() => import("@/pages/settings/profile"), "ProfileSettings");
 const SecuritySettings = lazyNamed(() => import("@/pages/settings/security"), "SecuritySettings");
-const BrandingSettings = lazyNamed(
-  () => import("@/pages/settings/branding"),
-  "BrandingSettings",
-);
 const AppearanceSettings = lazyNamed(
   () => import("@/pages/settings/appearance"),
   "AppearanceSettings",
 );
-const NotificationsSettings = lazyNamed(
-  () => import("@/pages/settings/notifications"),
-  "NotificationsSettings",
-);
-const ApiKeysSettings = lazyNamed(() => import("@/pages/settings/api-keys"), "ApiKeysSettings");
 const HealthPage = lazyNamed(() => import("@/pages/health"), "HealthPage");
 const AuditsPage = lazyNamed(() => import("@/pages/audits"), "AuditsPage");
-const TicketsPage = lazyNamed(() => import("@/pages/tickets/tickets"), "TicketsPage");
-const TicketDetailPage = lazyNamed(
-  () => import("@/pages/tickets/ticket-detail"),
-  "TicketDetailPage",
-);
-const TrashPage = lazyNamed(() => import("@/pages/system/trash"), "TrashPage");
 const SessionsPage = lazyNamed(() => import("@/pages/system/sessions"), "SessionsPage");
-const UsersPage = lazyNamed(() => import("@/pages/identity/users"), "UsersPage");
-const UserDetailPage = lazyNamed(
-  () => import("@/pages/identity/user-detail"),
-  "UserDetailPage",
-);
-const RolesPage = lazyNamed(() => import("@/pages/identity/roles"), "RolesPage");
-const RoleDetailPage = lazyNamed(
-  () => import("@/pages/identity/role-detail"),
-  "RoleDetailPage",
-);
-const GroupsPage = lazyNamed(() => import("@/pages/identity/groups"), "GroupsPage");
-const GroupDetailPage = lazyNamed(
-  () => import("@/pages/identity/group-detail"),
-  "GroupDetailPage",
-);
-const MyFilesPage = lazyNamed(() => import("@/pages/files/my-files"), "MyFilesPage");
-const ChatPage = lazyNamed(() => import("@/pages/chat/chat-page"), "ChatPage");
 // PAF (ADR 0008, module registration: PAF screens in the dashboard routes).
 const PafResgateVinculoPage = lazyNamed(
   () => import("@/features/paf/estacao/resgate-vinculo-page"),
@@ -150,7 +102,7 @@ const PafProgramacoesPage = lazyNamed(() => import("@/features/paf/programacoes/
 function RouteFallback() {
   return (
     <div className={cn("space-y-6 fsh-enter")} role="status" aria-busy="true">
-      <span className="sr-only">Loading…</span>
+      <span className="sr-only">Carregando…</span>
       <div className="space-y-2">
         <Skeleton className="h-3 w-24" />
         <Skeleton className="h-8 w-64" />
@@ -175,6 +127,28 @@ function RouteFallback() {
 function withSuspense(node: React.ReactNode) {
   return <Suspense fallback={<RouteFallback />}>{node}</Suspense>;
 }
+
+// Kit screens the PAF does not ship (product decision of 31/10/2026; the Users, Roles and Groups administration on
+// 02/11/2026, replaced by /paf/usuarios): the pages stay in the tree, the URL only redirects, so an old bookmark lands
+// on the PAF home and never on a dead page.
+const TELAS_DO_KIT_FORA_DO_PRODUTO = [
+  "subscription",
+  "wallet",
+  "invoices",
+  "invoices/:id",
+  "files",
+  "chat",
+  "chat/:channelId",
+  "tickets",
+  "tickets/:ticketId",
+  "catalog/*",
+  // Trash only lists Catalog, Tickets and Files records.
+  "system/trash",
+  // The kit's own older paths for Billing and Trash, which no screen serves, so they would 404.
+  "billing/*",
+  "trash",
+  "identity/*",
+];
 
 export const router = createBrowserRouter([
   {
@@ -246,19 +220,14 @@ export const router = createBrowserRouter([
         ),
         errorElement: <RouteError />,
         children: [
-          { index: true, element: withSuspense(<OverviewPage />) },
+          // The dashboard opens on the PAF; the kit overview moves to /overview.
+          { index: true, element: <InicioPaf /> },
+          { path: "overview", element: withSuspense(<OverviewPage />) },
           { path: "activity", element: withSuspense(<ActivityPage />) },
-          { path: "subscription", element: withSuspense(<SubscriptionPage />) },
-          { path: "wallet", element: withSuspense(<WalletPage />) },
-          { path: "invoices", element: withSuspense(<InvoicesPage />) },
-          { path: "invoices/:id", element: withSuspense(<InvoiceDetailPage />) },
+          ...TELAS_DO_KIT_FORA_DO_PRODUTO.map((path) => ({ path, element: <Navigate to="/" replace /> })),
           { path: "system/health", element: withSuspense(<HealthPage />) },
           { path: "system/audits", element: withSuspense(<AuditsPage />) },
-          { path: "system/trash", element: withSuspense(<TrashPage />) },
           { path: "system/sessions", element: withSuspense(<SessionsPage />) },
-          { path: "files", element: withSuspense(<MyFilesPage />) },
-          { path: "chat", element: withSuspense(<ChatPage />) },
-          { path: "chat/:channelId", element: withSuspense(<ChatPage />) },
           {
             // PAF screens of the signed-in user: current-unit selector on top (RF08). Later screens add children.
             path: "paf",
@@ -280,23 +249,6 @@ export const router = createBrowserRouter([
               { path: "programacoes", element: withSuspense(<PafProgramacoesPage />) },
             ],
           },
-          { path: "tickets", element: withSuspense(<TicketsPage />) },
-          { path: "tickets/:ticketId", element: withSuspense(<TicketDetailPage />) },
-          { path: "identity", element: <Navigate to="/identity/users" replace /> },
-          { path: "identity/users", element: withSuspense(<UsersPage />) },
-          { path: "identity/users/:userId", element: withSuspense(<UserDetailPage />) },
-          { path: "identity/roles", element: withSuspense(<RolesPage />) },
-          { path: "identity/roles/:roleId", element: withSuspense(<RoleDetailPage />) },
-          { path: "identity/groups", element: withSuspense(<GroupsPage />) },
-          { path: "identity/groups/:groupId", element: withSuspense(<GroupDetailPage />) },
-          { path: "catalog", element: <Navigate to="/catalog/brands" replace /> },
-          { path: "catalog/brands", element: withSuspense(<BrandsPage />) },
-          { path: "catalog/categories", element: withSuspense(<CategoriesPage />) },
-          { path: "catalog/products", element: withSuspense(<ProductsPage />) },
-          {
-            path: "catalog/products/:productId",
-            element: withSuspense(<ProductDetailPage />),
-          },
           {
             path: "settings",
             element: withSuspense(<SettingsLayout />),
@@ -305,9 +257,11 @@ export const router = createBrowserRouter([
               { path: "profile", element: withSuspense(<ProfileSettings />) },
               { path: "security", element: withSuspense(<SecuritySettings />) },
               { path: "appearance", element: withSuspense(<AppearanceSettings />) },
-              { path: "branding", element: withSuspense(<BrandingSettings />) },
-              { path: "notifications", element: withSuspense(<NotificationsSettings />) },
-              { path: "api-keys", element: withSuspense(<ApiKeysSettings />) },
+              // Marca, Notificações and Chaves de API are not part of the PAF product (02/11/2026): the pages stay in
+              // the tree, the URL redirects home like the other kit screens left out.
+              { path: "branding", element: <Navigate to="/" replace /> },
+              { path: "notifications", element: <Navigate to="/" replace /> },
+              { path: "api-keys", element: <Navigate to="/" replace /> },
             ],
           },
         ],

@@ -13,6 +13,7 @@ import {
 import { useRealtimeEvent } from "@/realtime/realtime-context";
 import { useAuth } from "@/auth/use-auth";
 import { cn } from "@/lib/cn";
+import { SAO_PAULO } from "@/lib/format";
 
 /**
  * NotificationBell — topbar trigger with unread badge and a popover preview
@@ -264,5 +265,5 @@ function formatRelative(value: string): string {
   if (hr < 24) return `${hr}h`;
   const day = Math.round(hr / 24);
   if (day < 14) return `${day}d`;
-  return d.toLocaleDateString();
+  return d.toLocaleDateString(undefined, { timeZone: SAO_PAULO });
 }

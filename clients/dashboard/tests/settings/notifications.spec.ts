@@ -1,46 +1,38 @@
 import { expect, test } from "@playwright/test";
+import { mockJsonResponse } from "../helpers/api-mocks";
 import { installShellMocks } from "../helpers/shell-mocks";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 
-// Per-user notification preference persistence isn't built yet — the page
-// is an honest placeholder that points users at the in-app bell. There's
-// no preferences GET/PUT to mock beyond the shell defaults. Specs assert
-// the placeholder copy + the bell affordance.
+// Notificações is not part of the PAF product (02/11/2026): the page was a roadmap stub. The route redirects home like
+// the other kit screens left out; the bell itself stays, without its link to the preferences page.
+const GUICHE = "Permissions.PAF.Guiches.Selecionar";
+
 test.beforeEach(async ({ page }) => {
   await seedAuthedSession(page, TEST_USER);
   await installShellMocks(page);
+  await mockJsonResponse(page, "**/api/v1/identity/permissions", [GUICHE]);
+  await mockJsonResponse(page, "**/api/v1/paf/guiche/unidades", []);
 });
 
-test.describe("settings/notifications — placeholder", () => {
-  test("renders the preferences section and the placeholder copy", async ({ page }) => {
+test.describe("settings/notifications — fora do produto", () => {
+  test("/settings/notifications volta para o início do PAF", async ({ page }) => {
     await page.goto("/settings/notifications");
-
-    // Section title is an <h3>; the sidebar nav uses plain spans, so the
-    // heading role is unambiguous.
-    await expect(
-      page.getByRole("heading", { name: "Notification preferences" }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: /per-event preferences aren't tunable yet/i }),
-    ).toBeVisible();
-    await expect(page.getByText(/granular per-event email opt-ins/i)).toBeVisible();
+    await expect(page).toHaveURL(/\/paf\/guiche$/);
   });
 
-  test("exposes a button that opens the notifications bell", async ({ page }) => {
-    await page.goto("/settings/notifications");
+  test("Minha conta, a paleta e o sino não levam às preferências de notificação", async ({ page }) => {
+    await page.goto("/settings/profile");
+    await expect(page.getByRole("link", { name: /Segurança/ }).first()).toBeVisible();
+    await expect(page.locator('a[href="/settings/notifications"]')).toHaveCount(0);
 
-    await expect(
-      page.getByRole("button", { name: /open notifications bell/i }),
-    ).toBeVisible();
-  });
+    await page.getByRole("banner").getByRole("button", { name: /buscar/i }).click();
+    const paleta = page.getByRole("dialog");
+    await expect(paleta.getByRole("option", { name: /^Segurança/ })).toBeVisible();
+    await expect(paleta.getByRole("option", { name: /^Notificações/ })).toHaveCount(0);
+    await page.keyboard.press("Escape");
 
-  test("clicking the affordance stays on the notifications tab", async ({ page }) => {
-    await page.goto("/settings/notifications");
-
-    // The handler does an optional-chained `[data-notification-bell]?.click()`,
-    // so it's a safe no-op when the topbar bell isn't mounted. We only assert
-    // the click doesn't throw or navigate away from the settings tab.
-    await page.getByRole("button", { name: /open notifications bell/i }).click();
-    await expect(page).toHaveURL(/\/settings\/notifications$/);
+    await page.getByRole("button", { name: /^Notificações/ }).click();
+    await expect(page.getByText("Tudo em dia")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Preferências/ })).toHaveCount(0);
   });
 });

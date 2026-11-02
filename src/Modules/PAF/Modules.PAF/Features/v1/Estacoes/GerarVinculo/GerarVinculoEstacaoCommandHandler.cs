@@ -34,16 +34,16 @@ public sealed class GerarVinculoEstacaoCommandHandler(
             .Select(e => new { e.UnidadeId, e.Tipo, e.Ativa })
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false)
-            ?? throw new NotFoundException($"Estacao {command.EstacaoId} not found.");
+            ?? throw new NotFoundException($"Estação {command.EstacaoId} não encontrada.");
 
         if (!estacao.Ativa)
         {
-            throw new CustomException("Inactive station cannot be linked.", Array.Empty<string>(), HttpStatusCode.Conflict);
+            throw new CustomException("Estação inativa não pode ser vinculada.", Array.Empty<string>(), HttpStatusCode.Conflict);
         }
 
         if (PapeisDaEstacao.ComCredencial(estacao.Tipo).Count == 0)
         {
-            throw new CustomException("Only emission and panel stations use a station link.", Array.Empty<string>(), HttpStatusCode.BadRequest);
+            throw new CustomException("Só estações de emissão e de painel usam vínculo.", Array.Empty<string>(), HttpStatusCode.BadRequest);
         }
 
         var token = SegredoEstacao.Gerar();

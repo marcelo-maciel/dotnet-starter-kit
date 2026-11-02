@@ -13,6 +13,7 @@ import { SettingsSection } from "@/components/list";
 import { ImpersonateDialog } from "@/components/impersonation/impersonate-dialog";
 import { RevokeGrantDialog } from "@/components/impersonation/revoke-grant-dialog";
 import { IdentityPermissions } from "@/lib/permissions";
+import { SAO_PAULO } from "@/lib/format";
 
 const REFRESH_INTERVAL_MS = 5_000;
 
@@ -147,8 +148,8 @@ function GrantRow({
           </Badge>
         </div>
         <div className="mt-0.5 truncate font-mono text-[10.5px] text-[var(--color-muted-foreground)]">
-          started {new Date(g.startedAtUtc).toLocaleTimeString()} · expires{" "}
-          {new Date(g.expiresAtUtc).toLocaleTimeString()}
+          started {new Date(g.startedAtUtc).toLocaleTimeString(undefined, { timeZone: SAO_PAULO })} · expires{" "}
+          {new Date(g.expiresAtUtc).toLocaleTimeString(undefined, { timeZone: SAO_PAULO })}
           {g.reason && <> · {truncate(g.reason, 80)}</>}
         </div>
       </div>

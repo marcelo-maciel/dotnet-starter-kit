@@ -42,6 +42,24 @@ async function api(method, path, token, body) {
   return r.status === 204 ? null : r.json();
 }
 
+// Root token (no X-FSH-App: the dashboard refuses root sign-ins) and an impersonation of the target in TENANT.
+async function impersonarComoRoot(alvoId) {
+  const chamar = async (path, token, body) => {
+    const headers = { tenant: "root", "Content-Type": "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const r = await fetch(API + path, { method: "POST", headers, body: JSON.stringify(body), signal: AbortSignal.timeout(TIMEOUT) });
+    if (!r.ok) throw new Error(`POST ${path} (root) -> ${r.status} ${await r.text()}`);
+    return r.json();
+  };
+  const root = await chamar("/api/v1/identity/token/issue", null, { email: "admin@root.com", password: SENHA_DEMO });
+  const imp = await chamar("/api/v1/identity/impersonation/start", root.accessToken, {
+    targetUserId: alvoId,
+    targetTenantId: TENANT,
+    reason: "walk do logout durante a impersonação",
+  });
+  return imp.accessToken;
+}
+
 function sql(consulta) {
   return execFileSync("docker", ["exec", PG, "psql", "-U", "fsh", "-d", "fsh", "-tAc", consulta], {
     timeout: TIMEOUT,
@@ -107,11 +125,11 @@ function tokens(page) {
   }));
 }
 
-// Menu → "Sign out" → confirm. Returns ms from the confirm click to the /login landing.
+// Menu → "Sair" → confirm. Returns ms from the confirm click to the /login landing.
 async function sairPeloMenu(page) {
-  await page.getByRole("button", { name: "Open profile menu" }).click();
-  await page.getByRole("menuitem", { name: "Sign out" }).click();
-  const confirmar = page.getByRole("dialog").getByRole("button", { name: "Sign out" });
+  await page.getByRole("button", { name: "Abrir menu do perfil" }).click();
+  await page.getByRole("menuitem", { name: "Sair" }).click();
+  const confirmar = page.getByRole("dialog").getByRole("button", { name: "Sair" });
   await confirmar.waitFor({ timeout: TIMEOUT });
   const inicio = Date.now();
   await confirmar.click();
@@ -158,19 +176,19 @@ try {
   // ── 2. Impersonation: the kit logout never calls the PAF server logout ──
   {
     const admin = await api("POST", "/api/v1/identity/token/issue", null, { email: EMAIL, password: SENHA_DEMO });
-    const usuarios = await api("GET", "/api/v1/identity/users", admin.accessToken);
-    const lista = Array.isArray(usuarios) ? usuarios : (usuarios.items ?? []);
-    const alvo = lista.find((u) => (u.email ?? "").toLowerCase() !== EMAIL && u.isActive !== false);
+    // The kit's user list is root-only (02/11/2026); the client's admin lists its users through the PAF.
+    const usuarios = await api("GET", "/api/v1/paf/usuarios", admin.accessToken);
+    const alvo = usuarios.find((u) => (u.email ?? "").toLowerCase() !== EMAIL && u.ativo !== false);
     await api("POST", `${LOGOUT_PATH}`, admin.accessToken).catch((e) => console.log(`INFO limpeza do token de apoio: ${e.message}`));
     check("impersonação: há outro usuário no tenant", alvo !== undefined);
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     const chamadas = registrarLogouts(page);
-    await entrar(page);
-    await page.goto(`${WEB}/identity/users/${alvo.id}`);
-    await page.getByRole("button", { name: "Impersonate" }).click();
-    await page.getByRole("button", { name: "Start impersonation" }).click();
-    await page.getByRole("button", { name: /End impersonation/ }).waitFor({ timeout: TIMEOUT });
+    // Impersonation is the Codefi operator's alone (Users.Impersonate is root-only): the root starts it through
+    // the API and hands the token to the dashboard the way the admin console does, by the #impersonate hash.
+    const imp = await impersonarComoRoot(alvo.id);
+    await page.goto(`${WEB}/#impersonate?token=${encodeURIComponent(imp)}&tenant=${TENANT}`);
+    await page.getByRole("button", { name: /Encerrar acesso/ }).waitFor({ timeout: TIMEOUT });
     const par = await tokens(page);
     const actSub = JSON.parse(Buffer.from(par.access.split(".")[1], "base64url").toString("utf8")).act_sub;
     check("impersonação: token ativo é de impersonação", typeof actSub === "string" && actSub.length > 0);
@@ -213,7 +231,7 @@ try {
     const chamadasB = registrarLogouts(abaB);
     await entrar(abaA);
     await abaB.goto(`${WEB}/`);
-    await abaB.getByRole("button", { name: "Open profile menu" }).waitFor({ timeout: TIMEOUT });
+    await abaB.getByRole("button", { name: "Abrir menu do perfil" }).waitFor({ timeout: TIMEOUT });
     await abaA.bringToFront();
     await sairPeloMenu(abaA);
     await abaB.waitForURL((u) => u.pathname.startsWith("/login"), { timeout: TIMEOUT });

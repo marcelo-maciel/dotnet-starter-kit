@@ -311,18 +311,21 @@ function PainelSetores(props: {
   );
 }
 
-function CampoCor(props: { rotulo: string; valor: string; onMudar: (valor: string) => void }) {
+// "padrão" and not "padrão da estação": the colour input shares its row with the picker and the long text was cut.
+function CampoCor(props: { rotulo: string; valor: string; dica: string | null; onMudar: (valor: string) => void }) {
   const id = useId();
+  const idDica = `${id}-dica`;
   const valido = /^#[0-9a-fA-F]{6}$/.test(props.valor);
   return (
     <div className="space-y-1">
       <Label htmlFor={id}>{props.rotulo}</Label>
       <div className="flex gap-2">
-        <Input id={id} value={props.valor} placeholder="padrão da estação" maxLength={7}
+        <Input id={id} value={props.valor} placeholder="padrão" maxLength={7} aria-describedby={props.dica ? idDica : undefined}
           onChange={(e) => props.onMudar(e.target.value)} />
         <input type="color" aria-label={`${props.rotulo}: seletor`} className="h-9 w-10 rounded border"
           value={valido ? props.valor : "#000000"} onChange={(e) => props.onMudar(e.target.value.toUpperCase())} />
       </div>
+      {props.dica && <p id={idDica} className="text-xs text-[var(--color-muted-foreground)]">{props.dica}</p>}
     </div>
   );
 }
@@ -413,7 +416,7 @@ function FormularioFila(props: {
                   onChange={(e) => mudarLinha(i, { letra: e.target.value.toUpperCase() })} /></td>
                 <td><Input aria-label={`Número inicial de ${l.prioridade}`} type="number" min={0} value={l.numeroInicial} className="w-24"
                   onChange={(e) => mudarLinha(i, { numeroInicial: Number(e.target.value) })} /></td>
-                <td><CampoCor rotulo={`Cor de ${l.prioridade}`} valor={l.corBotao ?? ""} onMudar={(c) => mudarLinha(i, { corBotao: c })} /></td>
+                <td><CampoCor rotulo={`Cor de ${l.prioridade}`} valor={l.corBotao ?? ""} dica={null} onMudar={(c) => mudarLinha(i, { corBotao: c })} /></td>
                 <td className="whitespace-nowrap">
                   <Button size="icon-xs" variant="ghost" aria-label={`Subir ${l.prioridade}`} disabled={i === 0} onClick={() => mover(i, -1)}>↑</Button>
                   <Button size="icon-xs" variant="ghost" aria-label={`Descer ${l.prioridade}`} disabled={i === form.linhas.length - 1} onClick={() => mover(i, 1)}>↓</Button>
@@ -444,14 +447,15 @@ function FormularioFila(props: {
 
       <fieldset className="grid gap-3 sm:grid-cols-3">
         <legend className="mb-2 text-sm font-medium">Aparência</legend>
+        <p className="text-xs text-[var(--color-muted-foreground)] sm:col-span-3">Campo vazio usa o padrão da estação.</p>
         <div className="space-y-1">
           <Label htmlFor={ids.fonte}>Fonte</Label>
           <Input id={ids.fonte} value={form.aparencia.fonte ?? ""} placeholder="padrão da estação" maxLength={64}
             onChange={(e) => mudarForm({ aparencia: { ...form.aparencia, fonte: e.target.value } })} />
         </div>
-        <CampoCor rotulo="Cor da fonte" valor={form.aparencia.corFonte ?? ""}
+        <CampoCor rotulo="Cor da fonte" valor={form.aparencia.corFonte ?? ""} dica="Obrigatória quando algum botão tem cor."
           onMudar={(c) => mudarForm({ aparencia: { ...form.aparencia, corFonte: c } })} />
-        <CampoCor rotulo="Cor do botão da fila selecionada" valor={form.aparencia.corBotaoSelecionado ?? ""}
+        <CampoCor rotulo="Cor do botão da fila selecionada" valor={form.aparencia.corBotaoSelecionado ?? ""} dica={null}
           onMudar={(c) => mudarForm({ aparencia: { ...form.aparencia, corBotaoSelecionado: c } })} />
       </fieldset>
 
