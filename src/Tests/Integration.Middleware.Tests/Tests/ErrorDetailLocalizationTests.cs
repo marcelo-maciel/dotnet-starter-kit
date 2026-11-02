@@ -20,12 +20,17 @@ public sealed class ErrorDetailLocalizationTests
     }
 
     [Theory]
-    [InlineData("pt-BR", "Não autorizado", "Falha na autenticação.")]
-    [InlineData(null, "Unauthorized", "Authentication failed.")]
-    public async Task Login_with_wrong_password_reports_in_the_request_culture(string? acceptLanguage, string title, string detail)
+    [InlineData("pt-BR", "Não autorizado", "Falha na autenticação.", "198.51.100.21")]
+    [InlineData(null, "Unauthorized", "Authentication failed.", "198.51.100.22")]
+    public async Task Login_with_wrong_password_reports_in_the_request_culture(string? acceptLanguage, string title, string detail, string clientIp)
     {
-        // Arrange
-        using var client = _factory.CreateClient();
+        // Arrange: anonymous auth calls share one rate-limit partition per client IP, and TestServer leaves the IP
+        // empty, so RateLimitingTests (same collection, same host) would have spent the window already. Each case
+        // comes from its own address.
+        using var client = new HttpClient(_factory.Server.CreateHandler(c => c.Connection.RemoteIpAddress = IPAddress.Parse(clientIp)))
+        {
+            BaseAddress = _factory.Server.BaseAddress,
+        };
         client.DefaultRequestHeaders.Add("tenant", TestConstants.RootTenantId);
         if (acceptLanguage is not null)
         {
@@ -38,8 +43,9 @@ public sealed class ErrorDetailLocalizationTests
             new { email = TestConstants.RootAdminEmail, password = "SenhaErrada123!" });
 
         // Assert: the body escapes non-ASCII characters, so texts are compared after parsing.
-        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
-        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var raw = await response.Content.ReadAsStringAsync();
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized, raw);
+        using var body = JsonDocument.Parse(raw);
         body.RootElement.GetProperty("title").GetString().ShouldBe(title, body.RootElement.GetRawText());
         body.RootElement.GetProperty("detail").GetString().ShouldBe(detail, body.RootElement.GetRawText());
         body.RootElement.GetProperty("code").GetString().ShouldBe("Error.AuthenticationFailed");
