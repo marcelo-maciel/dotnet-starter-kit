@@ -49,6 +49,7 @@ function FshToaster() {
       gap={10}
       expand
       visibleToasts={4}
+      containerAriaLabel="Notificações"
       icons={{
         success: <CheckCircle2 className="fsh-toast-glyph" strokeWidth={2.25} />,
         error: <AlertCircle className="fsh-toast-glyph" strokeWidth={2.25} />,
@@ -58,6 +59,7 @@ function FshToaster() {
       }}
       toastOptions={{
         duration: 4200,
+        closeButtonAriaLabel: "Fechar aviso",
         classNames: {
           toast: "fsh-toast",
           title: "fsh-toast-title",

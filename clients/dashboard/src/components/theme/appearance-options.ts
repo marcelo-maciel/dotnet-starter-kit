@@ -24,73 +24,73 @@ export const fonts: FontOption[] = [
   {
     id: "geist",
     label: "Geist",
-    description: "Designed for screens. Default.",
+    description: "Feita para telas. Padrão.",
     family: `'Geist', ${SHARED_FALLBACKS}`,
   },
   {
     id: "inter-tight",
     label: "Inter Tight",
-    description: "Tighter modern Inter.",
+    description: "Inter moderna e mais compacta.",
     family: `'Inter Tight', ${SHARED_FALLBACKS}`,
   },
   {
     id: "dm-sans",
     label: "DM Sans",
-    description: "Geometric, friendly.",
+    description: "Geométrica e amigável.",
     family: `'DM Sans', ${SHARED_FALLBACKS}`,
   },
   {
     id: "ibm-plex",
     label: "IBM Plex Sans",
-    description: "Editorial grotesque.",
+    description: "Grotesca editorial.",
     family: `'IBM Plex Sans', ${SHARED_FALLBACKS}`,
   },
   {
     id: "manrope",
     label: "Manrope",
-    description: "Warm, geometric.",
+    description: "Calorosa e geométrica.",
     family: `'Manrope', ${SHARED_FALLBACKS}`,
   },
   {
     id: "plus-jakarta",
     label: "Plus Jakarta Sans",
-    description: "Modern, lightly geometric.",
+    description: "Moderna, levemente geométrica.",
     family: `'Plus Jakarta Sans', ${SHARED_FALLBACKS}`,
   },
   {
     id: "outfit",
     label: "Outfit",
-    description: "Confident geometric sans.",
+    description: "Sem serifa geométrica e firme.",
     family: `'Outfit', ${SHARED_FALLBACKS}`,
   },
   {
     id: "sora",
     label: "Sora",
-    description: "Distinctive, contemporary.",
+    description: "Marcante e contemporânea.",
     family: `'Sora', ${SHARED_FALLBACKS}`,
   },
   {
     id: "lexend",
     label: "Lexend",
-    description: "Tuned for reading speed.",
+    description: "Ajustada para leitura rápida.",
     family: `'Lexend', ${SHARED_FALLBACKS}`,
   },
   {
     id: "figtree",
     label: "Figtree",
-    description: "Friendly, approachable.",
+    description: "Amigável e acessível.",
     family: `'Figtree', ${SHARED_FALLBACKS}`,
   },
   {
     id: "onest",
     label: "Onest",
-    description: "Clean, neutral grotesque.",
+    description: "Grotesca limpa e neutra.",
     family: `'Onest', ${SHARED_FALLBACKS}`,
   },
   {
     id: "roboto-flex",
     label: "Roboto Flex",
-    description: "Google's flagship variable.",
+    description: "A variável principal do Google.",
     family: `'Roboto Flex', ${SHARED_FALLBACKS}`,
   },
 ];
@@ -106,12 +106,12 @@ export type AccentOption = {
 };
 
 export const accents: AccentOption[] = [
-  { id: "rose",    label: "Rose",    description: "Editorial, warm-paper default.",  swatch: "oklch(0.575 0.232  13)" },
-  { id: "indigo",  label: "Indigo",  description: "Confident tech-forward chassis.", swatch: "oklch(0.555 0.220 268)" },
-  { id: "violet",  label: "Violet",  description: "Saturated, expressive.",          swatch: "oklch(0.555 0.220 305)" },
-  { id: "sky",     label: "Sky",     description: "Cool, calm, professional.",       swatch: "oklch(0.555 0.220 232)" },
-  { id: "emerald", label: "Emerald", description: "Fresh, success-leaning.",         swatch: "oklch(0.555 0.220 152)" },
-  { id: "amber",   label: "Amber",   description: "Warm, energetic.",                swatch: "oklch(0.620 0.180  76)" },
+  { id: "rose",    label: "Rosa",    description: "Editorial, o padrão.",            swatch: "oklch(0.575 0.232  13)" },
+  { id: "indigo",  label: "Índigo",  description: "Firme e tecnológico.",            swatch: "oklch(0.555 0.220 268)" },
+  { id: "violet",  label: "Violeta", description: "Saturado e expressivo.",          swatch: "oklch(0.555 0.220 305)" },
+  { id: "sky",     label: "Céu",     description: "Frio, calmo e profissional.",     swatch: "oklch(0.555 0.220 232)" },
+  { id: "emerald", label: "Esmeralda", description: "Fresco, puxado para o sucesso.", swatch: "oklch(0.555 0.220 152)" },
+  { id: "amber",   label: "Âmbar",   description: "Quente e enérgico.",              swatch: "oklch(0.620 0.180  76)" },
 ];
 
 export const DEFAULT_ACCENT = "rose";

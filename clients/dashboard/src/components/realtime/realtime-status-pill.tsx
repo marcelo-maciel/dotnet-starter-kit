@@ -2,11 +2,11 @@ import { useRealtime } from "@/realtime/realtime-context";
 import { cn } from "@/lib/cn";
 
 const LABEL: Record<string, string> = {
-  idle: "Offline",
-  connecting: "Connecting",
-  connected: "Live",
-  reconnecting: "Reconnecting",
-  error: "Offline",
+  idle: "Desconectado",
+  connecting: "Conectando",
+  connected: "Ao vivo",
+  reconnecting: "Reconectando",
+  error: "Desconectado",
 };
 
 /**
@@ -27,13 +27,13 @@ export function RealtimeStatusPill({
   announce?: boolean;
 }) {
   const { status } = useRealtime();
-  const label = LABEL[status] ?? "Offline";
+  const label = LABEL[status] ?? "Desconectado";
   return (
     <span
       className={cn("chat-status-pill", className)}
       data-status={status}
       {...(announce ? { role: "status", "aria-live": "polite" as const } : {})}
-      title={`Realtime: ${label}`}
+      title={`Tempo real: ${label}`}
     >
       <span aria-hidden className="chat-status-dot" />
       <span>{label}</span>

@@ -4,7 +4,7 @@ import { AlertTriangle, Clock, X } from "lucide-react";
 import { getMyStatus, type TenantStatusDto } from "@/api/billing";
 import { useAuth } from "@/auth/use-auth";
 import { cn } from "@/lib/cn";
-import { SAO_PAULO } from "@/lib/list-helpers";
+import { formatDate } from "@/lib/list-helpers";
 
 // Days within which an "Active" subscription nearing its validUpto starts
 // surfacing the soft info bar.
@@ -22,13 +22,6 @@ type BannerView =
       kind: "nearing";
       daysLeft: number;
     };
-
-const dateFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: SAO_PAULO,
-  month: "short",
-  day: "2-digit",
-  year: "numeric",
-});
 
 /**
  * Whole calendar-ish days from `now` until `iso`, never negative. Uses a
@@ -51,7 +44,7 @@ function deriveBannerView(
       kind: "grace",
       daysLeft: daysUntil(status.graceEndsUtc, now),
       graceEndsLabel: status.graceEndsUtc
-        ? dateFmt.format(new Date(status.graceEndsUtc))
+        ? formatDate(status.graceEndsUtc)
         : "soon",
     };
   }
@@ -72,7 +65,7 @@ function deriveBannerView(
 }
 
 function pluralizeDays(n: number): string {
-  return `${n} day${n === 1 ? "" : "s"}`;
+  return `${n} dia${n === 1 ? "" : "s"}`;
 }
 
 /**
@@ -111,10 +104,10 @@ export function ExpiryBanner() {
       : "var(--color-info)";
   const Icon = isExpired || isGrace ? AlertTriangle : Clock;
   const message = isExpired
-    ? "Your subscription has expired. Contact your operator to renew and restore full access."
+    ? "Sua assinatura expirou. Fale com o seu operador para renovar e voltar a ter acesso completo."
     : isGrace
-      ? `Your subscription expired — ${pluralizeDays(view.daysLeft)} of grace left (until ${view.graceEndsLabel}). Contact your operator to renew.`
-      : `Your subscription expires in ${pluralizeDays(view.daysLeft)}.`;
+      ? `Sua assinatura expirou. Restam ${pluralizeDays(view.daysLeft)} de carência (até ${view.graceEndsLabel}). Fale com o seu operador para renovar.`
+      : `Sua assinatura expira em ${pluralizeDays(view.daysLeft)}.`;
 
   return (
     <div
@@ -152,8 +145,8 @@ export function ExpiryBanner() {
         <button
           type="button"
           onClick={() => setDismissed(true)}
-          aria-label="Dismiss subscription notice"
-          title="Dismiss"
+          aria-label="Dispensar aviso da assinatura"
+          title="Dispensar"
           className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md transition-colors hover:bg-[oklch(from_var(--color-foreground)_l_c_h_/_0.06)]"
           style={{ color: tone }}
         >

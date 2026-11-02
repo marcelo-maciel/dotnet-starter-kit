@@ -17,11 +17,11 @@ export const AuditEventType = {
 export type AuditEventType = (typeof AuditEventType)[keyof typeof AuditEventType];
 
 export const AUDIT_EVENT_TYPE_LABELS: Record<AuditEventType, string> = {
-  None: "Unknown",
-  EntityChange: "Entity",
-  Security: "Security",
-  Activity: "Activity",
-  Exception: "Exception",
+  None: "Desconhecido",
+  EntityChange: "Entidade",
+  Security: "Segurança",
+  Activity: "Atividade",
+  Exception: "Exceção",
 };
 
 export const AuditSeverity = {
@@ -37,12 +37,12 @@ export type AuditSeverity = (typeof AuditSeverity)[keyof typeof AuditSeverity];
 
 export const AUDIT_SEVERITY_LABELS: Record<AuditSeverity, string> = {
   None: "—",
-  Trace: "Trace",
-  Debug: "Debug",
+  Trace: "Rastreio",
+  Debug: "Depuração",
   Information: "Info",
-  Warning: "Warn",
-  Error: "Error",
-  Critical: "Critical",
+  Warning: "Alerta",
+  Error: "Erro",
+  Critical: "Crítico",
 };
 
 /** Ordinal rank for severities — string severities are not ordered, so use
@@ -75,13 +75,13 @@ export const AuditTag = {
 export type AuditTag = (typeof AuditTag)[keyof typeof AuditTag];
 
 export const AUDIT_TAG_LABELS: Array<{ flag: number; name: string }> = [
-  { flag: AuditTag.PiiMasked, name: "PII masked" },
-  { flag: AuditTag.OutOfQuota, name: "Quota exceeded" },
-  { flag: AuditTag.Sampled, name: "Sampled" },
-  { flag: AuditTag.RetainedLong, name: "Retained" },
-  { flag: AuditTag.HealthCheck, name: "Health check" },
-  { flag: AuditTag.Authentication, name: "Auth" },
-  { flag: AuditTag.Authorization, name: "Authz" },
+  { flag: AuditTag.PiiMasked, name: "PII mascarado" },
+  { flag: AuditTag.OutOfQuota, name: "Cota excedida" },
+  { flag: AuditTag.Sampled, name: "Amostrado" },
+  { flag: AuditTag.RetainedLong, name: "Retido" },
+  { flag: AuditTag.HealthCheck, name: "Verificação de saúde" },
+  { flag: AuditTag.Authentication, name: "Autenticação" },
+  { flag: AuditTag.Authorization, name: "Autorização" },
 ];
 
 export function decodeTags(mask: number): string[] {
@@ -172,31 +172,31 @@ function toPascal(s: string): string {
 
 // ────────────────────────────────────────────────────────────────────────
 // Human-readable summaries — turn the terse `source` (e.g. "api.chat.ListMyChannels"
-// or "IdentityDbContext") into a plain-English predicate so rows read like an
-// activity feed ("Mukesh · viewed chat channels") without opening the details.
+// or "IdentityDbContext") into a pt-BR predicate so rows read like an
+// activity feed ("Mukesh · consultou chat channels") without opening the details.
 // The list DTO carries no field-level before/after, so entity changes summarize
 // at the record level; the detail drawer still shows the full payload.
 // ────────────────────────────────────────────────────────────────────────
 
-// Past-tense verb for the leading word of a PascalCase action name.
+// Past-tense pt-BR verb (third person) for the leading word of a PascalCase action name.
 const ACTION_VERBS: Record<string, string> = {
-  list: "viewed", get: "viewed", fetch: "viewed", read: "viewed", search: "searched", export: "exported",
-  create: "created", add: "added", register: "registered", invite: "invited", upload: "uploaded", generate: "generated",
-  update: "updated", edit: "updated", set: "updated", change: "changed", adjust: "adjusted", rename: "renamed", reorder: "reordered", renew: "renewed",
-  delete: "deleted", remove: "removed", revoke: "revoked", void: "voided", purge: "purged",
-  assign: "assigned", toggle: "toggled", mark: "marked", confirm: "confirmed", resend: "re-sent",
-  issue: "issued", refresh: "refreshed", enroll: "enrolled in", disable: "disabled", enable: "enabled",
-  restore: "restored", pin: "pinned", unpin: "unpinned", join: "joined", leave: "left", react: "reacted to",
-  impersonate: "impersonated", start: "started", end: "ended", download: "downloaded", capture: "captured",
+  list: "consultou", get: "consultou", fetch: "consultou", read: "consultou", search: "buscou", export: "exportou",
+  create: "criou", add: "adicionou", register: "cadastrou", invite: "convidou", upload: "enviou", generate: "gerou",
+  update: "atualizou", edit: "atualizou", set: "atualizou", change: "alterou", adjust: "ajustou", rename: "renomeou", reorder: "reordenou", renew: "renovou",
+  delete: "excluiu", remove: "removeu", revoke: "revogou", void: "anulou", purge: "expurgou",
+  assign: "atribuiu", toggle: "alternou", mark: "marcou", confirm: "confirmou", resend: "reenviou",
+  issue: "emitiu", refresh: "renovou", enroll: "ativou", disable: "desativou", enable: "ativou",
+  restore: "restaurou", pin: "fixou", unpin: "desafixou", join: "entrou em", leave: "saiu de", react: "reagiu a",
+  impersonate: "acessou como", start: "iniciou", end: "encerrou", download: "baixou", capture: "capturou",
 };
 
 // Whole-action phrases that don't decompose into a clean verb + object.
 const ACTION_OVERRIDES: Record<string, string> = {
-  IssueJwtToken: "signed in",
-  RefreshToken: "refreshed their session",
-  SseToken: "connected to the live stream",
-  GetUnreadNotificationCount: "checked notifications",
-  ListMyChannels: "opened chat",
+  IssueJwtToken: "entrou no sistema",
+  RefreshToken: "renovou a sessão",
+  SseToken: "conectou à transmissão ao vivo",
+  GetUnreadNotificationCount: "consultou as notificações",
+  ListMyChannels: "abriu o chat",
 };
 
 function splitPascal(value: string): string[] {
@@ -207,48 +207,43 @@ function splitPascal(value: string): string[] {
     .filter(Boolean);
 }
 
-function pastTense(verb: string): string {
-  if (ACTION_VERBS[verb]) return ACTION_VERBS[verb];
-  if (verb.endsWith("e")) return `${verb}d`;
-  if (verb.endsWith("y")) return `${verb.slice(0, -1)}ied`;
-  return `${verb}ed`;
-}
-
 function humanizeAction(action: string, area?: string): string {
   if (ACTION_OVERRIDES[action]) return ACTION_OVERRIDES[action];
   const words = splitPascal(action);
-  if (words.length === 0) return area ? `accessed ${area}` : "performed an action";
-  const verb = pastTense(words[0].toLowerCase());
+  if (words.length === 0) return area ? `acessou ${area}` : "executou uma ação";
+  const verb = ACTION_VERBS[words[0].toLowerCase()];
   const object = words
-    .slice(1)
+    .slice(verb ? 1 : 0)
     .filter((w) => w.toLowerCase() !== "my")
     .join(" ")
     .toLowerCase();
+  // An action outside the known verbs (e.g. the PAF's own "EmitirFicha") keeps its words after "executou".
+  if (!verb) return object ? `executou ${object}` : "executou uma ação";
   const target = object || area || "";
   return target ? `${verb} ${target}` : verb;
 }
 
-/** Plain-English predicate for an audit row — pairs with the actor shown alongside
- *  it: `${actor} ${auditPredicate(row)}` → "Mukesh signed in". */
+/** pt-BR predicate for an audit row — pairs with the actor shown alongside
+ *  it: `${actor} ${auditPredicate(row)}` → "Mukesh entrou no sistema". */
 export function auditPredicate(row: Pick<AuditSummaryDto, "eventType" | "source">): string {
   const src = (row.source ?? "").trim();
 
   if (row.eventType === AuditEventType.Exception) {
     const parts = src.replace(/^api\./i, "").split(".").filter(Boolean);
     const where = parts.length ? splitPascal(parts[parts.length - 1]).join(" ").toLowerCase() : "";
-    return where ? `hit an error in ${where}` : "hit an error";
+    return where ? `teve um erro em ${where}` : "teve um erro";
   }
 
   if (row.eventType === AuditEventType.EntityChange) {
     const area = src.replace(/DbContext$/i, "").trim();
-    const label = area ? splitPascal(area).join(" ").toLowerCase() : "some";
-    return `changed ${label} records`;
+    const label = area ? splitPascal(area).join(" ").toLowerCase() : "";
+    return label ? `alterou registros de ${label}` : "alterou registros";
   }
 
   // Activity / Security — "api.<area>.<Action>" (or a single segment).
   const parts = src.replace(/^api\./i, "").split(".").filter(Boolean);
-  if (parts.length === 0) return "performed an action";
-  if (parts.length === 1) return `accessed ${splitPascal(parts[0]).join(" ").toLowerCase()}`;
+  if (parts.length === 0) return "executou uma ação";
+  if (parts.length === 1) return `acessou ${splitPascal(parts[0]).join(" ").toLowerCase()}`;
   const action = parts[parts.length - 1];
   const area = parts[0];
   return humanizeAction(action, area);

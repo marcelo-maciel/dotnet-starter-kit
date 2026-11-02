@@ -74,7 +74,7 @@ test.describe("system/sessions", () => {
     // card and the visible desktop row → assert on the last occurrence.
     await expect(page.getByText("Chrome 124").last()).toBeVisible();
     await expect(page.getByText("203.0.113.7").last()).toBeVisible();
-    await expect(page.getByText(/1 session found/i)).toBeVisible();
+    await expect(page.getByText(/1 sessão encontrada/i)).toBeVisible();
   });
 
   test("flags the current session with a 'You' badge", async ({ page }) => {
@@ -88,7 +88,7 @@ test.describe("system/sessions", () => {
 
     await page.goto("/system/sessions");
 
-    await expect(page.getByText("You", { exact: true }).last()).toBeVisible();
+    await expect(page.getByText("Você", { exact: true }).last()).toBeVisible();
   });
 
   test("renders the empty state when there are no sessions", async ({ page }) => {
@@ -97,9 +97,9 @@ test.describe("system/sessions", () => {
     await page.goto("/system/sessions");
 
     await expect(
-      page.getByRole("heading", { name: /no active sessions/i }),
+      page.getByRole("heading", { name: /nenhuma sessão ativa/i }),
     ).toBeVisible();
-    await expect(page.getByText(/sessions appear when users sign in/i)).toBeVisible();
+    await expect(page.getByText(/as sessões aparecem quando os usuários entram/i)).toBeVisible();
   });
 
   test("toggling 'Include inactive' re-queries with includeInactive=true", async ({ page }) => {
@@ -120,7 +120,7 @@ test.describe("system/sessions", () => {
         r.url().includes("includeInactive=true"),
       { timeout: 5_000 },
     );
-    await page.getByRole("button", { name: /include inactive/i }).click();
+    await page.getByRole("button", { name: /incluir inativas/i }).click();
     await reqPromise;
   });
 });

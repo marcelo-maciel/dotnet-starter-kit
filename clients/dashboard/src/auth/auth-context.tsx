@@ -239,7 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (claims?.tenant === "root") {
         tokenStore.clear();
         throw new Error(
-          "SuperAdmin accounts must use the admin app. Sign in there instead.",
+          "Contas SuperAdmin usam o console de administração. Entre por lá.",
         );
       }
       tokenStore.setTokens(tokens.accessToken, tokens.refreshToken);
@@ -331,7 +331,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // back to whatever we stashed locally; the operator may need to
       // re-authenticate if the stashed access token has expired.
       tokenStore.restoreStashedActor();
-      throw new Error("End impersonation failed; restored local session.");
+      throw new Error("Falha ao encerrar o acesso como outro usuário; a sessão local foi restaurada.");
     } finally {
       queryClient.clear();
     }

@@ -125,11 +125,11 @@ function tokens(page) {
   }));
 }
 
-// Menu → "Sign out" → confirm. Returns ms from the confirm click to the /login landing.
+// Menu → "Sair" → confirm. Returns ms from the confirm click to the /login landing.
 async function sairPeloMenu(page) {
-  await page.getByRole("button", { name: "Open profile menu" }).click();
-  await page.getByRole("menuitem", { name: "Sign out" }).click();
-  const confirmar = page.getByRole("dialog").getByRole("button", { name: "Sign out" });
+  await page.getByRole("button", { name: "Abrir menu do perfil" }).click();
+  await page.getByRole("menuitem", { name: "Sair" }).click();
+  const confirmar = page.getByRole("dialog").getByRole("button", { name: "Sair" });
   await confirmar.waitFor({ timeout: TIMEOUT });
   const inicio = Date.now();
   await confirmar.click();
@@ -188,7 +188,7 @@ try {
     // the API and hands the token to the dashboard the way the admin console does, by the #impersonate hash.
     const imp = await impersonarComoRoot(alvo.id);
     await page.goto(`${WEB}/#impersonate?token=${encodeURIComponent(imp)}&tenant=${TENANT}`);
-    await page.getByRole("button", { name: /End impersonation/ }).waitFor({ timeout: TIMEOUT });
+    await page.getByRole("button", { name: /Encerrar acesso/ }).waitFor({ timeout: TIMEOUT });
     const par = await tokens(page);
     const actSub = JSON.parse(Buffer.from(par.access.split(".")[1], "base64url").toString("utf8")).act_sub;
     check("impersonação: token ativo é de impersonação", typeof actSub === "string" && actSub.length > 0);
@@ -231,7 +231,7 @@ try {
     const chamadasB = registrarLogouts(abaB);
     await entrar(abaA);
     await abaB.goto(`${WEB}/`);
-    await abaB.getByRole("button", { name: "Open profile menu" }).waitFor({ timeout: TIMEOUT });
+    await abaB.getByRole("button", { name: "Abrir menu do perfil" }).waitFor({ timeout: TIMEOUT });
     await abaA.bringToFront();
     await sairPeloMenu(abaA);
     await abaB.waitForURL((u) => u.pathname.startsWith("/login"), { timeout: TIMEOUT });

@@ -60,19 +60,10 @@ const SettingsLayout = lazyNamed(
 );
 const ProfileSettings = lazyNamed(() => import("@/pages/settings/profile"), "ProfileSettings");
 const SecuritySettings = lazyNamed(() => import("@/pages/settings/security"), "SecuritySettings");
-const BrandingSettings = lazyNamed(
-  () => import("@/pages/settings/branding"),
-  "BrandingSettings",
-);
 const AppearanceSettings = lazyNamed(
   () => import("@/pages/settings/appearance"),
   "AppearanceSettings",
 );
-const NotificationsSettings = lazyNamed(
-  () => import("@/pages/settings/notifications"),
-  "NotificationsSettings",
-);
-const ApiKeysSettings = lazyNamed(() => import("@/pages/settings/api-keys"), "ApiKeysSettings");
 const HealthPage = lazyNamed(() => import("@/pages/health"), "HealthPage");
 const AuditsPage = lazyNamed(() => import("@/pages/audits"), "AuditsPage");
 const SessionsPage = lazyNamed(() => import("@/pages/system/sessions"), "SessionsPage");
@@ -111,7 +102,7 @@ const PafProgramacoesPage = lazyNamed(() => import("@/features/paf/programacoes/
 function RouteFallback() {
   return (
     <div className={cn("space-y-6 fsh-enter")} role="status" aria-busy="true">
-      <span className="sr-only">Loading…</span>
+      <span className="sr-only">Carregando…</span>
       <div className="space-y-2">
         <Skeleton className="h-3 w-24" />
         <Skeleton className="h-8 w-64" />
@@ -266,9 +257,11 @@ export const router = createBrowserRouter([
               { path: "profile", element: withSuspense(<ProfileSettings />) },
               { path: "security", element: withSuspense(<SecuritySettings />) },
               { path: "appearance", element: withSuspense(<AppearanceSettings />) },
-              { path: "branding", element: withSuspense(<BrandingSettings />) },
-              { path: "notifications", element: withSuspense(<NotificationsSettings />) },
-              { path: "api-keys", element: withSuspense(<ApiKeysSettings />) },
+              // Marca, Notificações and Chaves de API are not part of the PAF product (02/11/2026): the pages stay in
+              // the tree, the URL redirects home like the other kit screens left out.
+              { path: "branding", element: <Navigate to="/" replace /> },
+              { path: "notifications", element: <Navigate to="/" replace /> },
+              { path: "api-keys", element: <Navigate to="/" replace /> },
             ],
           },
         ],

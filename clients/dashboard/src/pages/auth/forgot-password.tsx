@@ -18,7 +18,6 @@ import { AuthHeadline, AuthShell } from "@/components/auth/auth-shell";
 import { requestPasswordReset } from "@/api/identity";
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
-import { env } from "@/env";
 
 /**
  * Forgot-password — step 1 of the reset flow. Collects (email, tenant)
@@ -32,7 +31,8 @@ import { env } from "@/env";
 export function ForgotPasswordPage() {
   const { isAuthenticated } = useAuth();
   const [email, setEmail] = useState("");
-  const [tenant, setTenant] = useState(env.defaultTenant);
+  // Empty, not env.defaultTenant ("root"), as on the login: customers type their own company; root is the operator's.
+  const [tenant, setTenant] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,12 +65,12 @@ export function ForgotPasswordPage() {
     <AuthShell
       footer={
         <span>
-          Remembered it?{" "}
+          Lembrou?{" "}
           <Link
             to="/login"
             className="text-[var(--color-foreground)] underline-offset-4 hover:underline"
           >
-            Sign in
+            Entrar
           </Link>
         </span>
       }
@@ -86,23 +86,23 @@ export function ForgotPasswordPage() {
             </span>
           </div>
           <div>
-            <AuthHeadline lead="Check your" accent="inbox" />
+            <AuthHeadline lead="Confira sua" accent="caixa de entrada" />
             <p className="text-[13px] leading-relaxed text-[var(--color-muted-foreground)]">
-              If an account exists for{" "}
-              <span className="text-[var(--color-foreground)]">{email}</span> in
-              tenant{" "}
+              Se existir uma conta para{" "}
+              <span className="text-[var(--color-foreground)]">{email}</span> na
+              empresa{" "}
               <span className="text-[var(--color-foreground)]">{tenant}</span>,
-              a one-time reset link is on its way. The link expires in 30 minutes.
+              um link de uso único para redefinir a senha está a caminho. O link expira em 30 minutos.
             </p>
           </div>
           <ul className="space-y-1.5 text-left text-[12.5px] text-[var(--color-muted-foreground)]">
             <li className="flex items-start gap-2">
               <Check className="mt-0.5 size-3.5 shrink-0 text-[var(--color-success)]" />
-              Didn't get it? Wait a minute, then check spam.
+              Não chegou? Espere um minuto e confira a pasta de spam.
             </li>
             <li className="flex items-start gap-2">
               <Check className="mt-0.5 size-3.5 shrink-0 text-[var(--color-success)]" />
-              Still nothing? Confirm the email + tenant and try again.
+              Ainda nada? Confira o e-mail e a empresa e tente de novo.
             </li>
           </ul>
           <div className="flex items-center gap-2 pt-1">
@@ -114,11 +114,11 @@ export function ForgotPasswordPage() {
                 setError(null);
               }}
             >
-              Try a different address
+              Tentar outro endereço
             </Button>
             <Link to="/login" className="ml-auto">
               <Button type="button" variant="outline">
-                Back to sign in
+                Voltar para a entrada
               </Button>
             </Link>
           </div>
@@ -126,9 +126,9 @@ export function ForgotPasswordPage() {
       ) : (
         <>
           <div className="mb-6 sm:mb-8">
-            <AuthHeadline lead="Reset your" accent="password" />
+            <AuthHeadline lead="Recupere sua" accent="senha" />
             <p className="text-[13px] text-[var(--color-muted-foreground)]">
-              Enter the email you sign in with. We'll send a one-time link.
+              Informe o e-mail que você usa para entrar. Vamos enviar um link de uso único.
             </p>
           </div>
 
@@ -138,7 +138,7 @@ export function ForgotPasswordPage() {
                 htmlFor="reset-tenant"
                 className="block text-[11.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]"
               >
-                Tenant
+                Empresa
               </Label>
               <div className="relative">
                 <Building2 className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.6)]" />
@@ -146,7 +146,7 @@ export function ForgotPasswordPage() {
                   id="reset-tenant"
                   value={tenant}
                   onChange={(e) => setTenant(e.target.value)}
-                  placeholder="root"
+                  placeholder="identificador da empresa"
                   autoComplete="organization"
                   required
                   aria-invalid={error ? true : undefined}
@@ -161,7 +161,7 @@ export function ForgotPasswordPage() {
                 htmlFor="reset-email"
                 className="block text-[11.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]"
               >
-                Email
+                E-mail
               </Label>
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.6)]" />
@@ -170,7 +170,7 @@ export function ForgotPasswordPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
+                  placeholder="nome@empresa.com.br"
                   autoComplete="email"
                   required
                   autoFocus
@@ -206,11 +206,11 @@ export function ForgotPasswordPage() {
                 {mutation.isPending ? (
                   <>
                     <Loader2 className="size-4 animate-spin" />
-                    <span>Sending link…</span>
+                    <span>Enviando o link…</span>
                   </>
                 ) : (
                   <>
-                    <span>Send reset link</span>
+                    <span>Enviar link de redefinição</span>
                     <ArrowRight className="size-[14px] opacity-60 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-100" />
                   </>
                 )}

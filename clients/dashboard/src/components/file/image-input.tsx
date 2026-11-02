@@ -60,7 +60,7 @@ export function ImageInput({
     mutationFn: async (fileAssetId: string) => {
       const dto = await getFileMetadata(fileAssetId);
       if (!dto.publicUrl) {
-        throw new Error("Server returned no publicUrl for this file.");
+        throw new Error("O servidor não devolveu o endereço público deste arquivo.");
       }
       return dto.publicUrl;
     },
@@ -77,7 +77,7 @@ export function ImageInput({
         const asset = await upload(file);
         const url = await resolveUrl.mutateAsync(asset.id);
         onChange(url);
-        toast.success("Image uploaded");
+        toast.success("Imagem enviada");
         // Clear progress so the dropzone re-arms for another upload.
         setTimeout(reset, 1500);
       } catch (e) {
@@ -86,7 +86,7 @@ export function ImageInput({
             ? (e.problem?.detail ?? e.problem?.title ?? e.message)
             : e instanceof Error
               ? e.message
-              : "Upload failed";
+              : "Falha no envio";
         toast.error(message);
       }
     };
@@ -108,10 +108,10 @@ export function ImageInput({
       {/* Mode toggle */}
       <div className="flex gap-1">
         <ModeChip active={mode === "upload"} onClick={() => setMode("upload")} icon={<Upload className="h-3.5 w-3.5" />}>
-          Upload
+          Enviar
         </ModeChip>
         <ModeChip active={mode === "url"} onClick={() => setMode("url")} icon={<LinkIcon className="h-3.5 w-3.5" />}>
-          Paste URL
+          Colar URL
         </ModeChip>
       </div>
 
@@ -144,12 +144,12 @@ export function ImageInput({
                 {isWorking
                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   : <Upload className="h-3.5 w-3.5" />}
-                {showImage ? "Replace image" : "Choose image"}
+                {showImage ? "Trocar imagem" : "Escolher imagem"}
               </Button>
               {showImage && !isWorking && (
                 <Button type="button" size="sm" variant="outline" onClick={() => onChange("")}>
                   <X className="h-3.5 w-3.5" />
-                  Remove
+                  Remover
                 </Button>
               )}
               {isUploading && progress && (
@@ -170,8 +170,8 @@ export function ImageInput({
 
           <p className="text-xs text-[var(--color-muted-foreground)]">
             {mode === "upload"
-              ? `JPG/PNG/WebP/GIF · up to ${formatBytes(maxBytes)}`
-              : "Direct link to an image you host elsewhere."}
+              ? `JPG/PNG/WebP/GIF · até ${formatBytes(maxBytes)}`
+              : "Link direto para uma imagem hospedada em outro lugar."}
           </p>
         </div>
       </div>

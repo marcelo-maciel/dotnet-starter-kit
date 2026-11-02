@@ -64,11 +64,11 @@ export function ImpersonationEndedPage() {
         </div>
 
         <h1 className="mb-2 font-display text-display-stat font-semibold tracking-tight text-[var(--color-foreground)]">
-          Impersonation ended
+          Acesso do operador encerrado
         </h1>
         <p className="mb-7 max-w-[380px] text-[14px] leading-relaxed text-[var(--color-muted-foreground)]">
-          The operator's access to this session was revoked or has expired. Sign
-          in with your own account to continue.
+          O acesso do operador a esta sessão foi revogado ou expirou. Entre
+          com a sua própria conta para continuar.
         </p>
 
         {/* Primary action */}
@@ -78,7 +78,7 @@ export function ImpersonationEndedPage() {
           className="group h-11 px-5 text-[14px] font-semibold"
         >
           <LogIn className="size-4" />
-          <span>Back to sign in</span>
+          <span>Voltar para a entrada</span>
         </Button>
 
         {/* Dev-only diagnostic — the JwtBearer rejection reason. Hidden in prod

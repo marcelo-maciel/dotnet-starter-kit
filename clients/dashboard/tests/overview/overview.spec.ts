@@ -12,14 +12,14 @@ test.describe("overview (/overview)", () => {
 
   test("renders the greeting header and the live-events card", async ({ page }) => {
     await page.goto("/overview");
-    await expect(page.getByRole("heading", { name: /good (morning|afternoon|evening), alice/i })).toBeVisible();
-    await expect(page.getByText("Live events", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /(bom dia|boa tarde|boa noite), alice/i })).toBeVisible();
+    await expect(page.getByText("Eventos ao vivo", { exact: true })).toBeVisible();
   });
 
   test("renders the recent-audits + system-status sections", async ({ page }) => {
     await page.goto("/overview");
-    await expect(page.getByText("Recent audits", { exact: true })).toBeVisible();
-    await expect(page.getByText("System status", { exact: true })).toBeVisible();
+    await expect(page.getByText("Auditoria recente", { exact: true })).toBeVisible();
+    await expect(page.getByText("Estado do sistema", { exact: true })).toBeVisible();
   });
 
   // Chat, Files, Catalog, Helpdesk, Billing and Trash are not part of the PAF product (31/10/2026), nor the kit's
@@ -31,9 +31,9 @@ test.describe("overview (/overview)", () => {
 
   test("visão geral não tem atalho para rota removida", async ({ page }) => {
     await page.goto("/overview");
-    const card = page.locator("section", { has: page.getByRole("heading", { name: "Quick actions" }) });
-    await expect(card.getByRole("link", { name: /live activity/i })).toBeVisible();
-    await expect(card.getByRole("link", { name: /invite users/i })).toHaveCount(0);
+    const card = page.locator("section", { has: page.getByRole("heading", { name: "Atalhos" }) });
+    await expect(card.getByRole("link", { name: /atividade ao vivo/i })).toBeVisible();
+    await expect(card.getByRole("link", { name: /invite users|convidar/i })).toHaveCount(0);
     await expect(linksParaRotasRemovidas(page)).toHaveCount(0);
   });
 
@@ -47,8 +47,8 @@ test.describe("overview (/overview)", () => {
     page.on("pageerror", (err) => errors.push(err.message));
 
     await page.goto("/overview");
-    await expect(page.getByText("Live events", { exact: true })).toBeVisible();
-    await expect(page.getByText("Recent audits", { exact: true })).toBeVisible();
+    await expect(page.getByText("Eventos ao vivo", { exact: true })).toBeVisible();
+    await expect(page.getByText("Auditoria recente", { exact: true })).toBeVisible();
     for (const billing of ["Plan", "Valid for", "Resources", "Subscription", "Usage by resource", "No active subscription"]) {
       await expect(page.getByText(billing, { exact: true })).toHaveCount(0);
     }
@@ -67,10 +67,10 @@ test.describe("overview (/overview)", () => {
     page.on("pageerror", (err) => errors.push(err.message));
 
     await page.goto("/overview");
-    const card = page.locator("section", { has: page.getByRole("heading", { name: "Recent audits" }) });
-    await expect(card.getByText("No access to audits")).toBeVisible();
-    await expect(card.getByRole("link", { name: /see all/i })).toHaveCount(0);
-    await expect(page.getByText(/failure|couldn't load/i)).toHaveCount(0);
+    const card = page.locator("section", { has: page.getByRole("heading", { name: "Auditoria recente" }) });
+    await expect(card.getByText("Sem acesso à auditoria")).toBeVisible();
+    await expect(card.getByRole("link", { name: /ver tudo/i })).toHaveCount(0);
+    await expect(page.getByText(/falha|failure|couldn't load/i)).toHaveCount(0);
 
     expect(auditCalls).toBe(0);
     expect(errors).toEqual([]);
@@ -97,9 +97,9 @@ test.describe("overview (/overview)", () => {
     );
 
     await page.goto("/overview");
-    const card = page.locator("section", { has: page.getByRole("heading", { name: "Recent audits" }) });
+    const card = page.locator("section", { has: page.getByRole("heading", { name: "Auditoria recente" }) });
     await expect(card.getByText("api.identity.IssueJwtToken")).toBeVisible();
-    await expect(card.getByRole("link", { name: /see all/i })).toBeVisible();
+    await expect(card.getByRole("link", { name: /ver tudo/i })).toBeVisible();
   });
 
   test("quick-action tiles are wide enough for their title and description", async ({ page }) => {
@@ -109,7 +109,7 @@ test.describe("overview (/overview)", () => {
     for (const width of [1280, 2200]) {
       await page.setViewportSize({ width, height: 800 });
       await page.goto("/overview");
-      const card = page.locator("section", { has: page.getByRole("heading", { name: "Quick actions" }) });
+      const card = page.locator("section", { has: page.getByRole("heading", { name: "Atalhos" }) });
       await expect(card.getByRole("link")).toHaveCount(1);
       await page.evaluate(() => document.fonts.ready);
 

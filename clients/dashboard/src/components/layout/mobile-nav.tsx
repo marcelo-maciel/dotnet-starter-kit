@@ -87,9 +87,9 @@ export function MobileNavRoot() {
       <SheetContent side="left" className="flex flex-col p-0">
         {/* Radix Dialog requires a Title for the accessible name; keep it
             visually hidden so the drawer chrome is unchanged. */}
-        <DialogTitle className="sr-only">Primary navigation</DialogTitle>
+        <DialogTitle className="sr-only">Navegação principal</DialogTitle>
         <DialogDescription className="sr-only">
-          Site sections and account links.
+          Seções do sistema e links da conta.
         </DialogDescription>
         {/* Brand row — matches Topbar height so the drawer top aligns
             with the rest of the chrome. */}
@@ -134,7 +134,7 @@ export function MobileNavTrigger({ className }: { className?: string }) {
   return (
     <button
       type="button"
-      aria-label="Open navigation menu"
+      aria-label="Abrir menu de navegação"
       onClick={onClick}
       className={cn(
         "grid h-9 w-9 cursor-pointer place-items-center rounded-md md:hidden",

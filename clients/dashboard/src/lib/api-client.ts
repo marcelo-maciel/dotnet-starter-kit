@@ -90,7 +90,7 @@ function withTimeout(
   externalSignal?: AbortSignal | null,
 ): { init: RequestInit; cleanup: () => void } {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(new DOMException("Request timed out", "TimeoutError")), timeoutMs);
+  const timeoutId = window.setTimeout(() => controller.abort(new DOMException("A requisição demorou demais", "TimeoutError")), timeoutMs);
   const onExternalAbort = () => controller.abort(externalSignal?.reason);
   if (externalSignal) {
     if (externalSignal.aborted) {
@@ -114,7 +114,7 @@ export async function refreshAccessToken() {
   const refreshToken = tokenStore.getRefreshToken();
   const accessToken = tokenStore.getAccessToken();
   if (!refreshToken || !accessToken) {
-    throw new ApiRequestError(401, "No refresh token");
+    throw new ApiRequestError(401, "Sessão sem renovação");
   }
 
   // Server's RefreshTokenCommand requires both `token` (the existing, possibly expired
@@ -135,7 +135,7 @@ export async function refreshAccessToken() {
 
   if (!response.ok) {
     tokenStore.clear();
-    throw new ApiRequestError(response.status, "Refresh failed");
+    throw new ApiRequestError(response.status, "Falha ao renovar a sessão");
   }
 
   // Server's RefreshTokenCommandResponse returns `{ token, refreshToken, refreshTokenExpiryTime }` —
@@ -180,10 +180,10 @@ export async function apiFetch<T = unknown>(
       // session state and surface a clean 401 so the UI flips to /login
       // instead of repeatedly firing tokenless requests.
       tokenStore.clear();
-      throw new ApiRequestError(401, "Not signed in", {
+      throw new ApiRequestError(401, "Sessão não iniciada", {
         status: 401,
-        title: "Unauthorized",
-        detail: "Your session is no longer available. Please sign in again.",
+        title: "Não autorizado",
+        detail: "Sua sessão não está mais disponível. Entre de novo.",
       });
     }
   }
@@ -212,7 +212,7 @@ export async function apiFetch<T = unknown>(
     } catch (e) {
       throw e instanceof ApiRequestError
         ? e
-        : new ApiRequestError(401, "Session expired");
+        : new ApiRequestError(401, "Sessão expirada");
     }
 
     const retryHeaders = new Headers(mergedHeaders);

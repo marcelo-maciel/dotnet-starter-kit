@@ -66,23 +66,23 @@ test.describe("expiry banner", () => {
   test("warns while in grace", async ({ page }) => {
     await mockJsonResponse(page, "**/api/v1/tenants/me/status**", GRACE_STATUS);
     await page.goto("/overview");
-    await expect(page.getByText(/your subscription expired/i)).toBeVisible();
-    await expect(page.getByText(/grace left/i)).toBeVisible();
+    await expect(page.getByText(/sua assinatura expirou\. restam/i)).toBeVisible();
+    await expect(page.getByText(/de carência/i)).toBeVisible();
   });
 
   test("informs when nearing expiry", async ({ page }) => {
     await mockJsonResponse(page, "**/api/v1/tenants/me/status**", NEARING_STATUS);
     await page.goto("/overview");
-    await expect(page.getByText(/your subscription expires in/i)).toBeVisible();
+    await expect(page.getByText(/sua assinatura expira em/i)).toBeVisible();
   });
 
   test("pins a persistent bar when expired (no dismiss)", async ({ page }) => {
     await mockJsonResponse(page, "**/api/v1/tenants/me/status**", EXPIRED_STATUS);
     await page.goto("/overview");
-    await expect(page.getByText(/your subscription has expired/i)).toBeVisible();
+    await expect(page.getByText(/sua assinatura expirou\. fale/i)).toBeVisible();
     // Expired is the hardest state — it cannot be dismissed.
     await expect(
-      page.getByRole("button", { name: /dismiss subscription notice/i }),
+      page.getByRole("button", { name: /dispensar aviso da assinatura/i }),
     ).toHaveCount(0);
   });
 
@@ -90,16 +90,16 @@ test.describe("expiry banner", () => {
     await mockJsonResponse(page, "**/api/v1/tenants/me/status**", HEALTHY_STATUS);
     await page.goto("/overview");
     // Wait for the page to settle, then assert the bar never showed.
-    await expect(page.getByRole("heading", { name: /good (morning|afternoon|evening)/i })).toBeVisible();
-    await expect(page.getByText(/your subscription expire/i)).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /(bom dia|boa tarde|boa noite)/i })).toBeVisible();
+    await expect(page.getByText(/sua assinatura expir/i)).toHaveCount(0);
   });
 
   test("can be dismissed for the session", async ({ page }) => {
     await mockJsonResponse(page, "**/api/v1/tenants/me/status**", GRACE_STATUS);
     await page.goto("/overview");
-    await expect(page.getByText(/your subscription expired/i)).toBeVisible();
-    await page.getByRole("button", { name: /dismiss subscription notice/i }).click();
-    await expect(page.getByText(/your subscription expired/i)).toHaveCount(0);
+    await expect(page.getByText(/sua assinatura expirou\. restam/i)).toBeVisible();
+    await page.getByRole("button", { name: /dispensar aviso da assinatura/i }).click();
+    await expect(page.getByText(/sua assinatura expirou\. restam/i)).toHaveCount(0);
   });
 });
 
