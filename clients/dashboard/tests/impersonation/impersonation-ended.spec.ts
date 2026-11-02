@@ -62,14 +62,15 @@ test.beforeEach(async ({ page }) => {
 
 test.describe("impersonation revoked mid-session", () => {
   test("a 401 on an impersonation session routes to the terminal page", async ({ page }) => {
-    // The products list 401s the moment the grant is revoked. The dev build
+    // The sessions list 401s the moment the grant is revoked (the kit's Roles
+    // screen, used before, redirects home since 02/11/2026). The dev build
     // surfaces the JwtBearer rejection reason on the ProblemDetails.
-    await mockProblemDetails(page, "**/api/v1/identity/roles**", 401, {
+    await mockProblemDetails(page, "**/api/v1/identity/sessions**", 401, {
       title: "Unauthorized",
       detail: "Authentication is required to access this resource.",
     });
 
-    await page.goto("/identity/roles");
+    await page.goto("/system/sessions");
 
     // Lands on the dedicated terminal page rather than showing an inline
     // error band under the half-loaded list.
@@ -83,12 +84,12 @@ test.describe("impersonation revoked mid-session", () => {
   });
 
   test("'Back to sign in' clears the dead token and routes to /login", async ({ page }) => {
-    await mockProblemDetails(page, "**/api/v1/identity/roles**", 401, {
+    await mockProblemDetails(page, "**/api/v1/identity/sessions**", 401, {
       title: "Unauthorized",
       detail: "Authentication is required to access this resource.",
     });
 
-    await page.goto("/identity/roles");
+    await page.goto("/system/sessions");
     await expect(page).toHaveURL(/\/impersonation-ended$/);
 
     await page.getByRole("button", { name: /back to sign in/i }).click();

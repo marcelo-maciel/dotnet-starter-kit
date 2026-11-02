@@ -4,7 +4,8 @@ import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 import { installShellMocks } from "../helpers/shell-mocks";
 
 // Product decision of 31/10/2026: the dashboard opens on the PAF (the guichê, else the first PAF screen the user
-// opens) and the kit's Chat, Files, Catalog, Helpdesk and Billing leave the menu, their URLs redirecting home.
+// opens) and the kit's Chat, Files, Catalog, Helpdesk and Billing leave the menu, their URLs redirecting home; the
+// kit's Users, Roles and Groups screens follow on 02/11/2026 (the client manages its users on /paf/usuarios).
 const GUICHE = "Permissions.PAF.Guiches.Selecionar";
 const FICHAS_DO_DIA = "Permissions.PAF.FichasDoDia.View";
 
@@ -33,7 +34,13 @@ test.describe("PAF: tela inicial e menu do cliente", () => {
     await expect(page).toHaveURL(/\/overview$/);
   });
 
-  for (const antiga of ["/chat", "/files", "/catalog/products", "/tickets", "/subscription", "/wallet", "/invoices/inv-1", "/system/trash"]) {
+  for (const antiga of [
+    "/chat", "/files", "/catalog/products", "/tickets", "/subscription", "/wallet", "/invoices/inv-1", "/system/trash",
+    // The kit's own older paths, which used to fall into "Page not found".
+    "/billing", "/billing/invoices", "/trash",
+    "/identity", "/identity/users", "/identity/users/u-1", "/identity/users?action=create", "/identity/roles",
+    "/identity/roles/r-1", "/identity/groups", "/identity/groups/g-1",
+  ]) {
     test(`${antiga} volta para o início do PAF`, async ({ page }) => {
       await mockJsonResponse(page, "**/api/v1/identity/permissions", [GUICHE]);
       await page.goto(antiga);
@@ -41,7 +48,7 @@ test.describe("PAF: tela inicial e menu do cliente", () => {
     });
   }
 
-  test("o menu e a barra do topo não mostram Chat, Arquivos, Catálogo, Helpdesk, Billing nem Lixeira, mesmo com as permissões", async ({ page }) => {
+  test("o menu e a barra do topo não mostram Chat, Arquivos, Catálogo, Helpdesk, Billing, Lixeira, Usuários, Papéis nem Grupos, mesmo com as permissões", async ({ page }) => {
     await mockJsonResponse(page, "**/api/v1/identity/permissions", [
       GUICHE,
       "Permissions.Chat.Channels.View",
@@ -50,18 +57,21 @@ test.describe("PAF: tela inicial e menu do cliente", () => {
       "Permissions.Tickets.View",
       "Permissions.Billing.View",
       "Permissions.Users.Update",
+      "Permissions.Roles.Update",
+      "Permissions.Groups.Update",
       "Permissions.Catalog.Products.Restore",
     ]);
     await page.goto("/");
     const menu = page.locator("aside");
     await expect(menu.locator('a[href="/paf/guiche"]')).toBeAttached();
-    for (const href of ["/chat", "/files", "/catalog/products", "/tickets", "/subscription", "/wallet", "/invoices", "/system/trash"]) {
+    for (const href of ["/chat", "/files", "/catalog/products", "/tickets", "/subscription", "/wallet", "/invoices", "/system/trash", "/identity/users", "/identity/roles", "/identity/groups"]) {
       await expect(menu.locator(`a[href="${href}"]`)).toHaveCount(0);
     }
     // The topbar chat badge (a button that navigates to /chat) is gone too.
     await expect(page.getByRole("banner").getByRole("button", { name: /^Chat/ })).toHaveCount(0);
     await expect(menu.locator('a[href="/overview"]')).toBeAttached();
     await expect(menu.locator('a[href="/activity"]')).toBeAttached();
+    await expect(menu.getByRole("button", { name: "Identidade", exact: true })).toHaveCount(0);
   });
 
   test("o menu e a paleta de comandos mostram em português os itens herdados do kit", async ({ page }) => {
@@ -77,9 +87,6 @@ test.describe("PAF: tela inicial e menu do cliente", () => {
     const itens: [string, string][] = [
       ["/overview", "Visão geral"],
       ["/activity", "Atividade ao vivo"],
-      ["/identity/users", "Usuários"],
-      ["/identity/roles", "Papéis"],
-      ["/identity/groups", "Grupos"],
       ["/system/health", "Saúde"],
       ["/system/audits", "Trilha de auditoria"],
       ["/system/sessions", "Sessões"],
@@ -87,7 +94,7 @@ test.describe("PAF: tela inicial e menu do cliente", () => {
     for (const [href, rotulo] of itens) {
       await expect(menu.locator(`a[href="${href}"]`)).toHaveText(rotulo);
     }
-    for (const secao of ["Operações", "Identidade", "Sistema"]) {
+    for (const secao of ["Operações", "Sistema"]) {
       await expect(menu.getByRole("button", { name: secao, exact: true })).toBeVisible();
     }
     for (const ingles of ["Overview", "Operations", "Live activity", "Identity", "Users", "Roles", "Groups", "System", "Health", "Audit trail", "Sessions"]) {
@@ -103,6 +110,8 @@ test.describe("PAF: tela inicial e menu do cliente", () => {
       await expect(paleta.getByRole("option", { name: new RegExp(`^${rotulo}`) })).toBeVisible();
     }
     await expect(paleta.getByRole("option", { name: /^(Overview|Live activity|Users|Roles|Groups|Health|Audit trail|Sessions)\b/ })).toHaveCount(0);
+    // The kit's Users, Roles and Groups screens left the palette too, their create shortcuts included.
+    await expect(paleta.getByRole("option", { name: /^(Usuários|Papéis|Grupos|Create user|Create role|Create group)\b/ })).toHaveCount(0);
   });
 });
 
