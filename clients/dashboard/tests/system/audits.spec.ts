@@ -176,13 +176,17 @@ test.describe("system/audits in Brasília", () => {
       return {
         date: m.formatDate("2026-05-01T01:30:00Z"),
         dateTime: m.formatDateTimeMono("2026-05-01T01:30:00Z"),
+        listDateTime: m.formatDateTime("2026-05-01T01:30:00Z"),
+        midnight: m.formatDateTime("2026-05-01T03:05:00Z"),
         browserDay: new Date("2026-05-01T01:30:00Z").getDate(),
       };
     });
 
     // The browser really is in Berlin, where it is already 1 May.
     expect(out.browserDay).toBe(1);
-    expect(out.date).toBe("Apr 30, 2026");
-    expect(out.dateTime).toBe("APR 30 2026 · 10:30 PM");
+    expect(out.date).toBe("30/04/2026");
+    expect(out.dateTime).toBe("30/04/2026 · 22:30");
+    expect(out.listDateTime).toBe("30/04/2026 22:30");
+    expect(out.midnight).toBe("01/05/2026 00:05");
   });
 });

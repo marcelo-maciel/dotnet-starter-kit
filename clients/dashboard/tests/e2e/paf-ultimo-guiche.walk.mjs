@@ -148,9 +148,9 @@ try {
   check("a escolha explícita chamou SetGuiche uma vez", setGuicheAntesDeSair === 1, String(setGuicheAntesDeSair));
 
   // ── Sign out through the kit menu and come back on the same machine ──
-  await page.getByRole("button", { name: "Open profile menu" }).click();
-  await page.getByRole("menuitem", { name: "Sign out" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "Abrir menu do perfil" }).click();
+  await page.getByRole("menuitem", { name: "Sair" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Sair" }).click();
   await page.waitForURL((u) => u.pathname.startsWith("/login"), { timeout: TIMEOUT });
   check("sair mantém a sugestão da máquina", (await page.evaluate((k) => localStorage.getItem(k), CHAVE)) === guardado);
 

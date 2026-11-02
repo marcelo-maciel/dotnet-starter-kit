@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { RealtimeStatusPill } from "@/components/realtime/realtime-status-pill";
 import { cn } from "@/lib/cn";
-import { SAO_PAULO } from "@/lib/list-helpers";
+import { formatDate } from "@/lib/list-helpers";
 
 /**
  * Bell icon + dropdown inbox. Calm header + scrollable list with a
@@ -91,8 +91,8 @@ export function NotificationBell() {
         <button
           type="button"
           data-notification-bell
-          aria-label={`Notifications${unread > 0 ? `, ${unread} unread` : ""}`}
-          title="Notifications"
+          aria-label={`Notificações${unread > 0 ? `, ${unread} não lidas` : ""}`}
+          title="Notificações"
           className={cn(
             "relative grid h-9 w-9 cursor-pointer place-items-center rounded-md",
             "text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)] hover:text-[var(--color-foreground)]",
@@ -122,12 +122,12 @@ export function NotificationBell() {
         <div className="flex items-start justify-between gap-3 border-b border-border bg-card px-4 pb-3 pt-4">
           <div className="min-w-0">
             <div className="font-display text-sm font-semibold tracking-tight">
-              Notifications
+              Notificações
             </div>
             <div className="text-[12px] text-[var(--color-muted-foreground)]">
               {unread === 0
-                ? "All caught up"
-                : `${unread} unread · ${inbox.length} loaded`}
+                ? "Tudo em dia"
+                : `${unread} não lidas · ${inbox.length} carregadas`}
             </div>
           </div>
           {unread > 0 && (
@@ -145,21 +145,21 @@ export function NotificationBell() {
               )}
             >
               <Check className="h-3 w-3" aria-hidden />
-              Mark all read
+              Marcar todas como lidas
             </button>
           )}
         </div>
 
-        <DropdownMenuLabel className="!my-0">Recent</DropdownMenuLabel>
+        <DropdownMenuLabel className="!my-0">Recentes</DropdownMenuLabel>
 
         <div className="max-h-[400px] overflow-y-auto">
           {inboxQuery.isLoading ? (
             <p className="px-4 py-6 text-center text-[12px] text-[var(--color-muted-foreground)]">
-              Loading…
+              Carregando…
             </p>
           ) : inbox.length === 0 ? (
             <p className="px-4 py-6 text-center text-sm text-[var(--color-muted-foreground)]">
-              Nothing yet. Mentions and channel updates will appear here.
+              Nada por aqui ainda. Os avisos vão aparecer aqui.
             </p>
           ) : (
             <ul className="px-1.5 pb-2">
@@ -182,7 +182,7 @@ export function NotificationBell() {
             }}
             className="text-[11px] text-[var(--color-muted-foreground)] transition-colors hover:text-[var(--color-foreground)]"
           >
-            Settings ↗
+            Preferências ↗
           </button>
         </div>
       </DropdownMenuContent>
@@ -259,14 +259,14 @@ function NotificationRow({
 function relativeTime(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
   const seconds = Math.max(0, Math.round(diffMs / 1000));
-  if (seconds < 60) return "just now";
+  if (seconds < 60) return "agora";
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 60) return `${minutes} min`;
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h`;
+  if (hours < 24) return `${hours} h`;
   const days = Math.round(hours / 24);
-  if (days < 7) return `${days}d`;
+  if (days < 7) return `${days} d`;
   const weeks = Math.round(days / 7);
-  if (weeks < 5) return `${weeks}w`;
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: SAO_PAULO });
+  if (weeks < 5) return `${weeks} sem`;
+  return formatDate(iso);
 }

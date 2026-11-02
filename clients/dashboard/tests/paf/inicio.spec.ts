@@ -96,7 +96,7 @@ test.describe("PAF: tela inicial e menu do cliente", () => {
     await menu.getByRole("button", { name: "Sistema", exact: true }).click();
     await expect(menu.getByRole("link", { name: "Trilha de auditoria" })).toBeVisible();
 
-    await page.getByRole("banner").getByRole("button", { name: /search/i }).click();
+    await page.getByRole("banner").getByRole("button", { name: /buscar/i }).click();
     const paleta = page.getByRole("dialog");
     await expect(paleta.getByText("Navegar", { exact: true })).toBeVisible();
     for (const [, rotulo] of itens) {

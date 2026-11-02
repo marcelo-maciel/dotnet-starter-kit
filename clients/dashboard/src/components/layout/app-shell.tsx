@@ -31,7 +31,7 @@ export function AppShell() {
             "focus:ring-[var(--color-ring)] focus:ring-offset-2 focus:ring-offset-[var(--color-background)]",
           )}
         >
-          Skip to main content
+          Pular para o conteúdo principal
         </a>
 
         <div className="flex h-screen flex-col overflow-hidden bg-[var(--color-background)] text-[var(--color-foreground)]">

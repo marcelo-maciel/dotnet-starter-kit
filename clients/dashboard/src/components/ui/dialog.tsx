@@ -63,7 +63,7 @@ export const DialogContent = React.forwardRef<
       {children}
       <DialogPrimitive.Close
         data-slot="dialog-close"
-        aria-label="Close"
+        aria-label="Fechar"
         className={cn(
           "absolute top-3.5 right-3.5 size-9 rounded-lg flex items-center justify-center",
           "text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.6)] hover:text-[var(--color-foreground)]",
@@ -168,7 +168,7 @@ export const SheetContent = React.forwardRef<
       {children}
       {showClose && (
         <DialogPrimitive.Close
-          aria-label="Close"
+          aria-label="Fechar"
           className={cn(
             "absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-md",
             "text-[var(--color-muted-foreground)] transition-colors",

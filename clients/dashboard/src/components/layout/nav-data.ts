@@ -50,7 +50,7 @@ export const topNavTop: NavSpec[] = [
 ];
 
 export const topNavBottom: NavSpec[] = [
-  { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/settings", label: "Minha conta", icon: Settings },
 ];
 
 // Section accordion. Single-select — only one section open at a time.

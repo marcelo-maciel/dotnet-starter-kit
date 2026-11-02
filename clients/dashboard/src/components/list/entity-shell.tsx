@@ -81,7 +81,7 @@ export function EntitySearch({
       <input
         type="text"
         placeholder={placeholder}
-        aria-label={placeholder ?? "Search"}
+        aria-label={placeholder ?? "Buscar"}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         autoFocus={autoFocus}
@@ -97,11 +97,11 @@ export function EntitySearch({
       {value && (
         <button
           onClick={() => onChange("")}
-          aria-label="Clear search"
+          aria-label="Limpar busca"
           className="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer text-[11px] font-medium text-[var(--color-muted-foreground)] transition-colors hover:text-[var(--color-foreground)]"
           type="button"
         >
-          Clear
+          Limpar
         </button>
       )}
     </div>
@@ -176,14 +176,14 @@ export function EntityPager({
   return (
     <div className="mt-3 flex items-center justify-between">
       <p className="text-[11px] text-[var(--color-muted-foreground)]">
-        Page {page} of {totalPages}
+        Página {page} de {totalPages}
       </p>
       <div className="flex items-center gap-1">
         <button
           type="button"
           disabled={!hasPrev}
           onClick={onPrev}
-          aria-label="Previous page"
+          aria-label="Página anterior"
           className="grid size-8 cursor-pointer place-items-center rounded-lg text-[var(--color-muted-foreground)] transition-colors hover:bg-[oklch(from_var(--color-muted)_l_c_h_/_0.5)] hover:text-[var(--color-foreground)] disabled:cursor-not-allowed disabled:opacity-30"
         >
           <ChevronLeft className="size-4" />
@@ -192,7 +192,7 @@ export function EntityPager({
           type="button"
           disabled={!hasNext}
           onClick={onNext}
-          aria-label="Next page"
+          aria-label="Próxima página"
           className="grid size-8 cursor-pointer place-items-center rounded-lg text-[var(--color-muted-foreground)] transition-colors hover:bg-[oklch(from_var(--color-muted)_l_c_h_/_0.5)] hover:text-[var(--color-foreground)] disabled:cursor-not-allowed disabled:opacity-30"
         >
           <ChevronRight className="size-4" />
@@ -480,7 +480,7 @@ export function EntityListLoading({
 }) {
   return (
     <div role="status" aria-busy="true">
-      <span className="sr-only">Loading…</span>
+      <span className="sr-only">Carregando…</span>
       {mobile && (
         <div className="space-y-2 md:hidden">
           {Array.from({ length: rows }).map((_, i) => (

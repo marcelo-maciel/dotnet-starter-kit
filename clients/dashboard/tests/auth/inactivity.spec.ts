@@ -34,26 +34,26 @@ test.beforeEach(async ({ page }) => {
 test.describe("inactivity auto-logout", () => {
   test("shows the warning modal after the idle threshold", async ({ page }) => {
     await page.goto("/settings/security");
-    await expect(page.getByRole("dialog").getByText("Still there?")).toBeVisible({
+    await expect(page.getByRole("dialog").getByText("Ainda está aí?")).toBeVisible({
       timeout: 9_000,
     });
-    await expect(page.getByRole("button", { name: "I'm here" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Estou aqui" })).toBeVisible();
   });
 
   test("'I'm here' dismisses the warning and keeps the session", async ({ page }) => {
     await page.goto("/settings/security");
-    const stay = page.getByRole("button", { name: "I'm here" });
+    const stay = page.getByRole("button", { name: "Estou aqui" });
     await expect(stay).toBeVisible({ timeout: 9_000 });
 
     await stay.click();
 
-    await expect(page.getByText("Still there?")).toBeHidden();
+    await expect(page.getByText("Ainda está aí?")).toBeHidden();
     await expect(page).not.toHaveURL(/\/login$/);
   });
 
   test("signs out to /login with a notice when the countdown elapses", async ({ page }) => {
     await page.goto("/settings/security");
-    await expect(page.getByRole("button", { name: "I'm here" })).toBeVisible({ timeout: 9_000 });
+    await expect(page.getByRole("button", { name: "Estou aqui" })).toBeVisible({ timeout: 9_000 });
 
     await expect(page).toHaveURL(/\/login$/, { timeout: WARNING_MS + 6_000 });
     await expect(page.getByText(/encerrada por inatividade/i)).toBeVisible();

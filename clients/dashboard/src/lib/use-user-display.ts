@@ -38,7 +38,7 @@ export function useUserDisplay(userId: string | null | undefined): UserDisplay {
   });
 
   if (!userId) {
-    return { name: "(unknown)", loading: false };
+    return { name: "(desconhecido)", loading: false };
   }
 
   const u = query.data;

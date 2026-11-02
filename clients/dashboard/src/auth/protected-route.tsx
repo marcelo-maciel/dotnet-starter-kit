@@ -15,7 +15,7 @@ export function ProtectedRoute() {
         role="status"
         aria-busy="true"
       >
-        <span className="sr-only">Restoring your session…</span>
+        <span className="sr-only">Restaurando sua sessão…</span>
         <span
           className="size-5 animate-spin rounded-full border-2 border-current border-t-transparent"
           aria-hidden

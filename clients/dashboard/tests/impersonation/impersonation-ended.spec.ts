@@ -75,10 +75,10 @@ test.describe("impersonation revoked mid-session", () => {
     // error band under the half-loaded list.
     await expect(page).toHaveURL(/\/impersonation-ended$/);
     await expect(
-      page.getByRole("heading", { name: /impersonation ended/i }),
+      page.getByRole("heading", { name: /acesso do operador encerrado/i }),
     ).toBeVisible();
     await expect(
-      page.getByText(/revoked or has expired/i),
+      page.getByText(/foi revogado ou expirou/i),
     ).toBeVisible();
   });
 
@@ -91,7 +91,7 @@ test.describe("impersonation revoked mid-session", () => {
     await page.goto("/identity/roles");
     await expect(page).toHaveURL(/\/impersonation-ended$/);
 
-    await page.getByRole("button", { name: /back to sign in/i }).click();
+    await page.getByRole("button", { name: /voltar para a entrada/i }).click();
 
     await expect(page).toHaveURL(/\/login$/);
     // The dead impersonation token is cleared so a stale token can't bounce
