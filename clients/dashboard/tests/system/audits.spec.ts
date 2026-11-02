@@ -75,7 +75,7 @@ test.describe("system/audits", () => {
     await expect(
       page.getByText("api.identity.RegisterUser").last(),
     ).toBeVisible();
-    await expect(page.getByText(/1 event found/i)).toBeVisible();
+    await expect(page.getByText(/1 evento encontrado/i)).toBeVisible();
   });
 
   test("renders the empty state when no audits are in the window", async ({ page }) => {
@@ -85,9 +85,9 @@ test.describe("system/audits", () => {
     await page.goto("/system/audits");
 
     await expect(
-      page.getByRole("heading", { name: /no audits in this window/i }),
+      page.getByRole("heading", { name: /nenhuma auditoria nesta janela/i }),
     ).toBeVisible();
-    await expect(page.getByText(/try widening the time range/i)).toBeVisible();
+    await expect(page.getByText(/tente ampliar o período/i)).toBeVisible();
   });
 
   test("clicking an event-type chip re-queries with the eventType filter", async ({ page }) => {
@@ -110,7 +110,7 @@ test.describe("system/audits", () => {
         /[?&]EventType=Security(&|$)/.test(r.url()),
       { timeout: 5_000 },
     );
-    await page.getByRole("button", { name: "Security", exact: true }).click();
+    await page.getByRole("button", { name: "Segurança", exact: true }).click();
     await reqPromise;
   });
 
@@ -137,8 +137,8 @@ test.describe("system/audits", () => {
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     // The drawer body renders an Identity section + the source value.
-    await expect(dialog.getByText("Identity", { exact: true })).toBeVisible();
-    await expect(dialog.getByText("Payload", { exact: true })).toBeVisible();
+    await expect(dialog.getByText("Identificação", { exact: true })).toBeVisible();
+    await expect(dialog.getByText("Conteúdo", { exact: true })).toBeVisible();
   });
 });
 

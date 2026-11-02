@@ -16,6 +16,7 @@ export function EntityPageHeader({
   tone = "primary",
   total,
   unit = "item",
+  units,
   description,
   children,
 }: {
@@ -26,6 +27,8 @@ export function EntityPageHeader({
   tone?: ToneIconTileTone;
   total?: number | null;
   unit?: string;
+  /** Plural of `unit`; defaults to `unit` + "s", which pt-BR words like "sessão" do not follow. */
+  units?: string;
   description?: React.ReactNode;
   /** Action buttons rendered on the right (stack full-width on mobile). */
   children?: React.ReactNode;
@@ -41,7 +44,7 @@ export function EntityPageHeader({
             </h1>
             {total !== undefined && total !== null && (
               <span className="font-mono text-[11px] text-[var(--color-muted-foreground)]">
-                {total} {total === 1 ? unit : `${unit}s`}
+                {total} {total === 1 ? unit : (units ?? `${unit}s`)}
               </span>
             )}
           </div>

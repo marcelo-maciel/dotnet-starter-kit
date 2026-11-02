@@ -30,6 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EntityDetailSection } from "@/components/list";
 import { useAuth } from "@/auth/use-auth";
 import { useSseEvents, useSseStatus, type SseEvent, type SseStatus } from "@/sse/sse-context";
+import { SSE_STATUS_LABEL } from "@/sse/sse-status-label";
 import { cn } from "@/lib/cn";
 import { SAO_PAULO } from "@/lib/list-helpers";
 
@@ -37,7 +38,7 @@ import { SAO_PAULO } from "@/lib/list-helpers";
 // Shaping helpers — pure, tested via memoization at the call sites.
 // ────────────────────────────────────────────────────────────────────────
 
-const numberFmt = new Intl.NumberFormat("en-US");
+const numberFmt = new Intl.NumberFormat("pt-BR");
 const formatNumber = (n: number) => numberFmt.format(n);
 
 /**
@@ -45,24 +46,24 @@ const formatNumber = (n: number) => numberFmt.format(n);
  * evening (rest). Mirrors the dentalOS dashboard greeting helper so the
  * tone of voice matches across products.
  */
-function getGreeting(): "Good morning" | "Good afternoon" | "Good evening" {
+function getGreeting(): "Bom dia" | "Boa tarde" | "Boa noite" {
   const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
+  if (hour < 12) return "Bom dia";
+  if (hour < 17) return "Boa tarde";
+  return "Boa noite";
 }
 
 function relativeTime(iso: string, now: number = Date.now()): string {
   const delta = Math.max(0, Math.floor((now - Date.parse(iso)) / 1000));
   if (delta < 60) return `${delta}s`;
   const m = Math.floor(delta / 60);
-  if (m < 60) return `${m}m`;
+  if (m < 60) return `${m} min`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  return `${Math.floor(h / 24)}d`;
+  if (h < 24) return `${h} h`;
+  return `${Math.floor(h / 24)} d`;
 }
 
-const timeFmt = new Intl.DateTimeFormat("en-US", {
+const timeFmt = new Intl.DateTimeFormat("pt-BR", {
   hour: "2-digit",
   minute: "2-digit",
   second: "2-digit",
@@ -209,24 +210,24 @@ function SystemStatusBody({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-[13px] font-semibold capitalize tracking-tight text-foreground">
-              {live ? "Stream live" : sseStatus}
+              {live ? "Transmissão ao vivo" : SSE_STATUS_LABEL[sseStatus]}
             </span>
             {live && <Badge variant="success">SSE</Badge>}
-            {errored && <Badge variant="danger">offline</Badge>}
+            {errored && <Badge variant="danger">fora do ar</Badge>}
           </div>
           <p className="mt-0.5 text-[11.5px] text-muted-foreground">
             {live
-              ? "Backend events are flowing in real time."
+              ? "Os eventos do servidor estão chegando em tempo real."
               : errored
-                ? "Stream disconnected. Events will queue once it recovers."
-                : "Waiting for the stream to come online."}
+                ? "Transmissão desconectada. Os eventos voltam a chegar quando ela se recuperar."
+                : "Esperando a transmissão entrar no ar."}
           </p>
         </div>
       </div>
 
       <div className="flex items-center justify-between border-t border-[oklch(from_var(--color-border)_l_c_h_/_0.5)] pt-3">
         <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
-          Events this session
+          Eventos nesta sessão
         </span>
         <span className="font-display text-[16px] font-bold tabular-nums text-foreground">
           {formatNumber(eventCount)}
@@ -278,10 +279,10 @@ function RecentAuditsNoAccess() {
     <div className="flex flex-col items-center gap-2 py-6 text-center">
       <Lock className="size-4 text-muted-foreground" />
       <div className="text-[13px] font-semibold tracking-tight text-foreground">
-        No access to audits
+        Sem acesso à auditoria
       </div>
       <p className="max-w-sm text-[11.5px] text-muted-foreground">
-        Recent audits need the Audit trail permission. Ask an administrator if you need it.
+        A auditoria recente exige a permissão da Trilha de auditoria. Peça a um administrador se precisar.
       </p>
     </div>
   );
@@ -313,10 +314,10 @@ function RecentAuditsBody() {
       <div className="flex flex-col items-center gap-2 py-6 text-center">
         <ScrollText className="size-4 text-muted-foreground" />
         <div className="text-[13px] font-semibold tracking-tight text-foreground">
-          No recent activity
+          Nenhuma atividade recente
         </div>
         <p className="max-w-sm text-[11.5px] text-muted-foreground">
-          Audited actions in the last 24 hours will appear here.
+          As ações auditadas nas últimas 24 horas vão aparecer aqui.
         </p>
       </div>
     );
@@ -352,14 +353,14 @@ function RecentAuditRow({ row }: { row: AuditSummaryDto }) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="truncate text-[12.5px] font-medium tracking-tight text-foreground">
-            {row.source ?? AUDIT_EVENT_TYPE_LABELS[row.eventType] ?? "Event"}
+            {row.source ?? AUDIT_EVENT_TYPE_LABELS[row.eventType] ?? "Evento"}
           </div>
           <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <span className="truncate">
-              {row.userName ?? row.userId?.slice(0, 8) ?? "system"}
+              {row.userName ?? row.userId?.slice(0, 8) ?? "sistema"}
             </span>
             <span aria-hidden>·</span>
-            <span className="tabular-nums">{relativeTime(row.occurredAtUtc)} ago</span>
+            <span className="tabular-nums">há {relativeTime(row.occurredAtUtc)}</span>
           </div>
         </div>
         <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover/row:translate-x-0.5" />
@@ -392,8 +393,8 @@ const QUICK_ACTIONS: QuickAction[] = [
   },
   {
     to: "/activity",
-    title: "Live activity",
-    description: "Real-time event stream.",
+    title: "Atividade ao vivo",
+    description: "Eventos em tempo real.",
     icon: Activity,
     tone: "warning",
   },
@@ -453,10 +454,10 @@ function LiveFeedBody({ events }: { events: SseEvent[] }) {
       <div className="flex flex-col items-center gap-2 py-6 text-center">
         <Activity className="size-4 text-muted-foreground" />
         <div className="text-[13px] font-semibold tracking-tight text-foreground">
-          Listening for activity
+          Aguardando atividade
         </div>
         <p className="max-w-sm text-[11.5px] text-muted-foreground">
-          Events will appear here as the backend publishes them.
+          Os eventos vão aparecer aqui conforme o servidor publicar.
         </p>
       </div>
     );
@@ -491,18 +492,18 @@ export function OverviewPage() {
 
   // ── Header strings ────────────────────────────────────────────────────
   const now = new Date();
-  const dateCaption = now.toLocaleDateString("en-US", {
+  const dateCaption = now.toLocaleDateString("pt-BR", {
     timeZone: SAO_PAULO,
     weekday: "long",
     day: "2-digit",
-    month: "short",
+    month: "long",
     year: "numeric",
   });
   const greeting = getGreeting();
-  const firstName = (user?.name ?? user?.email?.split("@")[0] ?? "operator")
+  const firstName = (user?.name ?? user?.email?.split("@")[0] ?? "operador")
     .toString()
     .split(" ")[0];
-  const tenantLabel = user?.tenant ?? "your tenant";
+  const tenantLabel = user?.tenant ?? "sua empresa";
 
   // No Billing here (plan, validity, usage, subscription, first-run "pick a plan"): the PAF does not use it and
   // tenant roles lose Permissions.Billing.View (31/10/2026), so those calls would only 403. The global
@@ -525,13 +526,13 @@ export function OverviewPage() {
           <Button asChild variant="outline" size="sm">
             <Link to="/activity">
               <Activity className="mr-1.5 size-3.5" />
-              View activity
+              Ver atividade
             </Link>
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link to="/system/audits">
               <ScrollText className="mr-1.5 size-3.5" />
-              View audits
+              Ver auditoria
             </Link>
           </Button>
         </div>
@@ -543,7 +544,7 @@ export function OverviewPage() {
           index={0}
           tone="info"
           icon={Zap}
-          label="Live events"
+          label="Eventos ao vivo"
           value={<span className="tabular-nums">{formatNumber(eventCount)}</span>}
           sublabel={
             <span className="inline-flex items-center gap-1.5">
@@ -565,7 +566,7 @@ export function OverviewPage() {
                         : "var(--color-muted-foreground)",
                 }}
               />
-              <span className="capitalize">{sseStatus}</span>
+              <span className="capitalize">{SSE_STATUS_LABEL[sseStatus]}</span>
             </span>
           }
           href="/activity"
@@ -579,7 +580,7 @@ export function OverviewPage() {
       <div className="flex flex-col gap-4 lg:flex-row">
         {/* Left rail */}
         <aside className="w-full space-y-4 lg:w-[360px] lg:shrink-0">
-          <EntityDetailSection title="System status" icon={Wifi}>
+          <EntityDetailSection title="Estado do sistema" icon={Wifi}>
             <SystemStatusBody sseStatus={sseStatus} eventCount={eventCount} />
           </EntityDetailSection>
         </aside>
@@ -587,16 +588,16 @@ export function OverviewPage() {
         {/* Right column — 2-up widget grid */}
         <div className="grid w-full min-w-0 flex-1 grid-cols-1 gap-4 md:grid-cols-2">
           <EntityDetailSection
-            title="Recent audits"
+            title="Auditoria recente"
             icon={ScrollText}
-            description="Last 24 hours, top 5 events."
+            description="Últimas 24 horas, os 5 eventos mais recentes."
             action={
               canViewAudits ? (
                 <Link
                   to="/system/audits"
                   className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  See all <ArrowUpRight className="size-3" />
+                  Ver tudo <ArrowUpRight className="size-3" />
                 </Link>
               ) : undefined
             }
@@ -611,23 +612,23 @@ export function OverviewPage() {
           </EntityDetailSection>
 
           <EntityDetailSection
-            title="Quick actions"
+            title="Atalhos"
             icon={Sparkles}
-            description="Jump into the most-used destinations."
+            description="Vá direto aos destinos mais usados."
           >
             <QuickActionsBody />
           </EntityDetailSection>
 
           <EntityDetailSection
-            title="Live feed"
+            title="Últimos eventos"
             icon={Activity}
-            description="Real-time backend events over SSE."
+            description="Eventos do servidor em tempo real, via SSE."
             action={
               <Link
                 to="/activity"
                 className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
-                Open <ArrowUpRight className="size-3" />
+                Abrir <ArrowUpRight className="size-3" />
               </Link>
             }
           >

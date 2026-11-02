@@ -48,14 +48,14 @@ test.describe("system/health", () => {
 
     // Hero status headline (Outfit h2) for the Healthy path.
     await expect(
-      page.getByRole("heading", { name: /all systems operational/i }),
+      page.getByRole("heading", { name: /todos os sistemas funcionando/i }),
     ).toBeVisible();
     // Status pill word.
-    await expect(page.getByText("Healthy", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Saudável", { exact: true }).first()).toBeVisible();
 
     // Dependencies section + one mocked check name.
     await expect(
-      page.getByRole("heading", { name: "Dependencies", level: 2 }),
+      page.getByRole("heading", { name: "Dependências", level: 2 }),
     ).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "postgres-db" }),
@@ -76,7 +76,7 @@ test.describe("system/health", () => {
     await page.goto("/system/health");
 
     await expect(
-      page.getByRole("heading", { name: /disruption detected/i }),
+      page.getByRole("heading", { name: /falha detectada/i }),
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: "redis" })).toBeVisible();
   });
@@ -87,8 +87,8 @@ test.describe("system/health", () => {
     await page.goto("/system/health");
 
     // EmptyChecks renders its headline as a styled <p>, not a heading.
-    await expect(page.getByText(/no checks registered/i)).toBeVisible();
-    await expect(page.getByText(/none are reporting yet/i)).toBeVisible();
+    await expect(page.getByText(/nenhuma verificação registrada/i)).toBeVisible();
+    await expect(page.getByText(/nenhuma está respondendo ainda/i)).toBeVisible();
   });
 
   test("expanding a dependency row reveals its detail panel", async ({ page }) => {
@@ -113,7 +113,7 @@ test.describe("system/health", () => {
     await row.click();
 
     // Expanded panel exposes the latency-budget label + a detail key.
-    await expect(page.getByText(/latency budget/i)).toBeVisible();
+    await expect(page.getByText(/orçamento de latência/i)).toBeVisible();
     await expect(page.getByText("serverCount")).toBeVisible();
   });
 });

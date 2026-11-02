@@ -146,14 +146,14 @@ function fmtIsoDense(iso: string): { date: string; time: string } {
 
 function fmtRelative(iso: string, now: number = Date.now()): string {
   const delta = Math.max(0, Math.floor((now - Date.parse(iso)) / 1000));
-  if (delta < 5) return "just now";
-  if (delta < 60) return `${delta}s ago`;
+  if (delta < 5) return "agora";
+  if (delta < 60) return `há ${delta} s`;
   const m = Math.floor(delta / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return `há ${m} min`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
+  if (h < 24) return `há ${h} h`;
   const days = Math.floor(h / 24);
-  return `${days}d ago`;
+  return `há ${days} d`;
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -292,8 +292,9 @@ export function AuditsPage() {
         icon={ScrollText}
         title="Trilha de auditoria"
         total={paged?.totalCount ?? null}
-        unit="event"
-        description="Activity, security, entity-change, and exception events across the platform. Window enforced server-side; max 90 days."
+        unit="evento"
+        units="eventos"
+        description="Eventos de atividade, segurança, alteração de entidades e exceções em todo o sistema. A janela é aplicada no servidor; no máximo 90 dias."
       >
         <Button
           variant="outline"
@@ -307,7 +308,7 @@ export function AuditsPage() {
           <RefreshCw
             className={cn("size-4", auditsQuery.isFetching && "animate-spin")}
           />
-          Refresh
+          Atualizar
         </Button>
       </EntityPageHeader>
 
@@ -315,7 +316,7 @@ export function AuditsPage() {
       <EntitySearch
         value={searchInput}
         onChange={setSearchInput}
-        placeholder="Search payload, source, user…"
+        placeholder="Buscar no conteúdo, origem, usuário…"
       />
 
       {/* Filter bar — preserved verbatim (range presets, chips, advanced) */}
@@ -347,17 +348,17 @@ export function AuditsPage() {
           className="flex items-start gap-2 rounded-lg border border-[oklch(from_var(--color-destructive)_l_c_h_/_0.30)] bg-[oklch(from_var(--color-destructive)_l_c_h_/_0.06)] px-3 py-2 text-sm text-[var(--color-destructive)]"
         >
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-          <span>{(auditsQuery.error as Error)?.message ?? "Failed to load audits"}</span>
+          <span>{(auditsQuery.error as Error)?.message ?? "Falha ao carregar a auditoria"}</span>
         </div>
       ) : items.length === 0 ? (
         <EntityEmpty
           icon={ShieldCheck}
-          title="No audits in this window"
-          body="Try widening the time range or relaxing the filters. Activity events arrive as soon as the platform handles a request."
+          title="Nenhuma auditoria nesta janela"
+          body="Tente ampliar o período ou afrouxar os filtros. Os eventos de atividade chegam assim que o sistema atende uma requisição."
           action={
             activeChipCount > 0 || filters.search ? (
               <Button variant="outline" onClick={onResetFilters} className="h-9 rounded-lg px-4 text-[13px]">
-                Reset filters
+                Limpar filtros
               </Button>
             ) : undefined
           }
@@ -366,7 +367,7 @@ export function AuditsPage() {
         <div>
           <div className="mb-3 flex items-center justify-between">
             <p className="text-[12px] font-medium text-[var(--color-muted-foreground)]">
-              {paged?.totalCount ?? 0} event{(paged?.totalCount ?? 0) !== 1 ? "s" : ""} found
+              {paged?.totalCount ?? 0} {(paged?.totalCount ?? 0) !== 1 ? "eventos encontrados" : "evento encontrado"}
             </p>
             {auditsQuery.isFetching && (
               <Loader2 className="size-3.5 animate-spin text-[var(--color-muted-foreground)]" />
@@ -387,10 +388,10 @@ export function AuditsPage() {
           {/* Desktop list */}
           <EntityListCard className="hidden md:block">
             <EntityListHeader className={DESKTOP_COLS}>
-              <span>Actor</span>
-              <span>Event</span>
-              <span>Severity</span>
-              <span>Timestamp</span>
+              <span>Autor</span>
+              <span>Evento</span>
+              <span>Severidade</span>
+              <span>Data e hora</span>
             </EntityListHeader>
             {items.map((row, i) => (
               <AuditDesktopRow
@@ -448,7 +449,7 @@ function AuditMobileCard({
   const Icon = eventTypeIcon(row.eventType);
   const tone = severityTone(row.severity);
   const toneColor = severityColorVar(row.severity);
-  const actor = row.userName ?? (row.userId ? `${row.userId.slice(0, 8)}…` : "System");
+  const actor = row.userName ?? (row.userId ? `${row.userId.slice(0, 8)}…` : "Sistema");
 
   return (
     <button
@@ -512,7 +513,7 @@ function AuditDesktopRow({
   const Icon = eventTypeIcon(row.eventType);
   const tone = severityTone(row.severity);
   const toneColor = severityColorVar(row.severity);
-  const actor = row.userName ?? (row.userId ? `${row.userId.slice(0, 8)}…` : "System");
+  const actor = row.userName ?? (row.userId ? `${row.userId.slice(0, 8)}…` : "Sistema");
   const tags = decodeTags(row.tags);
 
   return (
@@ -631,12 +632,12 @@ function SummaryStrip({
       <CardContent className="grid grid-cols-1 gap-5 px-6 py-4 lg:grid-cols-[auto_1fr_auto] lg:items-center">
         <div>
           <div className="font-mono text-[10.5px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted-foreground)]">
-            Window {range}
+            Janela de {range}
           </div>
           <div className="mt-1 font-display text-2xl font-semibold tabular-nums leading-none">
-            {new Intl.NumberFormat("en-US").format(total)}
+            {new Intl.NumberFormat("pt-BR").format(total)}
           </div>
-          <div className="mt-1 text-[11px] text-[var(--color-muted-foreground)]">events</div>
+          <div className="mt-1 text-[11px] text-[var(--color-muted-foreground)]">eventos</div>
         </div>
 
         <div className="space-y-2">
@@ -654,19 +655,19 @@ function SummaryStrip({
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--color-muted-foreground)]">
-            <Legend dot="var(--color-primary)" label="Activity" value={byType.activity} />
-            <Legend dot="var(--color-info)" label="Entity" value={byType.entity} />
-            <Legend dot="var(--color-success)" label="Security" value={byType.security} />
-            <Legend dot="var(--color-destructive)" label="Exception" value={byType.exception} />
+            <Legend dot="var(--color-primary)" label="Atividade" value={byType.activity} />
+            <Legend dot="var(--color-info)" label="Entidade" value={byType.entity} />
+            <Legend dot="var(--color-success)" label="Segurança" value={byType.security} />
+            <Legend dot="var(--color-destructive)" label="Exceção" value={byType.exception} />
             <span aria-hidden className="ml-auto h-3 w-px bg-[var(--color-border)]" />
-            <SeverityDot color="var(--color-warning)" label="Warn" value={bySeverity.warn} />
-            <SeverityDot color="var(--color-destructive)" label="Err" value={bySeverity.err + bySeverity.crit} />
+            <SeverityDot color="var(--color-warning)" label="Alerta" value={bySeverity.warn} />
+            <SeverityDot color="var(--color-destructive)" label="Erro" value={bySeverity.err + bySeverity.crit} />
           </div>
         </div>
 
         <div className="flex flex-col items-end gap-1.5">
           <div className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-[var(--color-muted-foreground)]">
-            Top sources
+            Principais origens
           </div>
           <div className="flex max-w-[28rem] flex-wrap justify-end gap-1.5">
             {topSources.length === 0 && (
@@ -758,14 +759,14 @@ function FilterBar({
             <Input
               value={searchInput}
               onChange={(e) => onSearchInput(e.target.value)}
-              placeholder="Search payload, source, user…"
+              placeholder="Buscar no conteúdo, origem, usuário…"
               className="pl-9"
             />
             {searchInput && (
               <button
                 type="button"
                 onClick={() => onSearchInput("")}
-                aria-label="Clear search"
+                aria-label="Limpar busca"
                 className="absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 cursor-pointer place-items-center rounded text-[var(--color-muted-foreground)] hover:bg-[var(--color-muted)] hover:text-[var(--color-foreground)]"
               >
                 <X className="h-3.5 w-3.5" />
@@ -780,7 +781,7 @@ function FilterBar({
             className="gap-1.5"
           >
             <Filter className="h-3.5 w-3.5" />
-            Advanced
+            Avançado
             {activeChipCount > 0 && (
               <Badge variant="brand" className="ml-1 px-1.5 py-0 text-[10px]">
                 {activeChipCount}
@@ -792,10 +793,10 @@ function FilterBar({
               default so the trail reads as meaningful events, not infrastructure noise. */}
           <div
             className="flex shrink-0 items-center gap-2"
-            title="Hide the per-request system Activity events (api.*) so only meaningful audits show"
+            title="Esconde os eventos de atividade do sistema a cada requisição (api.*), para mostrar só as auditorias relevantes"
           >
             <Switch
-              aria-label="Hide system activity"
+              aria-label="Esconder a atividade do sistema"
               checked={filters.hideSystem}
               onCheckedChange={(v) => onPatch({ hideSystem: v })}
             />
@@ -804,7 +805,7 @@ function FilterBar({
               onClick={() => onPatch({ hideSystem: !filters.hideSystem })}
               className="select-none text-[12px] font-medium text-[var(--color-muted-foreground)] transition-colors hover:text-[var(--color-foreground)]"
             >
-              Hide system activity
+              Esconder a atividade do sistema
             </button>
           </div>
 
@@ -814,7 +815,7 @@ function FilterBar({
               onClick={onReset}
               className="font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
             >
-              Reset
+              Limpar
             </button>
           )}
         </div>
@@ -822,7 +823,7 @@ function FilterBar({
         {/* Row 2: event type + severity chips */}
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-mono text-[10.5px] uppercase tracking-[0.08em] text-[var(--color-muted-foreground)]">
-            Type
+            Tipo
           </span>
           {[AuditEventType.Activity, AuditEventType.Security, AuditEventType.EntityChange, AuditEventType.Exception].map((t) => (
             <Chip
@@ -839,7 +840,7 @@ function FilterBar({
           <span aria-hidden className="mx-1 h-4 w-px bg-[var(--color-border)]" />
 
           <span className="font-mono text-[10.5px] uppercase tracking-[0.08em] text-[var(--color-muted-foreground)]">
-            Severity
+            Severidade
           </span>
           {[AuditSeverity.Information, AuditSeverity.Warning, AuditSeverity.Error, AuditSeverity.Critical].map((s) => (
             <Chip
@@ -859,32 +860,32 @@ function FilterBar({
         {advancedOpen && (
           <div className="grid grid-cols-1 gap-2 border-t border-[var(--color-border)] pt-3 sm:grid-cols-2 lg:grid-cols-3">
             <FieldInput
-              label="Source"
+              label="Origem"
               placeholder="api.identity.RegisterUser"
               value={filters.source}
               onChange={(v) => onPatch({ source: v })}
             />
             <FieldInput
-              label="User ID"
+              label="ID do usuário"
               placeholder="00000000-0000-…"
               value={filters.user}
               onChange={(v) => onPatch({ user: v })}
             />
             <FieldInput
-              label="Correlation"
+              label="Correlação"
               placeholder="0HMxxxx…"
               value={filters.correlation}
               onChange={(v) => onPatch({ correlation: v })}
             />
             <FieldInput
-              label="Trace"
+              label="Rastreamento"
               placeholder="hex traceparent"
               value={filters.trace}
               onChange={(v) => onPatch({ trace: v })}
             />
             <div className="sm:col-span-2 lg:col-span-1">
               <div className="mb-1 font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-[var(--color-muted-foreground)]">
-                Tags
+                Marcadores
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {AUDIT_TAG_LABELS.map((t) => {
@@ -1021,9 +1022,9 @@ function AuditDetailDrawer({
             "duration-[var(--duration-default)]",
           )}
         >
-          <DialogTitle className="sr-only">Audit detail</DialogTitle>
+          <DialogTitle className="sr-only">Detalhe da auditoria</DialogTitle>
           <DialogDescription className="sr-only">
-            Full payload, identifiers, and related actions for the selected audit event.
+            Conteúdo completo, identificadores e ações relacionadas do evento de auditoria escolhido.
           </DialogDescription>
 
           <div className="flex h-full flex-col">
@@ -1046,7 +1047,7 @@ function AuditDetailDrawer({
           </div>
 
           <DialogClose
-            aria-label="Close"
+            aria-label="Fechar"
             className={cn(
               "absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-md",
               "text-[var(--color-muted-foreground)] transition-colors",
@@ -1110,11 +1111,11 @@ function DrawerHeader({ detail, loading }: { detail?: AuditDetailDto; loading: b
         </div>
         <div className="mt-2 flex items-baseline gap-3">
           <h2 className="font-display text-xl font-semibold leading-tight tracking-tight">
-            {detail.source ?? "Audit event"}
+            {detail.source ?? "Evento de auditoria"}
           </h2>
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] tabular-nums text-[var(--color-muted-foreground)]">
-          <span>{ts.date} {ts.time} UTC</span>
+          <span>{ts.date} {ts.time} (Brasília)</span>
           <span aria-hidden>·</span>
           <span>{fmtRelative(detail.occurredAtUtc)}</span>
         </div>
@@ -1151,23 +1152,23 @@ function DrawerBody({
     <div className="space-y-5 pt-5">
       {/* Identity grid */}
       <section>
-        <SectionLabel>Identity</SectionLabel>
+        <SectionLabel>Identificação</SectionLabel>
         <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-          <DefRow label="Tenant" value={detail.tenantId ?? "—"} mono />
-          <DefRow label="User" value={detail.userName ?? detail.userId ?? "—"} />
-          <DefRow label="User ID" value={detail.userId ?? "—"} mono />
-          <DefRow label="Source" value={detail.source ?? "—"} mono />
+          <DefRow label="Empresa" value={detail.tenantId ?? "—"} mono />
+          <DefRow label="Usuário" value={detail.userName ?? detail.userId ?? "—"} />
+          <DefRow label="ID do usuário" value={detail.userId ?? "—"} mono />
+          <DefRow label="Origem" value={detail.source ?? "—"} mono />
         </dl>
       </section>
 
       {/* Trace grid + jump links */}
       <section>
-        <SectionLabel>Trace</SectionLabel>
+        <SectionLabel>Rastreamento</SectionLabel>
         <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-          <DefRow label="Trace ID" value={detail.traceId ?? "—"} mono />
-          <DefRow label="Span ID" value={detail.spanId ?? "—"} mono />
-          <DefRow label="Correlation ID" value={detail.correlationId ?? "—"} mono />
-          <DefRow label="Request ID" value={detail.requestId ?? "—"} mono />
+          <DefRow label="ID de rastreamento" value={detail.traceId ?? "—"} mono />
+          <DefRow label="ID do span" value={detail.spanId ?? "—"} mono />
+          <DefRow label="ID de correlação" value={detail.correlationId ?? "—"} mono />
+          <DefRow label="ID da requisição" value={detail.requestId ?? "—"} mono />
         </dl>
         <div className="mt-3 flex flex-wrap gap-2">
           {detail.correlationId && (
@@ -1176,12 +1177,12 @@ function DrawerBody({
               size="sm"
               onClick={() => onJumpCorrelation(detail.correlationId!)}
             >
-              <ExternalLink className="mr-1.5 h-3 w-3" /> All by correlation
+              <ExternalLink className="mr-1.5 h-3 w-3" /> Todos desta correlação
             </Button>
           )}
           {detail.traceId && (
             <Button variant="soft" size="sm" onClick={() => onJumpTrace(detail.traceId!)}>
-              <ExternalLink className="mr-1.5 h-3 w-3" /> All by trace
+              <ExternalLink className="mr-1.5 h-3 w-3" /> Todos deste rastreamento
             </Button>
           )}
         </div>
@@ -1202,7 +1203,7 @@ function DrawerBody({
       {/* Payload */}
       <section>
         <div className="flex items-center justify-between">
-          <SectionLabel>Payload</SectionLabel>
+          <SectionLabel>Conteúdo</SectionLabel>
           <CopyButton value={JSON.stringify(detail.payload, null, 2)} />
         </div>
         <pre className="mt-2 max-h-[60vh] overflow-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] p-3 font-mono text-[11px] leading-snug text-[var(--color-foreground)]">
@@ -1212,24 +1213,24 @@ function DrawerBody({
 
       {/* Reception window */}
       <section>
-        <SectionLabel>Pipeline</SectionLabel>
+        <SectionLabel>Recebimento</SectionLabel>
         <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
           <DefRow
-            label="Occurred"
+            label="Ocorreu em"
             value={`${fmtIsoDense(detail.occurredAtUtc).date} ${fmtIsoDense(detail.occurredAtUtc).time}`}
             mono
           />
           <DefRow
-            label="Received"
+            label="Recebido em"
             value={`${fmtIsoDense(detail.receivedAtUtc).date} ${fmtIsoDense(detail.receivedAtUtc).time}`}
             mono
           />
           <DefRow
-            label="Sink delay"
+            label="Atraso de gravação"
             value={`${Math.max(0, Date.parse(detail.receivedAtUtc) - Date.parse(detail.occurredAtUtc))} ms`}
             mono
           />
-          <DefRow label="Audit ID" value={detail.id} mono />
+          <DefRow label="ID da auditoria" value={detail.id} mono />
         </dl>
       </section>
     </div>
@@ -1258,9 +1259,9 @@ function DrawerError({ message }: { message?: string }) {
   return (
     <div className="flex flex-col items-center gap-2 pt-12 text-center">
       <AlertTriangle className="h-5 w-5 text-[var(--color-destructive)]" />
-      <div className="text-sm font-medium tracking-tight">Could not load audit</div>
+      <div className="text-sm font-medium tracking-tight">Não foi possível carregar a auditoria</div>
       <p className="max-w-md text-xs leading-relaxed text-[var(--color-muted-foreground)]">
-        {message ?? "The server returned an error fetching this audit. The record may have been purged by the retention job."}
+        {message ?? "O servidor devolveu um erro ao buscar esta auditoria. O registro pode ter sido apagado pela rotina de retenção."}
       </p>
     </div>
   );
@@ -1318,10 +1319,10 @@ function RelatedEventsSection({
   return (
     <section>
       <div className="flex items-baseline justify-between">
-        <SectionLabel>Related events</SectionLabel>
+        <SectionLabel>Eventos relacionados</SectionLabel>
         {!related.isLoading && (
           <span className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-[var(--color-muted-foreground)]">
-            {sorted.length} on this correlation
+            {sorted.length} nesta correlação
           </span>
         )}
       </div>
@@ -1334,8 +1335,8 @@ function RelatedEventsSection({
         </div>
       ) : others.length === 0 ? (
         <p className="mt-2 text-[11.5px] text-[var(--color-muted-foreground)]">
-          No other events share this correlation. The full lifecycle of this
-          request is contained in the payload above.
+          Nenhum outro evento tem esta correlação. O ciclo completo desta
+          requisição está no conteúdo acima.
         </p>
       ) : (
         <ol className="mt-2 relative pl-4">
@@ -1352,7 +1353,7 @@ function RelatedEventsSection({
             const deltaSec = Math.round((Date.parse(row.occurredAtUtc) - currentMs) / 1000);
             const deltaLabel =
               isCurrent
-                ? "this event"
+                ? "este evento"
                 : deltaSec === 0
                   ? "0s"
                   : deltaSec > 0
@@ -1423,7 +1424,7 @@ function CopyButton({ value }: { value: string }) {
         }
       }}
     >
-      {copied ? "Copied" : "Copy"}
+      {copied ? "Copiado" : "Copiar"}
     </button>
   );
 }
