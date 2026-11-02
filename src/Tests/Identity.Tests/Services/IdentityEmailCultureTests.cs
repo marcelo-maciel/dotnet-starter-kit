@@ -71,7 +71,7 @@ public sealed class IdentityEmailCultureTests
         var user = new FshUser { Email = Email, UserName = Email, Locale = userLocale };
         _userManager.FindByEmailAsync(Email).Returns(user);
         _userManager.GeneratePasswordResetTokenAsync(user).Returns("raw-token");
-        var sut = new UserPasswordService(_userManager, null!, _jobService, _mailService, _tenant, null!, null!, DeploymentCultureOptions.For(deploymentDefault));
+        var sut = new UserPasswordService(_userManager, null!, _jobService, _mailService, _tenant, null!, null!, DeploymentCultureOptions.For(deploymentDefault), SharedResourcesLocalizerFactory.Create());
 
         // Act
         await sut.ForgotPasswordAsync(Email, "https://app.test", CancellationToken.None);
@@ -89,7 +89,7 @@ public sealed class IdentityEmailCultureTests
         var user = new FshUser { Email = Email, UserName = Email, Locale = "pt-BR" };
         _userManager.FindByEmailAsync(Email).Returns(user);
         _userManager.GeneratePasswordResetTokenAsync(user).Returns("raw-token");
-        var sut = new UserPasswordService(_userManager, null!, _jobService, _mailService, _tenant, null!, null!, DeploymentCultureOptions.For("en-US"));
+        var sut = new UserPasswordService(_userManager, null!, _jobService, _mailService, _tenant, null!, null!, DeploymentCultureOptions.For("en-US"), SharedResourcesLocalizerFactory.Create());
 
         // Act
         await sut.ForgotPasswordAsync(Email, "https://app.test", CancellationToken.None);
@@ -117,7 +117,7 @@ public sealed class IdentityEmailCultureTests
         var user = new FshUser { Id = "u1", Email = Email, UserName = "marcelo", FirstName = "Marcelo", EmailConfirmed = false, Locale = userLocale };
         _userManager.Users.Returns(new[] { user }.AsAsyncQueryable());
         _userManager.GenerateEmailConfirmationTokenAsync(user).Returns("raw-token");
-        var sut = new UserRegistrationService(_userManager, db: null!, _jobService, _mailService, _tenant, DeploymentCultureOptions.For(deploymentDefault));
+        var sut = new UserRegistrationService(_userManager, db: null!, _jobService, _mailService, _tenant, DeploymentCultureOptions.For(deploymentDefault), IdentityResourcesLocalizerFactory.Create());
 
         // Act
         await sut.ResendConfirmationEmailAsync("u1", "https://app.test", CancellationToken.None);
@@ -135,7 +135,7 @@ public sealed class IdentityEmailCultureTests
         var user = new FshUser { Id = "u1", Email = Email, UserName = "marcelo", FirstName = "<b>Marcelo</b>", EmailConfirmed = false, Locale = null };
         _userManager.Users.Returns(new[] { user }.AsAsyncQueryable());
         _userManager.GenerateEmailConfirmationTokenAsync(user).Returns("raw-token");
-        var sut = new UserRegistrationService(_userManager, db: null!, _jobService, _mailService, _tenant, DeploymentCultureOptions.For("pt-BR"));
+        var sut = new UserRegistrationService(_userManager, db: null!, _jobService, _mailService, _tenant, DeploymentCultureOptions.For("pt-BR"), IdentityResourcesLocalizerFactory.Create());
 
         // Act
         await sut.ResendConfirmationEmailAsync("u1", "https://app.test", CancellationToken.None);

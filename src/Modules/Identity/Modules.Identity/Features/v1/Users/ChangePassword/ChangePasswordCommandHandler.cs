@@ -1,7 +1,9 @@
 using FSH.Framework.Core.Context;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Contracts.v1.Users.ChangePassword;
+using FSH.Modules.Identity.Localization;
 using Mediator;
+using Microsoft.Extensions.Localization;
 
 namespace FSH.Modules.Identity.Features.v1.Users.ChangePassword;
 
@@ -9,11 +11,16 @@ public sealed class ChangePasswordCommandHandler : ICommandHandler<ChangePasswor
 {
     private readonly IUserService _userService;
     private readonly ICurrentUser _currentUser;
+    private readonly IStringLocalizer<IdentityResources> _localizer;
 
-    public ChangePasswordCommandHandler(IUserService userService, ICurrentUser currentUser)
+    public ChangePasswordCommandHandler(
+        IUserService userService,
+        ICurrentUser currentUser,
+        IStringLocalizer<IdentityResources> localizer)
     {
         _userService = userService;
         _currentUser = currentUser;
+        _localizer = localizer;
     }
 
     public async ValueTask<string> Handle(ChangePasswordCommand command, CancellationToken cancellationToken)
@@ -29,6 +36,6 @@ public sealed class ChangePasswordCommandHandler : ICommandHandler<ChangePasswor
 
         await _userService.ChangePasswordAsync(command.Password, command.NewPassword, command.ConfirmNewPassword, userId, cancellationToken).ConfigureAwait(false);
 
-        return "password reset email sent";
+        return _localizer["Identity.PasswordChanged"];
     }
 }

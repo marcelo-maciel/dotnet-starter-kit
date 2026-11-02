@@ -1,5 +1,6 @@
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Core.Exceptions;
+using FSH.Framework.Core.Localization;
 using FSH.Framework.Jobs.Services;
 using FSH.Framework.Mailing;
 using FSH.Framework.Mailing.Services;
@@ -7,9 +8,11 @@ using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Data;
 using FSH.Modules.Identity.Domain;
+using FSH.Modules.Identity.Localization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
 using System.Collections.ObjectModel;
 using System.Net;
@@ -25,7 +28,8 @@ internal sealed class UserPasswordService(
     IMultiTenantContextAccessor<AppTenantInfo> multiTenantContextAccessor,
     IPasswordHistoryService passwordHistoryService,
     IPasswordExpiryService passwordExpiryService,
-    IOptions<RequestLocalizationOptions> localizationOptions) : IUserPasswordService
+    IOptions<RequestLocalizationOptions> localizationOptions,
+    IStringLocalizer<SharedResources> sharedLocalizer) : IUserPasswordService
 {
     public async Task ForgotPasswordAsync(string email, string origin, CancellationToken cancellationToken)
     {
@@ -77,7 +81,11 @@ internal sealed class UserPasswordService(
         var user = await userManager.FindByEmailAsync(email);
         if (user == null)
         {
-            throw new NotFoundException("user not found");
+            throw new NotFoundException("user not found")
+            {
+                MessageKey = "Identity.UserNotFound",
+                ResourceSource = typeof(IdentityResources),
+            };
         }
 
         token = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(token));
@@ -86,7 +94,11 @@ internal sealed class UserPasswordService(
         if (!result.Succeeded)
         {
             var errors = result.Errors.Select(e => e.Description).ToList();
-            throw new CustomException("error resetting password", errors);
+            throw new CustomException("error resetting password", errors)
+            {
+                MessageKey = "Identity.ErrorResettingPassword",
+                ResourceSource = typeof(IdentityResources),
+            };
         }
 
         // Raise domain event for password reset
@@ -99,14 +111,22 @@ internal sealed class UserPasswordService(
     {
         var user = await userManager.FindByIdAsync(userId);
 
-        _ = user ?? throw new NotFoundException("user not found");
+        _ = user ?? throw new NotFoundException("user not found")
+        {
+            MessageKey = "Identity.UserNotFound",
+            ResourceSource = typeof(IdentityResources),
+        };
 
         var result = await userManager.ChangePasswordAsync(user, password, newPassword);
 
         if (!result.Succeeded)
         {
             var errors = result.Errors.Select(e => e.Description).ToList();
-            throw new CustomException("failed to change password", errors);
+            throw new CustomException("failed to change password", errors)
+            {
+                MessageKey = "Identity.FailedToChangePassword",
+                ResourceSource = typeof(IdentityResources),
+            };
         }
 
         // Raise domain event for password change
@@ -125,7 +145,11 @@ internal sealed class UserPasswordService(
     {
         EnsureValidTenant();
 
-        var user = await userManager.FindByIdAsync(userId) ?? throw new NotFoundException("user not found");
+        var user = await userManager.FindByIdAsync(userId) ?? throw new NotFoundException("user not found")
+            {
+                MessageKey = "Identity.UserNotFound",
+                ResourceSource = typeof(IdentityResources),
+            };
 
         // A user who never changed his password has an empty history, so the current one is checked on its own.
         if (await userManager.CheckPasswordAsync(user, newPassword)
@@ -133,8 +157,11 @@ internal sealed class UserPasswordService(
         {
             throw new CustomException(
                 "password reused",
-                ["This password has been used recently. Please choose a different password."],
-                HttpStatusCode.BadRequest);
+                [sharedLocalizer["Validation.PasswordRecentlyUsed"]],
+                HttpStatusCode.BadRequest)
+            {
+                MessageKey = "Validation.PasswordRecentlyUsed",
+            };
         }
 
         // Reset (not Remove + Add) so the policy validators run and the hash is replaced in a single write.
@@ -142,7 +169,11 @@ internal sealed class UserPasswordService(
         var result = await userManager.ResetPasswordAsync(user, token, newPassword);
         if (!result.Succeeded)
         {
-            throw new CustomException("error setting password", result.Errors.Select(e => e.Description), HttpStatusCode.BadRequest);
+            throw new CustomException("error setting password", result.Errors.Select(e => e.Description), HttpStatusCode.BadRequest)
+            {
+                MessageKey = "Identity.ErrorSettingPassword",
+                ResourceSource = typeof(IdentityResources),
+            };
         }
 
         var tenantId = multiTenantContextAccessor?.MultiTenantContext?.TenantInfo?.Id;
@@ -156,7 +187,10 @@ internal sealed class UserPasswordService(
     {
         if (string.IsNullOrWhiteSpace(multiTenantContextAccessor?.MultiTenantContext?.TenantInfo?.Id))
         {
-            throw new UnauthorizedException("invalid tenant");
+            throw new UnauthorizedException("invalid tenant")
+            {
+                MessageKey = "Error.InvalidTenant",
+            };
         }
     }
 }

@@ -3,6 +3,7 @@ using FSH.Framework.Core.Context;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Contracts.v1.Users.ChangePassword;
 using FSH.Modules.Identity.Features.v1.Users.ChangePassword;
+using Identity.Tests.Support;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 
@@ -22,7 +23,7 @@ public sealed class ChangePasswordCommandHandlerTests
     {
         _userService = Substitute.For<IUserService>();
         _currentUser = Substitute.For<ICurrentUser>();
-        _sut = new ChangePasswordCommandHandler(_userService, _currentUser);
+        _sut = new ChangePasswordCommandHandler(_userService, _currentUser, IdentityResourcesLocalizerFactory.Create());
         _fixture = new Fixture();
     }
 
@@ -48,10 +49,11 @@ public sealed class ChangePasswordCommandHandlerTests
             .Returns(Task.CompletedTask);
 
         // Act
+        using var culture = new UiCultureScope("en-US");
         var result = await _sut.Handle(command, CancellationToken.None);
 
         // Assert
-        result.ShouldBe("password reset email sent");
+        result.ShouldBe("Password changed.");
     }
 
     [Fact]
@@ -279,15 +281,34 @@ public sealed class ChangePasswordCommandHandlerTests
             .Returns(Task.CompletedTask);
 
         // Act
+        using var culture = new UiCultureScope("en-US");
         var result = await _sut.Handle(command, cancellationToken);
 
         // Assert
-        result.ShouldBe("password reset email sent");
+        result.ShouldBe("Password changed.");
     }
 
     #endregion
 
     #region Handle - Edge Cases
+
+    [Theory]
+    [InlineData("en-US", "Password changed.")]
+    [InlineData("pt-BR", "Senha alterada.")]
+    public async Task Handle_Should_ReturnConfirmationInTheRequestCulture(string culture, string expected)
+    {
+        // Arrange
+        var command = new ChangePasswordCommand { Password = "Atual123!", NewPassword = "Nova456!", ConfirmNewPassword = "Nova456!" };
+        _currentUser.IsAuthenticated().Returns(true);
+        _currentUser.GetUserId().Returns(_fixture.Create<Guid>());
+        using var scope = new UiCultureScope(culture);
+
+        // Act
+        var result = await _sut.Handle(command, CancellationToken.None);
+
+        // Assert
+        result.ShouldBe(expected);
+    }
 
     [Fact]
     public async Task Handle_Should_HandleEmptyPasswords_When_ProvidedInCommand()
@@ -309,10 +330,11 @@ public sealed class ChangePasswordCommandHandlerTests
             .Returns(Task.CompletedTask);
 
         // Act
+        using var culture = new UiCultureScope("en-US");
         var result = await _sut.Handle(command, CancellationToken.None);
 
         // Assert
-        result.ShouldBe("password reset email sent");
+        result.ShouldBe("Password changed.");
         await _userService.Received(1).ChangePasswordAsync("", "", "", userId.ToString());
     }
 

@@ -253,4 +253,10 @@
   <data name="Validation.PhoneNumberMaxLength" xml:space="preserve">
     <value>O número de telefone não pode exceder 20 caracteres.</value>
   </data>
+  <data name="Tenant.Deactivated" xml:space="preserve">
+    <value>Esta empresa foi desativada. Procure o administrador.</value>
+  </data>
+  <data name="Tenant.SubscriptionExpired" xml:space="preserve">
+    <value>A assinatura desta empresa expirou. Renove para continuar.</value>
+  </data>
 </root>
