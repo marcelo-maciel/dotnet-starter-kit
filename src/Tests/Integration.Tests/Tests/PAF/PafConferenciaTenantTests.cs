@@ -40,6 +40,7 @@ public sealed class PafConferenciaTenantTests : IAsyncLifetime
         await TenantProvisioningWait.WaitForProvisioningAsync(root, _tenantA);
         await TenantProvisioningWait.WaitForProvisioningAsync(root, _tenantB);
         await PafTenantCliente.PrepararAdministradorAsync(_factory, _tenantA, PafTenantCliente.LimiteDaUnidadeInicial);
+        await HiddenModulePermissions.GrantToTenantAdminAsync(_factory, _tenantA, HiddenModulePermissions.IdentityAdministration);
         _ = await TokenComRetentativaAsync(_adminA, _tenantA);
     }
 

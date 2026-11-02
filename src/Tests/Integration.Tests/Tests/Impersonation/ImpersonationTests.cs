@@ -63,6 +63,7 @@ public sealed class ImpersonationTests : IAsyncLifetime
 
         // Sign in as the seeded tenant admin to capture their userId from the JWT — the search
         // endpoint would couple these tests to the (currently buggy) cross-tenant search override.
+        await HiddenModulePermissions.GrantToTenantAdminAsync(_factory, _tenantId, HiddenModulePermissions.IdentityAdministration);
         var tenantToken = await GetTokenWithRetryAsync(_tenantAdminEmail, TestConstants.DefaultPassword, _tenantId);
         _tenantAdminUserId = ReadSubject(tenantToken.AccessToken);
 

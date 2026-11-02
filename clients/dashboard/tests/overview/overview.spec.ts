@@ -22,17 +22,18 @@ test.describe("overview (/overview)", () => {
     await expect(page.getByText("System status", { exact: true })).toBeVisible();
   });
 
-  // Chat, Files, Catalog, Helpdesk, Billing and Trash are not part of the PAF product (31/10/2026): their routes
-  // redirect home, so the overview must not offer a shortcut that bounces back.
-  const ROTAS_REMOVIDAS = ["/subscription", "/invoices", "/wallet", "/catalog", "/chat", "/files", "/tickets", "/system/trash"];
+  // Chat, Files, Catalog, Helpdesk, Billing and Trash are not part of the PAF product (31/10/2026), nor the kit's
+  // Users, Roles and Groups screens (02/11/2026): their routes redirect home, so the overview must not offer a
+  // shortcut that bounces back.
+  const ROTAS_REMOVIDAS = ["/subscription", "/invoices", "/wallet", "/catalog", "/chat", "/files", "/tickets", "/system/trash", "/identity"];
   const linksParaRotasRemovidas = (page: Page) =>
     page.locator(ROTAS_REMOVIDAS.map((rota) => `a[href^="${rota}"]`).join(", "));
 
   test("visão geral não tem atalho para rota removida", async ({ page }) => {
     await page.goto("/overview");
     const card = page.locator("section", { has: page.getByRole("heading", { name: "Quick actions" }) });
-    await expect(card.getByRole("link", { name: /invite users/i })).toBeVisible();
     await expect(card.getByRole("link", { name: /live activity/i })).toBeVisible();
+    await expect(card.getByRole("link", { name: /invite users/i })).toHaveCount(0);
     await expect(linksParaRotasRemovidas(page)).toHaveCount(0);
   });
 
@@ -109,7 +110,7 @@ test.describe("overview (/overview)", () => {
       await page.setViewportSize({ width, height: 800 });
       await page.goto("/overview");
       const card = page.locator("section", { has: page.getByRole("heading", { name: "Quick actions" }) });
-      await expect(card.getByRole("link")).toHaveCount(2);
+      await expect(card.getByRole("link")).toHaveCount(1);
       await page.evaluate(() => document.fonts.ready);
 
       const columns = await card

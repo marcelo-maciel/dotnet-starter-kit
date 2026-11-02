@@ -5,10 +5,12 @@ namespace Integration.Tests.Tests.Multitenancy;
 [Collection(FshCollectionDefinition.Name)]
 public sealed class TenantIsolationTests
 {
+    private readonly FshWebApplicationFactory _factory;
     private readonly AuthHelper _auth;
 
     public TenantIsolationTests(FshWebApplicationFactory factory)
     {
+        _factory = factory;
         _auth = new AuthHelper(factory);
     }
 
@@ -92,6 +94,7 @@ public sealed class TenantIsolationTests
     private async Task<HttpClient> CreateTenantAdminClientWithRetryAsync(
         string email, string password, string tenant, int maxRetries = 30)
     {
+        await HiddenModulePermissions.GrantToTenantAdminAsync(_factory, tenant, HiddenModulePermissions.IdentityAdministration);
         for (int i = 0; i < maxRetries; i++)
         {
             try

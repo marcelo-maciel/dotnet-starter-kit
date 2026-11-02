@@ -76,21 +76,6 @@ const ApiKeysSettings = lazyNamed(() => import("@/pages/settings/api-keys"), "Ap
 const HealthPage = lazyNamed(() => import("@/pages/health"), "HealthPage");
 const AuditsPage = lazyNamed(() => import("@/pages/audits"), "AuditsPage");
 const SessionsPage = lazyNamed(() => import("@/pages/system/sessions"), "SessionsPage");
-const UsersPage = lazyNamed(() => import("@/pages/identity/users"), "UsersPage");
-const UserDetailPage = lazyNamed(
-  () => import("@/pages/identity/user-detail"),
-  "UserDetailPage",
-);
-const RolesPage = lazyNamed(() => import("@/pages/identity/roles"), "RolesPage");
-const RoleDetailPage = lazyNamed(
-  () => import("@/pages/identity/role-detail"),
-  "RoleDetailPage",
-);
-const GroupsPage = lazyNamed(() => import("@/pages/identity/groups"), "GroupsPage");
-const GroupDetailPage = lazyNamed(
-  () => import("@/pages/identity/group-detail"),
-  "GroupDetailPage",
-);
 // PAF (ADR 0008, module registration: PAF screens in the dashboard routes).
 const PafResgateVinculoPage = lazyNamed(
   () => import("@/features/paf/estacao/resgate-vinculo-page"),
@@ -152,8 +137,9 @@ function withSuspense(node: React.ReactNode) {
   return <Suspense fallback={<RouteFallback />}>{node}</Suspense>;
 }
 
-// Kit screens the PAF does not ship (product decision of 31/10/2026): the pages stay in the tree, the URL only
-// redirects, so an old bookmark lands on the PAF home and never on a dead page.
+// Kit screens the PAF does not ship (product decision of 31/10/2026; the Users, Roles and Groups administration on
+// 02/11/2026, replaced by /paf/usuarios): the pages stay in the tree, the URL only redirects, so an old bookmark lands
+// on the PAF home and never on a dead page.
 const TELAS_DO_KIT_FORA_DO_PRODUTO = [
   "subscription",
   "wallet",
@@ -167,6 +153,10 @@ const TELAS_DO_KIT_FORA_DO_PRODUTO = [
   "catalog/*",
   // Trash only lists Catalog, Tickets and Files records.
   "system/trash",
+  // The kit's own older paths for Billing and Trash, which no screen serves, so they would 404.
+  "billing/*",
+  "trash",
+  "identity/*",
 ];
 
 export const router = createBrowserRouter([
@@ -268,13 +258,6 @@ export const router = createBrowserRouter([
               { path: "programacoes", element: withSuspense(<PafProgramacoesPage />) },
             ],
           },
-          { path: "identity", element: <Navigate to="/identity/users" replace /> },
-          { path: "identity/users", element: withSuspense(<UsersPage />) },
-          { path: "identity/users/:userId", element: withSuspense(<UserDetailPage />) },
-          { path: "identity/roles", element: withSuspense(<RolesPage />) },
-          { path: "identity/roles/:roleId", element: withSuspense(<RoleDetailPage />) },
-          { path: "identity/groups", element: withSuspense(<GroupsPage />) },
-          { path: "identity/groups/:groupId", element: withSuspense(<GroupDetailPage />) },
           {
             path: "settings",
             element: withSuspense(<SettingsLayout />),

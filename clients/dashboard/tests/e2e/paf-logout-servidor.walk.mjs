@@ -176,9 +176,9 @@ try {
   // ── 2. Impersonation: the kit logout never calls the PAF server logout ──
   {
     const admin = await api("POST", "/api/v1/identity/token/issue", null, { email: EMAIL, password: SENHA_DEMO });
-    const usuarios = await api("GET", "/api/v1/identity/users", admin.accessToken);
-    const lista = Array.isArray(usuarios) ? usuarios : (usuarios.items ?? []);
-    const alvo = lista.find((u) => (u.email ?? "").toLowerCase() !== EMAIL && u.isActive !== false);
+    // The kit's user list is root-only (02/11/2026); the client's admin lists its users through the PAF.
+    const usuarios = await api("GET", "/api/v1/paf/usuarios", admin.accessToken);
+    const alvo = usuarios.find((u) => (u.email ?? "").toLowerCase() !== EMAIL && u.ativo !== false);
     await api("POST", `${LOGOUT_PATH}`, admin.accessToken).catch((e) => console.log(`INFO limpeza do token de apoio: ${e.message}`));
     check("impersonação: há outro usuário no tenant", alvo !== undefined);
     const ctx = await browser.newContext();

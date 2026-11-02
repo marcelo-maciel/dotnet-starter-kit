@@ -743,24 +743,20 @@ internal sealed class DemoSeeder
     [
         new(
             "Manager",
-            // Catalog and Tickets are root-only in the PAF (hidden from the client panel): granting them here would be
-            // written straight to the table and then stripped by the API's role sync on the next start.
-            "Operations manager — read-only users.",
+            // Catalog, Tickets and the Users, Roles and Groups administration are root-only in the PAF (hidden from the
+            // client panel): granting them here would be written straight to the table and then stripped by the API's
+            // role sync on the next start.
+            "Operations manager — own sessions.",
             [
-                IdentityPermissions.Users.View,
-                IdentityPermissions.Users.Update,
                 IdentityPermissions.UserRoles.View,
-                IdentityPermissions.Roles.View,
                 IdentityPermissions.Sessions.View,
                 IdentityPermissions.Sessions.Revoke,
-                IdentityPermissions.Groups.View,
             ]),
 
         new(
             "Support",
-            "Support agent — read-only users.",
+            "Support agent — own sessions.",
             [
-                IdentityPermissions.Users.View,
                 IdentityPermissions.UserRoles.View,
                 IdentityPermissions.Sessions.View,
                 IdentityPermissions.Sessions.Revoke,

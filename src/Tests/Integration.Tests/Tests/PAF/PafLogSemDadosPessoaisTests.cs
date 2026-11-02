@@ -53,6 +53,7 @@ public sealed partial class PafLogSemDadosPessoaisTests(PafHostValkey host) : IA
         });
         criar.StatusCode.ShouldBe(HttpStatusCode.Created, await criar.Content.ReadAsStringAsync());
         await TenantProvisioningWait.WaitForProvisioningAsync(root, _tenantId);
+        await HiddenModulePermissions.GrantToTenantAdminAsync(host, _tenantId, HiddenModulePermissions.IdentityAdministration);
         _admin = Cliente((await TokenAsync(_tenantId, adminEmail, TestConstants.DefaultPassword)).AccessToken);
 
         using var scope = host.Services.CreateScope();

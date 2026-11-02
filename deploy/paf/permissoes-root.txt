@@ -31,6 +31,11 @@ Permissions.Files.DeleteAny
 Permissions.Files.DeleteOwn
 Permissions.Files.Restore
 Permissions.Files.ViewTrash
+Permissions.Groups.Create
+Permissions.Groups.Delete
+Permissions.Groups.ManageMembers
+Permissions.Groups.Update
+Permissions.Groups.View
 Permissions.PAF.Contratos.Manage
 Permissions.PAF.Unidades.Operar
 Permissions.Platform.Audits.ViewAll
@@ -44,6 +49,10 @@ Permissions.Platform.Tenants.Update
 Permissions.Platform.Tenants.View
 Permissions.Platform.Users.Impersonate
 Permissions.Platform.Webhooks.Admin
+Permissions.Roles.Create
+Permissions.Roles.Delete
+Permissions.Roles.Update
+Permissions.Roles.View
 Permissions.Tenants.Create
 Permissions.Tenants.Update
 Permissions.Tenants.UpgradeSubscription
@@ -58,4 +67,10 @@ Permissions.Tickets.Resolve
 Permissions.Tickets.Restore
 Permissions.Tickets.Update
 Permissions.Tickets.View
+Permissions.Users.ConfirmEmail
+Permissions.Users.Create
+Permissions.Users.Delete
 Permissions.Users.Impersonate
+Permissions.Users.ManageRoles
+Permissions.Users.Update
+Permissions.Users.View

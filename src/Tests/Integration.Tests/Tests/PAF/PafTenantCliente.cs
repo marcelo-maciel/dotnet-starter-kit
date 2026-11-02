@@ -88,6 +88,7 @@ internal sealed class PafTenantCliente(FshWebApplicationFactory factory, string 
         // The admin is a PAF user from the tenant creation on (C03): escopo empresa in the initial unidade, which
         // gets a contract here so he can log in, with room for the tests' own users of that unidade.
         UnidadeInicial = await PrepararAdministradorAsync(factory, TenantId, LimiteDaUnidadeInicial);
+        await HiddenModulePermissions.GrantToTenantAdminAsync(factory, TenantId, HiddenModulePermissions.IdentityAdministration);
         var token = await LoginAsync(adminEmail, TestConstants.DefaultPassword);
         token.StatusCode.ShouldBe(HttpStatusCode.OK, await token.Content.ReadAsStringAsync());
         Admin = Cliente((await token.Content.ReadFromJsonAsync<TokenResult>())!.AccessToken);
