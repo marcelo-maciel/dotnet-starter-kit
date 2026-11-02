@@ -29,7 +29,7 @@ public sealed class RevogarVinculoEstacaoCommandHandler(
             .ConfigureAwait(false);
         if (!existe)
         {
-            throw new NotFoundException($"Estacao {command.EstacaoId} not found.");
+            throw new NotFoundException($"Estação {command.EstacaoId} não encontrada.");
         }
 
         // Idempotent: revoking a station with no current link is a no-op, not an error.

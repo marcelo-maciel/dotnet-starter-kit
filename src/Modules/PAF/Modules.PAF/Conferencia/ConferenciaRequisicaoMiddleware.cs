@@ -59,7 +59,7 @@ internal sealed partial class ConferenciaRequisicaoMiddleware(RequestDelegate ne
             if (!string.IsNullOrEmpty(pedido) && !string.Equals(pedido, tenantDaClaim, StringComparison.Ordinal))
             {
                 LogTenantDivergente(logger, context.Request.Path.Value);
-                throw new ForbiddenException("The requested tenant does not match the authenticated tenant.");
+                throw new ForbiddenException("A empresa pedida não confere com a da sessão.");
             }
         }
     }
