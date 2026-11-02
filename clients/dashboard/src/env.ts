@@ -32,7 +32,7 @@ export async function loadRuntimeConfig(): Promise<void> {
   if (cached !== null) return;
   const res = await fetch("/config.json", { cache: "no-store" });
   if (!res.ok) {
-    throw new Error(`Failed to load /config.json: ${res.status} ${res.statusText}`);
+    throw new Error(`Falha ao carregar /config.json: ${res.status} ${res.statusText}`);
   }
   const cfg = (await res.json()) as Partial<RuntimeConfig>;
   cached = {

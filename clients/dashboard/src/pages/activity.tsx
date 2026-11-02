@@ -135,8 +135,8 @@ export function ActivityPage() {
         units="eventos"
         description={
           canViewHistory
-            ? "Eventos recebidos por Server-Sent Events enquanto esta aba está conectada, acima do histórico recente de auditoria da empresa."
-            : "Eventos recebidos da API por Server-Sent Events enquanto esta aba está conectada."
+            ? "Eventos recebidos em tempo real (SSE) enquanto esta aba está conectada, acima do histórico recente de auditoria da empresa."
+            : "Eventos recebidos da API em tempo real (SSE) enquanto esta aba está conectada."
         }
       >
         {isLive ? (
