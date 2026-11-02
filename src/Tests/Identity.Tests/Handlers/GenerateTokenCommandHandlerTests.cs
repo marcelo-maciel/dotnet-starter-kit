@@ -1,6 +1,7 @@
 using AutoFixture;
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Core.Context;
+using FSH.Framework.Core.Exceptions;
 using FSH.Framework.Eventing.Outbox;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Auditing.Contracts;
@@ -166,6 +167,7 @@ public sealed class GenerateTokenCommandHandlerTests
             async () => await _sut.Handle(command, CancellationToken.None));
 
         exception.Message.ShouldBe("Invalid credentials.");
+        exception.ShouldBeOfType<LocalizedUnauthorizedAccessException>().MessageKey.ShouldBe("Identity.InvalidCredentials");
     }
 
     [Fact]

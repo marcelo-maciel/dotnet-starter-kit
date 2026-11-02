@@ -25,7 +25,7 @@ public sealed class ObterConfiguracaoEstacaoQueryHandler(PafDbContext db, Leitor
             .Select(e => new { e.Id, e.UnidadeId, e.Nome, e.Tipo, e.Configuracao })
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false)
-            ?? throw new NotFoundException($"Estacao {query.EstacaoId} not found.");
+            ?? throw new NotFoundException($"Estação {query.EstacaoId} não encontrada.");
 
         var botoes = await BotoesAsync(estacao.Id, estacao.UnidadeId, cancellationToken).ConfigureAwait(false);
         var papeis = PapeisDaEstacao.ComCredencial(estacao.Tipo);

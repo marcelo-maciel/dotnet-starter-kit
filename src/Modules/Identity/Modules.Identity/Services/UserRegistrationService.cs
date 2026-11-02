@@ -9,10 +9,12 @@ using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Data;
 using FSH.Modules.Identity.Domain;
+using FSH.Modules.Identity.Localization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
 using System.Collections.ObjectModel;
 using System.Globalization;
@@ -28,7 +30,8 @@ internal sealed class UserRegistrationService(
     IJobService jobService,
     IMailService mailService,
     IMultiTenantContextAccessor<AppTenantInfo> multiTenantContextAccessor,
-    IOptions<RequestLocalizationOptions> localizationOptions) : IUserRegistrationService
+    IOptions<RequestLocalizationOptions> localizationOptions,
+    IStringLocalizer<IdentityResources> localizer) : IUserRegistrationService
 {
     // Every new account starts in the deployment's language (pt-BR in production), so the e-mails it gets
     // and the panel it opens agree before the user ever picks one.
@@ -83,14 +86,23 @@ internal sealed class UserRegistrationService(
             .Where(u => u.Id == userId && !u.EmailConfirmed)
             .FirstOrDefaultAsync(cancellationToken);
 
-        _ = user ?? throw new CustomException("An error occurred while confirming E-Mail.");
+        _ = user ?? throw new CustomException("An error occurred while confirming E-Mail.")
+        {
+            MessageKey = "Identity.EmailConfirmationError",
+            ResourceSource = typeof(IdentityResources),
+        };
 
         code = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(code));
         var result = await userManager.ConfirmEmailAsync(user, code);
 
         return result.Succeeded
-            ? string.Format(CultureInfo.InvariantCulture, "Account Confirmed for E-Mail {0}. You can now use the /api/tokens endpoint to generate JWT.", user.Email)
-            : throw new CustomException(string.Format(CultureInfo.InvariantCulture, "An error occurred while confirming {0}", user.Email));
+            ? localizer["Identity.EmailConfirmed", user.Email!].Value
+            : throw new CustomException(string.Format(CultureInfo.InvariantCulture, "An error occurred while confirming {0}", user.Email))
+            {
+                MessageKey = "Identity.EmailConfirmationFailedFor",
+                MessageArgs = [user.Email!],
+                ResourceSource = typeof(IdentityResources),
+            };
     }
 
     public async Task AdminConfirmEmailAsync(string userId, CancellationToken cancellationToken = default)
@@ -100,7 +112,12 @@ internal sealed class UserRegistrationService(
         var user = await userManager.Users
             .Where(u => u.Id == userId)
             .FirstOrDefaultAsync(cancellationToken)
-            ?? throw new NotFoundException($"User {userId} was not found.");
+            ?? throw new NotFoundException($"User {userId} was not found.")
+            {
+                MessageKey = "Identity.UserNotFoundById",
+                MessageArgs = [userId],
+                ResourceSource = typeof(IdentityResources),
+            };
 
         // Idempotent: a second confirm is a no-op rather than an error.
         if (user.EmailConfirmed)
@@ -112,11 +129,17 @@ internal sealed class UserRegistrationService(
         var result = await userManager.UpdateAsync(user);
         if (!result.Succeeded)
         {
+            var errors = string.Join("; ", result.Errors.Select(e => e.Description));
             throw new CustomException(string.Format(
                 CultureInfo.InvariantCulture,
                 "An error occurred while confirming the email for {0}: {1}",
                 user.Email,
-                string.Join("; ", result.Errors.Select(e => e.Description))));
+                errors))
+            {
+                MessageKey = "Identity.EmailConfirmationFailedWithErrors",
+                MessageArgs = [user.Email!, errors],
+                ResourceSource = typeof(IdentityResources),
+            };
         }
     }
 
@@ -127,14 +150,24 @@ internal sealed class UserRegistrationService(
         var user = await userManager.Users
             .Where(u => u.Id == userId)
             .FirstOrDefaultAsync(cancellationToken)
-            ?? throw new NotFoundException($"User {userId} was not found.");
+            ?? throw new NotFoundException($"User {userId} was not found.")
+            {
+                MessageKey = "Identity.UserNotFoundById",
+                MessageArgs = [userId],
+                ResourceSource = typeof(IdentityResources),
+            };
 
         if (user.EmailConfirmed)
         {
             throw new CustomException(string.Format(
                 CultureInfo.InvariantCulture,
                 "The email for {0} is already confirmed.",
-                user.Email));
+                user.Email))
+            {
+                MessageKey = "Identity.EmailAlreadyConfirmed",
+                MessageArgs = [user.Email!],
+                ResourceSource = typeof(IdentityResources),
+            };
         }
 
         await SendConfirmationEmailAsync(user, origin, cancellationToken);
@@ -162,7 +195,10 @@ internal sealed class UserRegistrationService(
     {
         if (string.IsNullOrWhiteSpace(multiTenantContextAccessor?.MultiTenantContext?.TenantInfo?.Id))
         {
-            throw new UnauthorizedException("invalid tenant");
+            throw new UnauthorizedException("invalid tenant")
+            {
+                MessageKey = "Error.InvalidTenant",
+            };
         }
     }
 

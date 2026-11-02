@@ -46,7 +46,7 @@ internal sealed class GenerateTokenLicenseBehavior(
         // The kit service throws on every invalid credential; null would only come from another implementation.
         var credencial = await identidade.ValidateCredentialsAsync(
                 message.Email, message.Password, message.TwoFactorCode, cancellationToken)
-            ?? throw new UnauthorizedException("Invalid credentials.");
+            ?? throw new UnauthorizedException("Credenciais inválidas.");
         var subject = credencial.Subject;
 
         await using var reserva = await licencas.ReservarAsync(tenantId, Guid.Parse(subject), cancellationToken);

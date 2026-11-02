@@ -64,6 +64,7 @@ using FSH.Modules.Identity.Features.v1.Users.SelfRegistration;
 using FSH.Modules.Identity.Features.v1.Users.SetProfileImage;
 using FSH.Modules.Identity.Features.v1.Users.ToggleUserStatus;
 using FSH.Modules.Identity.Features.v1.Users.UpdateUser;
+using FSH.Modules.Identity.Localization;
 using FSH.Modules.Identity.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -160,7 +161,8 @@ public class IdentityModule : IModule
             options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
         })
            .AddEntityFrameworkStores<IdentityDbContext>()
-           .AddDefaultTokenProviders();
+           .AddDefaultTokenProviders()
+           .AddErrorDescriber<LocalizedIdentityErrorDescriber>();
 
         //metrics
         services.AddSingleton<IdentityMetrics>();

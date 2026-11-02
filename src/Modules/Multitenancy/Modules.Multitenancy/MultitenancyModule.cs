@@ -183,7 +183,10 @@ public sealed class MultitenancyModule : IModule
                 {
                     if (!tenant.IsActive)
                     {
-                        throw new ForbiddenException("This tenant has been deactivated. Contact your administrator.");
+                        throw new ForbiddenException("This tenant has been deactivated. Contact your administrator.")
+                        {
+                            MessageKey = "Tenant.Deactivated",
+                        };
                     }
 
                     // Expiry is enforced on every request (not just at login) with a grace period:
@@ -194,7 +197,10 @@ public sealed class MultitenancyModule : IModule
                     var graceEndsUtc = tenant.ValidUpto.AddDays(graceDays);
                     if (nowUtc > graceEndsUtc)
                     {
-                        throw new ForbiddenException("This tenant's subscription has expired. Please renew to continue.");
+                        throw new ForbiddenException("This tenant's subscription has expired. Please renew to continue.")
+                        {
+                            MessageKey = "Tenant.SubscriptionExpired",
+                        };
                     }
 
                     // Inside the grace period: surface days-left so clients can warn. Set via OnStarting so

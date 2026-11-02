@@ -49,7 +49,7 @@ public sealed class UserPasswordServiceTests
     }
 
     private UserPasswordService CreateSut() =>
-        new(_userManager, null!, _jobService, _mailService, _tenantAccessor, null!, null!, DeploymentCultureOptions.For("en-US"));
+        new(_userManager, null!, _jobService, _mailService, _tenantAccessor, null!, null!, DeploymentCultureOptions.For("en-US"), SharedResourcesLocalizerFactory.Create());
 
     private MailRequest CaptureSentMail()
     {
@@ -142,5 +142,30 @@ public sealed class UserPasswordServiceTests
 
         // Assert
         _jobService.DidNotReceive().Enqueue(Arg.Any<Expression<Func<Task>>>());
+    }
+
+    // The integration host swaps the exception handler, so the key the 500 body is translated from is pinned here.
+    [Theory]
+    [InlineData("en-US", "Failed to change password.")]
+    [InlineData("pt-BR", "Falha ao alterar a senha.")]
+    public async Task ChangePasswordAsync_Should_CarryTheCatalogKey_When_IdentityRefusesTheChange(string culture, string detail)
+    {
+        // Arrange
+        var user = new FshUser { Id = "u1", Email = "ana@codefi.com.br", UserName = "ana" };
+        _userManager.FindByIdAsync("u1").Returns(user);
+        _userManager.ChangePasswordAsync(user, "errada", "Nova456!")
+            .Returns(IdentityResult.Failed(new IdentityError { Code = "PasswordMismatch", Description = "Senha incorreta." }));
+        var sut = CreateSut();
+
+        // Act
+        var ex = await Should.ThrowAsync<FSH.Framework.Core.Exceptions.CustomException>(
+            () => sut.ChangePasswordAsync("errada", "Nova456!", "Nova456!", "u1", CancellationToken.None));
+
+        // Assert
+        ex.MessageKey.ShouldBe("Identity.FailedToChangePassword");
+        ex.ResourceSource.ShouldBe(typeof(FSH.Modules.Identity.Localization.IdentityResources));
+        ex.ErrorMessages.ShouldBe(["Senha incorreta."]);
+        using var scope = new UiCultureScope(culture);
+        IdentityResourcesLocalizerFactory.Create()[ex.MessageKey!].Value.ShouldBe(detail);
     }
 }
