@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Shared.Multitenancy;
+using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Domain;
 using FSH.Modules.PAF.Contracts.Authorization;
 using FSH.Modules.PAF.Contracts.v1.Estacoes;
@@ -156,17 +157,16 @@ internal sealed class TenantPaf(PafKestrelFactory factory)
         var sufixo = Guid.NewGuid().ToString("N")[..8];
         var email = $"paf-ws-{sufixo}@example.com";
         const string senha = "Test@1234!";
-        using var registro = await Admin.PostAsJsonAsync($"{TestConstants.IdentityBasePath}/register", new
+        // The kit's register endpoint is root only (02/11/2026); a client creates users through the PAF, which calls
+        // this same registration service.
+        string usuarioId;
+        using (var scope = factory.Services.CreateScope())
         {
-            firstName = "Atendente",
-            lastName = "WebSocket",
-            email,
-            userName = $"paf-ws-{sufixo}",
-            password = senha,
-            confirmPassword = senha,
-        });
-        registro.StatusCode.ShouldBe(HttpStatusCode.Created, await registro.Content.ReadAsStringAsync());
-        var usuarioId = (await registro.Content.ReadFromJsonAsync<RegisterResult>())!.UserId;
+            Contexto(scope, unidadeCorrente: null);
+            usuarioId = await scope.ServiceProvider.GetRequiredService<IUserRegistrationService>().RegisterAsync(
+                "Atendente", "WebSocket", email, $"paf-ws-{sufixo}", senha, senha, string.Empty, "http://localhost",
+                CancellationToken.None);
+        }
 
         using (var scope = factory.Services.CreateScope())
         {
