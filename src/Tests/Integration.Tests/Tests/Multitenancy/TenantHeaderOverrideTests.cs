@@ -60,6 +60,7 @@ public sealed class TenantHeaderOverrideTests : IAsyncLifetime
 
         // Provisioning can report "Completed" a tick before the seeded admin user is queryable; a
         // successful token issuance cross-checks the user exists, avoiding a first-test race on empty lists.
+        await HiddenModulePermissions.GrantToTenantAdminAsync(_factory, _tenantA, HiddenModulePermissions.IdentityAdministration);
         _ = await GetTokenWithRetryAsync(_tenantAAdminEmail, TestConstants.DefaultPassword, _tenantA);
         _ = await GetTokenWithRetryAsync(_tenantBAdminEmail, TestConstants.DefaultPassword, _tenantB);
     }

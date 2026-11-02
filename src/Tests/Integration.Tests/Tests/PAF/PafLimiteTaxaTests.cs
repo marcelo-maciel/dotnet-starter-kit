@@ -85,6 +85,7 @@ public sealed class PafLimiteTaxaTests(PafHostLimiteTaxa host, ITestOutputHelper
         });
         criar.StatusCode.ShouldBe(HttpStatusCode.Created, await criar.Content.ReadAsStringAsync());
         await TenantProvisioningWait.WaitForProvisioningAsync(root, _tenantId);
+        await HiddenModulePermissions.GrantToTenantAdminAsync(host, _tenantId, HiddenModulePermissions.IdentityAdministration);
         _admin = ClientePreparacao((await TokenAsync(_tenantId, adminEmail, TestConstants.DefaultPassword)).AccessToken, _tenantId);
 
         using var scope = host.Services.CreateScope();
