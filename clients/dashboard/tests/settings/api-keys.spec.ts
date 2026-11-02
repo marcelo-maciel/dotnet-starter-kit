@@ -18,20 +18,20 @@ test.describe("settings/api-keys — placeholder", () => {
     // "API keys" also appears in the page masthead (<h1>) and the sidebar
     // nav — match the section <h3> exactly so the assertion is unambiguous.
     await expect(
-      page.getByRole("heading", { name: "API keys", exact: true }),
+      page.getByRole("heading", { name: "Chaves de API", exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: /api keys aren't available yet/i }),
+      page.getByRole("heading", { name: /as chaves de api ainda não estão disponíveis/i }),
     ).toBeVisible();
     await expect(
-      page.getByText(/personal access tokens and service-to-service api keys/i),
+      page.getByText(/tokens de acesso pessoal e chaves de api entre serviços/i),
     ).toBeVisible();
   });
 
   test("exposes a 'View roadmap' button", async ({ page }) => {
     await page.goto("/settings/api-keys");
 
-    await expect(page.getByRole("button", { name: /view roadmap/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /ver roadmap/i })).toBeVisible();
   });
 
   test("'View roadmap' opens the GitHub repo in a new tab", async ({ page, context }) => {
@@ -39,7 +39,7 @@ test.describe("settings/api-keys — placeholder", () => {
 
     // The handler calls window.open(..., "_blank") — capture the popup.
     const popupPromise = context.waitForEvent("page");
-    await page.getByRole("button", { name: /view roadmap/i }).click();
+    await page.getByRole("button", { name: /ver roadmap/i }).click();
     const popup = await popupPromise;
     expect(popup.url()).toContain("github.com/fullstackhero/dotnet-starter-kit");
     await popup.close();

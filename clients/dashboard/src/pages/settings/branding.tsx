@@ -64,27 +64,27 @@ export function BrandingSettings() {
   const saveMutation = useMutation({
     mutationFn: (theme: TenantThemeDto) => updateTenantTheme(theme),
     onSuccess: () => {
-      toast.success("Branding saved");
+      toast.success("Marca salva");
       void queryClient.invalidateQueries({ queryKey: THEME_QUERY_KEY });
     },
-    onError: (err) => toast.error("Save failed", { description: apiErr(err) }),
+    onError: (err) => toast.error("Falha ao salvar", { description: apiErr(err) }),
   });
 
   const resetMutation = useMutation({
     mutationFn: resetTenantTheme,
     onSuccess: () => {
-      toast.success("Branding reset to defaults");
+      toast.success("Marca de volta ao padrão");
       void queryClient.invalidateQueries({ queryKey: THEME_QUERY_KEY });
     },
-    onError: (err) => toast.error("Reset failed", { description: apiErr(err) }),
+    onError: (err) => toast.error("Falha ao voltar ao padrão", { description: apiErr(err) }),
   });
 
   if (themeQuery.isLoading) {
     return (
-      <SettingsSection title="Branding" icon={Palette} description="Loading branding…">
+      <SettingsSection title="Marca" icon={Palette} description="Carregando a marca…">
         <div className="flex items-center gap-2 text-[13px] text-[var(--color-muted-foreground)]">
           <Loader2 className="size-4 animate-spin" aria-hidden />
-          <span>Loading branding</span>
+          <span>Carregando a marca</span>
         </div>
       </SettingsSection>
     );
@@ -92,7 +92,7 @@ export function BrandingSettings() {
 
   if (themeQuery.isError) {
     return (
-      <SettingsSection title="Branding" icon={Palette}>
+      <SettingsSection title="Marca" icon={Palette}>
         <ErrorBand message={apiErr(themeQuery.error)} />
       </SettingsSection>
     );
@@ -115,12 +115,12 @@ export function BrandingSettings() {
       <div className="flex items-center gap-2">
         {draft.isDefault && !dirty && (
           <Badge variant="outline" className="font-mono uppercase tracking-[0.14em]">
-            default
+            padrão
           </Badge>
         )}
         {dirty && (
           <Badge variant="warning" className="font-mono uppercase tracking-[0.14em]">
-            unsaved
+            não salvo
           </Badge>
         )}
       </div>
@@ -130,10 +130,10 @@ export function BrandingSettings() {
           variant="ghost"
           onClick={() => resetMutation.mutate()}
           disabled={resetMutation.isPending || saveMutation.isPending}
-          aria-label="Reset branding to defaults"
+          aria-label="Voltar a marca ao padrão"
         >
           <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-          {resetMutation.isPending ? "Resetting…" : "Reset to defaults"}
+          {resetMutation.isPending ? "Voltando…" : "Voltar ao padrão"}
         </Button>
         <Button
           type="button"
@@ -145,7 +145,7 @@ export function BrandingSettings() {
           ) : (
             <Save className="mr-1.5 h-3.5 w-3.5" />
           )}
-          {saveMutation.isPending ? "Saving…" : "Save branding"}
+          {saveMutation.isPending ? "Salvando…" : "Salvar marca"}
         </Button>
       </div>
     </div>
@@ -153,23 +153,23 @@ export function BrandingSettings() {
 
   return (
     <SettingsSection
-      title="Branding"
+      title="Marca"
       icon={Palette}
-      description="Theme tokens consumed by your tenant's apps on sign-in. Live preview reflects the primary action with the chosen palette."
+      description="Cores e imagens que os aplicativos da empresa usam a partir da entrada. A pré-visualização mostra a ação principal com a paleta escolhida."
       footer={footer}
     >
       <div className="space-y-6">
-        <ThemePreview palette={draft.lightPalette} label="Light preview" />
+        <ThemePreview palette={draft.lightPalette} label="Pré-visualização clara" />
 
         <div className="grid gap-5 lg:grid-cols-2">
           <PaletteEditor
-            title="Light palette"
+            title="Paleta clara"
             palette={draft.lightPalette}
             onChange={onLight}
             defaults={DEFAULT_LIGHT_PALETTE}
           />
           <PaletteEditor
-            title="Dark palette"
+            title="Paleta escura"
             palette={draft.darkPalette}
             onChange={onDark}
             defaults={DEFAULT_DARK_PALETTE}
@@ -187,15 +187,15 @@ export function BrandingSettings() {
 // ─────────────────────────────────────────────────────────────────────────
 
 const PALETTE_FIELDS: ReadonlyArray<{ key: keyof PaletteDto; label: string }> = [
-  { key: "primary", label: "Primary" },
-  { key: "secondary", label: "Secondary" },
-  { key: "tertiary", label: "Tertiary" },
-  { key: "background", label: "Background" },
-  { key: "surface", label: "Surface" },
-  { key: "error", label: "Error" },
-  { key: "warning", label: "Warning" },
-  { key: "success", label: "Success" },
-  { key: "info", label: "Info" },
+  { key: "primary", label: "Primária" },
+  { key: "secondary", label: "Secundária" },
+  { key: "tertiary", label: "Terciária" },
+  { key: "background", label: "Fundo" },
+  { key: "surface", label: "Superfície" },
+  { key: "error", label: "Erro" },
+  { key: "warning", label: "Alerta" },
+  { key: "success", label: "Sucesso" },
+  { key: "info", label: "Informação" },
 ];
 
 function PaletteEditor({
@@ -221,7 +221,7 @@ function PaletteEditor({
           onClick={() => onChange(defaults)}
         >
           <RotateCcw className="h-2.5 w-2.5" aria-hidden />
-          Reset palette
+          Voltar a paleta ao padrão
         </button>
       </div>
       <div className="grid gap-2 p-4 sm:grid-cols-2">
@@ -254,14 +254,14 @@ function ColorRow({
       <label
         className="relative grid h-8 w-8 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-lg shadow-sm ring-1 ring-inset ring-[var(--color-border)]"
         style={{ backgroundColor: valid ? value : undefined }}
-        title={`Pick ${label} color`}
+        title={`Escolher a cor ${label}`}
       >
         <input
           type="color"
           value={valid ? value : "#000000"}
           onChange={(e) => onChange(e.target.value.toUpperCase())}
           className="sr-only"
-          aria-label={`${label} color`}
+          aria-label={`Cor ${label}`}
         />
       </label>
       <div className="min-w-0 flex-1">
@@ -301,17 +301,17 @@ function BrandAssetsEditor({
     <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)]">
       <div className="border-b border-[oklch(from_var(--color-border)_l_c_h_/_0.5)] px-4 py-2.5">
         <h4 className="text-[12.5px] font-semibold tracking-tight text-[var(--color-foreground)]">
-          Brand assets
+          Imagens da marca
         </h4>
         <p className="mt-0.5 text-[11.5px] leading-relaxed text-[var(--color-muted-foreground)]">
-          URLs to your hosted brand assets. Upload via the Files module first,
-          then paste the resulting public URL here.
+          Endereços das imagens da marca hospedadas por você. Envie a imagem
+          primeiro e cole aqui o endereço público dela.
         </p>
       </div>
       <div className="space-y-4 p-4">
         <AssetField
           id="logo-url"
-          label="Logo URL"
+          label="URL do logotipo"
           value={assets.logoUrl ?? ""}
           onChange={(v) =>
             onChange({ logoUrl: v || null, deleteLogo: v.length === 0 })
@@ -319,7 +319,7 @@ function BrandAssetsEditor({
         />
         <AssetField
           id="logo-dark-url"
-          label="Logo URL (dark mode)"
+          label="URL do logotipo (tema escuro)"
           value={assets.logoDarkUrl ?? ""}
           onChange={(v) =>
             onChange({ logoDarkUrl: v || null, deleteLogoDark: v.length === 0 })
@@ -327,7 +327,7 @@ function BrandAssetsEditor({
         />
         <AssetField
           id="favicon-url"
-          label="Favicon URL"
+          label="URL do favicon"
           value={assets.faviconUrl ?? ""}
           onChange={(v) =>
             onChange({ faviconUrl: v || null, deleteFavicon: v.length === 0 })
@@ -406,7 +406,7 @@ function ThemePreview({ palette, label }: { palette: PaletteDto; label: string }
           className="rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.1em]"
           style={{ backgroundColor: palette.success, color: palette.surface }}
         >
-          live
+          ao vivo
         </span>
       </div>
 
@@ -418,21 +418,21 @@ function ThemePreview({ palette, label }: { palette: PaletteDto; label: string }
               className="text-[13px] font-semibold"
               style={{ color: palette.secondary }}
             >
-              Sample tenant page
+              Página de exemplo da empresa
             </span>
             <span
               className="rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.1em]"
               style={{ backgroundColor: palette.success, color: palette.surface }}
             >
-              active
+              ativa
             </span>
           </div>
           <p
             className="mb-4 text-[12.5px] leading-relaxed"
             style={{ color: palette.secondary, opacity: 0.72 }}
           >
-            A short paragraph rendered with the chosen body color over the chosen
-            surface, on the chosen page background. Action buttons use the primary token.
+            Um parágrafo curto com a cor de texto escolhida sobre a superfície
+            escolhida, no fundo de página escolhido. Os botões usam a cor primária.
           </p>
           <div className="flex flex-wrap gap-2">
             {/* Primary action */}
@@ -440,7 +440,7 @@ function ThemePreview({ palette, label }: { palette: PaletteDto; label: string }
               className="inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-medium shadow-sm"
               style={{ backgroundColor: palette.primary, color: palette.surface }}
             >
-              Primary action
+              Ação principal
             </span>
             {/* Outline secondary */}
             <span
@@ -451,21 +451,21 @@ function ThemePreview({ palette, label }: { palette: PaletteDto; label: string }
                 backgroundColor: "transparent",
               }}
             >
-              Secondary
+              Secundária
             </span>
             {/* Warning pill */}
             <span
               className="inline-flex items-center rounded-lg px-2.5 py-1 text-[10.5px] font-mono font-medium uppercase tracking-[0.1em]"
               style={{ backgroundColor: palette.warning, color: palette.background }}
             >
-              warn
+              alerta
             </span>
             {/* Error pill */}
             <span
               className="inline-flex items-center rounded-lg px-2.5 py-1 text-[10.5px] font-mono font-medium uppercase tracking-[0.1em]"
               style={{ backgroundColor: palette.error, color: palette.surface }}
             >
-              error
+              erro
             </span>
           </div>
         </div>
@@ -479,5 +479,5 @@ function apiErr(err: unknown): string {
     return err.problem?.detail ?? err.problem?.title ?? err.message;
   }
   if (err instanceof Error) return err.message;
-  return "Unknown error";
+  return "Erro desconhecido";
 }

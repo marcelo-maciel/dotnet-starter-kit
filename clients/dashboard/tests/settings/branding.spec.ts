@@ -53,19 +53,19 @@ test.describe("settings/branding — tenant theme editor", () => {
 
     // "Branding" appears in the header, the nav tab, and the section title —
     // target the section's heading specifically to stay unambiguous.
-    await expect(page.getByRole("heading", { name: "Branding", exact: true })).toBeVisible();
-    await expect(page.getByText("Light palette")).toBeVisible();
-    await expect(page.getByText("Dark palette")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Marca", exact: true })).toBeVisible();
+    await expect(page.getByText("Paleta clara")).toBeVisible();
+    await expect(page.getByText("Paleta escura")).toBeVisible();
 
     // The hex text input sits next to the color chip; target it by its value.
     // Editing it flips the section to "unsaved" and enables Save.
     const primaryHex = page.locator('input[value="#2563EB"]').first();
     await primaryHex.fill("#123ABC");
-    await expect(page.getByText("unsaved")).toBeVisible();
+    await expect(page.getByText("não salvo")).toBeVisible();
 
-    await page.getByRole("button", { name: "Save branding" }).click();
+    await page.getByRole("button", { name: "Salvar marca" }).click();
 
-    await expect(page.getByText("Branding saved")).toBeVisible();
+    await expect(page.getByText("Marca salva")).toBeVisible();
     expect(putBody).not.toBeNull();
     expect((putBody as { lightPalette: { primary: string } }).lightPalette.primary).toBe("#123ABC");
   });
@@ -81,9 +81,9 @@ test.describe("settings/branding — tenant theme editor", () => {
     });
 
     await page.goto("/settings/branding");
-    await page.getByRole("button", { name: "Reset branding to defaults" }).click();
+    await page.getByRole("button", { name: "Voltar a marca ao padrão" }).click();
 
-    await expect(page.getByText("Branding reset to defaults")).toBeVisible();
+    await expect(page.getByText("Marca de volta ao padrão")).toBeVisible();
     expect(resetCalled).toBe(true);
   });
 
@@ -91,8 +91,8 @@ test.describe("settings/branding — tenant theme editor", () => {
     // Default permissions ([]) — no re-mock. Land on another settings tab.
     await page.goto("/settings/profile");
 
-    await expect(page.getByRole("link", { name: /Profile/ })).toBeVisible();
-    await expect(page.getByRole("link", { name: /Branding/ })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /Perfil/ })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Marca/ })).toHaveCount(0);
   });
 
   test("shows an error toast and keeps the draft when PUT is rejected 403", async ({ page }) => {
@@ -116,9 +116,9 @@ test.describe("settings/branding — tenant theme editor", () => {
     await page.goto("/settings/branding");
     const primaryHex = page.locator('input[value="#2563EB"]').first();
     await primaryHex.fill("#123ABC");
-    await page.getByRole("button", { name: "Save branding" }).click();
+    await page.getByRole("button", { name: "Salvar marca" }).click();
 
-    await expect(page.getByText("Save failed")).toBeVisible();
+    await expect(page.getByText("Falha ao salvar")).toBeVisible();
     // Draft preserved — the edited value is still in the input.
     await expect(page.locator('input[value="#123ABC"]').first()).toBeVisible();
   });
@@ -134,7 +134,7 @@ test.describe("settings/branding — tenant theme editor", () => {
 
     // The GET retries twice (query-client retry policy) before the error state
     // lands, so allow past the default 5s window.
-    await expect(page.getByText(/Failure/)).toBeVisible({ timeout: 12_000 });
+    await expect(page.getByText(/Falha/)).toBeVisible({ timeout: 12_000 });
     await expect(page.getByText("Could not load theme.")).toBeVisible();
   });
 });

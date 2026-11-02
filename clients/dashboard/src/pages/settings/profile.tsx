@@ -73,7 +73,7 @@ export function ProfileSettings() {
   const saveMutation = useMutation({
     mutationFn: updateMyProfile,
     onSuccess: async () => {
-      toast.success("Profile saved");
+      toast.success("Perfil salvo");
       // The save moved the profile on, so the tag the form holds is spent: adopt the new one or
       // a second save in the same sitting would 412 against the user's own write. Awaited rather
       // than fire-and-forget: isPending has to stay true until the new tag is in hand, or the
@@ -89,9 +89,9 @@ export function ProfileSettings() {
       // edits on screen, adopt the current version, and let them decide whether to save again.
       if (err instanceof ApiRequestError && err.status === 412) {
         await adoptCurrentVersion();
-        toast.warning("Profile changed elsewhere", {
+        toast.warning("Perfil alterado em outro lugar", {
           description:
-            "Someone updated this profile while you were editing. Review your changes and save again to apply them.",
+            "Alguém atualizou este perfil enquanto você editava. Revise suas alterações e salve de novo para aplicá-las.",
         });
         return;
       }
@@ -99,8 +99,8 @@ export function ProfileSettings() {
       const message =
         err instanceof ApiRequestError
           ? err.problem?.detail ?? err.problem?.title ?? err.message
-          : "Failed to save profile";
-      toast.error("Save failed", { description: message });
+          : "Falha ao salvar o perfil";
+      toast.error("Falha ao salvar", { description: message });
     },
   });
 
@@ -141,7 +141,7 @@ export function ProfileSettings() {
   const imageMutation = useMutation({
     mutationFn: (url: string | null) => setProfileImage(url),
     onSuccess: async () => {
-      toast.success("Profile image updated");
+      toast.success("Foto do perfil atualizada");
       // The avatar URL is one of the fields the profile version hashes, so setting the image moves
       // the tag and the one this form is holding is spent. Adopting the new version (which
       // also refreshes the cache, so the topbar avatar still updates) keeps the next save from
@@ -152,7 +152,7 @@ export function ProfileSettings() {
       const message =
         e instanceof ApiRequestError
           ? (e.problem?.detail ?? e.problem?.title ?? e.message)
-          : "Failed to update profile image";
+          : "Falha ao atualizar a foto do perfil";
       toast.error(message);
     },
   });
@@ -165,15 +165,15 @@ export function ProfileSettings() {
           className="flex items-start gap-2 rounded-lg border border-[oklch(from_var(--color-destructive)_l_c_h_/_0.30)] bg-[oklch(from_var(--color-destructive)_l_c_h_/_0.06)] px-3 py-2 text-[13px] text-[var(--color-destructive)]"
         >
           <span>
-            Couldn't load your profile. Showing details from your session; saving is disabled
-            until the profile loads, because a save has to carry the version it was read at.
+            Não foi possível carregar seu perfil. Os dados mostrados vêm da sua sessão; salvar fica
+            desligado até o perfil carregar, porque o salvamento precisa levar a versão lida.
           </span>
         </div>
       )}
       <SettingsSection
-        title="Photo"
+        title="Foto"
         icon={Camera}
-        description="Shown in the topbar and on your activity. Square crops work best — JPG, PNG, or WebP."
+        description="Aparece no topo da tela e na sua atividade. Imagens quadradas ficam melhores: JPG, PNG ou WebP."
       >
         <ImageInput
           value={profile?.imageUrl ?? ""}
@@ -185,9 +185,9 @@ export function ProfileSettings() {
       </SettingsSection>
 
       <SettingsSection
-        title="Identity"
+        title="Identificação"
         icon={UserCircle2}
-        description="Your name and contact details, visible across the dashboard."
+        description="Seu nome e seus dados de contato, visíveis em todo o sistema."
         footer={
           <div className="flex items-center justify-end gap-2">
             <Button
@@ -197,16 +197,16 @@ export function ProfileSettings() {
               disabled={saving || !dirty || !canSave}
               size="sm"
             >
-              Reset
+              Desfazer
             </Button>
             <Button type="submit" disabled={saving || !dirty || !canSave} size="sm">
-              {saving ? "Saving…" : "Save changes"}
+              {saving ? "Salvando…" : "Salvar alterações"}
             </Button>
           </div>
         }
       >
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field id="first-name" label="First name">
+          <Field id="first-name" label="Nome">
             <Input
               id="first-name"
               value={firstName}
@@ -216,7 +216,7 @@ export function ProfileSettings() {
               className="h-10 text-[13px]"
             />
           </Field>
-          <Field id="last-name" label="Last name">
+          <Field id="last-name" label="Sobrenome">
             <Input
               id="last-name"
               value={lastName}
@@ -226,7 +226,7 @@ export function ProfileSettings() {
               className="h-10 text-[13px]"
             />
           </Field>
-          <Field id="email" label="Email">
+          <Field id="email" label="E-mail">
             <Input
               id="email"
               type="email"
@@ -236,10 +236,10 @@ export function ProfileSettings() {
               className="h-10 cursor-not-allowed bg-[var(--color-muted)] text-[13px]"
             />
             <p className="mt-1 text-[11px] text-[var(--color-muted-foreground)]">
-              Contact your tenant admin to change your sign-in email.
+              Fale com o administrador da empresa para trocar o e-mail de entrada.
             </p>
           </Field>
-          <Field id="phone" label="Phone">
+          <Field id="phone" label="Telefone">
             <Input
               id="phone"
               type="tel"
@@ -255,9 +255,9 @@ export function ProfileSettings() {
       </SettingsSection>
 
       <SettingsSection
-        title="Subject identifier"
+        title="Identificador da conta"
         icon={Fingerprint}
-        description="The unique ID this account uses inside the platform. Read-only."
+        description="O ID único desta conta dentro do sistema. Somente leitura."
       >
         <code className="block w-full overflow-x-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] px-3 py-2 font-mono text-xs">
           {profile?.id ?? user?.id ?? "—"}

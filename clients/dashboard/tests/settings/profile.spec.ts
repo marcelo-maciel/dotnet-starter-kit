@@ -26,20 +26,20 @@ test.describe("settings/profile — wired to PUT /identity/profile", () => {
 
     // Wait for query-driven hydration (initial paint shows empty fields,
     // then useEffect copies the fetched profile in).
-    await expect(page.getByLabel("First name")).toHaveValue("Alice");
-    await expect(page.getByLabel("Last name")).toHaveValue("Nguyen");
-    await expect(page.getByLabel("Email")).toHaveValue("alice@acme.com");
-    await expect(page.getByLabel("Email")).toBeDisabled();
+    await expect(page.getByLabel("Nome", { exact: true })).toHaveValue("Alice");
+    await expect(page.getByLabel("Sobrenome")).toHaveValue("Nguyen");
+    await expect(page.getByLabel("E-mail")).toHaveValue("alice@acme.com");
+    await expect(page.getByLabel("E-mail")).toBeDisabled();
   });
 
   test("Save is disabled until the form is dirty", async ({ page }) => {
     await page.goto("/settings/profile");
-    await expect(page.getByLabel("First name")).toHaveValue("Alice");
+    await expect(page.getByLabel("Nome", { exact: true })).toHaveValue("Alice");
 
-    const save = page.getByRole("button", { name: /save changes/i });
+    const save = page.getByRole("button", { name: /salvar alterações/i });
     await expect(save).toBeDisabled();
 
-    await page.getByLabel("First name").fill("Alicia");
+    await page.getByLabel("Nome", { exact: true }).fill("Alicia");
     await expect(save).toBeEnabled();
   });
 
@@ -52,11 +52,11 @@ test.describe("settings/profile — wired to PUT /identity/profile", () => {
     await mockJsonResponse(page, "**/api/v1/identity/profile", '""', { method: "PUT" });
 
     await page.goto("/settings/profile");
-    await expect(page.getByLabel("First name")).toHaveValue("Alice");
+    await expect(page.getByLabel("Nome", { exact: true })).toHaveValue("Alice");
 
-    await page.getByLabel("First name").fill("Alicia");
-    await page.getByLabel("Last name").fill("Nguyen-Ortiz");
-    await page.getByLabel("Phone").fill("+1 (555) 000-1234");
+    await page.getByLabel("Nome", { exact: true }).fill("Alicia");
+    await page.getByLabel("Sobrenome").fill("Nguyen-Ortiz");
+    await page.getByLabel("Telefone").fill("+1 (555) 000-1234");
 
     // Start listening BEFORE the click — waitForRequest registers the
     // listener at the moment of the call, so it would miss a request
@@ -68,7 +68,7 @@ test.describe("settings/profile — wired to PUT /identity/profile", () => {
         !req.url().includes("/image"),
       { timeout: 5_000 },
     );
-    await page.getByRole("button", { name: /save changes/i }).click();
+    await page.getByRole("button", { name: /salvar alterações/i }).click();
     const putReq = await putReqPromise;
 
     const body = JSON.parse(putReq.postData() ?? "{}");
@@ -86,14 +86,14 @@ test.describe("settings/profile — wired to PUT /identity/profile", () => {
     await mockJsonResponse(page, "**/api/v1/identity/profile", '""', { method: "PUT" });
 
     await page.goto("/settings/profile");
-    await expect(page.getByLabel("Phone")).toHaveValue("+1 555 000 1234");
+    await expect(page.getByLabel("Telefone")).toHaveValue("+1 555 000 1234");
 
-    await page.getByLabel("Phone").fill("");
+    await page.getByLabel("Telefone").fill("");
     const putReqPromise = page.waitForRequest(
       (req) => req.url().includes("/api/v1/identity/profile") && req.method() === "PUT",
       { timeout: 5_000 },
     );
-    await page.getByRole("button", { name: /save changes/i }).click();
+    await page.getByRole("button", { name: /salvar alterações/i }).click();
     const body = JSON.parse((await putReqPromise).postData() ?? "{}");
 
     expect(body.phoneNumber).toBe("");
@@ -103,12 +103,12 @@ test.describe("settings/profile — wired to PUT /identity/profile", () => {
     await mockJsonResponse(page, "**/api/v1/identity/profile", '""', { method: "PUT" });
 
     await page.goto("/settings/profile");
-    await expect(page.getByLabel("First name")).toHaveValue("Alice");
+    await expect(page.getByLabel("Nome", { exact: true })).toHaveValue("Alice");
 
-    await page.getByLabel("First name").fill("Alicia");
-    await page.getByRole("button", { name: /save changes/i }).click();
+    await page.getByLabel("Nome", { exact: true }).fill("Alicia");
+    await page.getByRole("button", { name: /salvar alterações/i }).click();
 
-    await expect(page.getByText(/profile saved/i)).toBeVisible();
+    await expect(page.getByText(/perfil salvo/i)).toBeVisible();
   });
 
   test("surfaces a destructive toast on server error", async ({ page }) => {
@@ -132,12 +132,12 @@ test.describe("settings/profile — wired to PUT /identity/profile", () => {
     });
 
     await page.goto("/settings/profile");
-    await expect(page.getByLabel("First name")).toHaveValue("Alice");
+    await expect(page.getByLabel("Nome", { exact: true })).toHaveValue("Alice");
 
-    await page.getByLabel("First name").fill("Alicia");
-    await page.getByRole("button", { name: /save changes/i }).click();
+    await page.getByLabel("Nome", { exact: true }).fill("Alicia");
+    await page.getByRole("button", { name: /salvar alterações/i }).click();
 
-    await expect(page.getByText(/save failed/i)).toBeVisible();
+    await expect(page.getByText(/falha ao salvar/i)).toBeVisible();
     await expect(page.getByText(/first name cannot be empty/i)).toBeVisible();
   });
 
@@ -171,9 +171,9 @@ test.describe("settings/profile — wired to PUT /identity/profile", () => {
     });
 
     await page.goto("/settings/profile");
-    await expect(page.getByLabel("First name")).toHaveValue("Alice");
+    await expect(page.getByLabel("Nome", { exact: true })).toHaveValue("Alice");
 
-    await page.getByLabel("First name").fill("Alicia");
+    await page.getByLabel("Nome", { exact: true }).fill("Alicia");
 
     const putReqPromise = page.waitForRequest(
       (req) =>
@@ -182,7 +182,7 @@ test.describe("settings/profile — wired to PUT /identity/profile", () => {
         !req.url().includes("/image"),
       { timeout: 5_000 },
     );
-    await page.getByRole("button", { name: /save changes/i }).click();
+    await page.getByRole("button", { name: /salvar alterações/i }).click();
     const putReq = await putReqPromise;
 
     // Without this the server cannot tell a deliberate overwrite from a lost update.
@@ -223,15 +223,15 @@ test.describe("settings/profile — wired to PUT /identity/profile", () => {
     });
 
     await page.goto("/settings/profile");
-    await expect(page.getByLabel("First name")).toHaveValue("Alice");
+    await expect(page.getByLabel("Nome", { exact: true })).toHaveValue("Alice");
 
     // Someone else writes the profile while the user is typing.
     currentStamp = 2;
 
-    await page.getByLabel("First name").fill("Alicia");
-    await page.getByRole("button", { name: /save changes/i }).click();
+    await page.getByLabel("Nome", { exact: true }).fill("Alicia");
+    await page.getByRole("button", { name: /salvar alterações/i }).click();
 
-    await expect(page.getByText(/profile changed elsewhere/i)).toBeVisible();
+    await expect(page.getByText(/perfil alterado em outro lugar/i)).toBeVisible();
     expect(sentIfMatch[0]).toBe('"stamp-1"');
   });
 
@@ -275,37 +275,37 @@ test.describe("settings/profile — wired to PUT /identity/profile", () => {
     });
 
     await page.goto("/settings/profile");
-    await expect(page.getByLabel("First name")).toHaveValue("Alice");
+    await expect(page.getByLabel("Nome", { exact: true })).toHaveValue("Alice");
 
     currentStamp = 2;
-    await page.getByLabel("First name").fill("Alicia");
-    await page.getByRole("button", { name: /save changes/i }).click();
+    await page.getByLabel("Nome", { exact: true }).fill("Alicia");
+    await page.getByRole("button", { name: /salvar alterações/i }).click();
 
-    await expect(page.getByText(/profile changed elsewhere/i)).toBeVisible();
-    await expect(page.getByText(/profile saved/i)).toBeHidden();
+    await expect(page.getByText(/perfil alterado em outro lugar/i)).toBeVisible();
+    await expect(page.getByText(/perfil salvo/i)).toBeHidden();
     // One PUT only: no silent retry behind the user's back.
     expect(sentIfMatch).toHaveLength(1);
     // The typing survived the rejection — nothing to retype.
-    await expect(page.getByLabel("First name")).toHaveValue("Alicia");
+    await expect(page.getByLabel("Nome", { exact: true })).toHaveValue("Alicia");
 
     // Saving again now carries the version the warning told the user about.
-    await page.getByRole("button", { name: /save changes/i }).click();
-    await expect(page.getByText(/profile saved/i)).toBeVisible();
+    await page.getByRole("button", { name: /salvar alterações/i }).click();
+    await expect(page.getByText(/perfil salvo/i)).toBeVisible();
     expect(sentIfMatch).toHaveLength(2);
     expect(sentIfMatch[1]).toBe('"stamp-2"');
   });
 
   test("Reset button reverts edits to the original profile values", async ({ page }) => {
     await page.goto("/settings/profile");
-    await expect(page.getByLabel("First name")).toHaveValue("Alice");
+    await expect(page.getByLabel("Nome", { exact: true })).toHaveValue("Alice");
 
-    await page.getByLabel("First name").fill("Alicia");
-    await page.getByLabel("Phone").fill("+1 (555) 999-9999");
+    await page.getByLabel("Nome", { exact: true }).fill("Alicia");
+    await page.getByLabel("Telefone").fill("+1 (555) 999-9999");
 
-    await page.getByRole("button", { name: /^reset$/i }).click();
+    await page.getByRole("button", { name: /^desfazer$/i }).click();
 
-    await expect(page.getByLabel("First name")).toHaveValue("Alice");
-    await expect(page.getByLabel("Phone")).toHaveValue("");
+    await expect(page.getByLabel("Nome", { exact: true })).toHaveValue("Alice");
+    await expect(page.getByLabel("Telefone")).toHaveValue("");
   });
 
   // A compressing edge re-encodes the response and downgrades the validator it forwards:
@@ -329,8 +329,8 @@ test.describe("settings/profile — wired to PUT /identity/profile", () => {
     });
 
     await page.goto("/settings/profile");
-    await expect(page.getByLabel("First name")).toHaveValue("Alice");
-    await page.getByLabel("First name").fill("Alicia");
+    await expect(page.getByLabel("Nome", { exact: true })).toHaveValue("Alice");
+    await page.getByLabel("Nome", { exact: true }).fill("Alicia");
 
     const putReqPromise = page.waitForRequest(
       (req) =>
@@ -339,7 +339,7 @@ test.describe("settings/profile — wired to PUT /identity/profile", () => {
         !req.url().includes("/image"),
       { timeout: 5_000 },
     );
-    await page.getByRole("button", { name: /save changes/i }).click();
+    await page.getByRole("button", { name: /salvar alterações/i }).click();
     const putReq = await putReqPromise;
 
     expect(putReq.headers()["if-match"]).toBe('"stamp-1"');
@@ -372,13 +372,13 @@ test.describe("settings/profile — wired to PUT /identity/profile", () => {
     });
 
     await page.goto("/settings/profile");
-    await expect(page.getByLabel("First name")).toHaveValue("Alice");
+    await expect(page.getByLabel("Nome", { exact: true })).toHaveValue("Alice");
 
-    await page.getByRole("button", { name: /^remove$/i }).click();
-    await expect(page.getByText(/profile image updated/i)).toBeVisible();
+    await page.getByRole("button", { name: /^remover$/i }).click();
+    await expect(page.getByText(/foto do perfil atualizada/i)).toBeVisible();
 
-    await page.getByLabel("First name").fill("Alicia");
-    await page.getByRole("button", { name: /save changes/i }).click();
+    await page.getByLabel("Nome", { exact: true }).fill("Alicia");
+    await page.getByRole("button", { name: /salvar alterações/i }).click();
 
     await expect.poll(() => sentIfMatch).toEqual(['"stamp-2"']);
   });
@@ -401,7 +401,7 @@ test.describe("settings/profile — wired to PUT /identity/profile", () => {
 
     await page.goto("/settings/profile");
 
-    await expect(page.getByText(/saving is disabled/i)).toBeVisible();
-    await expect(page.getByRole("button", { name: /save changes/i })).toBeDisabled();
+    await expect(page.getByText(/salvar fica\s+desligado/i)).toBeVisible();
+    await expect(page.getByRole("button", { name: /salvar alterações/i })).toBeDisabled();
   });
 });

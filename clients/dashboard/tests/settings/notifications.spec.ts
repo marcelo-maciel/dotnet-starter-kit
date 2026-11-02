@@ -18,19 +18,19 @@ test.describe("settings/notifications — placeholder", () => {
     // Section title is an <h3>; the sidebar nav uses plain spans, so the
     // heading role is unambiguous.
     await expect(
-      page.getByRole("heading", { name: "Notification preferences" }),
+      page.getByRole("heading", { name: "Preferências de notificação" }),
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: /per-event preferences aren't tunable yet/i }),
+      page.getByRole("heading", { name: /as preferências por evento ainda não podem ser ajustadas/i }),
     ).toBeVisible();
-    await expect(page.getByText(/granular per-event email opt-ins/i)).toBeVisible();
+    await expect(page.getByText(/a escolha de e-mail por evento/i)).toBeVisible();
   });
 
   test("exposes a button that opens the notifications bell", async ({ page }) => {
     await page.goto("/settings/notifications");
 
     await expect(
-      page.getByRole("button", { name: /open notifications bell/i }),
+      page.getByRole("button", { name: /abrir o sino de notificações/i }),
     ).toBeVisible();
   });
 
@@ -40,7 +40,7 @@ test.describe("settings/notifications — placeholder", () => {
     // The handler does an optional-chained `[data-notification-bell]?.click()`,
     // so it's a safe no-op when the topbar bell isn't mounted. We only assert
     // the click doesn't throw or navigate away from the settings tab.
-    await page.getByRole("button", { name: /open notifications bell/i }).click();
+    await page.getByRole("button", { name: /abrir o sino de notificações/i }).click();
     await expect(page).toHaveURL(/\/settings\/notifications$/);
   });
 });
