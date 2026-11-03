@@ -315,17 +315,25 @@ function PainelSetores(props: {
 function CampoCor(props: { rotulo: string; valor: string; dica: string | null; onMudar: (valor: string) => void }) {
   const id = useId();
   const idDica = `${id}-dica`;
-  const valido = /^#[0-9a-fA-F]{6}$/.test(props.valor);
   return (
     <div className="space-y-1">
       <Label htmlFor={id}>{props.rotulo}</Label>
-      <div className="flex gap-2">
-        <Input id={id} value={props.valor} placeholder="padrão" maxLength={7} aria-describedby={props.dica ? idDica : undefined}
-          onChange={(e) => props.onMudar(e.target.value)} />
-        <input type="color" aria-label={`${props.rotulo}: seletor`} className="h-9 w-10 rounded border"
-          value={valido ? props.valor : "#000000"} onChange={(e) => props.onMudar(e.target.value.toUpperCase())} />
-      </div>
+      <SeletorCor id={id} rotulo={props.rotulo} valor={props.valor} idDica={props.dica ? idDica : undefined} onMudar={props.onMudar} />
       {props.dica && <p id={idDica} className="text-xs text-[var(--color-muted-foreground)]">{props.dica}</p>}
+    </div>
+  );
+}
+
+// Without a visible label: in the priority grid the column header "Cor do botão" already names it, and a label per
+// row only repeated "Cor de <prioridade>" under it. The accessible name stays on the input.
+function SeletorCor(props: { id: string | undefined; rotulo: string; valor: string; idDica: string | undefined; onMudar: (valor: string) => void }) {
+  const valido = /^#[0-9a-fA-F]{6}$/.test(props.valor);
+  return (
+    <div className="flex gap-2">
+      <Input id={props.id} aria-label={props.rotulo} value={props.valor} placeholder="padrão" maxLength={7} aria-describedby={props.idDica}
+        onChange={(e) => props.onMudar(e.target.value)} />
+      <input type="color" aria-label={`${props.rotulo}: seletor`} className="h-9 w-10 rounded border"
+        value={valido ? props.valor : "#000000"} onChange={(e) => props.onMudar(e.target.value.toUpperCase())} />
     </div>
   );
 }
@@ -402,7 +410,7 @@ function FormularioFila(props: {
 
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">Grade de prioridades</legend>
-        <table className="w-full text-sm">
+        <table className="w-full text-sm [&_td]:pr-3 [&_th]:pr-3">
           <thead>
             <tr className="text-left">
               <th>Prioridade</th><th>Letra</th><th>Nº inicial</th><th>Cor do botão</th><th><span className="sr-only">Ordem</span></th>
@@ -416,7 +424,7 @@ function FormularioFila(props: {
                   onChange={(e) => mudarLinha(i, { letra: e.target.value.toUpperCase() })} /></td>
                 <td><Input aria-label={`Número inicial de ${l.prioridade}`} type="number" min={0} value={l.numeroInicial} className="w-24"
                   onChange={(e) => mudarLinha(i, { numeroInicial: Number(e.target.value) })} /></td>
-                <td><CampoCor rotulo={`Cor de ${l.prioridade}`} valor={l.corBotao ?? ""} dica={null} onMudar={(c) => mudarLinha(i, { corBotao: c })} /></td>
+                <td><SeletorCor id={undefined} rotulo={`Cor de ${l.prioridade}`} valor={l.corBotao ?? ""} idDica={undefined} onMudar={(c) => mudarLinha(i, { corBotao: c })} /></td>
                 <td className="whitespace-nowrap">
                   <Button size="icon-xs" variant="ghost" aria-label={`Subir ${l.prioridade}`} disabled={i === 0} onClick={() => mover(i, -1)}>↑</Button>
                   <Button size="icon-xs" variant="ghost" aria-label={`Descer ${l.prioridade}`} disabled={i === form.linhas.length - 1} onClick={() => mover(i, 1)}>↓</Button>
