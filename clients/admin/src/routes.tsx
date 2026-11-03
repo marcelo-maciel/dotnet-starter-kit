@@ -199,7 +199,7 @@ export const router = createBrowserRouter([
           },
 
           // Webhooks — list/detail both read subscriptions, which the server
-          // gates on Webhooks.View (granted to Basic by default).
+          // gates on Webhooks.View (Admin only).
           {
             path: "webhooks",
             element: (

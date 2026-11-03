@@ -13,6 +13,7 @@ using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Data;
 using FSH.Modules.Identity.Domain;
 using FSH.Modules.Tickets.Contracts.Authorization;
+using FSH.Modules.Webhooks.Contracts.Authorization;
 using Integration.Tests.Infrastructure;
 using Microsoft.AspNetCore.Identity;
 
@@ -275,10 +276,10 @@ public sealed class RootOnlyTenantPermissionsTests
     }
 
     [Fact]
-    public async Task BasicUser_Should_Get403_OnTheAuditTrail_WhileTheAdminGets200()
+    public async Task BasicUser_Should_Get403_OnTheAuditTrailAndTheWebhooks_WhileTheAdminGets200()
     {
         // A client's user with only the Basic role (the Atendente's kit role) no longer reads the trail of everyone's
-        // actions and IPs, while the client's Admin still does. Its own permission list is checked too, so a 403 for
+        // actions and IPs (S2) nor the webhook subscriptions and deliveries (S3), while the client's Admin still does. Its own permission list is checked too, so a 403 for
         // another reason cannot pass for this one.
         using var root = await _auth.CreateRootAdminClientAsync();
         var (tenantAdmin, tenant) = await ProvisionTenantAsync(root, "trilha");
@@ -291,7 +292,14 @@ public sealed class RootOnlyTenantPermissionsTests
         var own = await asBasic.GetFromJsonAsync<string[]>($"{TestConstants.IdentityBasePath}/permissions");
         own.ShouldNotBeNull().ShouldContain(IdentityPermissions.Sessions.View, "premise: the user holds the Basic role");
         own.ShouldNotContain(AuditingPermissions.AuditTrails.View);
-        foreach (var endpoint in new[] { $"{TestConstants.AuditsBasePath}?pageNumber=1&pageSize=10", $"{TestConstants.AuditsBasePath}/summary" })
+        own.ShouldNotContain(WebhooksPermissions.Subscriptions.View);
+        foreach (var endpoint in new[]
+        {
+            $"{TestConstants.AuditsBasePath}?pageNumber=1&pageSize=10",
+            $"{TestConstants.AuditsBasePath}/summary",
+            $"{TestConstants.WebhooksBasePath}/subscriptions?pageNumber=1&pageSize=10",
+            $"{TestConstants.WebhooksBasePath}/subscriptions/{Guid.NewGuid()}/deliveries?pageNumber=1&pageSize=10",
+        })
         {
             using var basic = await asBasic.GetAsync(endpoint);
             using var admin = await tenantAdmin.GetAsync(endpoint);

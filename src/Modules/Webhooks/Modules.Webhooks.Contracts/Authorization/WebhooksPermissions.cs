@@ -15,7 +15,9 @@ public static class WebhooksPermissions
 
     public static IReadOnlyList<FshPermission> All { get; } =
     [
-        new("View Webhooks",   ActionConstants.View,   Subscriptions.Resource, IsBasic: true),
+        // Not basic (S3, 03/11/2026): the subscriptions show the tenant's integration URLs and the deliveries their
+        // errors, so only the tenant's Admin role holds it, not every user through Basic.
+        new("View Webhooks",   ActionConstants.View,   Subscriptions.Resource),
         new("Create Webhooks", ActionConstants.Create, Subscriptions.Resource),
         new("Delete Webhooks", ActionConstants.Delete, Subscriptions.Resource),
         new("Test Webhooks",   "Test",                 Subscriptions.Resource),
