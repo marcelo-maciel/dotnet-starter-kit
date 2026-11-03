@@ -272,10 +272,16 @@ try {
   await pGuiche.keyboard.press("F7");
   await pGuiche.waitForTimeout(1_500);
   check("guichê: F7 (padrão antigo) não chama", (await pGuiche.locator("[data-senha-guiche]").count()) === 0);
+  // A hotkey mirrors its button and is ignored while the guichê is busy: the new state shows before the post
+  // reload ends, so each press waits for its button to be enabled (trial click: actionability only, no click).
+  const liberado = (nome) => pGuiche.getByRole("button", { name: nome, exact: true }).click({ trial: true, timeout: TIMEOUT });
+  await liberado("Chamar próxima");
   await pGuiche.keyboard.press("F9");
   check("guichê: F9 configurada chama a próxima", await visivel(pGuiche.locator("[data-senha-guiche]")));
+  await liberado("Iniciar atendimento");
   await pGuiche.keyboard.press("F3");
   check("guichê: F3 (padrão) inicia o atendimento", await visivel(pGuiche.locator('[data-estado-guiche]:has-text("Em atendimento")')));
+  await liberado("Encerrar atendimento");
   await pGuiche.keyboard.press("F4");
   check("guichê: F4 encerra", await visivel(pGuiche.getByText(/Nenhum atendimento em curso/)));
 } finally {

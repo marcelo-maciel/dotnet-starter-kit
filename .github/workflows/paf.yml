@@ -56,13 +56,11 @@ jobs:
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/Directory.Packages.props') }}
           restore-keys: ${{ runner.os }}-nuget-
 
-      # NuGetAudit=false: pre-existing audit failure of the kit's package set, tracked outside the PAF; the
-      # kit's own backend.yml still audits on main.
       - name: Restore
-        run: dotnet restore src/FSH.Starter.slnx -p:NuGetAudit=false
+        run: dotnet restore src/FSH.Starter.slnx
 
       - name: Build
-        run: dotnet build src/FSH.Starter.slnx -c Release --no-restore -p:NuGetAudit=false
+        run: dotnet build src/FSH.Starter.slnx -c Release --no-restore
 
       - name: Architecture.Tests
         run: dotnet test src/Tests/Architecture.Tests -c Release --no-build --logger "trx;LogFileName=Architecture.trx" --results-directory ./TestResults
@@ -113,10 +111,10 @@ jobs:
           restore-keys: ${{ runner.os }}-nuget-
 
       - name: Restore
-        run: dotnet restore src/Tests/Integration.Tests -p:NuGetAudit=false
+        run: dotnet restore src/Tests/Integration.Tests
 
       - name: Build
-        run: dotnet build src/Tests/Integration.Tests -c Release --no-restore -p:NuGetAudit=false
+        run: dotnet build src/Tests/Integration.Tests -c Release --no-restore
 
       # Testcontainers: ubuntu-latest ships Docker.
       - name: Integration.Tests (PAF)

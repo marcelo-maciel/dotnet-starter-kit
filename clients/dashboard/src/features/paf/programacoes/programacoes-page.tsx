@@ -257,7 +257,7 @@ export function ProgramacoesPage() {
       {dados?.items.length === 0 && <p>Nenhuma programação encontrada.</p>}
 
       {dados && dados.items.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
+        <div className="relative overflow-x-auto rounded-xl border border-[var(--color-border)]">
           <table className="w-full text-sm" data-tabela-programacoes>
             <thead className="bg-[var(--color-muted)] text-left">
               <tr>
