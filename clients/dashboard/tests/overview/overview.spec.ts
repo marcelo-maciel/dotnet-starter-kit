@@ -70,6 +70,7 @@ test.describe("overview (/overview)", () => {
     const card = page.locator("section", { has: page.getByRole("heading", { name: "Auditoria recente" }) });
     await expect(card.getByText("Sem acesso à auditoria")).toBeVisible();
     await expect(card.getByRole("link", { name: /ver tudo/i })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Ver auditoria", exact: true })).toHaveCount(0);
     await expect(page.getByText(/falha|failure|couldn't load/i)).toHaveCount(0);
 
     expect(auditCalls).toBe(0);
@@ -100,6 +101,7 @@ test.describe("overview (/overview)", () => {
     const card = page.locator("section", { has: page.getByRole("heading", { name: "Auditoria recente" }) });
     await expect(card.getByText("api.identity.IssueJwtToken")).toBeVisible();
     await expect(card.getByRole("link", { name: /ver tudo/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Ver auditoria", exact: true })).toBeVisible();
   });
 
   test("quick-action tiles are wide enough for their title and description", async ({ page }) => {
