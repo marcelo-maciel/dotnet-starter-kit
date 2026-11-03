@@ -17,7 +17,9 @@ public static class AuditingPermissions
 
     public static IReadOnlyList<FshPermission> All { get; } =
     [
-        new("View Audit Trails", ActionConstants.View, AuditTrails.Resource, IsBasic: true),
+        // Not basic (S2, 03/11/2026): the trail shows every user's actions and IP in the tenant, so only the tenant's
+        // Admin role holds it, not every user through Basic.
+        new("View Audit Trails", ActionConstants.View, AuditTrails.Resource),
         new("View Audit Trails Across Tenants", "ViewCrossTenant", AuditTrails.Resource, IsRoot: true),
     ];
 }

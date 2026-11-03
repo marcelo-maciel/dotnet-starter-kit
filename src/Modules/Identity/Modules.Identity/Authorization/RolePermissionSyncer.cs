@@ -43,10 +43,11 @@ public sealed class RolePermissionSyncer(
             : PermissionConstants.Admin.ToList();
         int adminAdded = await SyncRoleAsync(RoleConstants.Admin, adminPermissions, cancellationToken).ConfigureAwait(false);
         int rootOnlyRemoved = isRoot ? 0 : await RemoveRootOnlyClaimsAsync(cancellationToken).ConfigureAwait(false);
+        int noLongerBasicRemoved = isRoot ? 0 : await RemoveNoLongerBasicClaimsAsync(basicPermissions, cancellationToken).ConfigureAwait(false);
 
         // If we wrote anything, drop the per-user permission cache so already-logged-in
         // sessions see the new perms on their next request rather than waiting for TTL.
-        if (basicAdded + adminAdded + rootOnlyRemoved > 0)
+        if (basicAdded + adminAdded + rootOnlyRemoved + noLongerBasicRemoved > 0)
         {
             await cache.RemoveByTagAsync(CacheKeys.Tags.Permissions, cancellationToken).ConfigureAwait(false);
         }
@@ -129,6 +130,42 @@ public sealed class RolePermissionSyncer(
         {
             logger.LogInformation(
                 "Removed {Count} root-only permission claim(s) from tenant '{Tenant}'",
+                stale.Count,
+                tenantAccessor.MultiTenantContext.TenantInfo?.Id);
+        }
+
+        return stale.Count;
+    }
+
+    /// <summary>
+    /// A permission that stopped being basic (AuditTrails.View, 03/11/2026) stays on the Basic role of tenants seeded
+    /// before the change, for the same reason. A client's roles are root-only administration since 02/11/2026, so its
+    /// Basic role holds exactly what the sync gives it: a registered permission outside the basic set is taken off.
+    /// Claims that are not registered permissions are left alone.
+    /// </summary>
+    private async Task<int> RemoveNoLongerBasicClaimsAsync(IReadOnlyList<FshPermission> basicPermissions, CancellationToken cancellationToken)
+    {
+        var basic = basicPermissions.Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
+        var notBasic = PermissionConstants.All.Select(p => p.Name).Where(name => !basic.Contains(name)).ToList();
+        var basicRoleIds = roleManager.Roles.Where(r => r.Name == RoleConstants.Basic).Select(r => r.Id);
+        var stale = await context.RoleClaims
+            .Where(rc => basicRoleIds.Contains(rc.RoleId)
+                && rc.ClaimType == ClaimConstants.Permission
+                && notBasic.Contains(rc.ClaimValue!))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (stale.Count == 0)
+        {
+            return 0;
+        }
+
+        context.RoleClaims.RemoveRange(stale);
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation(
+                "Removed {Count} no-longer-basic permission claim(s) from the Basic role of tenant '{Tenant}'",
                 stale.Count,
                 tenantAccessor.MultiTenantContext.TenantInfo?.Id);
         }

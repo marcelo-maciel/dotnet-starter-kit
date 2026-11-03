@@ -2,6 +2,7 @@ using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Shared.Constants;
 using FSH.Framework.Shared.Multitenancy;
+using FSH.Modules.Auditing.Contracts.Authorization;
 using FSH.Modules.Billing.Contracts.Authorization;
 using FSH.Modules.Catalog.Contracts.Authorization;
 using FSH.Modules.Chat.Contracts.Authorization;
@@ -13,6 +14,7 @@ using FSH.Modules.Identity.Data;
 using FSH.Modules.Identity.Domain;
 using FSH.Modules.Tickets.Contracts.Authorization;
 using Integration.Tests.Infrastructure;
+using Microsoft.AspNetCore.Identity;
 
 namespace Integration.Tests.Tests.Roles;
 
@@ -22,7 +24,8 @@ namespace Integration.Tests.Tests.Roles;
 /// Catalog, Chat, Files and Helpdesk, 31/10/2026), except Files.Upload, which the profile photo needs, and the kit's
 /// Users, Roles and Groups administration (02/11/2026), which /paf/usuarios replaces. A client's roles never hold
 /// them, no role of the client can get them back, and a client seeded while they were still tenant permissions loses
-/// them on the startup role sync. The client's Admin cannot read its roles through the API any more, so these tests
+/// them on the startup role sync. AuditTrails.View stopped being basic (03/11/2026): the client's Admin keeps it and
+/// the client's Basic role loses it on the same sync. The client's Admin cannot read its roles through the API any more, so these tests
 /// read them straight from the table, inside the tenant.
 /// </summary>
 [Collection(FshCollectionDefinition.Name)]
@@ -225,6 +228,79 @@ public sealed class RootOnlyTenantPermissionsTests
     }
 
     [Fact]
+    public async Task RoleSync_Should_TakeNoLongerBasicClaims_OffTheClientBasicRole()
+    {
+        // AuditTrails.View stopped being basic (S2, 03/11/2026): a client seeded before keeps it on Basic, and the
+        // startup sync takes it off there, while the client's Admin keeps it. A custom role keeps it (it was granted,
+        // not inherited), so does a claim that is no registered permission, and the root tenant's Basic is not touched.
+        const string Unregistered = "Permissions.NaoRegistrada.View";
+        using var root = await _auth.CreateRootAdminClientAsync();
+        var (tenantAdmin, tenant) = await ProvisionTenantAsync(root, "basic");
+        using var _t = tenantAdmin;
+        var rootTenant = await TenantAsync(TestConstants.RootTenantId);
+        var (basicRoleId, _) = await RoleAsync(tenant, RoleConstants.Basic);
+        var (adminRoleId, _) = await RoleAsync(tenant, RoleConstants.Admin);
+        var (rootBasicRoleId, _) = await RoleAsync(rootTenant, RoleConstants.Basic);
+        var customRoleId = await CreateRoleAsync(tenant, $"Basic-{Guid.NewGuid():N}"[..20]);
+        await AddClaimsAsync(tenant, [(basicRoleId, AuditingPermissions.AuditTrails.View), (basicRoleId, Unregistered), (customRoleId, AuditingPermissions.AuditTrails.View)]);
+        await AddClaimsAsync(rootTenant, [(rootBasicRoleId, AuditingPermissions.AuditTrails.View)]);
+
+        try
+        {
+            (await PermissionsAsync(tenant, basicRoleId)).ShouldContain(AuditingPermissions.AuditTrails.View, "premise: the stale claim was written");
+            using (var scope = EnterTenant(tenant))
+            {
+                await scope.ServiceProvider.GetRequiredService<RolePermissionSyncer>().SyncAsync(CancellationToken.None);
+            }
+
+            using (var scope = EnterTenant(rootTenant))
+            {
+                await scope.ServiceProvider.GetRequiredService<RolePermissionSyncer>().SyncAsync(CancellationToken.None);
+            }
+
+            var basicAfter = await PermissionsAsync(tenant, basicRoleId);
+            basicAfter.ShouldNotContain(AuditingPermissions.AuditTrails.View);
+            basicAfter.ShouldContain(Unregistered, "a claim that is no registered permission is left alone");
+            basicAfter.ShouldContain(IdentityPermissions.Sessions.View, "the basic permissions stay");
+            basicAfter.ShouldContain(FilesPermissions.Upload, "the basic permissions stay");
+            (await PermissionsAsync(tenant, adminRoleId)).ShouldContain(AuditingPermissions.AuditTrails.View, "the client's Admin keeps the trail");
+            (await PermissionsAsync(tenant, customRoleId)).ShouldContain(AuditingPermissions.AuditTrails.View, "a granted claim is not the Basic role's");
+            (await PermissionsAsync(rootTenant, rootBasicRoleId)).ShouldContain(AuditingPermissions.AuditTrails.View, "the root tenant's Basic is not touched");
+        }
+        finally
+        {
+            // The root tenant is shared by every test of the collection: its Basic goes back to the seed.
+            await RemoveClaimAsync(rootTenant, rootBasicRoleId, AuditingPermissions.AuditTrails.View);
+        }
+    }
+
+    [Fact]
+    public async Task BasicUser_Should_Get403_OnTheAuditTrail_WhileTheAdminGets200()
+    {
+        // A client's user with only the Basic role (the Atendente's kit role) no longer reads the trail of everyone's
+        // actions and IPs, while the client's Admin still does. Its own permission list is checked too, so a 403 for
+        // another reason cannot pass for this one.
+        using var root = await _auth.CreateRootAdminClientAsync();
+        var (tenantAdmin, tenant) = await ProvisionTenantAsync(root, "trilha");
+        using var _t = tenantAdmin;
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var email = $"trilha-{unique}@tenant.com";
+        await RegisterConfirmedUserAsync(tenant, email, $"trilha{unique}");
+        using var asBasic = await _auth.CreateAuthenticatedClientAsync(email, TestConstants.DefaultPassword, tenant.Id);
+
+        var own = await asBasic.GetFromJsonAsync<string[]>($"{TestConstants.IdentityBasePath}/permissions");
+        own.ShouldNotBeNull().ShouldContain(IdentityPermissions.Sessions.View, "premise: the user holds the Basic role");
+        own.ShouldNotContain(AuditingPermissions.AuditTrails.View);
+        foreach (var endpoint in new[] { $"{TestConstants.AuditsBasePath}?pageNumber=1&pageSize=10", $"{TestConstants.AuditsBasePath}/summary" })
+        {
+            using var basic = await asBasic.GetAsync(endpoint);
+            using var admin = await tenantAdmin.GetAsync(endpoint);
+            basic.StatusCode.ShouldBe(HttpStatusCode.Forbidden, $"{endpoint}: {await basic.Content.ReadAsStringAsync()}");
+            admin.StatusCode.ShouldBe(HttpStatusCode.OK, $"{endpoint} as the client's admin: {await admin.Content.ReadAsStringAsync()}");
+        }
+    }
+
+    [Fact]
     public async Task TenantAdmin_Should_Get403_OnTheUsersRolesAndGroupsWrites()
     {
         // The writes only as the client: as root they would change the root tenant. The ids need not exist, the
@@ -352,6 +428,42 @@ public sealed class RootOnlyTenantPermissionsTests
         }
 
         return (roleId, await PermissionsAsync(tenant, roleId));
+    }
+
+    // Through the registration service inside the tenant: the client's register endpoint is root-only since 02/11/2026.
+    // A registered user gets the Basic role and must confirm the email before the token endpoint lets it in.
+    private async Task RegisterConfirmedUserAsync(AppTenantInfo tenant, string email, string userName)
+    {
+        using var scope = EnterTenant(tenant);
+        var userId = await scope.ServiceProvider.GetRequiredService<IUserRegistrationService>().RegisterAsync(
+            "Atendente", "Trilha", email, userName, TestConstants.DefaultPassword, TestConstants.DefaultPassword,
+            string.Empty, "http://localhost", CancellationToken.None);
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<FshUser>>();
+        var user = (await users.FindByIdAsync(userId)).ShouldNotBeNull();
+        (await users.ConfirmEmailAsync(user, await users.GenerateEmailConfirmationTokenAsync(user))).Succeeded.ShouldBeTrue();
+    }
+
+    private async Task AddClaimsAsync(AppTenantInfo tenant, (string RoleId, string Permission)[] claims)
+    {
+        using var scope = EnterTenant(tenant);
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        db.RoleClaims.AddRange(claims.Select(c => new FshRoleClaim
+        {
+            RoleId = c.RoleId,
+            ClaimType = ClaimConstants.Permission,
+            ClaimValue = c.Permission,
+            CreatedBy = "test",
+            CreatedOn = DateTimeOffset.UtcNow,
+        }));
+        await db.SaveChangesAsync();
+    }
+
+    private async Task RemoveClaimAsync(AppTenantInfo tenant, string roleId, string permission)
+    {
+        using var scope = EnterTenant(tenant);
+        await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().RoleClaims
+            .Where(rc => rc.RoleId == roleId && rc.ClaimType == ClaimConstants.Permission && rc.ClaimValue == permission)
+            .ExecuteDeleteAsync();
     }
 
     private async Task<List<string>> PermissionsAsync(AppTenantInfo tenant, string roleId)
