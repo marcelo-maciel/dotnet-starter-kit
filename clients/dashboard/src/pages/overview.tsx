@@ -522,12 +522,14 @@ export function OverviewPage() {
               Ver atividade
             </Link>
           </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link to="/system/audits">
-              <ScrollText className="mr-1.5 size-3.5" />
-              Ver auditoria
-            </Link>
-          </Button>
+          {canViewAudits && (
+            <Button asChild variant="outline" size="sm">
+              <Link to="/system/audits">
+                <ScrollText className="mr-1.5 size-3.5" />
+                Ver auditoria
+              </Link>
+            </Button>
+          )}
         </div>
       </header>
 
