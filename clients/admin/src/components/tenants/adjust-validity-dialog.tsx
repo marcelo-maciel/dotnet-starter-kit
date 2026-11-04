@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 import { SAO_PAULO, startOfSaoPauloDay, toSaoPauloDay } from "@/lib/format";
 
 // A `type="date"` input yields a `YYYY-MM-DD` string. zod validates the shape
@@ -33,7 +33,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 function describe(err: unknown, fallback: string): string {
-  if (err instanceof ApiRequestError) return err.problem?.detail ?? err.problem?.title ?? err.message;
+  if (err instanceof ApiRequestError) return describeError(err);
   if (err instanceof Error) return err.message;
   return fallback;
 }

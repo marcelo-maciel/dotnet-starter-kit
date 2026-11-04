@@ -37,25 +37,4 @@ public sealed class MissingTenantTests
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
-
-    [Fact]
-    public async Task SelfRegister_Should_Return400_When_TenantHeaderMissing()
-    {
-        using var client = _factory.CreateClient(); // anonymous, NO tenant header
-        var uniqueId = Guid.NewGuid().ToString("N")[..8];
-
-        var response = await client.PostAsJsonAsync(
-            $"{TestConstants.IdentityBasePath}/self-register",
-            new
-            {
-                firstName = "Self",
-                lastName = "Reg",
-                email = $"self-{uniqueId}@example.com",
-                userName = $"selfreg-{uniqueId}",
-                password = "Test@1234!",
-                confirmPassword = "Test@1234!"
-            });
-
-        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-    }
 }

@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 import { SAO_PAULO } from "@/lib/format";
 
 function formatMoney(amount: number, currency: string): string {
@@ -84,7 +84,7 @@ export function RenewTenantDialog({
     onError: (err) => {
       const detail =
         err instanceof ApiRequestError
-          ? err.problem?.detail ?? err.problem?.title ?? err.message
+          ? describeError(err)
           : (err as Error).message;
       toast.error("Renew failed", { description: detail });
     },

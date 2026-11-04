@@ -27,7 +27,7 @@ import {
   PERMISSION_CATALOG,
   type PermissionGroup,
 } from "@/lib/permissions";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 
 const SYSTEM_ROLE_NAMES = new Set(["Admin", "Basic"]);
@@ -171,7 +171,7 @@ function ProfileSection({ role, disabled }: { role: RoleDto; disabled: boolean }
     onError: (err) => {
       const detail =
         err instanceof ApiRequestError
-          ? err.problem?.detail ?? err.problem?.title ?? err.message
+          ? describeError(err)
           : (err as Error).message;
       toast.error("Update failed", { description: detail });
     },
@@ -254,7 +254,7 @@ function PermissionEditor({ role, disabled }: { role: RoleDto; disabled: boolean
     onError: (err: unknown) => {
       const detail =
         err instanceof ApiRequestError
-          ? err.problem?.detail ?? err.problem?.title ?? err.message
+          ? describeError(err)
           : (err as Error).message;
       toast.error("Update failed", { description: detail });
     },
@@ -462,7 +462,7 @@ function DangerZone({ role, onDeleted }: { role: RoleDto; onDeleted: () => void 
     onError: (err: unknown) => {
       const detail =
         err instanceof ApiRequestError
-          ? err.problem?.detail ?? err.problem?.title ?? err.message
+          ? describeError(err)
           : (err as Error).message;
       toast.error("Delete failed", { description: detail });
     },

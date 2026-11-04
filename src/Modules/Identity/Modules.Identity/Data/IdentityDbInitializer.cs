@@ -182,6 +182,24 @@ internal sealed class IdentityDbInitializer(
         }
     }
 
+    // UpdateUserCommandValidator caps LastName at 50 and the profile screen resends it on every save, so a
+    // longer client name would make every profile update of the seeded admin fail with 400.
+    internal const int LastNameMaxLength = 50;
+
+    internal static string? TenantNameAsLastName(string? tenantName)
+    {
+        string? name = tenantName?.Trim();
+        if (name is null || name.Length <= LastNameMaxLength)
+        {
+            return name;
+        }
+
+        // Cutting between the halves of a surrogate pair (an emoji at the limit) leaves a lone high surrogate,
+        // which Npgsql refuses to encode as UTF-8 and the seed would fail; the cut moves back one char instead.
+        int cut = char.IsHighSurrogate(name[LastNameMaxLength - 1]) ? LastNameMaxLength - 1 : LastNameMaxLength;
+        return name[..cut].TrimEnd();
+    }
+
     private async Task SeedAdminUserAsync(CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id) || string.IsNullOrWhiteSpace(multiTenantContextAccessor.MultiTenantContext.TenantInfo?.AdminEmail))
@@ -197,7 +215,7 @@ internal sealed class IdentityDbInitializer(
             {
                 // Shown as the person's name on the client's user screens, so the client's own name, not its identifier.
                 FirstName = "Administrador",
-                LastName = (multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Name ?? multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id)?.Trim(),
+                LastName = TenantNameAsLastName(multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Name ?? multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id),
                 Email = multiTenantContextAccessor.MultiTenantContext.TenantInfo?.AdminEmail,
                 UserName = adminUserName,
                 EmailConfirmed = true,

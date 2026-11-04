@@ -193,6 +193,47 @@ public sealed class ChatTenantIsolationTests
 
     // ─── helpers ─────────────────────────────────────────────────────
 
+    // ─── restore ─────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task RestoreChannel_Should_Return404_AndLeaveItArchived_When_Channel_Belongs_To_Different_Tenant()
+    {
+        // Restore needs Channels.ManageAll, a root-only permission, so the caller is the root operator acting on
+        // tenant B through the tenant header. The lookup must bypass the soft-delete filter only, not the tenant one.
+        using var rootClient = await _auth.CreateRootAdminClientAsync();
+        var channelAId = await CreateChannelAsync(rootClient, $"chat-iso-restore-{Unique()}");
+        using (var archive = await rootClient.DeleteAsync($"{ChatBasePath}/channels/{channelAId}"))
+        {
+            archive.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        }
+        using var rootInB = await CreateRootClientInTenantAsync(await ProvisionTenantAsync());
+
+        using var crossRestore = await rootInB.PostAsync($"{ChatBasePath}/channels/{channelAId}/restore", content: null);
+
+        crossRestore.StatusCode.ShouldBe(HttpStatusCode.NotFound, await crossRestore.Content.ReadAsStringAsync());
+        using var ownerGet = await rootClient.GetAsync($"{ChatBasePath}/channels/{channelAId}");
+        ownerGet.StatusCode.ShouldBe(HttpStatusCode.NotFound, "the channel must stay archived in tenant A");
+    }
+
+    private async Task<string> ProvisionTenantAsync()
+    {
+        var tenantId = $"chatiso-{Unique()}";
+        using var rootClient = await _auth.CreateRootAdminClientAsync();
+        await CreateTenantAsync(rootClient, tenantId, $"chatiso-admin-{Unique()}@tenant.com");
+        await TenantProvisioningWait.WaitForProvisioningAsync(rootClient, tenantId);
+        return tenantId;
+    }
+
+    // The root operator's token with the tenant header: the override scopes each request to that tenant.
+    private async Task<HttpClient> CreateRootClientInTenantAsync(string tenantId)
+    {
+        var rootToken = await _auth.GetRootAdminTokenAsync();
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", rootToken.AccessToken);
+        client.DefaultRequestHeaders.Add("tenant", tenantId);
+        return client;
+    }
+
     private static string Unique() => Guid.NewGuid().ToString("N")[..8];
 
     private static async Task<Guid> CreateChannelAsync(HttpClient client, string name, bool isPrivate = false)

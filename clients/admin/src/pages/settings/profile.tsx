@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ErrorBand, LoadingRow, SettingsSection, SettingsField } from "@/components/list";
 import { ImageInput } from "@/components/file/image-input";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 
 /**
  * ProfileSettings — read-only view of identity fields (server doesn't expose
@@ -31,7 +31,7 @@ export function ProfileSettings() {
     onError: (err: unknown) => {
       const message =
         err instanceof ApiRequestError
-          ? (err.problem?.detail ?? err.problem?.title ?? err.message)
+          ? describeError(err)
           : "Failed to update profile image";
       toast.error(message);
     },

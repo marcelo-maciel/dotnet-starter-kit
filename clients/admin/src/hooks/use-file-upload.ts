@@ -7,7 +7,7 @@ import {
   Visibility,
   type VisibilityValue,
 } from "@/api/files";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError as describeApiError } from "@/lib/api-client";
 
 export type UploadOptions = {
   ownerType?: string;
@@ -247,7 +247,7 @@ function xhrPut(
 
 function describeError(e: unknown): string {
   if (e instanceof ApiRequestError) {
-    return e.problem?.detail ?? e.problem?.title ?? e.message;
+    return describeApiError(e);
   }
   if (e instanceof Error) return e.message;
   return "Unknown error";

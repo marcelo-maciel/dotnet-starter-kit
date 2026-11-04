@@ -44,7 +44,7 @@ import {
   LoadingRow,
   SettingsSection,
 } from "@/components/list";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 import { SAO_PAULO } from "@/lib/format";
 
@@ -684,7 +684,7 @@ function formatDuration(start: string, end: string): string {
 }
 
 function describe(err: unknown): string {
-  if (err instanceof ApiRequestError) return err.problem?.detail ?? err.problem?.title ?? err.message;
+  if (err instanceof ApiRequestError) return describeError(err);
   if (err instanceof Error) return err.message;
   return String(err);
 }

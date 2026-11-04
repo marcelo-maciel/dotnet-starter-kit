@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 import { SAO_PAULO } from "@/lib/format";
 
@@ -57,7 +57,7 @@ export function RevokeGrantDialog({ grant, onOpenChange, onRevoked }: Props) {
     onError: (err) => {
       const detail =
         err instanceof ApiRequestError
-          ? err.problem?.detail ?? err.problem?.title ?? err.message
+          ? describeError(err)
           : err.message;
       toast.error("Revoke failed", { description: detail });
     },

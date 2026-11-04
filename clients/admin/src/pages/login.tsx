@@ -15,7 +15,7 @@ import { consumeSignedOutReason } from "@/auth/inactivity";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 import { env } from "@/env";
 import type { DemoAccount } from "@/pages/login.demo-accounts";
@@ -76,7 +76,7 @@ export function LoginPage() {
     } catch (err) {
       const message =
         err instanceof ApiRequestError
-          ? err.problem?.detail ?? err.problem?.title ?? err.message
+          ? describeError(err)
           : err instanceof Error
             ? err.message
             : "Não foi possível entrar";

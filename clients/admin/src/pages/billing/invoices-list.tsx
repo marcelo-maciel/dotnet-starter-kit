@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/list";
 import { KpiTile } from "@/components/kpi-tile";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 import { SAO_PAULO } from "@/lib/format";
 
@@ -74,7 +74,7 @@ function statusVariant(status: InvoiceStatus): React.ComponentProps<typeof Badge
 }
 
 function describe(err: unknown): string {
-  if (err instanceof ApiRequestError) return err.problem?.detail ?? err.problem?.title ?? err.message;
+  if (err instanceof ApiRequestError) return describeError(err);
   if (err instanceof Error) return err.message;
   return "Failed to load invoices.";
 }

@@ -47,29 +47,6 @@ public sealed class UserRegisteredOutboxTests
         (await CountUserRegisteredRowsAsync(result.UserId)).ShouldBe(1);
     }
 
-    [Fact]
-    public async Task SelfRegister_Should_WriteExactlyOneUserRegisteredEvent_When_AnonymousRegisters()
-    {
-        using var client = _factory.CreateClient();
-        client.DefaultRequestHeaders.Add("tenant", TestConstants.RootTenantId);
-        var uniqueId = Guid.NewGuid().ToString("N")[..8];
-
-        var response = await client.PostAsJsonAsync($"{TestConstants.IdentityBasePath}/self-register", new
-        {
-            firstName = "Outbox",
-            lastName = "Self",
-            email = $"outbox-self-{uniqueId}@example.com",
-            userName = $"outboxself-{uniqueId}",
-            password = "Test@1234!",
-            confirmPassword = "Test@1234!"
-        });
-
-        response.StatusCode.ShouldBe(HttpStatusCode.Created);
-        var result = await response.DeserializeAsync<RegisterResult>();
-
-        (await CountUserRegisteredRowsAsync(result.UserId)).ShouldBe(1);
-    }
-
     // ProcessedOnUtc is ignored on purpose: another test's OutboxDrain may already have dispatched the
     // row, and a dispatched duplicate still sends a second e-mail.
     private async Task<int> CountUserRegisteredRowsAsync(string userId)

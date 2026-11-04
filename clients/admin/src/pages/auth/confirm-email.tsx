@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { AlertCircle, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { confirmEmail } from "@/api/users";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 
 type Status =
   | { kind: "loading" }
@@ -52,7 +52,7 @@ export function ConfirmEmailPage() {
         if (cancelled) return;
         const detail =
           err instanceof ApiRequestError
-            ? err.problem?.detail ?? err.problem?.title ?? err.message
+            ? describeError(err)
             : (err as Error).message;
         setStatus({ kind: "error", message: detail });
       });

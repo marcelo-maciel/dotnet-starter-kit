@@ -40,7 +40,7 @@ import {
   LoadingRow,
   SettingsSection,
 } from "@/components/list";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 
 /**
@@ -189,7 +189,7 @@ function ChangePasswordDialog({
     onError: (err) => {
       const detail =
         err instanceof ApiRequestError
-          ? (err.problem?.detail ?? err.problem?.title ?? err.message)
+          ? describeError(err)
           : (err as Error).message;
       toast.error("Change failed", { description: detail });
     },
@@ -297,7 +297,7 @@ function TwoFactorEnroll() {
     onError: (err: unknown) => {
       const detail =
         err instanceof ApiRequestError
-          ? (err.problem?.detail ?? err.problem?.title ?? err.message)
+          ? describeError(err)
           : (err as Error).message;
       toast.error("Enrollment failed", { description: detail });
     },
@@ -321,7 +321,7 @@ function TwoFactorEnroll() {
     onError: (err: unknown) => {
       const detail =
         err instanceof ApiRequestError
-          ? (err.problem?.detail ?? err.problem?.title ?? err.message)
+          ? describeError(err)
           : (err as Error).message;
       toast.error("Verification failed", { description: detail });
     },
@@ -507,7 +507,7 @@ function TwoFactorDisable() {
     onError: (err: unknown) => {
       const detail =
         err instanceof ApiRequestError
-          ? (err.problem?.detail ?? err.problem?.title ?? err.message)
+          ? describeError(err)
           : (err as Error).message;
       toast.error("Disable failed", { description: detail });
     },
