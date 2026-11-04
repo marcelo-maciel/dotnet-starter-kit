@@ -39,6 +39,7 @@ using FSH.Modules.Identity.Features.v1.Sessions.GetTenantSessions;
 using FSH.Modules.Identity.Features.v1.Sessions.GetUserSessions;
 using FSH.Modules.Identity.Features.v1.Sessions.RevokeAllSessions;
 using FSH.Modules.Identity.Features.v1.Sessions.RevokeSession;
+using FSH.Modules.Identity.Features.v1.Tokens.IssueTokenByEmail;
 using FSH.Modules.Identity.Features.v1.Tokens.RefreshToken;
 using FSH.Modules.Identity.Features.v1.Tokens.TokenGeneration;
 using FSH.Modules.Identity.Features.v1.TwoFactor.Disable;
@@ -51,6 +52,7 @@ using FSH.Modules.Identity.Features.v1.Users.ConfirmEmail;
 using FSH.Modules.Identity.Features.v1.Users.ResendConfirmationEmail;
 using FSH.Modules.Identity.Features.v1.Users.DeleteUser;
 using FSH.Modules.Identity.Features.v1.Users.ForgotPassword;
+using FSH.Modules.Identity.Features.v1.Users.ForgotPasswordByEmail;
 using FSH.Modules.Identity.Features.v1.Users.GetUserById;
 using FSH.Modules.Identity.Features.v1.Users.GetUserGroups;
 using FSH.Modules.Identity.Features.v1.Users.GetUserPermissions;
@@ -100,6 +102,8 @@ public class IdentityModule : IModule
         services.AddScoped<IImpersonationGrantService, ImpersonationGrantService>();
         services.AddScoped<ClientTenantEmailDirectory>();
         services.AddScoped<IClientTenantEmails>(sp => sp.GetRequiredService<ClientTenantEmailDirectory>());
+        services.AddOptions<EmailLoginRateLimitOptions>().BindConfiguration("EmailLoginRateLimit");
+        services.AddSingleton<EmailLoginRateLimiter>();
 
         // User services - focused single-responsibility services
         services.AddTransient<IUserRegistrationService, UserRegistrationService>();
@@ -190,6 +194,9 @@ public class IdentityModule : IModule
         // tokens
         group.MapGenerateTokenEndpoint().AllowAnonymous().RequireRateLimiting("auth");
         group.MapRefreshTokenEndpoint().AllowAnonymous().RequireRateLimiting("auth");
+        // PAF (O2): not the kit's auth policy, 10 a minute per IP, which the guichês of one unit behind a NAT would
+        // exhaust at turn start. EmailLoginRateLimiter holds both windows, per e-mail and per IP, in the handler.
+        group.MapIssueTokenByEmailEndpoint();
 
         // The outbox is dispatched by the framework's OutboxDispatcherHostedService (on by default), which now claims
         // rows with FOR UPDATE SKIP LOCKED so several instances can drain safely. This module still registers no
@@ -222,6 +229,7 @@ public class IdentityModule : IModule
         group.MapSearchUsersEndpoint();
         group.MapRegisterUserEndpoint();
         group.MapForgotPasswordEndpoint().RequireRateLimiting("auth");
+        group.MapForgotPasswordByEmailEndpoint();
         group.MapResetPasswordEndpoint().RequireRateLimiting("auth");
         group.MapSelfRegisterUserEndpoint().RequireRateLimiting("auth");
         group.MapToggleUserStatusEndpoint();

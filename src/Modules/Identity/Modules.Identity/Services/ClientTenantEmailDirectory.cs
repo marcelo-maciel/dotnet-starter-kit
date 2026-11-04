@@ -1,3 +1,4 @@
+using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Data;
@@ -8,14 +9,17 @@ using Microsoft.EntityFrameworkCore;
 namespace FSH.Modules.Identity.Services;
 
 /// <summary>The client user that holds an e-mail: its tenant and the address exactly as stored.</summary>
-internal sealed record ClientEmailHolder(string TenantId, string Email);
+public sealed record ClientEmailHolder(string TenantId, string Email);
 
 /// <summary>
 /// Looks an e-mail up across the client tenants, root excluded (O1). The unique partial index
 /// <c>IX_Users_NormalizedEmail_Clientes</c> makes at most one client user hold a normalized e-mail; this is
 /// what the validations and the login without tenant read before the index has to refuse anything.
 /// </summary>
-internal sealed class ClientTenantEmailDirectory(IdentityDbContext db, ILookupNormalizer normalizer) : IClientTenantEmails
+public sealed class ClientTenantEmailDirectory(
+    IdentityDbContext db,
+    ILookupNormalizer normalizer,
+    IMultiTenantStore<AppTenantInfo> tenantStore) : IClientTenantEmails
 {
     /// <summary>The key Finbuckle 10 gives its tenant query filter (PafEmailUnicoEntreClientesTests pins it).</summary>
     public const string TenantFilterKey = "__tenant__";
@@ -50,6 +54,23 @@ internal sealed class ClientTenantEmailDirectory(IdentityDbContext db, ILookupNo
         return holders is [{ Email: { } stored } only]
             ? new ClientEmailHolder(only.TenantId, stored)
             : null;
+    }
+
+    /// <summary>
+    /// The active client tenant where <paramref name="typedEmail"/> signs in, or null: no holder, a look-alike address
+    /// (U+017F for s shares the normalized e-mail but is another mailbox), or a deactivated tenant, which is refused
+    /// on every route anyway. Expiry is not checked here: the login reveals it only after the password matched.
+    /// </summary>
+    public async Task<AppTenantInfo?> FindSignInTenantAsync(string typedEmail, CancellationToken cancellationToken)
+    {
+        var holder = await FindHolderAsync(typedEmail, cancellationToken).ConfigureAwait(false);
+        if (holder is null || !EmailAddressMatch.IsSameAddress(holder.Email, typedEmail))
+        {
+            return null;
+        }
+
+        var tenant = await tenantStore.GetAsync(holder.TenantId).ConfigureAwait(false);
+        return tenant is { IsActive: true } ? tenant : null;
     }
 
     // Only the tenant filter goes, by name: the parameterless IgnoreQueryFilters() would also drop any filter added
