@@ -156,7 +156,6 @@ try {
   const ctxAdmin = await browser.newContext({ viewport: { width: 1280, height: 1600 } });
   const pAdmin = await ctxAdmin.newPage();
   await pAdmin.goto(`${WEB}/login`);
-  await pAdmin.locator("#tenant").fill(TENANT);
   await pAdmin.locator("#email").fill(EMAIL);
   await pAdmin.locator("#password").fill(SENHA_DEMO);
   await pAdmin.locator('button[type="submit"]').click();

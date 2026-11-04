@@ -10,7 +10,6 @@ namespace Integration.Tests.Tests.Authentication;
 public sealed class AccountLockoutTests
 {
     private const int MaxFailedAttempts = 5;
-    private const HttpStatusCode HttpLocked = (HttpStatusCode)423;
 
     private readonly FshWebApplicationFactory _factory;
     private readonly AuthHelper _auth;
@@ -28,16 +27,29 @@ public sealed class AccountLockoutTests
         var (email, _) = await CreateConfirmedUserAsync(rootClient);
 
         // Five wrong-password attempts must all return 401 (generic auth failure).
+        string? wrongPasswordBody = null;
         for (int attempt = 1; attempt <= MaxFailedAttempts; attempt++)
         {
             var response = await AttemptLoginAsync(email, "WrongPassword!1");
             response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized,
                 $"Attempt {attempt} should return 401 before the lockout threshold is crossed.");
+            wrongPasswordBody ??= await response.Content.ReadAsStringAsync();
         }
 
-        // Subsequent attempts (even with the CORRECT password) must be rejected with 423 Locked.
+        // PAF divergence (M1): even the CORRECT password is now refused with the wrong password's 401, not the
+        // kit's 423, which told anyone with the e-mail alone that the account exists and is locked.
         var afterLockout = await AttemptLoginAsync(email, "Test@1234!");
-        afterLockout.StatusCode.ShouldBe(HttpLocked);
+        afterLockout.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        Comparable(await afterLockout.Content.ReadAsStringAsync()).ShouldBe(Comparable(wrongPasswordBody!));
+    }
+
+    // The fields a caller can read; traceId and correlationId differ on every request by design.
+    private static string Comparable(string problemJson)
+    {
+        using var json = System.Text.Json.JsonDocument.Parse(problemJson);
+        var root = json.RootElement;
+        string Field(string name) => root.TryGetProperty(name, out var value) ? value.ToString() : "-";
+        return $"{Field("status")}|{Field("title")}|{Field("detail")}|{Field("type")}";
     }
 
     [Fact]

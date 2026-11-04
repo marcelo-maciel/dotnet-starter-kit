@@ -52,7 +52,8 @@ public sealed class TenantIsolationTests
     }
 
     [Fact]
-    public async Task TenantIsolation_Should_AllowSameEmailInDifferentTenants()
+    // PAF divergence (O1): a client signs in by e-mail alone, so a second client tenant cannot reuse the address.
+    public async Task TenantIsolation_Should_RefuseSameEmailInDifferentClientTenants()
     {
         using var rootClient = await _auth.CreateRootAdminClientAsync();
         var uniqueId = Guid.NewGuid().ToString("N")[..8];
@@ -79,7 +80,7 @@ public sealed class TenantIsolationTests
         });
         register1.StatusCode.ShouldBe(HttpStatusCode.Created);
 
-        // Register same email in tenant 2 — should succeed
+        // Register same email in tenant 2: refused, without naming tenant 1
         using var client2 = await CreateTenantAdminClientWithRetryAsync(
             t2AdminEmail, TestConstants.DefaultPassword, tenant2Id);
         var register2 = await client2.PostAsJsonAsync($"{TestConstants.IdentityBasePath}/register", new
@@ -88,7 +89,8 @@ public sealed class TenantIsolationTests
             userName = $"shared2-{uniqueId}", password = "Test@1234!", confirmPassword = "Test@1234!"
         });
 
-        register2.StatusCode.ShouldBe(HttpStatusCode.Created);
+        register2.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await register2.Content.ReadAsStringAsync()).ShouldNotContain(tenant1Id);
     }
 
     private async Task<HttpClient> CreateTenantAdminClientWithRetryAsync(

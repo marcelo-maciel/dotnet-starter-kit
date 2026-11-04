@@ -458,20 +458,17 @@ export async function updateMyProfile(input: UpdateProfileInput): Promise<void> 
 // -----------------------------
 
 /**
- * Step 1 of the forgot-password flow. The server resolves the user by
- * (email, tenant), generates a reset token, and emails a link of the form
- * `<host>/reset-password?token=...&email=...&tenant=...`. Server always
+ * Step 1 of the forgot-password flow (O3). The server finds the company that
+ * holds the e-mail, generates a reset token there, and emails a link of the
+ * form `<host>/reset-password?token=...&email=...&tenant=...`. Server always
  * returns 200 regardless of whether the email exists — never leak account
- * presence to the caller.
+ * presence to the caller. No `tenant` header: the server never takes it here.
  */
-export async function requestPasswordReset(input: {
-  email: string;
-  tenant: string;
-}): Promise<void> {
-  await apiFetch<string>(`/api/v1/identity/forgot-password`, {
+export async function requestPasswordResetByEmail(input: { email: string }): Promise<void> {
+  await apiFetch<string>(`/api/v1/identity/forgot-password-by-email`, {
     method: "POST",
     skipAuth: true,
-    headers: { tenant: input.tenant },
+    skipTenant: true,
     body: JSON.stringify({ email: input.email }),
   });
 }

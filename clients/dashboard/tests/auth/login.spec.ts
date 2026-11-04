@@ -1,11 +1,16 @@
 import { expect, test } from "@playwright/test";
 import { mockJsonResponse, mockProblemDetails } from "../helpers/api-mocks";
 
-// The dashboard login page (rebuilt to the dentalOS card layout): FSH logo
-// lockup + ".NET 10 Starter Kit" caption, tenant/email/password card, and a
-// demoMode-gated "Step into any role" picker that signs in instantly.
+// The dashboard login page (rebuilt to the dentalOS card layout): logo
+// lockup, e-mail/password card (PAF O2: no Empresa field, the server finds
+// the company from the e-mail), and a demoMode-gated "Step into any role"
+// picker that signs in instantly.
+
+const LOGIN_BY_EMAIL = "**/api/v1/identity/token/issue-by-email";
+const TENANT_KEY = "fsh.dashboard.tenant";
 
 const TOKEN_RESPONSE = {
+  tenant: "acme",
   accessToken: "header.payload.sig",
   refreshToken: "refresh",
   accessTokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
@@ -36,13 +41,12 @@ test.describe("login — page chrome", () => {
     await expect(page.getByText(/entre na sua conta/i)).toBeVisible();
   });
 
-  test("renders the empresa + email + password fields, empresa not prefilled", async ({ page }) => {
+  test("renders e-mail + password only, with no Empresa field", async ({ page }) => {
     await page.goto("/login");
-    await expect(page.getByLabel("Empresa")).toBeVisible();
-    // The config says defaultTenant "root"; a customer types their own company.
-    await expect(page.getByLabel("Empresa")).toHaveValue("");
     await expect(page.getByLabel("E-mail")).toBeVisible();
     await expect(page.getByLabel("Senha", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Empresa")).toHaveCount(0);
+    await expect(page.locator("#tenant")).toHaveCount(0);
     await expect(page.getByRole("link", { name: /esqueceu/i })).toHaveAttribute("href", "/forgot-password");
   });
 
@@ -56,15 +60,13 @@ test.describe("login — page chrome", () => {
     await expect(pwd).toHaveAttribute("type", "password");
   });
 
-  test("submit is disabled until tenant + email + password are filled", async ({ page }) => {
+  test("submit is disabled until e-mail + password are filled", async ({ page }) => {
     await page.goto("/login");
     const submit = page.getByRole("button", { name: /^entrar$/i });
     await expect(submit).toBeDisabled();
     await page.getByLabel("E-mail").fill("alice@acme.com");
-    await page.getByLabel("Senha", { exact: true }).fill("secret123");
-    // Empresa starts empty, so email + password alone do not enable it.
     await expect(submit).toBeDisabled();
-    await page.getByLabel("Empresa").fill("acme");
+    await page.getByLabel("Senha", { exact: true }).fill("secret123");
     await expect(submit).toBeEnabled();
   });
 });
@@ -72,35 +74,36 @@ test.describe("login — page chrome", () => {
 test.describe("login — manual sign in", () => {
   test.beforeEach(async ({ page }) => {
     await setConfig(page, true);
-    await mockJsonResponse(page, "**/api/v1/identity/token/issue", TOKEN_RESPONSE);
+    await mockJsonResponse(page, LOGIN_BY_EMAIL, TOKEN_RESPONSE);
   });
 
-  test("POSTs credentials with the tenant header", async ({ page }) => {
+  test("POSTs e-mail + password with no tenant header and keeps the tenant the server answered", async ({ page }) => {
+    // A company left over from an earlier session must not ride along: a deactivated one would be refused.
+    await page.addInitScript((key) => localStorage.setItem(key, "empresa-antiga"), TENANT_KEY);
     await page.goto("/login");
-    await page.getByLabel("Empresa").fill("acme");
     await page.getByLabel("E-mail").fill("alice@acme.com");
     await page.getByLabel("Senha", { exact: true }).fill("Password123!");
 
     const reqPromise = page.waitForRequest(
-      (r) => r.url().includes("/api/v1/identity/token/issue") && r.method() === "POST",
+      (r) => r.url().includes("/api/v1/identity/token/issue-by-email") && r.method() === "POST",
     );
     await page.getByRole("button", { name: /^entrar$/i }).click();
     const req = await reqPromise;
 
-    expect(req.headers().tenant).toBe("acme");
-    expect(JSON.parse(req.postData() ?? "{}")).toMatchObject({
+    expect(req.headers().tenant).toBeUndefined();
+    expect(JSON.parse(req.postData() ?? "{}")).toEqual({
       email: "alice@acme.com",
       password: "Password123!",
     });
+    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), TENANT_KEY)).toBe("acme");
   });
 
   test("surfaces a server error without leaving the page", async ({ page }) => {
-    await mockProblemDetails(page, "**/api/v1/identity/token/issue", 401, {
+    await mockProblemDetails(page, LOGIN_BY_EMAIL, 401, {
       title: "Unauthorized",
       detail: "Invalid credentials.",
     });
     await page.goto("/login");
-    await page.getByLabel("Empresa").fill("acme");
     await page.getByLabel("E-mail").fill("alice@acme.com");
     await page.getByLabel("Senha", { exact: true }).fill("wrongpw");
     await page.getByRole("button", { name: /^entrar$/i }).click();
@@ -145,9 +148,9 @@ test.describe("login — demo account picker", () => {
     await expect(dialog.getByText("admin@acme.com")).toBeVisible();
   });
 
-  test("tapping a demo user signs in instantly with that account's tenant", async ({ page }) => {
+  test("tapping a demo user signs in instantly by that account's e-mail", async ({ page }) => {
     await setConfig(page, true);
-    await mockJsonResponse(page, "**/api/v1/identity/token/issue", TOKEN_RESPONSE);
+    await mockJsonResponse(page, LOGIN_BY_EMAIL, TOKEN_RESPONSE);
     await page.goto("/login");
     await page.getByRole("button", { name: /entrar com uma conta de demonstração/i }).click();
     const dialog = page.getByRole("dialog");
@@ -156,12 +159,12 @@ test.describe("login — demo account picker", () => {
     await rail.getByRole("button", { name: /acme corp/i }).click();
 
     const reqPromise = page.waitForRequest(
-      (r) => r.url().includes("/api/v1/identity/token/issue") && r.method() === "POST",
+      (r) => r.url().includes("/api/v1/identity/token/issue-by-email") && r.method() === "POST",
     );
     await dialog.getByRole("button", { name: /admin@acme\.com/i }).click();
     const req = await reqPromise;
 
-    expect(req.headers().tenant).toBe("acme");
+    expect(req.headers().tenant).toBeUndefined();
     expect(JSON.parse(req.postData() ?? "{}")).toMatchObject({ email: "admin@acme.com" });
   });
 });

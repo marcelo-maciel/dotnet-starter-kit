@@ -47,7 +47,8 @@ public sealed class StaleProfileLocalizationTests
             Substitute.For<IStorageService>(),
             Substitute.For<IMultiTenantContextAccessor<AppTenantInfo>>(),
             Substitute.For<IRequestContextService>(),
-            new IdentityErrorDescriber());
+            new IdentityErrorDescriber(),
+            Substitute.For<IClientTenantEmails>());
 
         // Act
         var ex = await Should.ThrowAsync<CustomException>(() =>

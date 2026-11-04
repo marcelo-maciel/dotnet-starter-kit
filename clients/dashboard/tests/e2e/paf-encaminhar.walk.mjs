@@ -129,7 +129,6 @@ try {
   // ── Guichê: select, call and see the button follow the state ──
   page = await (await browser.newContext()).newPage();
   await page.goto(`${WEB}/login`);
-  await page.locator("#tenant").fill(TENANT);
   await page.locator("#email").fill(OPERADORA);
   await page.locator("#password").fill(SENHA_DEMO);
   await page.locator('button[type="submit"]').click();

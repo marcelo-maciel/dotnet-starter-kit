@@ -121,9 +121,10 @@ export function ResetPasswordPage() {
           <div className="flex items-center gap-2.5">
             <span
               aria-hidden
-              className="brand-mark grid size-9 shrink-0 place-items-center rounded-lg font-display text-[13px] font-bold text-[var(--color-primary-foreground)]"
+              className="grid size-9 shrink-0 place-items-center rounded-lg bg-white p-0.5 ring-1 ring-[var(--color-border)]"
             >
-              P
+              {/* The wordmark beside it is the accessible name ("Passo a Frente"); the symbol is decorative. */}
+              <img src="/logo-paf-simbolo.png" alt="" className="size-full object-contain" />
             </span>
             <span className="font-display text-[26px] font-semibold tracking-tight text-[var(--color-foreground)]">
               Passo a <span className="text-[var(--color-primary)]">Frente</span>

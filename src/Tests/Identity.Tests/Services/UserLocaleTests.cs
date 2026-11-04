@@ -44,7 +44,7 @@ public sealed class UserLocaleTests
 
     private UserProfileService CreateSut() =>
         new(_userManager, _signInManager, _storageService, _tenantAccessor,
-            Substitute.For<IRequestContextService>(), new IdentityErrorDescriber());
+            Substitute.For<IRequestContextService>(), new IdentityErrorDescriber(), Substitute.For<IClientTenantEmails>());
 
     [Fact]
     public async Task UpdateAsync_persists_the_supplied_locale_onto_the_user()

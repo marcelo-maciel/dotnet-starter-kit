@@ -222,7 +222,6 @@ try {
   const gCtx = await browser.newContext();
   const pGuiche = await gCtx.newPage();
   await pGuiche.goto(`${WEB}/login`);
-  await pGuiche.locator("#tenant").fill(TENANT);
   await pGuiche.locator("#email").fill(EMAIL);
   await pGuiche.locator("#password").fill(SENHA_DEMO);
   await pGuiche.locator('button[type="submit"]').click();

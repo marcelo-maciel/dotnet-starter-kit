@@ -66,6 +66,8 @@ export function isImpersonationRevokedError(error: unknown): boolean {
 
 type RequestInitEx = RequestInit & {
   skipAuth?: boolean;
+  /** Send no `tenant` header: for the routes where the server finds the company from the e-mail (O2, O3). */
+  skipTenant?: boolean;
   /**
    * Per-request timeout in milliseconds. Browser fetch has no default timeout
    * so a permanently stalled request would hang React Query's promise forever.
@@ -134,7 +136,9 @@ export async function refreshAccessToken() {
   });
 
   if (!response.ok) {
-    tokenStore.clear();
+    // Only a refusal ends the session. A 5xx or a 429 says nothing about the refresh token: the tokens stay and
+    // the next request tries again (C3).
+    if (isRefreshRejectedStatus(response.status)) tokenStore.clear();
     throw new ApiRequestError(response.status, "Falha ao renovar a sessão");
   }
 
@@ -145,6 +149,18 @@ export async function refreshAccessToken() {
     refreshToken: string;
   };
   tokenStore.setTokens(tokens.token, tokens.refreshToken);
+}
+
+function isRefreshRejectedStatus(status: number): boolean {
+  return status === 401 || status === 403;
+}
+
+/**
+ * True when the server answered the refresh and refused the token (401/403). Anything else (5xx, 429, a
+ * network drop or timeout, which reject with a non-API error) leaves the session alone.
+ */
+export function isRefreshRejected(error: unknown): boolean {
+  return error instanceof ApiRequestError && isRefreshRejectedStatus(error.status);
 }
 
 async function parseError(response: Response): Promise<ApiError | undefined> {
@@ -163,7 +179,7 @@ export async function apiFetch<T = unknown>(
   path: string,
   init: RequestInitEx = {},
 ): Promise<T> {
-  const { skipAuth, headers, timeoutMs = DEFAULT_TIMEOUT_MS, signal, onResponse, ...rest } = init;
+  const { skipAuth, skipTenant, headers, timeoutMs = DEFAULT_TIMEOUT_MS, signal, onResponse, ...rest } = init;
 
   const mergedHeaders = new Headers(headers);
   if (!mergedHeaders.has("Content-Type") && rest.body && typeof rest.body === "string") {
@@ -189,7 +205,7 @@ export async function apiFetch<T = unknown>(
   }
 
   const tenant = tokenStore.getTenant() ?? env.defaultTenant;
-  if (tenant && !mergedHeaders.has("tenant")) {
+  if (!skipTenant && tenant && !mergedHeaders.has("tenant")) {
     mergedHeaders.set("tenant", tenant);
   }
 
@@ -207,13 +223,9 @@ export async function apiFetch<T = unknown>(
       refreshPromise = null;
     });
 
-    try {
-      await refreshPromise;
-    } catch (e) {
-      throw e instanceof ApiRequestError
-        ? e
-        : new ApiRequestError(401, "Sessão expirada");
-    }
+    // A failed refresh rejects with its own error, which the caller sees as is: turning a network drop or a
+    // 503 into a 401 would read as "signed out" while the tokens are still there (C3).
+    await refreshPromise;
 
     const retryHeaders = new Headers(mergedHeaders);
     retryHeaders.set("Authorization", `Bearer ${tokenStore.getAccessToken() ?? ""}`);

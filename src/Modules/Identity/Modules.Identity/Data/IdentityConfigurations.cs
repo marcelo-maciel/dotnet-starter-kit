@@ -1,4 +1,5 @@
 using Finbuckle.MultiTenant.EntityFrameworkCore.Extensions;
+using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Domain;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +9,8 @@ namespace FSH.Modules.Identity.Data;
 
 public class ApplicationUserConfig : IEntityTypeConfiguration<FshUser>
 {
+    public const string ClientEmailIndexName = "IX_Users_NormalizedEmail_Clientes";
+
     public void Configure(EntityTypeBuilder<FshUser> builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -15,6 +18,15 @@ public class ApplicationUserConfig : IEntityTypeConfiguration<FshUser>
         builder
             .ToTable("Users", IdentityModuleConstants.SchemaName)
             .IsMultiTenant();
+
+        // O1: a client signs in by e-mail alone, so the e-mail is one person across every client tenant. Named,
+        // so it sits beside Identity's own EmailIndex instead of replacing it; root stays out of it, because the
+        // operator's accounts may share an address with a client's. No IsActive filter: a deactivated user
+        // keeps the address.
+        builder
+            .HasIndex(u => u.NormalizedEmail, ClientEmailIndexName)
+                .IsUnique()
+                .HasFilter($"\"TenantId\" <> '{MultitenancyConstants.Root.Id}'");
 
         builder
             .Property(u => u.ObjectId)

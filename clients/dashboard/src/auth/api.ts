@@ -7,19 +7,19 @@ export type TokenResponse = {
   refreshTokenExpiresAt: string;
 };
 
-export function issueToken(input: {
-  email: string;
-  password: string;
-  tenant: string;
-}) {
-  return apiFetch<TokenResponse>("/api/v1/identity/token/issue", {
+/** The login's tokens plus the company the server found for the e-mail: later requests send it as `tenant`. */
+export type EmailLoginResponse = TokenResponse & { tenant: string };
+
+/**
+ * PAF (O2): the person types e-mail and password only. The server finds the one client company that holds
+ * the e-mail and answers which it is. No `tenant` header goes out: a stale one from an earlier session
+ * (a company since deactivated) would be refused before the login even ran.
+ */
+export function issueTokenByEmail(input: { email: string; password: string }) {
+  return apiFetch<EmailLoginResponse>("/api/v1/identity/token/issue-by-email", {
     method: "POST",
     body: JSON.stringify({ email: input.email, password: input.password }),
-    // X-FSH-App tells the API this credential request originated from the
-    // tenant dashboard. The server uses it to enforce the SuperAdmin / app
-    // boundary — a root-tenant login submitted with X-FSH-App=dashboard is
-    // rejected with 403 instead of receiving a usable token.
-    headers: { tenant: input.tenant, "X-FSH-App": "dashboard" },
     skipAuth: true,
+    skipTenant: true,
   });
 }

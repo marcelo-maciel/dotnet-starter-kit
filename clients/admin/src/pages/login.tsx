@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
@@ -15,11 +15,19 @@ import { consumeSignedOutReason } from "@/auth/inactivity";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DemoAccountsDialog } from "@/components/auth/demo-accounts-dialog";
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 import { env } from "@/env";
 import type { DemoAccount } from "@/pages/login.demo-accounts";
+
+// The demo accounts (shared password, root e-mail) are public credentials the moment any environment seeds
+// them, so they must not ship in a production bundle: the dynamic import sits behind a build-time constant
+// and the bundler drops the chunk altogether (C8). A static import behind the JSX check only left it out
+// while the bundler judged the module free of side effects.
+// ponytail: dev builds only; a staging image that needs the picker needs a build flag, not a runtime one.
+const DemoAccountsDialog = import.meta.env.DEV
+  ? lazy(() => import("@/components/auth/demo-accounts-dialog").then((m) => ({ default: m.DemoAccountsDialog })))
+  : null;
 
 // ────────────────────────────────────────────────────────────────────────
 // Login — FSH Admin operator sign-in.
@@ -118,9 +126,10 @@ export function LoginPage() {
             <div className="flex items-center gap-2.5">
               <span
                 aria-hidden
-                className="brand-mark grid size-9 shrink-0 place-items-center rounded-lg font-display text-[13px] font-bold text-[var(--color-primary-foreground)]"
+                className="grid size-9 shrink-0 place-items-center rounded-lg bg-white p-0.5 ring-1 ring-[var(--color-border)]"
               >
-                P
+                {/* The wordmark beside it is the accessible name ("Passo a Frente"); the symbol is decorative. */}
+                <img src="/logo-paf-simbolo.png" alt="" className="size-full object-contain" />
               </span>
               <span className="font-display text-[26px] font-semibold tracking-tight text-[var(--color-foreground)]">
                 Passo a <span className="text-[var(--color-primary)]">Frente</span>
@@ -279,7 +288,7 @@ export function LoginPage() {
               </form>
 
               {/* Demo accounts — dev-only, same dashed-button pattern as dashboard. */}
-              {import.meta.env.DEV && (
+              {DemoAccountsDialog && (
                 <div className="mt-7">
                   <button
                     type="button"
@@ -305,8 +314,10 @@ export function LoginPage() {
       </div>
 
       {/* Demo dialog — rendered outside the shell to escape any overflow clipping. */}
-      {import.meta.env.DEV && (
-        <DemoAccountsDialog open={demoOpen} onOpenChange={setDemoOpen} onPick={onPickDemo} />
+      {DemoAccountsDialog && (
+        <Suspense fallback={null}>
+          <DemoAccountsDialog open={demoOpen} onOpenChange={setDemoOpen} onPick={onPickDemo} />
+        </Suspense>
       )}
     </>
   );

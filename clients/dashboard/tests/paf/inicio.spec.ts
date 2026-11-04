@@ -130,7 +130,8 @@ test.describe("PAF: tela inicial depois do login", () => {
     const accessToken = [b64url({ alg: "HS256", typ: "JWT" }), b64url(payload), "sig"].join(".");
     await installShellMocks(page);
     await mockJsonResponse(page, "**/api/v1/paf/guiche/unidades", []);
-    await mockJsonResponse(page, "**/api/v1/identity/token/issue", {
+    await mockJsonResponse(page, "**/api/v1/identity/token/issue-by-email", {
+      tenant: "acme",
       accessToken,
       refreshToken: "refresh",
       accessTokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
@@ -143,7 +144,6 @@ test.describe("PAF: tela inicial depois do login", () => {
     });
 
     await page.goto("/login");
-    await page.getByLabel("Empresa").fill("acme");
     await page.getByLabel("E-mail").fill("atendente@acme.test");
     await page.getByLabel("Senha", { exact: true }).fill("Senha123!");
     await page.getByRole("button", { name: /^entrar$/i }).click();
