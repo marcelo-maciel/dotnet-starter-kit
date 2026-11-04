@@ -182,6 +182,16 @@ internal sealed class IdentityDbInitializer(
         }
     }
 
+    // UpdateUserCommandValidator caps LastName at 50 and the profile screen resends it on every save, so a
+    // longer client name would make every profile update of the seeded admin fail with 400.
+    private const int LastNameMaxLength = 50;
+
+    private static string? TenantNameAsLastName(string? tenantName)
+    {
+        string? name = tenantName?.Trim();
+        return name is null || name.Length <= LastNameMaxLength ? name : name[..LastNameMaxLength].TrimEnd();
+    }
+
     private async Task SeedAdminUserAsync(CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id) || string.IsNullOrWhiteSpace(multiTenantContextAccessor.MultiTenantContext.TenantInfo?.AdminEmail))
@@ -197,7 +207,7 @@ internal sealed class IdentityDbInitializer(
             {
                 // Shown as the person's name on the client's user screens, so the client's own name, not its identifier.
                 FirstName = "Administrador",
-                LastName = (multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Name ?? multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id)?.Trim(),
+                LastName = TenantNameAsLastName(multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Name ?? multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id),
                 Email = multiTenantContextAccessor.MultiTenantContext.TenantInfo?.AdminEmail,
                 UserName = adminUserName,
                 EmailConfirmed = true,
