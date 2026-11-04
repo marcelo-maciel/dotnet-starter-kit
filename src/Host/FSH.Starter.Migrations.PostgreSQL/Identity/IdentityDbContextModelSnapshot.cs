@@ -188,6 +188,10 @@ namespace FSH.Starter.Migrations.PostgreSQL.Identity
                         .IsUnique()
                         .HasDatabaseName("UserNameIndex");
 
+                    b.HasIndex(new[] { "NormalizedEmail" }, "IX_Users_NormalizedEmail_Clientes")
+                        .IsUnique()
+                        .HasFilter("\"TenantId\" <> 'root'");
+
                     b.ToTable("Users", "identity");
 
                     b.HasAnnotation("Finbuckle:MultiTenant", true);

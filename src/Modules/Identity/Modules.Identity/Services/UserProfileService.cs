@@ -23,7 +23,8 @@ internal sealed class UserProfileService(
     IStorageService storageService,
     IMultiTenantContextAccessor<AppTenantInfo> multiTenantContextAccessor,
     IRequestContextService requestContext,
-    IdentityErrorDescriber errorDescriber) : IUserProfileService
+    IdentityErrorDescriber errorDescriber,
+    IClientTenantEmails clientTenantEmails) : IUserProfileService
 {
     public async Task<UserDto> GetAsync(string userId, CancellationToken cancellationToken)
     {
@@ -243,7 +244,15 @@ internal sealed class UserProfileService(
     public async Task<bool> ExistsWithEmailAsync(string email, string? exceptId = null, CancellationToken cancellationToken = default)
     {
         EnsureValidTenant();
-        return await userManager.FindByEmailAsync(email.Normalize()) is FshUser user && user.Id != exceptId;
+        if (await userManager.FindByEmailAsync(email.Normalize()) is FshUser user && user.Id != exceptId)
+        {
+            return true;
+        }
+
+        // A client e-mail is one person across every client tenant (O1); root keeps its own namespace.
+        var tenantId = multiTenantContextAccessor.MultiTenantContext.TenantInfo!.Id;
+        return !string.Equals(tenantId, MultitenancyConstants.Root.Id, StringComparison.Ordinal)
+            && await clientTenantEmails.IsInUseByAnotherClientTenantAsync(email, tenantId, cancellationToken);
     }
 
     public async Task<bool> ExistsWithNameAsync(string name, CancellationToken cancellationToken = default)

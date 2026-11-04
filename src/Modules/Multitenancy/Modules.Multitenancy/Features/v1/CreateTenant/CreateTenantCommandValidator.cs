@@ -1,5 +1,6 @@
 ﻿using FluentValidation;
 using FSH.Framework.Persistence;
+using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Multitenancy.Contracts;
 using FSH.Modules.Multitenancy.Contracts.v1.CreateTenant;
 
@@ -7,7 +8,13 @@ namespace FSH.Modules.Multitenancy.Features.v1.CreateTenant;
 
 public sealed class CreateTenantCommandValidator : AbstractValidator<CreateTenantCommand>
 {
-    public CreateTenantCommandValidator(ITenantService tenantService, IConnectionStringValidator connectionStringValidator)
+    // Never names the tenant that has the address, as the user validator does (O1).
+    public const string MensagemEmailEmUso = "Este e-mail já está em uso.";
+
+    public CreateTenantCommandValidator(
+        ITenantService tenantService,
+        IConnectionStringValidator connectionStringValidator,
+        IClientTenantEmails clientTenantEmails)
     {
         RuleFor(t => t.Id).Cascade(CascadeMode.Stop)
             .NotEmpty()
@@ -23,9 +30,13 @@ public sealed class CreateTenantCommandValidator : AbstractValidator<CreateTenan
             .Must((_, cs) => string.IsNullOrWhiteSpace(cs) || connectionStringValidator.TryValidate(cs))
             .WithMessage("Connection string invalid.");
 
+        // The admin is seeded later, by the provisioning job: an e-mail another client already uses would only
+        // surface there as a failed provisioning, after the tenant exists.
         RuleFor(t => t.AdminEmail).Cascade(CascadeMode.Stop)
             .NotEmpty()
-            .EmailAddress();
+            .EmailAddress()
+            .MustAsync(async (email, ct) => !await clientTenantEmails.IsInUseByAnotherClientTenantAsync(email, null, ct).ConfigureAwait(false))
+            .WithMessage(MensagemEmailEmUso);
 
         // Admin password is operator-supplied. The 8-char floor matches the Identity policy; mixed-character
         // rules (digit/upper/non-alpha) are enforced later by Identity's PasswordValidators at seed time.

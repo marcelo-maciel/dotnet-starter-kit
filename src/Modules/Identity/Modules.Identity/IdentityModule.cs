@@ -98,6 +98,8 @@ public class IdentityModule : IModule
         services.AddScoped<IRequestContext>(sp => sp.GetRequiredService<IRequestContextService>());
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<IImpersonationGrantService, ImpersonationGrantService>();
+        services.AddScoped<ClientTenantEmailDirectory>();
+        services.AddScoped<IClientTenantEmails>(sp => sp.GetRequiredService<ClientTenantEmailDirectory>());
 
         // User services - focused single-responsibility services
         services.AddTransient<IUserRegistrationService, UserRegistrationService>();
@@ -162,6 +164,7 @@ public class IdentityModule : IModule
         })
            .AddEntityFrameworkStores<IdentityDbContext>()
            .AddDefaultTokenProviders()
+           .AddUserValidator<ClientTenantEmailValidator>()
            .AddErrorDescriber<LocalizedIdentityErrorDescriber>();
 
         //metrics
