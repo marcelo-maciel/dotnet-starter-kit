@@ -108,8 +108,8 @@ public sealed class FshWebApplicationFactory : WebApplicationFactory<Program>, I
         }
     }
 
-    // Browsers always send an Origin header on the cross-origin auth POSTs (forgot-password, register,
-    // self-register). Simulate that globally so front-end-origin resolution matches the allow-list above.
+    // Browsers always send an Origin header on the cross-origin auth POSTs (forgot-password, register).
+    // Simulate that globally so front-end-origin resolution matches the allow-list above.
     protected override void ConfigureClient(HttpClient client)
     {
         ArgumentNullException.ThrowIfNull(client);

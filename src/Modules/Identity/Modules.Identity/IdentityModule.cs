@@ -231,7 +231,9 @@ public class IdentityModule : IModule
         group.MapForgotPasswordEndpoint().RequireRateLimiting("auth");
         group.MapForgotPasswordByEmailEndpoint();
         group.MapResetPasswordEndpoint().RequireRateLimiting("auth");
-        group.MapSelfRegisterUserEndpoint().RequireRateLimiting("auth");
+        // PAF divergence (C7): self-register stays unmapped in every tenant, root included. An account that signs
+        // itself up would join a client with the Basic role; PAF accounts are created by an admin only (register,
+        // above, and the PAF user screens). The endpoint and its handler stay so an upstream sync conflicts on this line.
         group.MapToggleUserStatusEndpoint();
         group.MapUpdateUserEndpoint();
         group.MapSetProfileImageEndpoint();

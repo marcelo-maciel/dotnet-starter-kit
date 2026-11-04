@@ -42,21 +42,6 @@ Authorization: Bearer {{token}}
   "phoneNumber": "+1-555-0000"
 }
 
-### Self-register user
-POST {{baseUrl}}/api/v1/identity/self-register
-Content-Type: application/json
-tenant: {{tenant}}
-
-{
-  "firstName": "John",
-  "lastName": "SelfService",
-  "email": "john.self@example.com",
-  "userName": "john.self",
-  "password": "P@ssword123",
-  "confirmPassword": "P@ssword123",
-  "phoneNumber": "+1-555-0001"
-}
-
 ### Change password for current user
 POST {{baseUrl}}/api/v1/identity/change-password
 Content-Type: application/json

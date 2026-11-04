@@ -17,8 +17,7 @@ public sealed class AuthRateLimitWiringTests
         "token/refresh",
         "forgot-password",
         "reset-password",
-        "confirm-email",
-        "self-register"
+        "confirm-email"
     };
 
     private readonly FshWebApplicationFactory _factory;
