@@ -65,7 +65,6 @@ try {
   const ctxAdmin = await browser.newContext();
   const pAdmin = await ctxAdmin.newPage();
   await pAdmin.goto(`${WEB}/login`);
-  await pAdmin.locator("#tenant").fill(TENANT);
   await pAdmin.locator("#email").fill(EMAIL);
   await pAdmin.locator("#password").fill(SENHA_DEMO);
   await pAdmin.locator('button[type="submit"]').click();

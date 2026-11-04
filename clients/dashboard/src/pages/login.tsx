@@ -18,8 +18,8 @@ type LocationState = { from?: { pathname: string } };
 // ────────────────────────────────────────────────────────────────────────
 // Login — dentalOS "welcome back" card on rose+saffron atmospheric orbs
 // (chrome supplied by AuthShell, shared with the rest of the auth flow).
-// FSH stays multi-tenant, so the Tenant field leads the form; Email +
-// Password follow. The demo picker ("Step into any role") signs in
+// PAF (O2): e-mail and password only; the server finds the company from
+// the e-mail and the session keeps it. The demo picker ("Step into any role") signs in
 // instantly and is gated on the runtime demoMode flag — on in staging,
 // off in production.
 // ────────────────────────────────────────────────────────────────────────
@@ -32,8 +32,6 @@ export function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  // Empty, not env.defaultTenant ("root"): customers type their own company; root is the operator's.
-  const [tenant, setTenant] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [demoOpen, setDemoOpen] = useState(false);
@@ -51,7 +49,7 @@ export function LoginPage() {
     return <Navigate to={from} replace />;
   }
 
-  const performLogin = async (creds: { email: string; password: string; tenant: string }) => {
+  const performLogin = async (creds: { email: string; password: string }) => {
     setError(null);
     setSubmitting(true);
     try {
@@ -72,16 +70,15 @@ export function LoginPage() {
 
   const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    await performLogin({ email, password, tenant });
+    await performLogin({ email, password });
   };
 
   // Demo picker → reflect the chosen creds in the form, then sign in
-  // instantly. Each demo account carries its own tenant + password.
+  // instantly. The server finds each demo account's company from its e-mail.
   const onPickDemo = (account: DemoAccount) => {
     setEmail(account.email);
     setPassword(account.password);
-    setTenant(account.tenant);
-    void performLogin({ email: account.email, password: account.password, tenant: account.tenant });
+    void performLogin({ email: account.email, password: account.password });
   };
 
   return (
@@ -112,26 +109,6 @@ export function LoginPage() {
           noValidate
           aria-describedby={error ? "login-error" : undefined}
         >
-          {/* Empresa (the tenant) — FSH stays multi-tenant, so this leads the form. */}
-          <div className="space-y-1.5">
-            <Label
-              htmlFor="tenant"
-              className="block text-[11.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]"
-            >
-              Empresa
-            </Label>
-            <Input
-              id="tenant"
-              value={tenant}
-              onChange={(e) => setTenant(e.target.value)}
-              placeholder="identificador da empresa"
-              autoComplete="organization"
-              required
-              aria-invalid={error ? true : undefined}
-              className="h-11 text-[14px]"
-            />
-          </div>
-
           <div className="space-y-1.5">
             <Label
               htmlFor="email"
@@ -209,7 +186,7 @@ export function LoginPage() {
           <div className="pt-1.5">
             <Button
               type="submit"
-              disabled={submitting || !email || !password || !tenant}
+              disabled={submitting || !email || !password}
               className="group h-11 w-full text-[14px] font-semibold"
             >
               {submitting ? (

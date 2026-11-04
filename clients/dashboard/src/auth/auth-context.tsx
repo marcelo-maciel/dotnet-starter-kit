@@ -2,7 +2,7 @@ import { createContext, useCallback, useEffect, useMemo, useRef, useState, type 
 import { useQueryClient } from "@tanstack/react-query";
 import { tokenStore } from "@/auth/token-store";
 import { decodeJwt, isTokenExpired, type JwtClaims } from "@/auth/jwt";
-import { issueToken } from "@/auth/api";
+import { issueTokenByEmail } from "@/auth/api";
 import { refreshAccessToken } from "@/lib/api-client";
 import { endImpersonation, getMyPermissions, startImpersonation } from "@/api/identity";
 import { logoutPeloServidor } from "@/features/paf/sessao/logout-pelo-servidor";
@@ -43,7 +43,8 @@ export type AuthContextValue = {
   permissionsHydrated: boolean;
   /** Truthy iff the current access token carries act_sub (impersonation mode). */
   impersonation: ImpersonationInfo | null;
-  login: (input: { email: string; password: string; tenant: string }) => Promise<void>;
+  /** PAF (O2): e-mail and password only; the server answers which company the session belongs to. */
+  login: (input: { email: string; password: string }) => Promise<void>;
   logout: () => void;
   /** Clears the local session with no call to the server: for when the server already ended it (SessaoInvalidada). */
   logoutLocal: () => void;
@@ -223,14 +224,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(
-    async (input: { email: string; password: string; tenant: string }) => {
-      tokenStore.setTenant(input.tenant);
+    async (input: { email: string; password: string }) => {
       // Stale permissions from a previous user must not leak into the new
       // session — clear before issuing the token so the hydration effect
       // re-fetches from scratch.
       tokenStore.setPermissions([]);
       setPermissionsHydrated(false);
-      const tokens = await issueToken(input);
+      const tokens = await issueTokenByEmail(input);
       // Defence-in-depth: even though the API rejects root-tenant logins
       // submitted with X-FSH-App=dashboard, double-check the issued token
       // so a future API regression can't quietly drop a root token into
@@ -242,6 +242,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           "Contas SuperAdmin usam o console de administração. Entre por lá.",
         );
       }
+      // The company comes from the server, for the `tenant` header of every later request and of the refresh.
+      tokenStore.setTenant(tokens.tenant);
       tokenStore.setTokens(tokens.accessToken, tokens.refreshToken);
       // Drop any cached query state from before login. Without this, a
       // failed pre-login probe (e.g. OverviewPage's billing fetch

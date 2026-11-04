@@ -76,7 +76,6 @@ const STUBS = () => {
 async function entrar(contexto) {
   const p = await contexto.newPage();
   await p.goto(`${WEB}/login`);
-  await p.locator("#tenant").fill(TENANT);
   await p.locator("#email").fill(EMAIL);
   await p.locator("#password").fill(SENHA_DEMO);
   await p.locator('button[type="submit"]').click();

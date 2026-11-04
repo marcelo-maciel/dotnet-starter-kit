@@ -47,7 +47,6 @@ async function api(method, path, token, body) {
 
 async function entrar(page) {
   await page.goto(`${WEB}/login`);
-  await page.locator("#tenant").fill(TENANT);
   await page.locator("#email").fill(EMAIL);
   await page.locator("#password").fill(SENHA_DEMO);
   await page.locator('button[type="submit"]').click();

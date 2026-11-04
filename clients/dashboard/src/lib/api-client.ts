@@ -66,6 +66,8 @@ export function isImpersonationRevokedError(error: unknown): boolean {
 
 type RequestInitEx = RequestInit & {
   skipAuth?: boolean;
+  /** Send no `tenant` header: for the routes where the server finds the company from the e-mail (O2, O3). */
+  skipTenant?: boolean;
   /**
    * Per-request timeout in milliseconds. Browser fetch has no default timeout
    * so a permanently stalled request would hang React Query's promise forever.
@@ -163,7 +165,7 @@ export async function apiFetch<T = unknown>(
   path: string,
   init: RequestInitEx = {},
 ): Promise<T> {
-  const { skipAuth, headers, timeoutMs = DEFAULT_TIMEOUT_MS, signal, onResponse, ...rest } = init;
+  const { skipAuth, skipTenant, headers, timeoutMs = DEFAULT_TIMEOUT_MS, signal, onResponse, ...rest } = init;
 
   const mergedHeaders = new Headers(headers);
   if (!mergedHeaders.has("Content-Type") && rest.body && typeof rest.body === "string") {
@@ -189,7 +191,7 @@ export async function apiFetch<T = unknown>(
   }
 
   const tenant = tokenStore.getTenant() ?? env.defaultTenant;
-  if (tenant && !mergedHeaders.has("tenant")) {
+  if (!skipTenant && tenant && !mergedHeaders.has("tenant")) {
     mergedHeaders.set("tenant", tenant);
   }
 

@@ -128,7 +128,6 @@ function mp4(pasta, nome, cor, segundos) {
 async function entrar(contexto, email) {
   const pagina = await contexto.newPage();
   await pagina.goto(`${WEB}/login`);
-  await pagina.locator("#tenant").fill(TENANT);
   await pagina.locator("#email").fill(email);
   await pagina.locator("#password").fill(SENHA_DEMO);
   await pagina.locator('button[type="submit"]').click();

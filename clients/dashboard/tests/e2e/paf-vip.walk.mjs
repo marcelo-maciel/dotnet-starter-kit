@@ -200,7 +200,6 @@ try {
   const pagina = await (await browser.newContext()).newPage();
   pagina.on("dialog", (d) => void d.accept());
   await pagina.goto(`${WEB}/login`);
-  await pagina.locator("#tenant").fill(TENANT);
   await pagina.locator("#email").fill(ALICE);
   await pagina.locator("#password").fill(SENHA_DEMO);
   await pagina.locator('button[type="submit"]').click();

@@ -4,7 +4,6 @@ import { useMutation } from "@tanstack/react-query";
 import {
   AlertCircle,
   ArrowRight,
-  Building2,
   Check,
   Loader2,
   Mail,
@@ -15,13 +14,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthHeadline, AuthShell } from "@/components/auth/auth-shell";
-import { requestPasswordReset } from "@/api/identity";
+import { requestPasswordResetByEmail } from "@/api/identity";
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 
 /**
- * Forgot-password — step 1 of the reset flow. Collects (email, tenant)
- * and asks the server to email a one-time reset link to that address.
+ * Forgot-password — step 1 of the reset flow. Collects the e-mail only (O3):
+ * the server finds the company and emails a one-time reset link that
+ * carries it, which the reset page reads.
  *
  * Security note: the backend deliberately returns 200 even when the email
  * doesn't exist (no account-enumeration). The UI must NOT branch on the
@@ -31,16 +31,14 @@ import { cn } from "@/lib/cn";
 export function ForgotPasswordPage() {
   const { isAuthenticated } = useAuth();
   const [email, setEmail] = useState("");
-  // Empty, not env.defaultTenant ("root"), as on the login: customers type their own company; root is the operator's.
-  const [tenant, setTenant] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const mutation = useMutation({
-    mutationFn: () => requestPasswordReset({ email, tenant }),
+    mutationFn: () => requestPasswordResetByEmail({ email }),
     onSuccess: () => setSubmitted(true),
     onError: (err: unknown) => {
-      // Most failures here are infra (tenant not resolvable, server down) —
+      // Failures here are infra (server down, too many attempts) —
       // we surface those plainly; account-existence is intentionally hidden
       // by the server's uniform 200 response.
       const detail =
@@ -89,9 +87,7 @@ export function ForgotPasswordPage() {
             <AuthHeadline lead="Confira sua" accent="caixa de entrada" />
             <p className="text-[13px] leading-relaxed text-[var(--color-muted-foreground)]">
               Se existir uma conta para{" "}
-              <span className="text-[var(--color-foreground)]">{email}</span> na
-              empresa{" "}
-              <span className="text-[var(--color-foreground)]">{tenant}</span>,
+              <span className="text-[var(--color-foreground)]">{email}</span>,
               um link de uso único para redefinir a senha está a caminho. O link expira em 30 minutos.
             </p>
           </div>
@@ -102,7 +98,7 @@ export function ForgotPasswordPage() {
             </li>
             <li className="flex items-start gap-2">
               <Check className="mt-0.5 size-3.5 shrink-0 text-[var(--color-success)]" />
-              Ainda nada? Confira o e-mail e a empresa e tente de novo.
+              Ainda nada? Confira o e-mail e tente de novo.
             </li>
           </ul>
           <div className="flex items-center gap-2 pt-1">
@@ -133,29 +129,6 @@ export function ForgotPasswordPage() {
           </div>
 
           <form onSubmit={onSubmit} className="space-y-5" noValidate aria-describedby={error ? "forgot-error" : undefined}>
-            <div className="space-y-1.5">
-              <Label
-                htmlFor="reset-tenant"
-                className="block text-[11.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]"
-              >
-                Empresa
-              </Label>
-              <div className="relative">
-                <Building2 className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.6)]" />
-                <Input
-                  id="reset-tenant"
-                  value={tenant}
-                  onChange={(e) => setTenant(e.target.value)}
-                  placeholder="identificador da empresa"
-                  autoComplete="organization"
-                  required
-                  aria-invalid={error ? true : undefined}
-                  aria-describedby={error ? "forgot-error" : undefined}
-                  className="h-11 pl-10 text-[14px]"
-                />
-              </div>
-            </div>
-
             <div className="space-y-1.5">
               <Label
                 htmlFor="reset-email"
@@ -200,7 +173,7 @@ export function ForgotPasswordPage() {
             <div className="pt-1.5">
               <Button
                 type="submit"
-                disabled={mutation.isPending || !email || !tenant}
+                disabled={mutation.isPending || !email}
                 className="group h-11 w-full text-[14px] font-semibold"
               >
                 {mutation.isPending ? (
