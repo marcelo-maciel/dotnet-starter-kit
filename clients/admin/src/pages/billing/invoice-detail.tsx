@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { EntityPageHeader, SettingsSection, Field } from "@/components/list";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 import { SAO_PAULO } from "@/lib/format";
 import { useAuth } from "@/auth/use-auth";
@@ -65,7 +65,7 @@ function statusVariant(status: InvoiceStatus): React.ComponentProps<typeof Badge
 }
 
 function describe(err: unknown, fallback: string): string {
-  if (err instanceof ApiRequestError) return err.problem?.detail ?? err.problem?.title ?? err.message;
+  if (err instanceof ApiRequestError) return describeError(err);
   if (err instanceof Error) return err.message;
   return fallback;
 }

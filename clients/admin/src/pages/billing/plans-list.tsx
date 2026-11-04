@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatStrip, Stat, SettingsSection } from "@/components/list";
 import { PlanFormDialog } from "@/components/billing/plan-form-dialog";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 import { useAuth } from "@/auth/use-auth";
 import { BillingPermissions } from "@/lib/permissions";
 
@@ -30,7 +30,7 @@ function formatOverageRates(rates: BillingPlanDto["overageRates"], currency: str
 }
 
 function describe(err: unknown): string {
-  if (err instanceof ApiRequestError) return err.problem?.detail ?? err.problem?.title ?? err.message;
+  if (err instanceof ApiRequestError) return describeError(err);
   if (err instanceof Error) return err.message;
   return "Failed to load plans.";
 }

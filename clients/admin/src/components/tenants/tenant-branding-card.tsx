@@ -16,7 +16,7 @@ import {
   type PaletteDto,
   type TenantThemeDto,
 } from "@/api/tenants";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 
 /**
@@ -480,7 +480,7 @@ function ThemePreview({ palette, label }: { palette: PaletteDto; label: string }
 
 function apiErr(err: unknown): string {
   if (err instanceof ApiRequestError) {
-    return err.problem?.detail ?? err.problem?.title ?? err.message;
+    return describeError(err);
   }
   if (err instanceof Error) return err.message;
   return "Unknown error";

@@ -18,7 +18,7 @@ import {
   DialogBody,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 
 // ─── Schema (identical to the old create page) ───────────────────────────────
 
@@ -72,7 +72,7 @@ export function CreateRoleDialog({
     onError: (err) => {
       const detail =
         err instanceof ApiRequestError
-          ? err.problem?.detail ?? err.problem?.title ?? err.message
+          ? describeError(err)
           : err.message;
       toast.error("Create failed", { description: detail });
     },

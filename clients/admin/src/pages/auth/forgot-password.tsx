@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { requestPasswordReset } from "@/api/users";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 import { env } from "@/env";
 
@@ -40,7 +40,7 @@ export function ForgotPasswordPage() {
     onError: (err: unknown) => {
       const detail =
         err instanceof ApiRequestError
-          ? err.problem?.detail ?? err.problem?.title ?? err.message
+          ? describeError(err)
           : (err as Error).message;
       setError(detail);
     },

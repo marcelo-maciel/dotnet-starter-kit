@@ -20,7 +20,7 @@ import {
   LoadingRow,
   SettingsSection,
 } from "@/components/list";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 
 export function UserDetailPage() {
@@ -400,7 +400,7 @@ function RoleChip({
 
 function describeErr(err: unknown): string {
   if (err instanceof ApiRequestError)
-    return err.problem?.detail ?? err.problem?.title ?? err.message;
+    return describeError(err);
   if (err instanceof Error) return err.message;
   return String(err);
 }

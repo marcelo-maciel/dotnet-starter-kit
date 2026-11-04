@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Monogram } from "@/components/monogram";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 import { env } from "@/env";
 import { cn } from "@/lib/cn";
 
@@ -281,7 +281,7 @@ function ConfigureStep({
     onError: (err) => {
       const detail =
         err instanceof ApiRequestError
-          ? err.problem?.detail ?? err.problem?.title ?? err.message
+          ? describeError(err)
           : err.message;
       toast.error("Impersonation failed", { description: detail });
     },
