@@ -13,6 +13,7 @@ using FSH.Modules.Identity.Services;
 using Mediator;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace FSH.Modules.Identity.Features.v1.Tokens.IssueTokenByEmail;
 
@@ -21,34 +22,49 @@ namespace FSH.Modules.Identity.Features.v1.Tokens.IssueTokenByEmail;
 /// <see cref="GenerateTokenCommand"/> inside that tenant's scope, so the PAF pipeline (licence, single session,
 /// the refusal of a user with no unidade) and the session bound to the token run exactly as on <c>token/issue</c>.
 /// Order of the answers, so nobody without the password learns anything:
-/// no tenant, look-alike address, deactivated tenant or root (outside the lookup) cost one decoy hash and give the
-/// generic 401; a wrong password gives the same 401; only after the password matched may the kit flow reveal an
-/// expired tenant, a locked or deactivated account, a missing second factor or the PAF refusals.
+/// no tenant, look-alike address, deactivated tenant, root (outside the lookup) and a locked account cost one decoy
+/// hash and give the generic 401; a wrong password gives the same 401; only after the password matched may the kit
+/// flow reveal an expired tenant, a deactivated account, a missing second factor or the PAF refusals. Every answer
+/// past the rate limiter takes at least <see cref="ResponseFloor.Floor"/>.
 /// </summary>
 public sealed class IssueTokenByEmailCommandHandler(
     IServiceScopeFactory scopeFactory,
     ClientTenantEmailDirectory emails,
     EmailLoginRateLimiter rateLimiter,
     IRequestContext requestContext,
-    IPasswordHasher<FshUser> passwordHasher)
+    IPasswordHasher<FshUser> passwordHasher,
+    ILogger<IssueTokenByEmailCommandHandler> logger)
     : ICommandHandler<IssueTokenByEmailCommand, IssueTokenByEmailResponse>
 {
-    public const string RateLimitFlow = "login";
-
-    private static string? _decoyHash;
-
     public async ValueTask<IssueTokenByEmailResponse> Handle(IssueTokenByEmailCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
 
         // The same trim and NFC the kit's FindByEmail path applies, so both logins read the same address.
         var email = command.Email.Trim().Normalize();
-        rateLimiter.ThrowIfExceeded(RateLimitFlow, requestContext.IpAddress, email);
+        // Outside the floor: a 429 depends on the counters alone, and holding it would only keep floods connected.
+        rateLimiter.ThrowIfLoginExceeded(requestContext.IpAddress, email);
 
+        return await ResponseFloor.AtLeastAsync(() => SignInAsync(email, command, cancellationToken)).ConfigureAwait(false);
+    }
+
+    /// <summary>Short hash of the normalized e-mail: the audit records the attempt without the personal data.</summary>
+    public static string UnknownAccountSubject(string email)
+    {
+        ArgumentNullException.ThrowIfNull(email);
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(email.ToUpperInvariant()));
+        return $"email:{Convert.ToHexString(hash.AsSpan(0, 8))}";
+    }
+
+    private async Task<IssueTokenByEmailResponse> SignInAsync(
+        string email,
+        IssueTokenByEmailCommand command,
+        CancellationToken cancellationToken)
+    {
         var tenant = await emails.FindSignInTenantAsync(email, cancellationToken).ConfigureAwait(false);
         if (tenant is null)
         {
-            VerifyDecoy(command.Password);
+            LoginGuards.VerifyDecoy(passwordHasher, command.Password);
             await AuditUnknownAccountAsync(email, cancellationToken).ConfigureAwait(false);
             throw new UnauthorizedException();
         }
@@ -60,14 +76,6 @@ public sealed class IssueTokenByEmailCommandHandler(
             token.RefreshToken,
             token.RefreshTokenExpiresAt,
             token.AccessTokenExpiresAt);
-    }
-
-    /// <summary>Short hash of the normalized e-mail: the audit records the attempt without the personal data.</summary>
-    public static string UnknownAccountSubject(string email)
-    {
-        ArgumentNullException.ThrowIfNull(email);
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(email.ToUpperInvariant()));
-        return $"email:{Convert.ToHexString(hash.AsSpan(0, 8))}";
     }
 
     // The Finbuckle context is an AsyncLocal: it is set here, in the method that sends the command, and does not
@@ -88,30 +96,40 @@ public sealed class IssueTokenByEmailCommandHandler(
         if (user is null)
         {
             // Removed between the lookup and here: still the unknown e-mail's answer and cost.
-            VerifyDecoy(command.Password);
+            LoginGuards.VerifyDecoy(passwordHasher, command.Password);
             throw new UnauthorizedException();
         }
 
-        // Password first: the kit checks the lockout before it, which would tell a locked account apart.
+        // M1: locked is answered like a wrong password, without checking it (the decoy keeps the time) and without
+        // counting another failure; the kit flow below would say 423 to anyone holding the e-mail.
+        if (await userManager.IsLockedOutAsync(user).ConfigureAwait(false))
+        {
+            LoginGuards.VerifyDecoy(passwordHasher, command.Password);
+            await AuditFailedLoginAsync(services, user.Id, "LockedOut", cancellationToken).ConfigureAwait(false);
+            throw new UnauthorizedException();
+        }
+
         if (!await userManager.CheckPasswordAsync(user, command.Password).ConfigureAwait(false))
         {
-            if (!await userManager.IsLockedOutAsync(user).ConfigureAwait(false))
-            {
-                await userManager.AccessFailedAsync(user).ConfigureAwait(false);
-            }
-
-            await services.GetRequiredService<ISecurityAudit>().LoginFailedAsync(
-                subjectIdOrName: user.Id,
-                clientId: requestContext.ClientId,
-                reason: "InvalidCredentials",
-                ip: requestContext.IpAddress ?? "unknown",
-                ct: cancellationToken).ConfigureAwait(false);
+            await LoginGuards.RecordFailedAttemptAsync(userManager, user, logger).ConfigureAwait(false);
+            await AuditFailedLoginAsync(services, user.Id, "InvalidCredentials", cancellationToken).ConfigureAwait(false);
             throw new UnauthorizedException();
         }
 
         return await services.GetRequiredService<IMediator>()
             .Send(new GenerateTokenCommand(email, command.Password, command.TwoFactorCode), cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    // Written through the tenant's scope: the row lands in that tenant's audit, where its admin sees it.
+    private async Task AuditFailedLoginAsync(IServiceProvider services, string userId, string reason, CancellationToken cancellationToken)
+    {
+        await services.GetRequiredService<ISecurityAudit>().LoginFailedAsync(
+            subjectIdOrName: userId,
+            clientId: requestContext.ClientId,
+            reason: reason,
+            ip: requestContext.IpAddress ?? "unknown",
+            ct: cancellationToken).ConfigureAwait(false);
     }
 
     // Written to root's audit: the attempt names no tenant, and only a hash of the e-mail lands there.
@@ -131,14 +149,5 @@ public sealed class IssueTokenByEmailCommandHandler(
             reason: "InvalidCredentials",
             ip: requestContext.IpAddress ?? "unknown",
             ct: cancellationToken).ConfigureAwait(false);
-    }
-
-    // One real hash verification on the paths with no account, so the answer takes as long as a wrong password.
-    private void VerifyDecoy(string password)
-    {
-        var decoy = LazyInitializer.EnsureInitialized(
-            ref _decoyHash,
-            () => passwordHasher.HashPassword(new FshUser(), Guid.NewGuid().ToString("N")));
-        _ = passwordHasher.VerifyHashedPassword(new FshUser(), decoy, password);
     }
 }

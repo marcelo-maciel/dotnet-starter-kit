@@ -16,7 +16,9 @@ namespace FSH.Modules.Identity.Features.v1.Users.ForgotPasswordByEmail;
 /// <summary>
 /// Forgot password without tenant (O3): finds the client tenant of the e-mail as the login does and runs the kit's
 /// own forgot-password inside it, so the link carries that tenant and the reset page keeps reading it. The answer
-/// is the same whether or not the e-mail exists.
+/// is the same whether or not the e-mail exists, whether or not the e-mail's hourly allowance is spent, and it takes
+/// at least <see cref="ResponseFloor.Floor"/>, so the known address's extra work (token, enqueued e-mail) does not
+/// show in the time.
 /// </summary>
 public sealed class ForgotPasswordByEmailCommandHandler(
     IServiceScopeFactory scopeFactory,
@@ -27,25 +29,37 @@ public sealed class ForgotPasswordByEmailCommandHandler(
     IStringLocalizer<IdentityResources> localizer)
     : ICommandHandler<ForgotPasswordByEmailCommand, string>
 {
-    public const string RateLimitFlow = "forgot";
-
     public async ValueTask<string> Handle(ForgotPasswordByEmailCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
 
         var email = command.Email.Trim().Normalize();
-        // A flood of reset e-mails at one address is the abuse here: same windows as the login, own allowance.
-        rateLimiter.ThrowIfExceeded(RateLimitFlow, requestContext.IpAddress, email);
+        // The IP window may answer 429: it says nothing about the address.
+        rateLimiter.ThrowIfForgotIpExceeded(requestContext.IpAddress);
 
         // Self-service flow: the reset link must land on the SPA the user is currently using.
         var origin = originResolver.ResolveForCurrentRequest();
-        var tenant = await emails.FindSignInTenantAsync(email, cancellationToken).ConfigureAwait(false);
-        if (tenant is not null)
+        await ResponseFloor.AtLeastAsync(() => SendIfKnownAsync(email, origin, cancellationToken)).ConfigureAwait(false);
+        return localizer["Identity.PasswordResetEmailSent"];
+    }
+
+    private async Task<bool> SendIfKnownAsync(string email, string origin, CancellationToken cancellationToken)
+    {
+        // Over the e-mail's allowance nothing is sent, and the caller gets the same answer: a flood at one mailbox
+        // stops without telling whether the mailbox has an account.
+        if (!rateLimiter.TryAcquireForgotEmail(email))
         {
-            await SendInTenantAsync(tenant, email, origin, cancellationToken).ConfigureAwait(false);
+            return false;
         }
 
-        return localizer["Identity.PasswordResetEmailSent"];
+        var tenant = await emails.FindSignInTenantAsync(email, cancellationToken).ConfigureAwait(false);
+        if (tenant is null)
+        {
+            return false;
+        }
+
+        await SendInTenantAsync(tenant, email, origin, cancellationToken).ConfigureAwait(false);
+        return true;
     }
 
     // The Finbuckle context is an AsyncLocal: set in the method that uses it.

@@ -111,23 +111,51 @@ public sealed class PafLoginPorEmailTests(FshWebApplicationFactory factory) : IA
         (await ProblemaAsync(desativadaSenhaCerta)).ShouldBe(referencia);
     }
 
-    // token/issue checks the lockout before the password, so there a wrong password already says "locked" (423).
+    // M1: the kit answered 423 to a locked account, so the e-mail alone told that the account exists. Now both
+    // logins give the wrong password's 401 while locked, right password or not, and count no further failure.
     [Fact]
-    public async Task ContaBloqueada_SenhaErradaDaO401Generico_SoASenhaCertaVeOBloqueio()
+    public async Task ContaBloqueada_MesmoO401DoEmailDesconhecido_ComSenhaCertaOuErrada_NosDoisLogins()
     {
         var unidade = await _tenant.CriarUnidadeAsync(limiteSessoes: 5);
         var usuario = await _tenant.CriarUsuarioAsync(unidade.UnidadeId);
         await BloquearAsync(usuario.UserId);
         using var desconhecido = await LoginAsync($"ninguem-{Guid.NewGuid():N}@paf.test", SenhaErrada, null);
+        using var desconhecidoComEmpresa = await _tenant.LoginAsync($"ninguem-{Guid.NewGuid():N}@paf.test", SenhaErrada);
+        var referencia = await ProblemaAsync(desconhecido);
+        var referenciaComEmpresa = await ProblemaAsync(desconhecidoComEmpresa);
 
         using var errada = await LoginAsync(usuario.Email, SenhaErrada, null);
         using var certa = await LoginAsync(usuario.Email, usuario.Password, null);
-        using var comEmpresa = await _tenant.LoginAsync(usuario.Email, SenhaErrada);
+        using var comEmpresaErrada = await _tenant.LoginAsync(usuario.Email, SenhaErrada);
+        using var comEmpresaCerta = await _tenant.LoginAsync(usuario.Email, usuario.Password);
 
-        errada.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
-        (await ProblemaAsync(errada)).ShouldBe(await ProblemaAsync(desconhecido));
-        certa.StatusCode.ShouldBe(HttpStatusCode.Locked);
-        comEmpresa.StatusCode.ShouldBe(HttpStatusCode.Locked, "o login com empresa continua como o kit");
+        (await ProblemaAsync(errada)).ShouldBe(referencia);
+        (await ProblemaAsync(certa)).ShouldBe(referencia);
+        (await ProblemaAsync(comEmpresaErrada)).ShouldBe(referenciaComEmpresa);
+        (await ProblemaAsync(comEmpresaCerta)).ShouldBe(referenciaComEmpresa);
+        (await FalhasDeAcessoAsync(usuario.UserId)).ShouldBe(0, "bloqueada, a conta não conta mais falhas");
+    }
+
+    // M2: the unknown e-mail costs a decoy hash, a wrong password a real hash plus the lockout write; without a floor
+    // the difference showed in the time (57-77 ms against 69-85 ms locally). Every answer now takes the floor.
+    [Fact]
+    public async Task TodaRespostaDoLoginPorEmail_LevaPeloMenosOPiso()
+    {
+        var unidade = await _tenant.CriarUnidadeAsync(limiteSessoes: 5);
+        var usuario = await _tenant.CriarUsuarioAsync(unidade.UnidadeId);
+        var bloqueado = await _tenant.CriarUsuarioAsync(unidade.UnidadeId);
+        await BloquearAsync(bloqueado.UserId);
+
+        var duracoes = new Dictionary<string, TimeSpan>
+        {
+            ["desconhecido"] = await DuracaoAsync(() => LoginAsync($"ninguem-{Guid.NewGuid():N}@paf.test", SenhaErrada, null)),
+            ["senha errada"] = await DuracaoAsync(() => LoginAsync(usuario.Email, SenhaErrada, null)),
+            ["bloqueado"] = await DuracaoAsync(() => LoginAsync(bloqueado.Email, bloqueado.Password, null)),
+            ["esqueci conhecido"] = await DuracaoAsync(() => EsqueciAsync(usuario.Email)),
+            ["esqueci desconhecido"] = await DuracaoAsync(() => EsqueciAsync($"ninguem-{Guid.NewGuid():N}@paf.test")),
+        };
+
+        duracoes.ShouldAllBe(d => d.Value >= ResponseFloor.Floor, string.Join(", ", duracoes.Select(d => $"{d.Key} {d.Value.TotalMilliseconds:F0} ms")));
     }
 
     // The PAF pipeline ran: licence and single session are GenerateTokenLicenseBehavior's, not the kit's.
@@ -214,6 +242,23 @@ public sealed class PafLoginPorEmailTests(FshWebApplicationFactory factory) : IA
         outroIp.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
+    // A flood of reset e-mails at one mailbox stops at 3 an hour, and the 4th request gets the same 200.
+    [Fact]
+    public async Task EsqueciASenha_QuartoPedidoNaHora_MesmaRespostaSemNovoEmail()
+    {
+        var usuario = await _tenant.CriarUsuarioAsync();
+        var respostas = new List<string>();
+        for (var i = 0; i < 4; i++)
+        {
+            using var resposta = await EsqueciAsync(usuario.Email);
+            resposta.StatusCode.ShouldBe(HttpStatusCode.OK);
+            respostas.Add(await resposta.Content.ReadAsStringAsync());
+        }
+
+        respostas.Distinct().Count().ShouldBe(1);
+        RedefinicoesPara(usuario.Email).Count.ShouldBe(3);
+    }
+
     [Fact]
     public async Task EsqueciASenha_MesmaRespostaSempre_LinkLevaAEmpresa()
     {
@@ -229,12 +274,29 @@ public sealed class PafLoginPorEmailTests(FshWebApplicationFactory factory) : IA
 
         // The reset mail is a Hangfire job: its MailRequest argument, built inside the request, is what the API sent
         // (UserEmailLanguageTests.MailsTo explains why the capture itself is not reliable in this host).
-        var redefinicoes = MensagensDoHangfire(usuario.Email)
+        var redefinicoes = RedefinicoesPara(usuario.Email);
+        redefinicoes.Count.ShouldBe(1, "um link só, para a conta da empresa do e-mail");
+        redefinicoes[0].ShouldContain($"tenant={_tenant.TenantId}");
+    }
+
+    private static List<string> RedefinicoesPara(string email) =>
+        MensagensDoHangfire(email)
             .Select(m => m.TextBody ?? m.Body ?? string.Empty)
             .Where(texto => texto.Contains("/reset-password?", StringComparison.Ordinal))
             .ToList();
-        redefinicoes.Count.ShouldBe(1, "um link só, para a conta da empresa do e-mail");
-        redefinicoes[0].ShouldContain($"tenant={_tenant.TenantId}");
+
+    private async Task<HttpResponseMessage> EsqueciAsync(string email)
+    {
+        using var client = factory.CreateClient();
+        return await client.PostAsJsonAsync(RotaEsqueci, new { email });
+    }
+
+    private static async Task<TimeSpan> DuracaoAsync(Func<Task<HttpResponseMessage>> chamada)
+    {
+        var inicio = System.Diagnostics.Stopwatch.GetTimestamp();
+        using var resposta = await chamada();
+        _ = await resposta.Content.ReadAsStringAsync();
+        return System.Diagnostics.Stopwatch.GetElapsedTime(inicio);
     }
 
     private static List<MailRequest> MensagensDoHangfire(string para)

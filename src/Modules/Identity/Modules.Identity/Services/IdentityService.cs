@@ -200,30 +200,27 @@ public sealed class IdentityService : IIdentityService
         var user = await _userManager.FindByEmailAsync(email.Trim().Normalize());
         if (user is null)
         {
-            // Generic 401 — never confirm or deny account existence from this path.
+            // Generic 401 — never confirm or deny account existence from this path; the decoy hash keeps the
+            // answer as slow as a wrong password's.
+            LoginGuards.VerifyDecoy(_userManager.PasswordHasher, password);
             throw new UnauthorizedException();
         }
 
-        // Lockout check runs BEFORE password check so an attacker can't tell a locked
-        // account from a wrong-password one on every request.
+        // PAF (M1): a locked account gets the wrong password's 401, not the kit's 423, which told anyone with
+        // the e-mail alone that the account exists and is locked. The password is not checked while locked
+        // (the decoy hash keeps the time) and no failure is counted.
         if (_userManager.SupportsUserLockout && await _userManager.IsLockedOutAsync(user))
         {
             _logger.LogWarning("Login attempted for locked account {UserId}", user.Id);
-            throw new CustomException(
-                "Account is temporarily locked due to too many failed login attempts. Try again later.",
-                errors: null,
-                HttpStatusCode.Locked)
-            {
-                MessageKey = "Identity.AccountLocked",
-                ResourceSource = typeof(IdentityResources),
-            };
+            LoginGuards.VerifyDecoy(_userManager.PasswordHasher, password);
+            throw new UnauthorizedException();
         }
 
         if (!await _userManager.CheckPasswordAsync(user, password))
         {
             if (_userManager.SupportsUserLockout)
             {
-                await _userManager.AccessFailedAsync(user);
+                await LoginGuards.RecordFailedAttemptAsync(_userManager, user, _logger);
                 if (await _userManager.IsLockedOutAsync(user))
                 {
                     _logger.LogWarning(
@@ -237,7 +234,7 @@ public sealed class IdentityService : IIdentityService
         // Successful authentication resets the failed-attempt counter.
         if (_userManager.SupportsUserLockout && await _userManager.GetAccessFailedCountAsync(user) > 0)
         {
-            await _userManager.ResetAccessFailedCountAsync(user);
+            await LoginGuards.ResetFailedAttemptsAsync(_userManager, user, _logger);
         }
 
         return user;
