@@ -84,12 +84,10 @@ export function Sidebar() {
         <div className={cn("flex items-center", collapsed ? "" : "gap-2.5")}>
           <span
             aria-hidden
-            className={cn(
-              "brand-mark grid size-8 place-items-center rounded-lg shrink-0",
-              "font-display text-[12px] font-bold text-[var(--color-primary-foreground)]",
-            )}
+            className="grid size-8 shrink-0 place-items-center rounded-lg bg-white p-0.5 ring-1 ring-[var(--color-border)]"
           >
-            P
+            {/* ponytail: logo files are rasters cut from a 373x507 PNG; swap for the vector logo when Marcelo has one. */}
+            <img src="/logo-paf-simbolo.png" alt="" className="size-full object-contain" />
           </span>
           {!collapsed && (
             <div className="flex flex-col">

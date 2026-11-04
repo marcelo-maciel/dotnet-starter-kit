@@ -4,9 +4,8 @@ import { cn } from "@/lib/cn";
  * BrandMark — the compact inline lockup used in the sidebar brand row and
  * any surface that needs a sub-header-sized reference to the product.
  *
- * Matches the dashboard's brand treatment: a small gradient square carrying
- * the "F" initial, paired with the "fullstackhero" wordmark with a tinted
- * accent on "hero", and a small "Admin" sub-label.
+ * Matches the dashboard's brand treatment: the PAF symbol on a small white
+ * plate, paired with the "Passo a Frente" wordmark and a small "Operador" sub-label.
  *
  * The chartreuse signal colour from the old Console identity is retired here.
  * Colour-identity is now driven purely by the shared `--color-primary` token.
@@ -16,12 +15,10 @@ export function BrandMark({ className }: { className?: string }) {
     <div className={cn("inline-flex select-none items-center gap-2.5", className)}>
       <span
         aria-hidden
-        className={cn(
-          "brand-mark grid size-8 shrink-0 place-items-center rounded-lg",
-          "font-display text-[12px] font-bold text-[var(--color-primary-foreground)]",
-        )}
+        className="grid size-8 shrink-0 place-items-center rounded-lg bg-white p-0.5 ring-1 ring-[var(--color-border)]"
       >
-        P
+        {/* ponytail: logo files are rasters cut from a 373x507 PNG; swap for the vector logo when Marcelo has one. */}
+        <img src="/logo-paf-simbolo.png" alt="" className="size-full object-contain" />
       </span>
       <div className="flex flex-col">
         <span className="whitespace-nowrap font-display text-[15px] font-bold leading-none tracking-tight text-[var(--color-foreground)]">
@@ -46,9 +43,10 @@ export function BrandMarkXL({ className }: { className?: string }) {
       <div className="flex items-center gap-2.5">
         <span
           aria-hidden
-          className="brand-mark grid size-7 shrink-0 place-items-center rounded-lg font-display text-[13px] font-bold text-[var(--color-primary-foreground)]"
+          className="grid size-7 shrink-0 place-items-center rounded-lg bg-white p-0.5 ring-1 ring-[var(--color-border)]"
         >
-          P
+          {/* ponytail: logo files are rasters cut from a 373x507 PNG; swap for the vector logo when Marcelo has one. */}
+          <img src="/logo-paf-simbolo.png" alt="" className="size-full object-contain" />
         </span>
         <span className="font-display text-[18px] font-semibold tracking-tight text-[var(--color-foreground)]">
           Passo a <span className="text-[var(--color-primary)]">Frente</span>

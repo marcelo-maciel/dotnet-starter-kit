@@ -9,19 +9,11 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import {
-  ACCENT_STORAGE_KEY,
-  accents,
-  buildCustomBrandStops,
-  CUSTOM_ACCENT_ID,
-  CUSTOM_ACCENT_STORAGE_KEY,
-  DEFAULT_ACCENT,
-  DEFAULT_CUSTOM_ACCENT,
   DEFAULT_DENSITY,
   DEFAULT_FONT,
   DENSITY_STORAGE_KEY,
   FONT_STORAGE_KEY,
   fonts,
-  type CustomAccentSpec,
   type DensityMode,
 } from "@/components/theme/appearance-options";
 
@@ -34,12 +26,6 @@ type ThemeContextValue = {
   setMode: (mode: ThemeMode) => void;
   font: string;
   setFont: (id: string) => void;
-  accent: string;
-  setAccent: (id: string) => void;
-  /** Currently configured custom accent spec — drives the live preview
-   *  in the appearance UI even when a preset is selected. */
-  customAccent: CustomAccentSpec;
-  setCustomAccent: (spec: CustomAccentSpec) => void;
   density: DensityMode;
   setDensity: (next: DensityMode) => void;
   /** When true, forces reduced motion regardless of the OS setting. */
@@ -50,7 +36,6 @@ type ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 const THEME_STORAGE_KEY = "fsh.theme";
 const REDUCED_MOTION_STORAGE_KEY = "fsh.reduce-motion";
-const ACCENT_CLASS_PREFIX = "accent-";
 const FALLBACK_TRANSITION_MS = 280;
 
 function readStoredMode(): ThemeMode {
@@ -144,65 +129,6 @@ function applyFont(id: string) {
   document.documentElement.style.setProperty("--font-sans", opt.family);
 }
 
-const BRAND_VARS: ReadonlyArray<string> = [
-  "--brand-50", "--brand-100", "--brand-200", "--brand-300", "--brand-400",
-  "--brand-500", "--brand-600", "--brand-700", "--brand-800", "--brand-900",
-  "--brand-950",
-];
-
-function clearCustomBrandInlineStyles(root: HTMLElement) {
-  for (const v of BRAND_VARS) root.style.removeProperty(v);
-}
-
-function applyCustomBrandInlineStyles(root: HTMLElement, spec: CustomAccentSpec) {
-  for (const { var: name, value } of buildCustomBrandStops(spec)) {
-    root.style.setProperty(name, value);
-  }
-}
-
-function applyAccent(id: string, customSpec: CustomAccentSpec) {
-  if (typeof document === "undefined") return;
-  const root = document.documentElement;
-  // Strip any existing accent-* class then add the new one. The default
-  // (indigo) lives in :root so it needs no class.
-  root.className = root.className
-    .split(/\s+/)
-    .filter((c) => !c.startsWith(ACCENT_CLASS_PREFIX))
-    .join(" ");
-
-  if (id === CUSTOM_ACCENT_ID) {
-    // Custom accent — inline-style the eleven --brand-* stops from the
-    // current spec. Inline styles win over the accent-* class rules so
-    // we don't need to add any class.
-    applyCustomBrandInlineStyles(root, customSpec);
-    return;
-  }
-
-  // Preset (or default). Make sure inline overrides aren't lingering
-  // from a previous custom selection — otherwise the chosen preset
-  // would be invisible.
-  clearCustomBrandInlineStyles(root);
-
-  if (id !== DEFAULT_ACCENT && accents.some((a) => a.id === id)) {
-    root.classList.add(`${ACCENT_CLASS_PREFIX}${id}`);
-  }
-}
-
-function readStoredCustomAccent(): CustomAccentSpec {
-  if (typeof window === "undefined") return DEFAULT_CUSTOM_ACCENT;
-  try {
-    const raw = window.localStorage.getItem(CUSTOM_ACCENT_STORAGE_KEY);
-    if (!raw) return DEFAULT_CUSTOM_ACCENT;
-    const parsed = JSON.parse(raw) as Partial<CustomAccentSpec>;
-    return {
-      h: typeof parsed.h === "number" ? parsed.h : DEFAULT_CUSTOM_ACCENT.h,
-      c: typeof parsed.c === "number" ? parsed.c : DEFAULT_CUSTOM_ACCENT.c,
-    };
-  } catch {
-    return DEFAULT_CUSTOM_ACCENT;
-  }
-}
-
 function applyDensity(value: DensityMode) {
   if (typeof document === "undefined") return;
   document.documentElement.classList.toggle("density-compact", value === "compact");
@@ -236,12 +162,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [font, setFontState] = useState<string>(() =>
     readStoredString(FONT_STORAGE_KEY, DEFAULT_FONT),
   );
-  const [accent, setAccentState] = useState<string>(() =>
-    readStoredString(ACCENT_STORAGE_KEY, DEFAULT_ACCENT),
-  );
-  const [customAccent, setCustomAccentState] = useState<CustomAccentSpec>(() =>
-    readStoredCustomAccent(),
-  );
   const [density, setDensityState] = useState<DensityMode>(() => {
     const stored = readStoredString(DENSITY_STORAGE_KEY, DEFAULT_DENSITY);
     return stored === "compact" ? "compact" : DEFAULT_DENSITY;
@@ -250,13 +170,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     readStoredReducedMotion(),
   );
 
-  // Apply font / accent / density — covers initial render and any
+  // Apply font / density — covers initial render and any
   // subsequent change. The dark class is owned by withThemeTransition
   // and the index.html bootstrap script; no useEffect for `resolved`.
-  // Custom-accent application also re-runs whenever `customAccent`
-  // changes so a hue tweak previews live.
   useEffect(() => applyFont(font), [font]);
-  useEffect(() => applyAccent(accent, customAccent), [accent, customAccent]);
   useEffect(() => applyDensity(density), [density]);
   useEffect(() => applyReducedMotion(reducedMotion), [reducedMotion]);
 
@@ -313,24 +230,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const setAccent = useCallback((id: string) => {
-    setAccentState(id);
-    try {
-      window.localStorage.setItem(ACCENT_STORAGE_KEY, id);
-    } catch {
-      /* storage unavailable */
-    }
-  }, []);
-
-  const setCustomAccent = useCallback((spec: CustomAccentSpec) => {
-    setCustomAccentState(spec);
-    try {
-      window.localStorage.setItem(CUSTOM_ACCENT_STORAGE_KEY, JSON.stringify(spec));
-    } catch {
-      /* storage unavailable */
-    }
-  }, []);
-
   const setDensity = useCallback((next: DensityMode) => {
     setDensityState(next);
     try {
@@ -353,16 +252,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     () => ({
       mode, resolved, setMode,
       font, setFont,
-      accent, setAccent,
-      customAccent, setCustomAccent,
       density, setDensity,
       reducedMotion, setReducedMotion,
     }),
     [
       mode, resolved, setMode,
       font, setFont,
-      accent, setAccent,
-      customAccent, setCustomAccent,
       density, setDensity,
       reducedMotion, setReducedMotion,
     ],
