@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AlertCircle, ArrowRight, Eye, EyeOff, Loader2, Sparkles, TimerOff } from "lucide-react";
 import { useAuth } from "@/auth/use-auth";
@@ -7,11 +7,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthShell } from "@/components/auth/auth-shell";
-import { DemoAccountsDialog } from "@/components/auth/demo-accounts-dialog";
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 import { env } from "@/env";
 import type { DemoAccount } from "@/pages/login.demo-accounts";
+
+// The demo accounts (shared password, root e-mail) are public credentials the moment any environment seeds
+// them, so they must not ship in a production bundle: the dynamic import sits behind a build-time constant
+// and the bundler drops the chunk altogether (C8). The runtime demoMode flag then only
+// chooses among builds that contain it.
+// ponytail: dev builds only; a staging image that needs the picker needs a build flag, not a runtime one.
+const DemoAccountsDialog = import.meta.env.DEV
+  ? lazy(() => import("@/components/auth/demo-accounts-dialog").then((m) => ({ default: m.DemoAccountsDialog })))
+  : null;
 
 type LocationState = { from?: { pathname: string } };
 
@@ -20,8 +28,8 @@ type LocationState = { from?: { pathname: string } };
 // (chrome supplied by AuthShell, shared with the rest of the auth flow).
 // PAF (O2): e-mail and password only; the server finds the company from
 // the e-mail and the session keeps it. The demo picker ("Step into any role") signs in
-// instantly and is gated on the runtime demoMode flag — on in staging,
-// off in production.
+// instantly and exists only in dev builds (see DemoAccountsDialog above),
+// behind the runtime demoMode flag.
 // ────────────────────────────────────────────────────────────────────────
 
 export function LoginPage() {
@@ -205,7 +213,7 @@ export function LoginPage() {
         </form>
 
         {/* Demo accounts — runtime-gated (staging on, prod off). */}
-        {env.demoMode && (
+        {env.demoMode && DemoAccountsDialog && (
           <div className="mt-7">
             <button
               type="button"
@@ -219,8 +227,10 @@ export function LoginPage() {
         )}
       </AuthShell>
 
-      {env.demoMode && (
-        <DemoAccountsDialog open={demoOpen} onOpenChange={setDemoOpen} onPick={onPickDemo} />
+      {env.demoMode && DemoAccountsDialog && (
+        <Suspense fallback={null}>
+          <DemoAccountsDialog open={demoOpen} onOpenChange={setDemoOpen} onPick={onPickDemo} />
+        </Suspense>
       )}
     </>
   );
