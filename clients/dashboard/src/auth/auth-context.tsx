@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { tokenStore } from "@/auth/token-store";
 import { decodeJwt, isTokenExpired, type JwtClaims } from "@/auth/jwt";
 import { issueTokenByEmail } from "@/auth/api";
-import { refreshAccessToken } from "@/lib/api-client";
+import { isRefreshRejected, refreshAccessToken } from "@/lib/api-client";
 import { endImpersonation, getMyPermissions, startImpersonation } from "@/api/identity";
 import { logoutPeloServidor } from "@/features/paf/sessao/logout-pelo-servidor";
 import { umLogoutPorVez } from "@/features/paf/sessao/logout-unico";
@@ -144,10 +144,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void (async () => {
       try {
         await refreshAccessToken();
-      } catch {
+      } catch (e) {
         // Refresh token dead (expired, revoked, or DB reseeded) — drop the
-        // stale session so routing falls through to /login cleanly.
-        tokenStore.clear();
+        // stale session so routing falls through to /login cleanly. A refresh
+        // that got no usable answer (5xx, 429, network drop) keeps the tokens:
+        // the next load tries again (C3).
+        if (isRefreshRejected(e)) tokenStore.clear();
       } finally {
         if (!cancelled) setIsInitializing(false);
       }
