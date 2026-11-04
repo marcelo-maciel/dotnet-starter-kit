@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
+using FSH.Framework.Core.Exceptions;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Data;
 using FSH.Modules.Identity.Domain;
@@ -11,6 +12,7 @@ using FSH.Modules.PAF.Provisionamento;
 using FSH.Modules.PAF.Features.v1.Usuarios.CreateUsuario;
 using Integration.Tests.Infrastructure;
 using Integration.Tests.Tests.Sessions;
+using Microsoft.AspNetCore.Identity;
 using Npgsql;
 
 namespace Integration.Tests.Tests.PAF;
@@ -127,6 +129,44 @@ public sealed class PafEmailUnicoEntreClientesTests(FshWebApplicationFactory fac
 
         (await ExecutarAsync($"""UPDATE identity."Users" SET "NormalizedEmail" = {normalizado} WHERE "Id" = {naRaiz.UserId}"""))
             .ShouldBe(1);
+    }
+
+    // Two tenants creating the same address at once both pass the validator; the index refuses the second. That
+    // one must get the validator's 400, not a 500. Here no validator runs at all, which is the race's second request.
+    [Fact]
+    public async Task Corrida_IndiceRecusa_ComAMesmaRespostaDoValidador()
+    {
+        var naEmpresaA = await _empresaA.CriarUsuarioAsync(_empresaA.UnidadeInicial);
+        using var scope = factory.Services.CreateScope();
+        var empresaB = await scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>().GetAsync(_empresaB.TenantId);
+        scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>().MultiTenantContext = new MultiTenantContext<AppTenantInfo>(empresaB!);
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<FshUser>>();
+        userManager.UserValidators.Clear();
+
+        var recusa = await Should.ThrowAsync<CustomException>(() => userManager.CreateAsync(
+            new FshUser { Email = naEmpresaA.Email, UserName = $"corrida-{Guid.NewGuid():N}"[..20], IsActive = true },
+            Senha));
+
+        recusa.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        recusa.ErrorMessages.ShouldBe([ClientTenantEmailValidator.Mensagem]);
+        recusa.Message.ShouldNotContain(_empresaA.TenantId);
+    }
+
+    // The root operator edits a client user from the root context: the check follows the user's tenant, not root.
+    [Fact]
+    public async Task Validador_UsaOTenantDoUsuario_MesmoNoContextoDaRaiz()
+    {
+        var naEmpresaA = await _empresaA.CriarUsuarioAsync(_empresaA.UnidadeInicial);
+        var naEmpresaB = await _empresaB.CriarUsuarioAsync(_empresaB.UnidadeInicial);
+        using var scope = factory.Services.CreateScope();
+        var db = ContextoRaiz(scope);
+        var usuarioB = await db.Users.IgnoreQueryFilters([ClientTenantEmailDirectory.TenantFilterKey]).SingleAsync(u => u.Id == naEmpresaB.UserId);
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<FshUser>>();
+
+        var resultado = await userManager.SetEmailAsync(usuarioB, naEmpresaA.Email);
+
+        resultado.Succeeded.ShouldBeFalse();
+        resultado.Errors.Select(e => e.Code).ShouldContain(ClientTenantEmailValidator.ErrorCode);
     }
 
     // ClientTenantEmailDirectory turns off the tenant filter by its key; if Finbuckle renamed it, the lookup would
