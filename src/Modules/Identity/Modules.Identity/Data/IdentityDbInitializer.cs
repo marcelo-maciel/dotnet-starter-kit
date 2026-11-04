@@ -184,12 +184,20 @@ internal sealed class IdentityDbInitializer(
 
     // UpdateUserCommandValidator caps LastName at 50 and the profile screen resends it on every save, so a
     // longer client name would make every profile update of the seeded admin fail with 400.
-    private const int LastNameMaxLength = 50;
+    internal const int LastNameMaxLength = 50;
 
-    private static string? TenantNameAsLastName(string? tenantName)
+    internal static string? TenantNameAsLastName(string? tenantName)
     {
         string? name = tenantName?.Trim();
-        return name is null || name.Length <= LastNameMaxLength ? name : name[..LastNameMaxLength].TrimEnd();
+        if (name is null || name.Length <= LastNameMaxLength)
+        {
+            return name;
+        }
+
+        // Cutting between the halves of a surrogate pair (an emoji at the limit) leaves a lone high surrogate,
+        // which Npgsql refuses to encode as UTF-8 and the seed would fail; the cut moves back one char instead.
+        int cut = char.IsHighSurrogate(name[LastNameMaxLength - 1]) ? LastNameMaxLength - 1 : LastNameMaxLength;
+        return name[..cut].TrimEnd();
     }
 
     private async Task SeedAdminUserAsync(CancellationToken cancellationToken = default)
