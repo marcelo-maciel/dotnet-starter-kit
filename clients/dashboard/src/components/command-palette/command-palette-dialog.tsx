@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@/auth/use-auth";
 import { useTheme } from "@/components/theme/theme-provider";
-import { accents } from "@/components/theme/appearance-options";
 import { cn } from "@/lib/cn";
 
 /**
@@ -68,7 +67,7 @@ export function CommandPaletteDialog({
 }) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { setMode, setAccent } = useTheme();
+  const { setMode } = useTheme();
   const permissions = useMemo(() => user?.permissions ?? [], [user]);
 
   // Build the action set fresh each time the palette opens. The ones
@@ -196,17 +195,6 @@ export function CommandPaletteDialog({
         ],
       },
       {
-        heading: "Cor de destaque",
-        items: accents.map((a) => ({
-          id: `accent-${a.id}`,
-          label: `Cor de destaque: ${a.label}`,
-          hint: a.description,
-          Icon: Palette,
-          keywords: ["color", "brand", a.id],
-          perform: () => setAccent(a.id),
-        })),
-      },
-      {
         heading: "Sessão",
         items: [
           {
@@ -228,7 +216,7 @@ export function CommandPaletteDialog({
     return allGroups
       .map((g) => ({ ...g, items: g.items.filter(visible) }))
       .filter((g) => g.items.length > 0);
-  }, [navigate, onOpenChange, setMode, setAccent, logout, permissions]);
+  }, [navigate, onOpenChange, setMode, logout, permissions]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

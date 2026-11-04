@@ -10,13 +10,12 @@ test.beforeEach(async ({ page }) => {
   await installShellMocks(page);
 });
 
-test.describe("settings/appearance — theme + accent (client-side)", () => {
-  test("renders the theme, accent, font, and density sections", async ({ page }) => {
+test.describe("settings/appearance — theme, font, density (client-side)", () => {
+  test("renders the theme, font, and density sections", async ({ page }) => {
     await page.goto("/settings/appearance");
 
     // CardTitle is a styled <div>, not a heading — assert on the text.
     await expect(page.getByText("Tema", { exact: true })).toBeVisible();
-    await expect(page.getByText("Cor de destaque", { exact: true })).toBeVisible();
     await expect(page.getByText("Fonte", { exact: true })).toBeVisible();
     await expect(page.getByText("Densidade", { exact: true })).toBeVisible();
 
@@ -54,24 +53,11 @@ test.describe("settings/appearance — theme + accent (client-side)", () => {
     expect(stored).toBe("dark");
   });
 
-  test("opens the custom accent dialog and applies a brand colour", async ({ page }) => {
+  test("has no accent colour choice, only theme, font and density", async ({ page }) => {
     await page.goto("/settings/appearance");
+    await expect(page.getByText("Fonte", { exact: true })).toBeVisible();
 
-    await page.getByRole("button", { name: "Cor de destaque personalizada" }).click();
-
-    const dialog = page.getByRole("dialog");
-    await expect(
-      dialog.getByRole("heading", { name: /escolha a sua cor/i }),
-    ).toBeVisible();
-    await expect(dialog.getByLabel("Matiz")).toBeVisible();
-    await expect(dialog.getByLabel("Saturação")).toBeVisible();
-
-    await dialog.getByRole("button", { name: /aplicar cor de destaque/i }).click();
-    await expect(page.getByRole("dialog")).not.toBeVisible();
-    // The custom accent is now the active swatch.
-    await expect(page.getByRole("button", { name: "Cor de destaque personalizada" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    await expect(page.getByText("Cor de destaque")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /cor de destaque/i })).toHaveCount(0);
   });
 });

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./fonts.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -19,10 +20,9 @@
   /* ── 1. PRIMITIVES ──────────────────────────────────────────────────── */
 
   /* Neutrals — true greys (chroma 0). The earlier "warm paper" chassis
-     tinted every surface yellow-cream, which fought with non-rose
-     accent palettes and read as a global yellow cast in dark mode.
-     Neutrals are now untinted so the selected accent (rose, indigo,
-     violet, sky, emerald, amber) is the only colour in the room. */
+     tinted every surface yellow-cream, which fought with the
+     brand blue and read as a global yellow cast in dark mode.
+     Neutrals are untinted so the brand blue is the only colour in the room. */
   --neutral-0:    oklch(1.000 0  0);
   --neutral-50:   oklch(0.985 0  0);
   --neutral-100:  oklch(0.960 0  0);
@@ -38,21 +38,24 @@
   --neutral-950:  oklch(0.110 0  0);
   --neutral-1000: oklch(0.075 0  0);
 
-  /* Brand — confident rose (#f91942 at the 600 stop). 600 is the
-     workhorse; 500 is for dark mode. Override these eleven stops via
-     an `accent-{id}` class on :root (defined further down) to swap the
-     entire brand palette. */
-  --brand-50:   oklch(0.972 0.022  13);
-  --brand-100:  oklch(0.945 0.045  13);
-  --brand-200:  oklch(0.895 0.090  13);
-  --brand-300:  oklch(0.825 0.145  13);
-  --brand-400:  oklch(0.720 0.195  13);
-  --brand-500:  oklch(0.640 0.225  13);
-  --brand-600:  oklch(0.575 0.232  13);
-  --brand-700:  oklch(0.495 0.215  13);
-  --brand-800:  oklch(0.410 0.180  13);
-  --brand-900:  oklch(0.330 0.140  13);
-  --brand-950:  oklch(0.235 0.095  13);
+  /* Brand — PAF blue, measured from the logo (#0067F0 at the 600 stop). 600 is the
+     workhorse; 500 is for dark mode. Hue 260 with chroma lowered per stop so
+     every stop stays inside sRGB (saturated blue clips at the light stops). */
+  --brand-50:   oklch(0.972 0.013 260);
+  --brand-100:  oklch(0.945 0.026 260);
+  --brand-200:  oklch(0.895 0.051 260);
+  --brand-300:  oklch(0.825 0.087 260);
+  --brand-400:  oklch(0.720 0.145 260);
+  --brand-500:  oklch(0.640 0.193 260);
+  --brand-600:  oklch(0.553 0.221 259.7);
+  --brand-700:  oklch(0.495 0.201 260);
+  --brand-800:  oklch(0.410 0.167 260);
+  --brand-900:  oklch(0.330 0.134 260);
+  --brand-950:  oklch(0.235 0.095 260);
+
+  /* Named PAF logo colours, for the login wordmark and symbol gradient only. */
+  --paf-navy: #011C61;
+  --paf-cyan: #02C3E3;
 
   /* Saffron — secondary warm accent. Used sparingly for the second
      channel of warmth against rose (gradient endpoints, hero numerals,
@@ -82,7 +85,7 @@
   --popover-foreground:         var(--neutral-950);
 
   --primary:                    var(--brand-600);
-  /* Derive from the active brand stop so accent swaps re-tone these
+  /* Derive from the brand stop so these follow the ramp
      too. The `from <color>` relative-color syntax resolves at runtime. */
   --primary-foreground:         oklch(from var(--brand-600) 0.990 0.005 h);
   --primary-hover:              var(--brand-700);
@@ -141,10 +144,10 @@
   --surface-1-hover:            var(--neutral-100);
   --surface-2-hover:            var(--neutral-50);
 
-  /* ── Charts — laddered around the rose brand axis. Saffron is the
+  /* ── Charts — laddered around the blue brand axis. Saffron is the
      primary counter-hue (warm pair), with teal/emerald/violet rounding
      out the harmonic ladder. ────────────────────────────────────────── */
-  --chart-1: var(--brand-500);                       /* rose */
+  --chart-1: var(--brand-500);                       /* blue */
   --chart-2: var(--saffron-500);                     /* saffron */
   --chart-3: oklch(0.700 0.135 195);                 /* teal */
   --chart-4: oklch(0.660 0.180 320);                 /* violet */
@@ -205,95 +208,6 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   ACCENT PALETTES — each class overrides the 11 brand stops with a
-   different hue, keeping the L/C ramp identical. Apply by toggling a
-   single class on :root (e.g. `accent-violet`).
-   Hue chosen per accent:
-     rose (default) → 13 · indigo → 268 · violet → 305 · sky → 232
-     emerald → 152 · amber → 76
-   Rose is the default in :root above so no `.accent-rose` is needed
-   unless an upstream selection persists. Indigo is an opt-in for
-   teams that prefer the cool Linear chassis.
-   ─────────────────────────────────────────────────────────────────────── */
-.accent-rose {
-  --brand-50:   oklch(0.972 0.022  13);
-  --brand-100:  oklch(0.945 0.045  13);
-  --brand-200:  oklch(0.895 0.090  13);
-  --brand-300:  oklch(0.825 0.145  13);
-  --brand-400:  oklch(0.720 0.195  13);
-  --brand-500:  oklch(0.640 0.225  13);
-  --brand-600:  oklch(0.575 0.232  13);
-  --brand-700:  oklch(0.495 0.215  13);
-  --brand-800:  oklch(0.410 0.180  13);
-  --brand-900:  oklch(0.330 0.140  13);
-  --brand-950:  oklch(0.235 0.095  13);
-}
-.accent-indigo {
-  --brand-50:   oklch(0.972 0.020 268);
-  --brand-100:  oklch(0.945 0.040 268);
-  --brand-200:  oklch(0.895 0.078 268);
-  --brand-300:  oklch(0.825 0.130 268);
-  --brand-400:  oklch(0.720 0.180 268);
-  --brand-500:  oklch(0.620 0.210 268);
-  --brand-600:  oklch(0.555 0.220 268);
-  --brand-700:  oklch(0.485 0.205 268);
-  --brand-800:  oklch(0.405 0.175 268);
-  --brand-900:  oklch(0.325 0.135 268);
-  --brand-950:  oklch(0.230 0.090 268);
-}
-.accent-violet {
-  --brand-50:   oklch(0.972 0.020 305);
-  --brand-100:  oklch(0.945 0.040 305);
-  --brand-200:  oklch(0.895 0.078 305);
-  --brand-300:  oklch(0.825 0.130 305);
-  --brand-400:  oklch(0.720 0.180 305);
-  --brand-500:  oklch(0.620 0.210 305);
-  --brand-600:  oklch(0.555 0.220 305);
-  --brand-700:  oklch(0.485 0.205 305);
-  --brand-800:  oklch(0.405 0.175 305);
-  --brand-900:  oklch(0.325 0.135 305);
-  --brand-950:  oklch(0.230 0.090 305);
-}
-.accent-sky {
-  --brand-50:   oklch(0.972 0.020 232);
-  --brand-100:  oklch(0.945 0.040 232);
-  --brand-200:  oklch(0.895 0.078 232);
-  --brand-300:  oklch(0.825 0.130 232);
-  --brand-400:  oklch(0.720 0.170 232);
-  --brand-500:  oklch(0.620 0.180 232);
-  --brand-600:  oklch(0.555 0.180 232);
-  --brand-700:  oklch(0.485 0.170 232);
-  --brand-800:  oklch(0.405 0.150 232);
-  --brand-900:  oklch(0.325 0.115 232);
-  --brand-950:  oklch(0.230 0.078 232);
-}
-.accent-emerald {
-  --brand-50:   oklch(0.972 0.020 152);
-  --brand-100:  oklch(0.945 0.040 152);
-  --brand-200:  oklch(0.895 0.078 152);
-  --brand-300:  oklch(0.825 0.120 152);
-  --brand-400:  oklch(0.720 0.155 152);
-  --brand-500:  oklch(0.620 0.170 152);
-  --brand-600:  oklch(0.545 0.170 152);
-  --brand-700:  oklch(0.470 0.155 152);
-  --brand-800:  oklch(0.395 0.135 152);
-  --brand-900:  oklch(0.320 0.110 152);
-  --brand-950:  oklch(0.225 0.075 152);
-}
-.accent-amber {
-  --brand-50:   oklch(0.972 0.025  76);
-  --brand-100:  oklch(0.945 0.050  76);
-  --brand-200:  oklch(0.895 0.090  76);
-  --brand-300:  oklch(0.840 0.130  76);
-  --brand-400:  oklch(0.770 0.155  76);
-  --brand-500:  oklch(0.700 0.170  76);
-  --brand-600:  oklch(0.620 0.165  76);
-  --brand-700:  oklch(0.530 0.150  76);
-  --brand-800:  oklch(0.440 0.130  76);
-  --brand-900:  oklch(0.355 0.105  76);
-  --brand-950:  oklch(0.255 0.075  76);
-}
-/* ─────────────────────────────────────────────────────────────────────────
    DARK MODE — values flip; semantic names stay.
    ─────────────────────────────────────────────────────────────────────── */
 .dark {
@@ -309,7 +223,8 @@
   --popover-foreground:         oklch(0.925 0  0);
 
   --primary:                    var(--brand-500);
-  --primary-foreground:         oklch(from var(--brand-500) 0.990 0.005 h);
+  /* Dark text: white on the bright 500 stop reads 3.3:1, under WCAG AA; this tint reads 5.3:1. */
+  --primary-foreground:         oklch(from var(--brand-500) 0.200 0.030 h);
   --primary-hover:              var(--brand-400);
   --primary-soft:               oklch(from var(--brand-500) l c h / 0.18);
 
@@ -658,7 +573,7 @@
   .surface-3 { background-color: var(--color-surface-3); }
   .surface-4 { background-color: var(--color-surface-4); }
 
-  /* Brand mark — flat warm rose tile with a quiet inner top-edge
+  /* Brand mark — flat brand-blue tile with a quiet inner top-edge
      highlight so the "F" reads as embossed paper, not Linear chrome.
      No rotating conic gradient (that was 2014-era chrome) — the calm
      paper aesthetic doesn't want spinning ornaments. */
