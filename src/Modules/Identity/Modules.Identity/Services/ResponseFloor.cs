@@ -33,11 +33,13 @@ internal static class ResponseFloor
         }
         finally
         {
-            // Not the request's token: a cancelled delay would replace the real outcome with a cancellation.
-            var remaining = Floor - Stopwatch.GetElapsedTime(start);
-            if (remaining > TimeSpan.Zero)
+            // Not the request's token: a cancelled delay would replace the real outcome with a cancellation. A loop,
+            // because the timer works in whole milliseconds and can wake a fraction of one early.
+            for (var remaining = Floor - Stopwatch.GetElapsedTime(start);
+                 remaining > TimeSpan.Zero;
+                 remaining = Floor - Stopwatch.GetElapsedTime(start))
             {
-                await Task.Delay(remaining, CancellationToken.None).ConfigureAwait(false);
+                await Task.Delay(remaining + TimeSpan.FromMilliseconds(1), CancellationToken.None).ConfigureAwait(false);
             }
         }
     }
