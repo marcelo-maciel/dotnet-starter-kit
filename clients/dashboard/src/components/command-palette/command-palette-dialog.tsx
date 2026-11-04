@@ -28,7 +28,7 @@ import { cn } from "@/lib/cn";
 
 /**
  * Command palette dialog — separated from the provider so cmdk + the full
- * action graph (lucide icons, accent options, navigate logic) are
+ * action graph (lucide icons, theme actions, navigate logic) are
  * code-split into their own chunk. The provider in command-palette.tsx
  * lazy-imports this module on first ⌘K, keeping the main shell shipping
  * a smaller bundle for cold start.

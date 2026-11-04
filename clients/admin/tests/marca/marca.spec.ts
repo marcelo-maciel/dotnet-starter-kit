@@ -8,7 +8,6 @@ test("operator console primary is the PAF blue, has pt-BR lang and no Google Fon
   });
   await page.addInitScript(() => {
     localStorage.setItem("fsh.theme", "light");
-    localStorage.setItem("fsh.accent", "rose");
   });
   await page.goto("/login");
   await page.waitForLoadState("networkidle");
