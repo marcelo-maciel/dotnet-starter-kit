@@ -34,13 +34,11 @@ public sealed class TenantMigrationsHealthCheck : IHealthCheck
         var tenantStore = scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
         var tenants = await tenantStore.GetAllAsync().ConfigureAwait(false);
 
-        int total = 0;
         int withPending = 0;
         int withError = 0;
 
         foreach (var tenant in tenants)
         {
-            total++;
             try
             {
                 using IServiceScope tenantScope = scope.ServiceProvider.CreateScope();
@@ -70,11 +68,11 @@ public sealed class TenantMigrationsHealthCheck : IHealthCheck
             }
         }
 
-        // /health/ready is anonymous: the payload carries counts only, never a tenant's id, name, state, validity
-        // or exception text, so a stranger cannot list the clients nor learn when one expires.
+        // /health/ready is anonymous: the payload carries failure counts only, never a tenant's id, name, state,
+        // validity or exception text, nor how many tenants exist, so a stranger can neither list the clients, learn
+        // when one expires, nor size the customer base.
         var details = new Dictionary<string, object>
         {
-            ["TenantsTotal"] = total,
             ["TenantsWithPendingMigrations"] = withPending,
             ["TenantsWithError"] = withError
         };

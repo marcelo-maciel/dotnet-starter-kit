@@ -59,8 +59,7 @@ public sealed class TenantMigrationsHealthCheckTests : IAsyncLifetime
         // ── After migrations ─────────────────────────────────────────────
         var afterResult = await check.CheckHealthAsync(context, CancellationToken.None);
         afterResult.Status.ShouldBe(HealthStatus.Healthy);
-        afterResult.Data.Keys.OrderBy(k => k, StringComparer.Ordinal).ShouldBe(["TenantsTotal", "TenantsWithError", "TenantsWithPendingMigrations"]);
-        afterResult.Data["TenantsTotal"].ShouldBe(1);
+        afterResult.Data.Keys.OrderBy(k => k, StringComparer.Ordinal).ShouldBe(["TenantsWithError", "TenantsWithPendingMigrations"]);
         afterResult.Data["TenantsWithPendingMigrations"].ShouldBe(0);
     }
 

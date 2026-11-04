@@ -49,7 +49,8 @@ public sealed class HealthProbesTests
 
         // Assert: still ready (an expired client is not an outage), and the body carries counts only.
         response.StatusCode.ShouldBe(HttpStatusCode.OK, body);
-        body.ShouldContain("\"TenantsTotal\"");
+        body.ShouldContain("\"TenantsWithError\"");
+        body.ShouldNotContain("TenantsTotal", Case.Insensitive);
         body.ShouldNotContain(tenantId, Case.Insensitive);
         body.ShouldNotContain(tenantName, Case.Insensitive);
         body.ShouldNotContain(adminEmail, Case.Insensitive);
