@@ -96,13 +96,10 @@ export function MobileNavRoot() {
         <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-[var(--color-border)] px-4">
           <span
             aria-hidden
-            className={cn(
-              "brand-mark grid h-7 w-7 place-items-center rounded-md",
-              "text-[11px] font-bold tracking-tight text-[var(--color-primary-foreground)]",
-              "shadow-[0_1px_0_oklch(1_0_0_/_0.18)_inset,0_4px_14px_-4px_oklch(from_var(--color-primary)_l_c_h_/_0.45)]",
-            )}
+            className="grid h-7 w-7 place-items-center rounded-md bg-white p-0.5 ring-1 ring-[var(--color-border)]"
           >
-            P
+            {/* ponytail: logo files are rasters cut from a 373x507 PNG; swap for the vector logo when Marcelo has one. */}
+            <img src="/logo-paf-simbolo.png" alt="" className="size-full object-contain" />
           </span>
           <span className="font-semibold tracking-tight">Passo a Frente</span>
         </div>
