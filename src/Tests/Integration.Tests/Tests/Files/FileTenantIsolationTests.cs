@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using FSH.Framework.Shared.Persistence;
 using FSH.Modules.Files.Contracts.v1.DTOs;
 using Integration.Tests.Infrastructure;
 using Integration.Tests.Infrastructure.Extensions;
@@ -6,20 +7,22 @@ using Integration.Tests.Infrastructure.Extensions;
 namespace Integration.Tests.Tests.Files;
 
 /// <summary>
-/// Proves the Files module never leaks a file across tenant boundaries. FileAsset carries no
-/// TenantId column — isolation is enforced by the framework's schema-per-tenant BaseDbContext, so a
-/// lookup from another tenant simply misses the row and the handler 404s ("file not found"). These
-/// tests stand up a second tenant (root + provisioned tenant) and assert that tenant B can neither
-/// read metadata nor mint a download URL for a file uploaded in tenant A (root).
+/// Proves the Files module never leaks a file across tenant boundaries. On the shared database the
+/// isolation is the Finbuckle filter BaseDbContext puts on FileAsset's shadow TenantId, so a lookup
+/// from another tenant misses the row and the handler 404s ("file not found"), as long as no query
+/// drops every filter to reach soft-deleted rows. These tests stand up other tenants and assert that
+/// one tenant can neither read metadata, mint a download URL, list the trash nor restore a file of another.
 /// </summary>
 [Collection(FshCollectionDefinition.Name)]
 public sealed class FileTenantIsolationTests
 {
     private const string FilesBasePath = "/api/v1/files";
+    private readonly FshWebApplicationFactory _factory;
     private readonly AuthHelper _auth;
 
     public FileTenantIsolationTests(FshWebApplicationFactory factory)
     {
+        _factory = factory;
         _auth = new AuthHelper(factory);
     }
 
@@ -80,6 +83,105 @@ public sealed class FileTenantIsolationTests
         crossResponse.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
+    // Trash and restore are root-only permissions (FilesPermissions: ViewTrash and Restore are IsRoot), so the
+    // caller below is always the root operator: on its own tenant, or on a client's through the tenant header.
+    // IgnoreQueryFilters() with no argument also dropped the tenant filter, and the root operator then saw and
+    // restored every client's trashed files from any tenant.
+
+    [Fact]
+    public async Task ListTrashedFiles_Should_KeepTwoClientTenantsApart_AndOutOfTheRootTrash()
+    {
+        // Arrange — the root operator trashes one file in its own tenant and one in each of two client tenants.
+        using var rootClient = await _auth.CreateRootAdminClientAsync();
+        var rootFile = await UploadAndTrashAsync(rootClient, "root-trashed.pdf");
+        var tenantA = await ProvisionOtherTenantAsync();
+        var tenantB = await ProvisionOtherTenantAsync();
+        using var rootInA = await CreateRootClientInTenantAsync(tenantA);
+        using var rootInB = await CreateRootClientInTenantAsync(tenantB);
+        var fileA = await UploadAndTrashAsync(rootInA, "client-a-trashed.pdf");
+        var fileB = await UploadAndTrashAsync(rootInB, "client-b-trashed.pdf");
+
+        // Act
+        var trashA = await TrashIdsAsync(rootInA);
+        var trashB = await TrashIdsAsync(rootInB);
+        var trashRoot = await TrashIdsAsync(rootClient);
+
+        // Assert — each tenant's trash holds its own file and nothing else.
+        trashA.ShouldBe([fileA]);
+        trashB.ShouldBe([fileB]);
+        trashRoot.ShouldContain(rootFile);
+        trashRoot.ShouldNotContain(fileA, "the root tenant's trash holds root's files only");
+        trashRoot.ShouldNotContain(fileB);
+    }
+
+    [Fact]
+    public async Task Restore_Should_Return404_AndLeaveTheFileTrashed_When_File_Owned_By_Different_Tenant()
+    {
+        // Arrange — a trashed file of client A, and the root operator acting on client B.
+        var tenantA = await ProvisionOtherTenantAsync();
+        var tenantB = await ProvisionOtherTenantAsync();
+        using var rootInA = await CreateRootClientInTenantAsync(tenantA);
+        using var rootInB = await CreateRootClientInTenantAsync(tenantB);
+        var fileA = await UploadAndTrashAsync(rootInA, "client-a-restore.pdf");
+
+        // Act
+        using var crossRestore = await rootInB.PostAsync($"{FilesBasePath}/{fileA}/restore", null);
+
+        // Assert — not found, and client A's file is still in A's trash.
+        crossRestore.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        using var ownerGet = await rootInA.GetAsync($"{FilesBasePath}/{fileA}");
+        ownerGet.StatusCode.ShouldBe(HttpStatusCode.NotFound, "the file must stay soft-deleted");
+        (await TrashIdsAsync(rootInA)).ShouldContain(fileA);
+    }
+
+    [Fact]
+    public async Task Restore_Should_Return404_When_LiveFile_Owned_By_Different_Tenant()
+    {
+        // Restoring a live file is a no-op 204 in its own tenant; from another tenant it must not answer
+        // differently from an unknown id, or the endpoint tells which ids exist elsewhere.
+        using var rootClient = await _auth.CreateRootAdminClientAsync();
+        var fileId = await UploadAndFinalizeAsync(rootClient, "root-live.pdf", "application/pdf", 256, visibility: 1);
+        using var rootInOther = await CreateRootClientInTenantAsync(await ProvisionOtherTenantAsync());
+
+        using var crossRestore = await rootInOther.PostAsync($"{FilesBasePath}/{fileId}/restore", null);
+
+        crossRestore.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    private static async Task<Guid> UploadAndTrashAsync(HttpClient client, string fileName)
+    {
+        var fileId = await UploadAndFinalizeAsync(client, fileName, "application/pdf", 256, visibility: 1);
+        using var deleted = await client.DeleteAsync($"{FilesBasePath}/{fileId}");
+        deleted.StatusCode.ShouldBe(HttpStatusCode.NoContent, await deleted.Content.ReadAsStringAsync());
+        return fileId;
+    }
+
+    private static async Task<List<Guid>> TrashIdsAsync(HttpClient client)
+    {
+        using var response = await client.GetAsync($"{FilesBasePath}/trash?pageSize=200");
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        return (await response.DeserializeAsync<PagedResponse<FileAssetDto>>()).Items.Select(f => f.Id).ToList();
+    }
+
+    // The root operator's token with the tenant header: the override scopes each request to that client.
+    private async Task<HttpClient> CreateRootClientInTenantAsync(string tenantId)
+    {
+        var rootToken = await _auth.GetRootAdminTokenAsync();
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", rootToken.AccessToken);
+        client.DefaultRequestHeaders.Add("tenant", tenantId);
+        return client;
+    }
+
+    private async Task<string> ProvisionOtherTenantAsync()
+    {
+        using var rootClient = await _auth.CreateRootAdminClientAsync();
+        var uniqueId = Guid.NewGuid().ToString("N")[..8];
+        var tenantId = $"file-trash-{uniqueId}";
+        await CreateTenantAsync(rootClient, tenantId, $"file-trash-{uniqueId}@tenant.com");
+        await TenantProvisioningWait.WaitForProvisioningAsync(rootClient, tenantId);
+        return tenantId;
+    }
     #endregion
 
     #region Tenant scaffolding (copied from WebhookTenantIsolationTests)

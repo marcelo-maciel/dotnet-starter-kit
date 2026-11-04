@@ -19,11 +19,11 @@ public sealed class ListTrashedFilesQueryHandler(FilesDbContext db)
         int page = q.PageNumber < 1 ? 1 : q.PageNumber;
         int size = q.PageSize is < 1 or > 200 ? 20 : q.PageSize;
 
-        // IgnoreQueryFilters because the SoftDelete filter would otherwise hide deleted rows —
-        // exactly what we DO want here. Tenant scoping is preserved via the per-tenant DbContext.
+        // Bypasses ONLY the soft-delete filter: a bare IgnoreQueryFilters() also drops the Finbuckle tenant filter
+        // on the shared database, and the root operator then listed every client tenant's trash.
         var baseQuery = db.FileAssets
             .AsNoTracking()
-            .IgnoreQueryFilters()
+            .IgnoreQueryFilters([QueryFilters.SoftDelete])
             .Where(f => f.IsDeleted)
             .OrderByDescending(f => f.DeletedOnUtc);
 
