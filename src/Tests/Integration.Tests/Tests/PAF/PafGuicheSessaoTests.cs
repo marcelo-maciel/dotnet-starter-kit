@@ -133,6 +133,9 @@ public sealed class PafGuicheSessaoTests(FshWebApplicationFactory factory) : IAs
     [Fact]
     public async Task Logout_ComMarcaVencida_AindaRevogaASessaoNoServidor()
     {
+        // The logout deletes the stale mark itself, so the row lock of ProtegerMarcaDaLimpezaAsync would deadlock; with
+        // no maintenance pass in between, the empty list below is the logout's doing and not the job's.
+        using var semPassada = await _tenant.SemPassadaDoHostAsync();
         var unidade = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);
         var ana = await _tenant.CriarUsuarioAsync(unidade.UnidadeId);
         var tokenAna = await _tenant.EntrarAsync(ana);
