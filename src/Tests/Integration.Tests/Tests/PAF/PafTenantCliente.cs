@@ -235,6 +235,26 @@ internal sealed class PafTenantCliente(FshWebApplicationFactory factory, string 
     }
 
     /// <summary>
+    /// The session's mark past the deadline and then deleted by ManutencaoLicencas' own pass on this tenant, as after
+    /// more than 10 minutes idle: no row is left to tell the unit the session was in.
+    /// </summary>
+    public async Task ApagarMarcaPelaManutencaoAsync(Guid sessaoId)
+    {
+        (await ExecutarAsync($"""
+            UPDATE paf."AtividadesSessao" SET "UltimaAtividadeEm" = now() - interval '11 minutes' WHERE "SessaoId" = {sessaoId}
+            """)).ShouldBe(1);
+        using (var scope = factory.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<FSH.Modules.PAF.Sessao.ManutencaoLicencas>().ExecutarNoTenantAsync(
+                _tenant ?? throw new InvalidOperationException("InicializarAsync não foi chamado."), CancellationToken.None);
+        }
+
+        using var leitura = factory.Services.CreateScope();
+        (await Contexto(leitura, unidadeCorrente: null).AtividadesSessao.AsNoTracking().AnyAsync(a => a.SessaoId == sessaoId))
+            .ShouldBeFalse("a manutenção apaga a marca vencida");
+    }
+
+    /// <summary>
     /// Keeps the session's mark from ManutencaoLicencas until disposed. The host runs that job on every 5-minute tick
     /// and it deletes marks older than the deadline, so a test that ages a mark and needs the app to still find it
     /// takes this before aging. The blocked DELETE re-checks the row once released; a renewed mark is no longer stale.

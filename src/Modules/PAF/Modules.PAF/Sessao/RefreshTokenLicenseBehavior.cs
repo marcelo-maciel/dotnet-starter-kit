@@ -67,8 +67,10 @@ internal sealed class RefreshTokenLicenseBehavior(
             throw new UnauthorizedException(SessionCheckMiddleware.MensagemSessaoInvalida);
         }
 
+        // An unknown earlier unit counts as changed: past 10 minutes ManutencaoLicencas deletes the mark, and without a
+        // manual switch nothing else remembers the unit the screen shows. A needless notice is a silent context reload.
         UnidadeCorrenteAlteradaPaf? aviso = null;
-        if (unidadeAnterior is { } anterior && anterior != reserva.UnidadeId)
+        if (unidadeAnterior != reserva.UnidadeId)
         {
             aviso = UnidadeCorrenteAlteradaPaf.Criar(
                 tenantId, OperacaoGuiche.Correlacao(), credencial.Subject, new UnidadeCorrenteAlterada(Guid.CreateVersion7(), reserva.UnidadeId));

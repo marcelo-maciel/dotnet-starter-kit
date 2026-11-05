@@ -192,6 +192,25 @@ public sealed class PafCascataRenovacaoTests(FshWebApplicationFactory factory) :
         (await AvisosDeUnidadeAsync(usuario.UserId)).ShouldBe(0);
     }
 
+    // RF22 with the earlier unit unknown: the maintenance deleted the mark and there was no manual switch, so nothing
+    // tells the unit the screen still shows; moving to B is noticed anyway.
+    [Fact]
+    public async Task Renovacao_MarcaApagadaPelaManutencao_RevividaEmOutraUnidade_Avisa()
+    {
+        var a = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);
+        var b = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);
+        var usuario = await _tenant.CriarUsuarioAsync(a.UnidadeId, b.UnidadeId);
+        var token = await _tenant.EntrarAsync(usuario);
+        await _tenant.ApagarMarcaPelaManutencaoAsync(PafTenantCliente.SessaoDoToken(token.AccessToken));
+        await _tenant.EntrarAsync(await _tenant.CriarUsuarioAsync(a.UnidadeId));
+
+        var resposta = await _tenant.RenovarAsync(token);
+
+        resposta.StatusCode.ShouldBe(HttpStatusCode.OK, await resposta.Content.ReadAsStringAsync());
+        (await _tenant.AtividadesAsync(Guid.Parse(usuario.UserId))).ShouldHaveSingleItem().UnidadeId.ShouldBe(b.UnidadeId);
+        (await AvisosDeUnidadeAsync(usuario.UserId)).ShouldBe(1);
+    }
+
     // Outbox rows of the unit-change notice addressed to one user, processed or not.
     private async Task<int> AvisosDeUnidadeAsync(string usuarioId)
     {
