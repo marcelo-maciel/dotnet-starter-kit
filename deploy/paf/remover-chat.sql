@@ -1,10 +1,14 @@
--- One-off cleanup after the Chat module was removed (Marcelo, 04/11/2026; ADR 0009). Run by hand, once per
--- environment, only AFTER the release without Chat is live: the previous release still health-checks the chat
--- schema (db:chat), so dropping it under that release turns /health/ready unhealthy.
+-- One-off cleanup after the Chat module was removed (Marcelo, 04/11/2026; ADR 0009 do PAF, in PAFV2/Analise/adr,
+-- outside this repo). Run by hand, once per environment, only AFTER the release without Chat is live: the previous
+-- release's AppHub queries chat."ChannelMembers" on every connection and its chat routes query the schema, so
+-- dropping it under that release breaks realtime for every user. /health/ready would NOT show it: db:chat only
+-- tests the connection.
 --
 -- One transaction on purpose: schema, migration rows and permission claims go together. If only the schema went,
 -- a rollback to the previous release would find the 7 rows applied and never recreate the tables; with the rows
--- gone too, the previous release's migrator recreates an empty chat schema and the rollback works.
+-- gone too, the previous release's migrator recreates an empty chat schema and the rollback works. After such a
+-- rollback, the previous release re-adds the Permissions.Chat.* claims; if the new release goes live again, run
+-- this file again.
 --
 -- Usage on the host: docker exec -i paf-<ambiente>-postgres-1 sh -c 'psql -U "$POSTGRES_USER" -d fsh -v ON_ERROR_STOP=1' < remover-chat.sql
 BEGIN;
