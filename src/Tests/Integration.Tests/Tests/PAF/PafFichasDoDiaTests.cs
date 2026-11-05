@@ -93,18 +93,20 @@ public sealed class PafFichasDoDiaTests(FshWebApplicationFactory factory) : IAsy
         var liberado = await InserirAsync(c, c.Caixa, c.Normal, "A", 1, origem: null);
         var chamado = await InserirAsync(c, c.Caixa, c.Normal, "A", 2, origem: null);
         var canceladoSemChamar = await InserirAsync(c, c.Caixa, c.Normal, "A", 3, origem: null);
+        // One instant for the three rows: separate now() calls could straddle midnight in São Paulo and split the day.
+        var criadoEm = await AgoraMenosDezMinutosAsync();
         // Created ten minutes ago, released two minutes ago: the wait counts from the release, never from the creation.
         await _tenant.ExecutarAsync($"""
-            UPDATE paf."Atendimentos" SET "CriadoEm" = now() - interval '10 minutes', "ElegivelDesde" = now() - interval '2 minutes'
+            UPDATE paf."Atendimentos" SET "CriadoEm" = {criadoEm}, "ElegivelDesde" = now() - interval '2 minutes'
              WHERE "Id" = {liberado.AtendimentoId}
             """);
         await _tenant.ExecutarAsync($"""
-            UPDATE paf."Atendimentos" SET "Estado" = 'Chamado', "EstacaoId" = {c.GuicheA}, "Versao" = 1, "CriadoEm" = now() - interval '10 minutes',
+            UPDATE paf."Atendimentos" SET "Estado" = 'Chamado', "EstacaoId" = {c.GuicheA}, "Versao" = 1, "CriadoEm" = {criadoEm},
                    "ElegivelDesde" = now() - interval '1 hour', "ChamadoEm" = now() - interval '1 hour' + interval '5 minutes'
              WHERE "Id" = {chamado.AtendimentoId}
             """);
         await _tenant.ExecutarAsync($"""
-            UPDATE paf."Atendimentos" SET "Estado" = 'Cancelado', "Versao" = 1, "CriadoEm" = now() - interval '10 minutes',
+            UPDATE paf."Atendimentos" SET "Estado" = 'Cancelado', "Versao" = 1, "CriadoEm" = {criadoEm},
                    "ElegivelDesde" = now() - interval '30 minutes', "CanceladoEm" = now() - interval '29 minutes'
              WHERE "Id" = {canceladoSemChamar.AtendimentoId}
             """);
@@ -274,6 +276,13 @@ public sealed class PafFichasDoDiaTests(FshWebApplicationFactory factory) : IAsy
                       join f in db.Fichas on a.FichaId equals f.Id
                       where f.Letra == letra && f.Numero == numero
                       select a.Id).SingleAsync();
+    }
+
+    private async Task<DateTimeOffset> AgoraMenosDezMinutosAsync()
+    {
+        using var scope = factory.Services.CreateScope();
+        return await _tenant.Contexto(scope, unidadeCorrente: null).Database
+            .SqlQuery<DateTimeOffset>($"""SELECT now() - interval '10 minutes' AS "Value" """).SingleAsync();
     }
 
     private async Task<DateOnly> DataOperacionalAsync(CenarioOperacao c, Guid atendimentoId)
