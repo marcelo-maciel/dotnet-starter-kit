@@ -35,6 +35,6 @@ test.describe("notificações removidas", () => {
 
   test("/notifications volta para o início", async ({ page }) => {
     await page.goto("/notifications");
-    await expect(page).not.toHaveURL(/\/notifications$/);
+    await expect(page).toHaveURL(/\/$/);
   });
 });
