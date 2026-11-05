@@ -236,18 +236,6 @@ jobs:
       - name: Google Chrome presente
         run: google-chrome --version
 
-      # The runner image ships no ffmpeg (actions/runner-images, Ubuntu 24.04 readme): installed only for a part that
-      # holds a walk reading PAF_FFMPEG (paf-midias records its test video with it).
-      - name: ffmpeg para os walks que gravam vídeo
-        run: |
-          set -euo pipefail
-          walks="$(bash deploy/paf/walks-da-parte.sh "$PARTE")"
-          if (cd clients/dashboard/tests/e2e && grep -l PAF_FFMPEG $walks); then
-            sudo apt-get update
-            sudo apt-get install -y --no-install-recommends ffmpeg
-            ffmpeg -version | head -n 1
-          fi
-
       - name: Walks da parte
         run: bash deploy/paf/walk-ci.sh "$PARTE"
 

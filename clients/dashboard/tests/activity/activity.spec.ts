@@ -114,9 +114,13 @@ test.describe("activity (/activity)", () => {
   });
 
   test("history request drops the per-request system Activity noise", async ({ page }) => {
+    // The wait below is 30s; the test budget must be larger or the default 30s test timeout fires first.
+    test.setTimeout(60_000);
     await grantPermissions(page, [AUDIT_VIEW]);
     await mockJsonResponse(page, "**/api/v1/audits**", paged([HISTORY_ROW]));
-    const request = page.waitForRequest((r) => new URL(r.url()).pathname === "/api/v1/audits");
+    // The audits call only fires once Vite has compiled the lazy /activity chunk; on a cold dev server that took
+    // up to ~12s, longer than the 10s default of waitForRequest, while goto itself only waits for the document.
+    const request = page.waitForRequest((r) => new URL(r.url()).pathname === "/api/v1/audits", { timeout: 30_000 });
 
     await page.goto("/activity");
     const url = new URL((await request).url());

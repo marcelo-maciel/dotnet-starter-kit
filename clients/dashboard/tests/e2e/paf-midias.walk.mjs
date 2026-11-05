@@ -5,8 +5,8 @@
 // leaves it); programações compute the end live, refuse past midnight, filter by the four fields and delete with
 // confirmation; a Gerente (no Midias.Create) has no upload and gets 403; a unidade switch switches the list.
 //
-// Run (fresh `seed-demo` database; API with Storage:Provider=s3 against RustFS; Vite dev server; ffmpeg on PATH or
-// PAF_FFMPEG, only to build the MP4 fixtures; PAF_PG_CONTAINER = the PostgreSQL container, only to give the walk's
+// Run (fresh `seed-demo` database; API with Storage:Provider=s3 against RustFS; Vite dev server; PAF_PG_CONTAINER =
+// the PostgreSQL container, only to give the walk's
 // second unidade a contract, which only a root operator can create through the API):
 //   PAF_API=http://localhost:5418 PAF_WEB=http://localhost:5518 PAF_S3=http://127.0.0.1:9000 PAF_PG_CONTAINER=<pg> \
 //   PAF_S3_BUCKET=<bucket of Storage:S3:Bucket> PAF_SENHA_DEMO=<seed password> node tests/e2e/paf-midias.walk.mjs
@@ -14,8 +14,6 @@
 // Exit code 0 only when every check passed; each check prints PASS/FAIL.
 import crypto from "node:crypto";
 import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import zlib from "node:zlib";
 import { execFileSync } from "node:child_process";
 import { chromium } from "@playwright/test";
@@ -27,7 +25,6 @@ const BUCKET = process.env.PAF_S3_BUCKET;
 const SENHA_DEMO = process.env.PAF_SENHA_DEMO;
 const S3_KEY = process.env.PAF_S3_KEY ?? "rustfsadmin";
 const S3_SECRET = process.env.PAF_S3_SECRET ?? "rustfsadmin";
-const FFMPEG = process.env.PAF_FFMPEG ?? "ffmpeg";
 const PG = process.env.PAF_PG_CONTAINER;
 if (!API || !WEB || !S3 || !BUCKET || !SENHA_DEMO || !PG) {
   console.error("PAF_API, PAF_WEB, PAF_S3, PAF_S3_BUCKET, PAF_SENHA_DEMO and PAF_PG_CONTAINER are required");
@@ -116,13 +113,13 @@ function png(r, g, b, lado) {
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), bloco("IHDR", ihdr), bloco("IDAT", dados), bloco("IEND", Buffer.alloc(0))]);
 }
 
-// H.264 MP4 of a solid color: the duration is known, so the prefilled value is checkable.
-function mp4(pasta, nome, cor, segundos) {
-  const destino = path.join(pasta, nome);
-  execFileSync(FFMPEG, ["-v", "error", "-y", "-f", "lavfi", "-i", `color=c=${cor}:s=64x64:r=10:d=${segundos}`, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", destino], {
-    timeout: 60_000,
-  });
-  return { name: nome, mimeType: "video/mp4", buffer: fs.readFileSync(destino) };
+// Committed H.264 MP4s of a solid color (64x64, 10 fps; 7.3 s blue and 5 s red, ~3 KB each, built once with ffmpeg
+// libx264 yuv420p +faststart; `ffmpeg -v error -y -f lavfi -i color=c=blue:s=64x64:r=10:d=7.3 -c:v libx264 -pix_fmt
+// yuv420p -movflags +faststart institucional.mp4`, and the same with c=red, d=5 for institucional-novo.MP4): the durations are known, so the prefilled value is checkable, and the CI runner
+// needs no ffmpeg.
+function mp4(nome) {
+  const origem = new URL(`./fixtures/${nome}`, import.meta.url);
+  return { name: nome, mimeType: "video/mp4", buffer: fs.readFileSync(origem) };
 }
 
 async function entrar(contexto, email) {
@@ -149,11 +146,10 @@ async function vigiarProgresso(pagina) {
   });
 }
 
-const pasta = fs.mkdtempSync(path.join(os.tmpdir(), "paf-m10-walk-"));
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 try {
-  const institucional = mp4(pasta, "institucional.mp4", "blue", 7.3);
-  const institucionalNovo = mp4(pasta, "institucional-novo.MP4", "red", 5);
+  const institucional = mp4("institucional.mp4");
+  const institucionalNovo = mp4("institucional-novo.MP4");
   const cartaz = { name: "cartaz.png", mimeType: "image/png", buffer: png(0x20, 0x80, 0x20, 32) };
   const avi = { name: "filme-antigo.avi", mimeType: "video/x-msvideo", buffer: Buffer.from("RIFF0000AVI LIST") };
 
@@ -525,7 +521,6 @@ try {
   check("walk sem exceção", false, erro instanceof Error ? erro.stack : String(erro));
 } finally {
   await browser.close();
-  fs.rmSync(pasta, { recursive: true, force: true });
 }
 console.log(falhas === 0 ? "WALK OK" : `WALK FALHOU: ${falhas}`);
 process.exit(falhas === 0 ? 0 : 1);

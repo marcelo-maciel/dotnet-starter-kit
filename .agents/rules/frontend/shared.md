@@ -68,9 +68,9 @@ Login `POST /api/v1/identity/token/issue` with header `X-FSH-App: "admin"|"dashb
 
 So "neutrals must be chroma 0" is a **dashboard** rule. Admin neutrals are intentionally cool — match the file you're editing.
 
-## Realtime (SignalR)
+## Realtime
 
-`src/realtime/realtime-context.tsx`: one `HubConnection` to `/api/v1/realtime/hub`. `@microsoft/signalr` is **dynamically imported** (lazy ~37KB) only when an authed session opens the hub. Auth via `accessTokenFactory`; a `tokenEpoch` (bumped by `tokenStore.subscribe`) forces reconnect on login/refresh/impersonation. Consume with `useRealtimeEvent("EventName", handler, deps)` (handler kept in a ref). Pre-register new event names in the provider's event list.
+The kit AppHub connection (`/api/v1/realtime/hub`, `RealtimeProvider`, `useRealtimeEvent`) was removed from both apps: nothing creates notifications anymore. The dashboard's PAF screens use their own PafHub (`features/paf/paf-hub.ts`), the only user of `@microsoft/signalr` there; the admin has no realtime connection.
 
 ## Testing (Playwright, route-mocked)
 

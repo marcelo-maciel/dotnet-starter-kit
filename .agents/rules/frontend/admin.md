@@ -25,7 +25,7 @@ Form layout primitives live in `src/components/list/` (`PageHeader`, `Field`, `F
 ## Routing & realtime
 
 - Routes wrap elements in `<RouteGuard perms={…}>` (no per-route Suspense wrapper).
-- `RealtimeProvider` is mounted in `App.tsx` and wires only `["NotificationCreated"]`.
+- The admin has no realtime connection (the kit AppHub and the notification bell were removed).
 
 ## Theme
 

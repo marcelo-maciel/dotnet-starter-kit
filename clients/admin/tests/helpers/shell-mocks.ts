@@ -1,4 +1,4 @@
-import type { Page, Route } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { mockJsonResponse } from "./api-mocks";
 
 /** The full root-operator permission set — enough to satisfy every RouteGuard. */
@@ -65,12 +65,6 @@ export async function installAdminShellMocks(
   page: Page,
   perms: readonly string[] = ADMIN_PERMS,
 ): Promise<void> {
-  await page.route("**/negotiate**", (r: Route) => r.abort());
-  await page.route("**/api/v1/realtime/**", (r: Route) => r.abort());
-
-  await mockJsonResponse(page, "**/api/v1/notifications**", []);
-  await mockJsonResponse(page, "**/api/v1/notifications/unread-count**", 0);
-
   await mockJsonResponse(page, "**/api/v1/identity/profile", ADMIN_PROFILE);
   await mockJsonResponse(page, "**/api/v1/identity/permissions", [...perms]);
 }

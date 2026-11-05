@@ -6,7 +6,7 @@
 #
 # Usage: PAF_SENHA_DEMO=<secret> deploy/paf/walk-ci.sh <parte>
 # Needs: docker, dotnet SDK, node 22, `npm ci` done in clients/dashboard, Google Chrome (the walks launch channel
-# "chrome"), ffmpeg on PATH for walks that record video (paf.yml installs it). Leaves nothing running on EXIT.
+# "chrome"). Leaves nothing running on EXIT.
 set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/walk-pilha.sh"
