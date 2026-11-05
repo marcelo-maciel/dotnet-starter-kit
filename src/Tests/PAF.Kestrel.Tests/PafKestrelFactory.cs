@@ -41,6 +41,9 @@ public sealed class PafKestrelFactory : WebApplicationFactory<Program>, IAsyncLi
         .WithCleanUp(true)
         .Build();
 
+    // Kestrel connections still open, for DiagnosticoParada: Kestrel's stop waits for them up to the host's timeout.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, ConexaoAberta> _conexoes = new();
+
     public PafKestrelFactory()
     {
         // Port 0: Kestrel picks a free port; read back from IServerAddressesFeature after the start.
@@ -62,7 +65,11 @@ public sealed class PafKestrelFactory : WebApplicationFactory<Program>, IAsyncLi
 
     public new async Task DisposeAsync()
     {
-        await base.DisposeAsync();
+        using (new DiagnosticoParada(Services, _conexoes))
+        {
+            await base.DisposeAsync();
+        }
+
         await _postgres.DisposeAsync();
     }
 
@@ -72,6 +79,19 @@ public sealed class PafKestrelFactory : WebApplicationFactory<Program>, IAsyncLi
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
+
+        builder.ConfigureKestrel(kestrel => kestrel.ConfigureEndpointDefaults(escuta => escuta.Use(proxima => async conexao =>
+        {
+            _conexoes[conexao.ConnectionId] = new ConexaoAberta(conexao.RemoteEndPoint?.ToString(), DateTimeOffset.UtcNow, UltimoPedido: null);
+            try
+            {
+                await proxima(conexao);
+            }
+            finally
+            {
+                _conexoes.TryRemove(conexao.ConnectionId, out _);
+            }
+        })));
 
         builder.UseEnvironment("Development");
         builder.ConfigureAppConfiguration((_, config) =>
@@ -118,10 +138,10 @@ public sealed class PafKestrelFactory : WebApplicationFactory<Program>, IAsyncLi
             // session is only caught by PafHubFilter on the next call, which is the path under test.
             var remover = services
                 .Where(d => d.ServiceType == typeof(IHostedService) &&
-                    (d.ImplementationType?.Name == "RolePermissionSyncHostedService" ||
-                     d.ImplementationType?.FullName?.Contains("Hangfire", StringComparison.Ordinal) == true ||
-                     d.ImplementationType?.Name == "HangfireStaleLockCleanupService" ||
-                     d.ImplementationType?.Name == "OutboxDispatcherHostedService"))
+                    HostedServiceDescriptors.ImplementationTypeOf(d) is { } tipo &&
+                    (tipo.Name == "RolePermissionSyncHostedService" ||
+                     (tipo.FullName ?? string.Empty).Contains("Hangfire", StringComparison.Ordinal) ||
+                     tipo.Name == "OutboxDispatcherHostedService"))
                 .ToList();
             foreach (var servico in remover)
             {
@@ -150,6 +170,7 @@ public sealed class PafKestrelFactory : WebApplicationFactory<Program>, IAsyncLi
             }
 
             services.AddExceptionHandler<DetailedTestExceptionHandler>();
+            services.AddSingleton<IStartupFilter>(new UltimoPedidoDaConexao(_conexoes));
         });
     }
 

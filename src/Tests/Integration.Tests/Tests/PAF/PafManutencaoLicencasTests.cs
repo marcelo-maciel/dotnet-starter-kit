@@ -114,6 +114,7 @@ public sealed class PafManutencaoLicencasTests(FshWebApplicationFactory factory)
     [Fact]
     public async Task DoisTenantsDuasUnidades_AmostraPorUnidadeComContrato_Isolada()
     {
+        using var semPassada = await _tenant.SemPassadaDoHostAsync();
         var u1 = await _tenant.CriarUnidadeAsync(limiteSessoes: 3);
         var u2 = await _tenant.CriarUnidadeAsync(limiteSessoes: 5);
         var semContrato = await _tenant.CriarUnidadeAsync(limiteSessoes: null);
@@ -170,6 +171,8 @@ public sealed class PafManutencaoLicencasTests(FshWebApplicationFactory factory)
     [Fact]
     public async Task ComValkey_ContaOConjuntoSemReservas_ENaoReconstruido_ContaAsMarcas()
     {
+        // The host's pass counts without Valkey (the harness has none), so its sample would never match this one.
+        using var semPassada = await _tenant.SemPassadaDoHostAsync();
         var conjunto = ConjuntoValkey();
         (await conjunto.MarcarReconstruidoAsync(CancellationToken.None)).ShouldBeTrue();
         var tenant = await TenantAsync(_tenant.TenantId);

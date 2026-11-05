@@ -86,15 +86,21 @@ public sealed class PafReocupacaoLicencaTests(FshWebApplicationFactory factory) 
         var usuario = await _tenant.CriarUsuarioAsync(a.UnidadeId, b.UnidadeId);
         var token = (await _tenant.EntrarAsync(usuario)).AccessToken;
         // Expired mark, row kept: its unit is what the screen showed, so moving to B is noticed (the grace release
-        // deletes the row, and without Valkey state there is then no earlier unit to compare with).
-        await EnvelhecerMarcaAsync(token);
-        await _tenant.EntrarAsync(await _tenant.CriarUsuarioAsync(a.UnidadeId));
-
+        // deletes the row, and without Valkey state there is then no earlier unit to compare with). The host's
+        // ManutencaoLicencas would delete it the same way on a 5-minute tick, hence the protection until both land.
         using var cliente = _tenant.Cliente(token);
-        var rest = Enumerable.Range(0, 4).Select(_ => cliente.GetAsync(Perfil)).ToList();
-        var hub = ConectarAsync(token);
-        var respostas = await Task.WhenAll(rest);
-        var conexao = await hub;
+        HttpResponseMessage[] respostas;
+        HubConnection conexao;
+        await using (await _tenant.ProtegerMarcaDaLimpezaAsync(PafTenantCliente.SessaoDoToken(token)))
+        {
+            await EnvelhecerMarcaAsync(token);
+            await _tenant.EntrarAsync(await _tenant.CriarUsuarioAsync(a.UnidadeId));
+
+            var rest = Enumerable.Range(0, 4).Select(_ => cliente.GetAsync(Perfil)).ToList();
+            var hub = ConectarAsync(token);
+            respostas = await Task.WhenAll(rest);
+            conexao = await hub;
+        }
 
         foreach (var resposta in respostas)
         {
@@ -113,18 +119,23 @@ public sealed class PafReocupacaoLicencaTests(FshWebApplicationFactory factory) 
         var unidade = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);
         var ana = await _tenant.CriarUsuarioAsync(unidade.UnidadeId);
         var tokenAna = (await _tenant.EntrarAsync(ana)).AccessToken;
-        await EnvelhecerMarcaAsync(tokenAna);
-        await _tenant.EntrarAsync(await _tenant.CriarUsuarioAsync(unidade.UnidadeId));
+        // The refusal path neither renews nor deletes the mark (no LiberarAsync), so the protection holds until the
+        // last read; released earlier, the job's blocked DELETE would remove the still-stale row.
+        await using (await _tenant.ProtegerMarcaDaLimpezaAsync(PafTenantCliente.SessaoDoToken(tokenAna)))
+        {
+            await EnvelhecerMarcaAsync(tokenAna);
+            await _tenant.EntrarAsync(await _tenant.CriarUsuarioAsync(unidade.UnidadeId));
 
-        var chamada = await InvocarFiltroAsync(Principal(tokenAna));
-        var abertura = await ConectarNoFiltroAsync(Principal(tokenAna));
+            var chamada = await InvocarFiltroAsync(Principal(tokenAna));
+            var abertura = await ConectarNoFiltroAsync(Principal(tokenAna));
 
-        chamada.Erro.ShouldBeAssignableTo<HubException>()!.Message.ShouldBe(Licencas.MensagemLimite);
-        chamada.Abortada.ShouldBeTrue("a chamada recusada derruba a conexão");
-        // On connect there is no Abort: the exception itself ends the connection in SignalR.
-        abertura.Erro.ShouldBeAssignableTo<HubException>()!.Message.ShouldBe(Licencas.MensagemLimite);
-        (await _tenant.AtividadesAsync(Guid.Parse(ana.UserId))).ShouldHaveSingleItem().UltimaAtividadeEm
-            .ShouldBeLessThan(DateTime.UtcNow.AddMinutes(-10), "recusada, a marca vencida não é renovada");
+            chamada.Erro.ShouldBeAssignableTo<HubException>()!.Message.ShouldBe(Licencas.MensagemLimite);
+            chamada.Abortada.ShouldBeTrue("a chamada recusada derruba a conexão");
+            // On connect there is no Abort: the exception itself ends the connection in SignalR.
+            abertura.Erro.ShouldBeAssignableTo<HubException>()!.Message.ShouldBe(Licencas.MensagemLimite);
+            (await _tenant.AtividadesAsync(Guid.Parse(ana.UserId))).ShouldHaveSingleItem().UltimaAtividadeEm
+                .ShouldBeLessThan(DateTime.UtcNow.AddMinutes(-10), "recusada, a marca vencida não é renovada nem apagada");
+        }
     }
 
     [Fact]

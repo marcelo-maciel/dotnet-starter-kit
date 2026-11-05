@@ -226,9 +226,15 @@ public sealed class PafRegistroConexoesTests(FshWebApplicationFactory factory) :
         _hubs.Remove(hub);
         await EsperarAsync(() => !factory.Services.GetRequiredService<ConexoesPaf>().Locais()
             .Any(l => l.Conexao is ConexaoPessoa p && p.SessaoId == sessaoId));
-        await PassarMinutosAsync(sessaoId, renovacao, 11);
+        // The host's ManutencaoLicencas deletes a mark past ten minutes on its 5-minute tick, and the age read below
+        // needs the row. Safe to hold here: with the screen closed and no Valkey in this host the cycle releases nothing.
+        await using (await _tenant.ProtegerMarcaDaLimpezaAsync(sessaoId))
+        {
+            await PassarMinutosAsync(sessaoId, renovacao, 11);
 
-        (await IdadeDaMarcaAsync(sessaoId)).ShouldNotBeNull().ShouldBeGreaterThan(TimeSpan.FromMinutes(10));
+            (await IdadeDaMarcaAsync(sessaoId)).ShouldNotBeNull().ShouldBeGreaterThan(TimeSpan.FromMinutes(10));
+        }
+
         using var aceito = await _tenant.LoginAsync(outro.Email, outro.Password);
         aceito.StatusCode.ShouldBe(HttpStatusCode.OK, await aceito.Content.ReadAsStringAsync());
     }

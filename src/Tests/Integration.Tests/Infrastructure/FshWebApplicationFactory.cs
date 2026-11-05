@@ -201,10 +201,10 @@ public sealed class FshWebApplicationFactory : WebApplicationFactory<Program>, I
             // Hangfire server + stale-lock cleanup, OutboxDispatcher); we register our own InMemory server below.
             var hostedServicesToRemove = services
                 .Where(d => d.ServiceType == typeof(IHostedService) &&
-                    (d.ImplementationType?.Name == "RolePermissionSyncHostedService" ||
-                     d.ImplementationType?.FullName?.Contains("Hangfire", StringComparison.Ordinal) == true ||
-                     d.ImplementationType?.Name == "HangfireStaleLockCleanupService" ||
-                     d.ImplementationType?.Name == "OutboxDispatcherHostedService"))
+                    HostedServiceDescriptors.ImplementationTypeOf(d) is { } tipo &&
+                    (tipo.Name == "RolePermissionSyncHostedService" ||
+                     (tipo.FullName ?? string.Empty).Contains("Hangfire", StringComparison.Ordinal) ||
+                     tipo.Name == "OutboxDispatcherHostedService"))
                 .ToList();
             foreach (var service in hostedServicesToRemove)
             {

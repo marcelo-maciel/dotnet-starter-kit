@@ -44,6 +44,7 @@
         <Compile Include="..\Integration.Tests\Infrastructure\NoOpMailService.cs" Link="Linked\NoOpMailService.cs" />
         <Compile Include="..\Integration.Tests\Infrastructure\DetailedTestExceptionHandler.cs" Link="Linked\DetailedTestExceptionHandler.cs" />
         <Compile Include="..\Integration.Tests\Infrastructure\OutboxDrain.cs" Link="Linked\OutboxDrain.cs" />
+        <Compile Include="..\Integration.Tests\Infrastructure\HostedServiceDescriptors.cs" Link="Linked\HostedServiceDescriptors.cs" />
     </ItemGroup>
 
 </Project>

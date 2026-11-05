@@ -234,6 +234,115 @@ internal sealed class PafTenantCliente(FshWebApplicationFactory factory, string 
         return await db.Database.ExecuteSqlAsync(sql);
     }
 
+    /// <summary>
+    /// Keeps the session's mark from ManutencaoLicencas until disposed. The host runs that job on every 5-minute tick
+    /// and it deletes marks older than the deadline, so a test that ages a mark and needs the app to still find it
+    /// takes this before aging. The blocked DELETE re-checks the row once released; a renewed mark is no longer stale.
+    /// <para>
+    /// FOR KEY SHARE lets through only reads and writes that change no key column: the aging UPDATE, the renewals
+    /// (Licencas.RenovarMarcaAsync, RenovacaoPelaConexao), the unit move UPDATE and the occupation's
+    /// ON CONFLICT DO UPDATE. It blocks every DELETE of this row and every FOR UPDATE on it: Licencas.LiberarAsync
+    /// (logout, revocation, RenovacaoPelaConexao's grace release and session check), the DELETE of the user's other
+    /// sessions in Licencas.ConfirmarAsync (the same user occupying from another session) and the FOR UPDATE in
+    /// Licencas.MigrarAsync (manual unit switch). Awaiting one of those inside the <c>await using</c> deadlocks the
+    /// test against itself: until the HttpClient timeout over HTTP, forever for an in-process call.
+    /// </para>
+    /// </summary>
+    public async Task<IAsyncDisposable> ProtegerMarcaDaLimpezaAsync(Guid sessaoId)
+    {
+        IServiceScope? scope = null;
+        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? transacao = null;
+        try
+        {
+            scope = factory.Services.CreateScope();
+            var db = Contexto(scope, unidadeCorrente: null);
+            transacao = await db.Database.BeginTransactionAsync();
+            (await db.Database.SqlQuery<Guid>($"""
+                SELECT "SessaoId" AS "Value" FROM paf."AtividadesSessao" WHERE "SessaoId" = {sessaoId} FOR KEY SHARE
+                """).ToListAsync()).ShouldHaveSingleItem();
+            return new TravaDaMarca(scope, transacao);
+        }
+        catch
+        {
+            // An open transaction left behind would hold the lock into the next tests.
+            if (transacao is not null)
+            {
+                await transacao.DisposeAsync();
+            }
+
+            scope?.Dispose();
+            throw;
+        }
+    }
+
+    private sealed class TravaDaMarca(IServiceScope scope, Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transacao)
+        : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync()
+        {
+            await transacao.DisposeAsync();
+            scope.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Keeps the host's own ManutencaoLicencas pass away until disposed, for tests whose arrange a pass would spoil:
+    /// a window sample written first with the count of that moment, or a stale mark deleted before a path that deletes
+    /// it itself (where <see cref="ProtegerMarcaDaLimpezaAsync"/> would deadlock). Hangfire 1.8's RecurringJobScheduler
+    /// enqueues only under the distributed lock "recurring-jobs:lock", so holding it stops new ticks; the pass enqueued
+    /// before is waited out. A failed pass is retried by the DelayedJobScheduler, which that lock does not hold back, so
+    /// a retry pending as Scheduled is deleted (the next tick runs the job again). Assert inside: a tick missed meanwhile
+    /// runs right after the release.
+    /// </summary>
+    public async Task<IDisposable> SemPassadaDoHostAsync()
+    {
+        var storage = factory.Services.GetRequiredService<Hangfire.JobStorage>();
+        var conexao = storage.GetConnection();
+        IDisposable? trava = null;
+        try
+        {
+            trava = conexao.AcquireDistributedLock("recurring-jobs:lock", TimeSpan.FromSeconds(30));
+            var ultima = Hangfire.Storage.StorageConnectionExtensions.GetRecurringJobs(conexao)
+                .Single(j => j.Id == FSH.Modules.PAF.Sessao.ManutencaoLicencas.IdRecorrente).LastJobId;
+            var limite = DateTime.UtcNow.AddMinutes(2);
+            while (ultima is not null && conexao.GetJobData(ultima)?.State is { } estado
+                && estado != Hangfire.States.SucceededState.StateName
+                && estado != Hangfire.States.FailedState.StateName
+                && estado != Hangfire.States.DeletedState.StateName)
+            {
+                if (estado == Hangfire.States.ScheduledState.StateName)
+                {
+                    Hangfire.BackgroundJobClientExtensions.Delete(new Hangfire.BackgroundJobClient(storage), ultima).ShouldBeTrue($"a nova tentativa {ultima} da manutenção não pôde ser apagada");
+                    continue;
+                }
+
+                if (DateTime.UtcNow > limite)
+                {
+                    throw new TimeoutException($"a passada {ultima} da manutenção do host não terminou em 2 min (estado {estado})");
+                }
+
+                await Task.Delay(TimeSpan.FromMilliseconds(100));
+            }
+
+            return new SemPassada(trava, conexao);
+        }
+        catch
+        {
+            trava?.Dispose();
+            conexao.Dispose();
+            throw;
+        }
+    }
+
+    private sealed class SemPassada(IDisposable trava, Hangfire.Storage.IStorageConnection conexao) : IDisposable
+    {
+        public void Dispose()
+        {
+            trava.Dispose();
+            conexao.Dispose();
+        }
+    }
+
     /// <summary>Atendimento chamado no guichê A, que deixa esse guichê com atendimento em curso.</summary>
     public async Task ChamarNoGuicheAsync(UnidadeTeste unidade)
     {
