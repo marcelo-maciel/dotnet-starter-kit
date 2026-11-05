@@ -236,27 +236,43 @@ internal sealed class PafTenantCliente(FshWebApplicationFactory factory, string 
 
     /// <summary>
     /// Keeps the session's mark from ManutencaoLicencas until disposed. The host runs that job on every 5-minute tick
-    /// and it deletes marks older than the deadline, so a test that ages a mark and needs the app to still read it
-    /// (the unit the screen showed, for the unit-change notice) takes this before aging. FOR KEY SHARE blocks the
-    /// job's DELETE and nothing the app does to the mark: the aging UPDATE and the occupation's ON CONFLICT DO UPDATE
-    /// touch no key column. The blocked DELETE re-checks the row once released and finds it fresh again.
+    /// and it deletes marks older than the deadline, so a test that ages a mark and needs the app to still find it
+    /// takes this before aging. The blocked DELETE re-checks the row once released; a renewed mark is no longer stale.
+    /// <para>
+    /// FOR KEY SHARE lets through only reads and writes that change no key column: the aging UPDATE, the renewals
+    /// (Licencas.RenovarMarcaAsync, RenovacaoPelaConexao), the unit move UPDATE and the occupation's
+    /// ON CONFLICT DO UPDATE. It blocks every DELETE of this row and every FOR UPDATE on it: Licencas.LiberarAsync
+    /// (logout, revocation, RenovacaoPelaConexao's grace release and session check), the DELETE of the user's other
+    /// sessions in Licencas.ConfirmarAsync (the same user occupying from another session) and the FOR UPDATE in
+    /// Licencas.MigrarAsync (manual unit switch). Awaiting one of those inside the <c>await using</c> deadlocks the
+    /// test against itself: until the HttpClient timeout over HTTP, forever for an in-process call.
+    /// </para>
     /// </summary>
     public async Task<IAsyncDisposable> ProtegerMarcaDaLimpezaAsync(Guid sessaoId)
     {
-        var scope = factory.Services.CreateScope();
-        var db = Contexto(scope, unidadeCorrente: null);
-        var trava = new TravaDaMarca(scope, await db.Database.BeginTransactionAsync());
-        var travadas = await db.Database.SqlQuery<Guid>($"""
-            SELECT "SessaoId" AS "Value" FROM paf."AtividadesSessao" WHERE "SessaoId" = {sessaoId} FOR KEY SHARE
-            """).ToListAsync();
-        if (travadas.Count != 1)
+        IServiceScope? scope = null;
+        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? transacao = null;
+        try
+        {
+            scope = factory.Services.CreateScope();
+            var db = Contexto(scope, unidadeCorrente: null);
+            transacao = await db.Database.BeginTransactionAsync();
+            (await db.Database.SqlQuery<Guid>($"""
+                SELECT "SessaoId" AS "Value" FROM paf."AtividadesSessao" WHERE "SessaoId" = {sessaoId} FOR KEY SHARE
+                """).ToListAsync()).ShouldHaveSingleItem();
+            return new TravaDaMarca(scope, transacao);
+        }
+        catch
         {
             // An open transaction left behind would hold the lock into the next tests.
-            await trava.DisposeAsync();
-            travadas.ShouldHaveSingleItem();
-        }
+            if (transacao is not null)
+            {
+                await transacao.DisposeAsync();
+            }
 
-        return trava;
+            scope?.Dispose();
+            throw;
+        }
     }
 
     private sealed class TravaDaMarca(IServiceScope scope, Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transacao)
