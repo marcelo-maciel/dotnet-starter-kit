@@ -234,6 +234,41 @@ internal sealed class PafTenantCliente(FshWebApplicationFactory factory, string 
         return await db.Database.ExecuteSqlAsync(sql);
     }
 
+    /// <summary>
+    /// Keeps the session's mark from ManutencaoLicencas until disposed. The host runs that job on every 5-minute tick
+    /// and it deletes marks older than the deadline, so a test that ages a mark and needs the app to still read it
+    /// (the unit the screen showed, for the unit-change notice) takes this before aging. FOR KEY SHARE blocks the
+    /// job's DELETE and nothing the app does to the mark: the aging UPDATE and the occupation's ON CONFLICT DO UPDATE
+    /// touch no key column. The blocked DELETE re-checks the row once released and finds it fresh again.
+    /// </summary>
+    public async Task<IAsyncDisposable> ProtegerMarcaDaLimpezaAsync(Guid sessaoId)
+    {
+        var scope = factory.Services.CreateScope();
+        var db = Contexto(scope, unidadeCorrente: null);
+        var trava = new TravaDaMarca(scope, await db.Database.BeginTransactionAsync());
+        var travadas = await db.Database.SqlQuery<Guid>($"""
+            SELECT "SessaoId" AS "Value" FROM paf."AtividadesSessao" WHERE "SessaoId" = {sessaoId} FOR KEY SHARE
+            """).ToListAsync();
+        if (travadas.Count != 1)
+        {
+            // An open transaction left behind would hold the lock into the next tests.
+            await trava.DisposeAsync();
+            travadas.ShouldHaveSingleItem();
+        }
+
+        return trava;
+    }
+
+    private sealed class TravaDaMarca(IServiceScope scope, Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transacao)
+        : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync()
+        {
+            await transacao.DisposeAsync();
+            scope.Dispose();
+        }
+    }
+
     /// <summary>Atendimento chamado no guichê A, que deixa esse guichê com atendimento em curso.</summary>
     public async Task ChamarNoGuicheAsync(UnidadeTeste unidade)
     {

@@ -86,15 +86,21 @@ public sealed class PafReocupacaoLicencaTests(FshWebApplicationFactory factory) 
         var usuario = await _tenant.CriarUsuarioAsync(a.UnidadeId, b.UnidadeId);
         var token = (await _tenant.EntrarAsync(usuario)).AccessToken;
         // Expired mark, row kept: its unit is what the screen showed, so moving to B is noticed (the grace release
-        // deletes the row, and without Valkey state there is then no earlier unit to compare with).
-        await EnvelhecerMarcaAsync(token);
-        await _tenant.EntrarAsync(await _tenant.CriarUsuarioAsync(a.UnidadeId));
-
+        // deletes the row, and without Valkey state there is then no earlier unit to compare with). The host's
+        // ManutencaoLicencas would delete it the same way on a 5-minute tick, hence the protection until both land.
         using var cliente = _tenant.Cliente(token);
-        var rest = Enumerable.Range(0, 4).Select(_ => cliente.GetAsync(Perfil)).ToList();
-        var hub = ConectarAsync(token);
-        var respostas = await Task.WhenAll(rest);
-        var conexao = await hub;
+        HttpResponseMessage[] respostas;
+        HubConnection conexao;
+        await using (await _tenant.ProtegerMarcaDaLimpezaAsync(PafTenantCliente.SessaoDoToken(token)))
+        {
+            await EnvelhecerMarcaAsync(token);
+            await _tenant.EntrarAsync(await _tenant.CriarUsuarioAsync(a.UnidadeId));
+
+            var rest = Enumerable.Range(0, 4).Select(_ => cliente.GetAsync(Perfil)).ToList();
+            var hub = ConectarAsync(token);
+            respostas = await Task.WhenAll(rest);
+            conexao = await hub;
+        }
 
         foreach (var resposta in respostas)
         {
