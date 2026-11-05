@@ -12,7 +12,7 @@ import { InicioPaf } from "@/features/paf/navegacao/inicio-paf";
 // Lazy route boundaries
 //
 // Each route is split into its own bundle so first paint after login only
-// loads the chunk for the landing page (Overview). Catalog, Settings,
+// loads the chunk for the landing page (Overview). Settings,
 // Login, Activity, etc. fetch on demand.
 //
 // `lazyNamed` wraps a dynamic import that exports a *named* component
@@ -130,7 +130,8 @@ function withSuspense(node: React.ReactNode) {
 
 // Kit screens the PAF does not ship (product decision of 31/10/2026; the Users, Roles and Groups administration on
 // 02/11/2026, replaced by /paf/usuarios): the pages stay in the tree, the URL only redirects, so an old bookmark lands
-// on the PAF home and never on a dead page.
+// on the PAF home and never on a dead page. Chat, Catalog and Helpdesk left the code (04/11/2026); their paths stay
+// here for the same bookmarks.
 const TELAS_DO_KIT_FORA_DO_PRODUTO = [
   "subscription",
   "wallet",
@@ -142,7 +143,7 @@ const TELAS_DO_KIT_FORA_DO_PRODUTO = [
   "tickets",
   "tickets/:ticketId",
   "catalog/*",
-  // Trash only lists Catalog, Tickets and Files records.
+  // The kit's trash screen, unrouted since it only listed the removed modules and Files.
   "system/trash",
   // The kit's own older paths for Billing and Trash, which no screen serves, so they would 404.
   "billing/*",

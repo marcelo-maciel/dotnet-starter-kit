@@ -41,9 +41,10 @@ export type NavSection = {
 // Top-level items live OUTSIDE any section. Overview opens the app;
 // Settings is account-scoped and lives at the very bottom.
 export const topNavTop: NavSpec[] = [
-  // "/" opens the PAF (InicioPaf); the kit overview lives at /overview. Chat, Files, Catalog, Helpdesk and
-  // Billing are not part of the PAF product (31/10/2026), nor the kit's Users, Roles and Groups screens (02/11/2026:
-  // the client manages its users on /paf/usuarios): out of the menu, and their routes redirect home.
+  // "/" opens the PAF (InicioPaf); the kit overview lives at /overview. Files and Billing are not part of
+  // the PAF product (31/10/2026), nor the kit's Users, Roles and Groups screens (02/11/2026: the client manages its
+  // users on /paf/usuarios); Chat, Catalog and Helpdesk left the code (04/11/2026). Out of the menu, and their routes
+  // redirect home.
   { to: "/overview", label: "Visão geral", icon: LayoutDashboard },
 ];
 

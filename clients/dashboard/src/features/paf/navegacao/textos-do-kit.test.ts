@@ -18,16 +18,15 @@ const SRC = join(DASHBOARD, "src");
 const FORA_DO_ESCOPO = [
   /^features\/paf\//,
   /^pages\/identity\//,
-  /^pages\/(catalog|files|tickets)\//,
+  /^pages\/files\//,
   /^pages\/(subscription|wallet|invoices|invoice-detail)\.tsx$/,
   /^pages\/system\/trash\.tsx$/,
   // Minha conta keeps Perfil, Segurança and Aparência only (02/11/2026); these routes redirect home.
   /^pages\/settings\/(api-keys|notifications|branding)\.tsx$/,
   /^api\/tenants\.ts$/,
-  /^components\/file\/(file-preview-dialog|product-image-manager|file-dropzone)\.tsx$/,
+  /^components\/file\/(file-preview-dialog|file-dropzone)\.tsx$/,
   /^components\/identity\//,
-  /^lib\/(ticket-enums|trash-permissions)\.ts$/,
-  /^api\/(billing|tickets|wallet|catalog|files)\.ts$/,
+  /^api\/(billing|wallet|files)\.ts$/,
   /^components\/list\/combobox\.tsx$/,
   // The demo-account picker only renders with the runtime demoMode flag, which the PAF deploy never turns on.
   /^components\/auth\/demo-accounts-dialog\.tsx$/,
