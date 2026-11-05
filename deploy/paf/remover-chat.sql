@@ -1,0 +1,37 @@
+-- One-off cleanup after the Chat module was removed (Marcelo, 04/11/2026; ADR 0009). Run by hand, once per
+-- environment, only AFTER the release without Chat is live: the previous release still health-checks the chat
+-- schema (db:chat), so dropping it under that release turns /health/ready unhealthy.
+--
+-- One transaction on purpose: schema, migration rows and permission claims go together. If only the schema went,
+-- a rollback to the previous release would find the 7 rows applied and never recreate the tables; with the rows
+-- gone too, the previous release's migrator recreates an empty chat schema and the rollback works.
+--
+-- Usage on the host: docker exec -i paf-<ambiente>-postgres-1 sh -c 'psql -U "$POSTGRES_USER" -d fsh -v ON_ERROR_STOP=1' < remover-chat.sql
+BEGIN;
+
+DROP SCHEMA IF EXISTS chat CASCADE;
+
+-- Exact ids, never LIKE: __EFMigrationsHistory is shared by every module.
+DELETE FROM public."__EFMigrationsHistory"
+WHERE "MigrationId" IN (
+  '20260512193158_InitialChat',
+  '20260512205427_AddMessageMentions',
+  '20260512210921_AddMessageReactions',
+  '20260512211141_AddMessagesFullTextSearch',
+  '20260513115215_AddMessagePinning',
+  '20260517105429_ChatTenantIsolation',
+  '20260612201021_DropChannelMemberIsMuted'
+);
+
+-- RolePermissionSyncer leaves claims of permissions no longer registered in place, so they are removed here.
+DELETE FROM identity."RoleClaims" WHERE "ClaimType" = 'permission' AND "ClaimValue" LIKE 'Permissions.Chat.%';
+
+SELECT
+  (SELECT count(*) FROM pg_namespace WHERE nspname = 'chat') AS schema_chat,
+  (SELECT count(*) FROM public."__EFMigrationsHistory" WHERE "MigrationId" IN (
+    '20260512193158_InitialChat', '20260512205427_AddMessageMentions', '20260512210921_AddMessageReactions',
+    '20260512211141_AddMessagesFullTextSearch', '20260513115215_AddMessagePinning',
+    '20260517105429_ChatTenantIsolation', '20260612201021_DropChannelMemberIsMuted')) AS historico_chat,
+  (SELECT count(*) FROM identity."RoleClaims" WHERE "ClaimValue" LIKE 'Permissions.Chat.%') AS permissoes_chat;
+
+COMMIT;
