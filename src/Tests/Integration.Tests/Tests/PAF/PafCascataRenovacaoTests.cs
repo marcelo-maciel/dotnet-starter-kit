@@ -177,9 +177,15 @@ public sealed class PafCascataRenovacaoTests(FshWebApplicationFactory factory) :
         var b = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);
         var usuario = await _tenant.CriarUsuarioAsync(a.UnidadeId, b.UnidadeId);
         var token = await _tenant.EntrarAsync(usuario);
-        await EnvelhecerAsync(PafTenantCliente.SessaoDoToken(token.AccessToken));
+        var sessaoId = PafTenantCliente.SessaoDoToken(token.AccessToken);
+        HttpResponseMessage resposta;
+        // Without the aged row there is no earlier unit, and "no notice" would pass whatever the comparison does.
+        await using (await _tenant.ProtegerMarcaDaLimpezaAsync(sessaoId))
+        {
+            await EnvelhecerAsync(sessaoId);
 
-        var resposta = await _tenant.RenovarAsync(token);
+            resposta = await _tenant.RenovarAsync(token);
+        }
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.OK, await resposta.Content.ReadAsStringAsync());
         (await _tenant.AtividadesAsync(Guid.Parse(usuario.UserId))).ShouldHaveSingleItem().UnidadeId.ShouldBe(a.UnidadeId);

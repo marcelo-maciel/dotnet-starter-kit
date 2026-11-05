@@ -291,27 +291,32 @@ public sealed class PafConjuntoLicencasTests(FshWebApplicationFactory factory) :
                 .RevokeSessionForAdminAsync(sessaoRevogada, revogada.UserId, "teste", CancellationToken.None)).ShouldBeTrue();
         }
 
-        await _tenant.ExecutarAsync($"""
-            UPDATE paf."AtividadesSessao" SET "UltimaAtividadeEm" = now() - interval '11 minutes' WHERE "SessaoId" = {sessaoVelha}
-            """);
-        await _multiplexer.GetServers()[0].FlushAllDatabasesAsync();
         var conjunto = Conjunto();
-        var reconstrucao = new ReconstrucaoLicencas(
-            factory.Services.GetRequiredService<IServiceScopeFactory>(), conjunto, TimeSpan.FromMilliseconds(200),
-            NullLogger<ReconstrucaoLicencas>.Instance);
+        // The stale row must still be there when the rebuild reads, or leaving it out proves nothing; the host's
+        // ManutencaoLicencas would delete it on a 5-minute tick.
+        await using (await _tenant.ProtegerMarcaDaLimpezaAsync(sessaoVelha))
+        {
+            await _tenant.ExecutarAsync($"""
+                UPDATE paf."AtividadesSessao" SET "UltimaAtividadeEm" = now() - interval '11 minutes' WHERE "SessaoId" = {sessaoVelha}
+                """);
+            await _multiplexer.GetServers()[0].FlushAllDatabasesAsync();
+            var reconstrucao = new ReconstrucaoLicencas(
+                factory.Services.GetRequiredService<IServiceScopeFactory>(), conjunto, TimeSpan.FromMilliseconds(200),
+                NullLogger<ReconstrucaoLicencas>.Instance);
 
-        using var parar = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        await reconstrucao.StartAsync(parar.Token);
-        try
-        {
-            while (await conjunto.ReconstruidoAsync(parar.Token) is not true)
+            using var parar = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            await reconstrucao.StartAsync(parar.Token);
+            try
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(100), parar.Token);
+                while (await conjunto.ReconstruidoAsync(parar.Token) is not true)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(100), parar.Token);
+                }
             }
-        }
-        finally
-        {
-            await reconstrucao.StopAsync(CancellationToken.None);
+            finally
+            {
+                await reconstrucao.StopAsync(CancellationToken.None);
+            }
         }
 
         (await MembrosAsync(unidade.UnidadeId)).ShouldBe([ConjuntoLicencas.Membro(sessaoViva)]);
