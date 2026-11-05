@@ -114,7 +114,8 @@ function png(r, g, b, lado) {
 }
 
 // Committed H.264 MP4s of a solid color (64x64, 10 fps; 7.3 s blue and 5 s red, ~3 KB each, built once with ffmpeg
-// libx264 yuv420p +faststart): the durations are known, so the prefilled value is checkable, and the CI runner
+// libx264 yuv420p +faststart; `ffmpeg -v error -y -f lavfi -i color=c=blue:s=64x64:r=10:d=7.3 -c:v libx264 -pix_fmt
+// yuv420p -movflags +faststart institucional.mp4`, and the same with c=red, d=5 for institucional-novo.MP4): the durations are known, so the prefilled value is checkable, and the CI runner
 // needs no ffmpeg.
 function mp4(nome) {
   const origem = new URL(`./fixtures/${nome}`, import.meta.url);
