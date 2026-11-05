@@ -71,9 +71,11 @@ try {
   await pAdmin.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: TIMEOUT });
   const token = () => pAdmin.evaluate(() => localStorage.getItem("fsh.dashboard.accessToken"));
 
+  // Land on a /paf route first: the sidebar opens the owning section on every route change. Reading aria-expanded
+  // right after login races the post-login redirect (/ -> /paf/guiche) and the toggle click could close the section.
+  await pAdmin.goto(`${WEB}/paf/guiche`);
   const linkMenu = pAdmin.locator('aside a[href="/paf/prioridades"]');
   check("menu: entrada Prioridades para quem tem Prioridades.View", await linkMenu.waitFor({ state: "attached", timeout: TIMEOUT }).then(() => true, () => false));
-  // The section starts collapsed outside /paf: open it the way a person would.
   const secao = pAdmin.locator('button[aria-controls="nav-section-paf"]');
   if ((await secao.getAttribute("aria-expanded")) === "false") await secao.click();
   await linkMenu.click();
