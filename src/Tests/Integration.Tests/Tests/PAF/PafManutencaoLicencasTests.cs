@@ -6,7 +6,6 @@ using FSH.Modules.Identity.Contracts.v1.Impersonation;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Sessao;
 using Hangfire;
-using Hangfire.States;
 using Hangfire.Storage;
 using Integration.Tests.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -74,47 +73,6 @@ public sealed class PafManutencaoLicencasTests(FshWebApplicationFactory factory)
         await JobDoHost(scope).ExecutarNoTenantAsync(tenant, CancellationToken.None);
     }
 
-    /// <summary>
-    /// Keeps the host's own pass of this job away until disposed. The host's Hangfire enqueues it on every 5-minute
-    /// tick; landing between the arrange and the test's run, it writes the window's sample first with the count of that
-    /// moment, and ON CONFLICT DO NOTHING keeps it. Hangfire 1.8's RecurringJobScheduler enqueues only under the
-    /// distributed lock "recurring-jobs:lock", so holding it stops new ticks; a pass enqueued before is waited out.
-    /// Assert inside: a tick missed meanwhile runs right after the release and may add the next window's sample.
-    /// </summary>
-    private async Task<IDisposable> SemPassadaDoHostAsync()
-    {
-        var conexao = factory.Services.GetRequiredService<JobStorage>().GetConnection();
-        IDisposable? trava = null;
-        try
-        {
-            trava = conexao.AcquireDistributedLock("recurring-jobs:lock", TimeSpan.FromSeconds(30));
-            var ultima = conexao.GetRecurringJobs().Single(j => j.Id == ManutencaoLicencas.IdRecorrente).LastJobId;
-            using var prazo = new CancellationTokenSource(TimeSpan.FromMinutes(2));
-            while (ultima is not null && conexao.GetJobData(ultima)?.State is { } estado
-                && estado != SucceededState.StateName && estado != FailedState.StateName && estado != DeletedState.StateName)
-            {
-                await Task.Delay(TimeSpan.FromMilliseconds(100), prazo.Token);
-            }
-
-            return new SemPassada(trava, conexao);
-        }
-        catch
-        {
-            trava?.Dispose();
-            conexao.Dispose();
-            throw;
-        }
-    }
-
-    private sealed class SemPassada(IDisposable trava, IStorageConnection conexao) : IDisposable
-    {
-        public void Dispose()
-        {
-            trava.Dispose();
-            conexao.Dispose();
-        }
-    }
-
     private async Task<List<ConsumoLicenca>> AmostrasAsync(PafTenantCliente tenant, Guid unidadeId)
     {
         using var scope = factory.Services.CreateScope();
@@ -156,7 +114,7 @@ public sealed class PafManutencaoLicencasTests(FshWebApplicationFactory factory)
     [Fact]
     public async Task DoisTenantsDuasUnidades_AmostraPorUnidadeComContrato_Isolada()
     {
-        using var semPassada = await SemPassadaDoHostAsync();
+        using var semPassada = await _tenant.SemPassadaDoHostAsync();
         var u1 = await _tenant.CriarUnidadeAsync(limiteSessoes: 3);
         var u2 = await _tenant.CriarUnidadeAsync(limiteSessoes: 5);
         var semContrato = await _tenant.CriarUnidadeAsync(limiteSessoes: null);
@@ -214,7 +172,7 @@ public sealed class PafManutencaoLicencasTests(FshWebApplicationFactory factory)
     public async Task ComValkey_ContaOConjuntoSemReservas_ENaoReconstruido_ContaAsMarcas()
     {
         // The host's pass counts without Valkey (the harness has none), so its sample would never match this one.
-        using var semPassada = await SemPassadaDoHostAsync();
+        using var semPassada = await _tenant.SemPassadaDoHostAsync();
         var conjunto = ConjuntoValkey();
         (await conjunto.MarcarReconstruidoAsync(CancellationToken.None)).ShouldBeTrue();
         var tenant = await TenantAsync(_tenant.TenantId);

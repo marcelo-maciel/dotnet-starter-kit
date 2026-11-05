@@ -285,6 +285,64 @@ internal sealed class PafTenantCliente(FshWebApplicationFactory factory, string 
         }
     }
 
+    /// <summary>
+    /// Keeps the host's own ManutencaoLicencas pass away until disposed, for tests whose arrange a pass would spoil:
+    /// a window sample written first with the count of that moment, or a stale mark deleted before a path that deletes
+    /// it itself (where <see cref="ProtegerMarcaDaLimpezaAsync"/> would deadlock). Hangfire 1.8's RecurringJobScheduler
+    /// enqueues only under the distributed lock "recurring-jobs:lock", so holding it stops new ticks; the pass enqueued
+    /// before is waited out. A failed pass is retried by the DelayedJobScheduler, which that lock does not hold back, so
+    /// a retry pending as Scheduled is deleted (the next tick runs the job again). Assert inside: a tick missed meanwhile
+    /// runs right after the release.
+    /// </summary>
+    public async Task<IDisposable> SemPassadaDoHostAsync()
+    {
+        var storage = factory.Services.GetRequiredService<Hangfire.JobStorage>();
+        var conexao = storage.GetConnection();
+        IDisposable? trava = null;
+        try
+        {
+            trava = conexao.AcquireDistributedLock("recurring-jobs:lock", TimeSpan.FromSeconds(30));
+            var ultima = Hangfire.Storage.StorageConnectionExtensions.GetRecurringJobs(conexao)
+                .Single(j => j.Id == FSH.Modules.PAF.Sessao.ManutencaoLicencas.IdRecorrente).LastJobId;
+            var limite = DateTime.UtcNow.AddMinutes(2);
+            while (ultima is not null && conexao.GetJobData(ultima)?.State is { } estado
+                && estado != Hangfire.States.SucceededState.StateName
+                && estado != Hangfire.States.FailedState.StateName
+                && estado != Hangfire.States.DeletedState.StateName)
+            {
+                if (estado == Hangfire.States.ScheduledState.StateName)
+                {
+                    Hangfire.BackgroundJobClientExtensions.Delete(new Hangfire.BackgroundJobClient(storage), ultima).ShouldBeTrue($"a nova tentativa {ultima} da manutenção não pôde ser apagada");
+                    continue;
+                }
+
+                if (DateTime.UtcNow > limite)
+                {
+                    throw new TimeoutException($"a passada {ultima} da manutenção do host não terminou em 2 min (estado {estado})");
+                }
+
+                await Task.Delay(TimeSpan.FromMilliseconds(100));
+            }
+
+            return new SemPassada(trava, conexao);
+        }
+        catch
+        {
+            trava?.Dispose();
+            conexao.Dispose();
+            throw;
+        }
+    }
+
+    private sealed class SemPassada(IDisposable trava, Hangfire.Storage.IStorageConnection conexao) : IDisposable
+    {
+        public void Dispose()
+        {
+            trava.Dispose();
+            conexao.Dispose();
+        }
+    }
+
     /// <summary>Atendimento chamado no guichê A, que deixa esse guichê com atendimento em curso.</summary>
     public async Task ChamarNoGuicheAsync(UnidadeTeste unidade)
     {
