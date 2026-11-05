@@ -231,9 +231,12 @@ public sealed class PafLoginPorEmailTests(FshWebApplicationFactory factory) : IA
             .Select(async _ =>
             {
                 using var r = await LoginAsync($"nat-{Guid.NewGuid():N}@paf.test", SenhaErrada, ip);
-                return r.StatusCode;
+                return r.StatusCode == HttpStatusCode.Unauthorized
+                    ? string.Empty
+                    : $"{(int)r.StatusCode}: {await r.Content.ReadAsStringAsync()}";
             });
-        (await Task.WhenAll(tentativas)).ShouldAllBe(s => s == HttpStatusCode.Unauthorized);
+        // The body of any other answer is the server's exception (DetailedTestExceptionHandler): a bare status list hid it.
+        (await Task.WhenAll(tentativas)).Where(s => s.Length > 0).ShouldBeEmpty();
 
         using var excedente = await LoginAsync($"nat-{Guid.NewGuid():N}@paf.test", SenhaErrada, ip);
         using var outroIp = await LoginAsync($"nat-{Guid.NewGuid():N}@paf.test", SenhaErrada, "203.0.113.41");
