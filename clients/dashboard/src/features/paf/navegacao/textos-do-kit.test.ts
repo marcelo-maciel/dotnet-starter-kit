@@ -20,12 +20,10 @@ const FORA_DO_ESCOPO = [
   /^pages\/identity\//,
   /^pages\/files\//,
   /^pages\/(subscription|wallet|invoices|invoice-detail)\.tsx$/,
-  /^pages\/system\/trash\.tsx$/,
   // Minha conta keeps Perfil, Segurança and Aparência only (02/11/2026); these routes redirect home.
   /^pages\/settings\/(api-keys|notifications|branding)\.tsx$/,
   /^api\/tenants\.ts$/,
   /^components\/file\/(file-preview-dialog|file-dropzone)\.tsx$/,
-  /^components\/identity\//,
   /^api\/(billing|wallet|files)\.ts$/,
   /^components\/list\/combobox\.tsx$/,
   // The demo-account picker only renders with the runtime demoMode flag, which the PAF deploy never turns on.
