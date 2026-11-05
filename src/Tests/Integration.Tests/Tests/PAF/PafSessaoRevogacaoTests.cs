@@ -220,6 +220,44 @@ public sealed class PafSessaoRevogacaoTests(FshWebApplicationFactory factory) : 
         (await _tenant.AtividadesAsync(Guid.Parse(usuario.UserId))).ShouldBeEmpty();
     }
 
+    // A refresh of a session with no live mark is waiting on the user lock when a REST request or hub reconnection of
+    // the same session revives it (planted here as that request's mark). Once the lock is free the refresh must only
+    // renew: occupying again would confirm a second time and, the earlier unit being unknown, send a second notice.
+    [Fact]
+    public async Task RenovacaoEsperandoOBloqueio_SessaoRevividaNoIntervalo_SoRenova()
+    {
+        var unidade = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);
+        var usuario = await _tenant.CriarUsuarioAsync(unidade.UnidadeId);
+        var usuarioId = Guid.Parse(usuario.UserId);
+        var token = await _tenant.EntrarAsync(usuario);
+        var sessaoId = PafTenantCliente.SessaoDoToken(token.AccessToken);
+        (await _tenant.ExecutarAsync($"""DELETE FROM paf."AtividadesSessao" WHERE "SessaoId" = {sessaoId}""")).ShouldBe(1);
+
+        using var scope = factory.Services.CreateScope();
+        var db = _tenant.Contexto(scope, unidadeCorrente: null);
+        Task<HttpResponseMessage> renovacao;
+        await using (var bloqueio = await db.Database.BeginTransactionAsync())
+        {
+            var chave = $"paf-licenca-usuario:{_tenant.TenantId}:{usuarioId}";
+            await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({chave}, 0))");
+            renovacao = _tenant.RenovarAsync(token);
+            await EsperarBloqueioAsync(renovacao);
+            (await _tenant.ExecutarAsync($"""
+                INSERT INTO paf."AtividadesSessao" ("SessaoId", "UsuarioId", "UnidadeId", "UltimaAtividadeEm", "TenantId")
+                VALUES ({sessaoId}, {usuarioId}, {unidade.UnidadeId}, now(), {_tenant.TenantId})
+                """)).ShouldBe(1);
+            await bloqueio.CommitAsync();
+        }
+
+        using var resposta = await renovacao;
+        resposta.StatusCode.ShouldBe(HttpStatusCode.OK, await resposta.Content.ReadAsStringAsync());
+        (await _tenant.AtividadesAsync(usuarioId)).ShouldHaveSingleItem().UnidadeId.ShouldBe(unidade.UnidadeId);
+        using var leitura = factory.Services.CreateScope();
+        (await leitura.ServiceProvider.GetRequiredService<FSH.Framework.Eventing.Persistence.EventingDbContext>().OutboxMessages
+            .CountAsync(m => m.Type.Contains(nameof(FSH.Modules.PAF.TempoReal.UnidadeCorrenteAlteradaPaf)) && m.Payload.Contains(usuario.UserId)))
+            .ShouldBe(0, "a sessão revivida no intervalo só renova, sem aviso próprio");
+    }
+
     // The licence behavior validates the credential and the kit handler validates it again; a TOTP code must
     // survive both.
     [Fact]
