@@ -76,8 +76,8 @@ try {
   await pAdmin.goto(`${WEB}/paf/guiche`);
   const linkMenu = pAdmin.locator('aside a[href="/paf/prioridades"]');
   check("menu: entrada Prioridades para quem tem Prioridades.View", await linkMenu.waitFor({ state: "attached", timeout: TIMEOUT }).then(() => true, () => false));
-  const secao = pAdmin.locator('button[aria-controls="nav-section-paf"]');
-  if ((await secao.getAttribute("aria-expanded")) === "false") await secao.click();
+  // The route opens the section by itself: wait for it instead of toggling, which could close it.
+  await pAdmin.locator('button[aria-controls="nav-section-paf"][aria-expanded="true"]').waitFor({ timeout: TIMEOUT });
   await linkMenu.click();
   await pAdmin.waitForURL((u) => u.pathname === "/paf/prioridades", { timeout: TIMEOUT });
   check("tela: explica que valor maior é chamado antes", await visivel(pAdmin.getByText("valor maior é chamado antes")));
