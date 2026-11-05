@@ -69,8 +69,16 @@ jobs:
         run: dotnet test src/Tests/PAF.Tests -c Release --no-build --logger "trx;LogFileName=PAF.trx" --results-directory ./TestResults
 
       # Own process: one Kestrel host per process (CONTEXT.md, O16).
+      # The host's stop record (DiagnosticoParada) is printed whatever the outcome; the step keeps dotnet test's exit code.
       - name: PAF.Kestrel.Tests
-        run: dotnet test src/Tests/PAF.Kestrel.Tests -c Release --no-build --logger "trx;LogFileName=PAF.Kestrel.trx" --results-directory ./TestResults
+        env:
+          PAF_KESTREL_DIAGNOSTICO: ${{ github.workspace }}/TestResults/paf-kestrel-parada.log
+        run: |
+          set +e
+          dotnet test src/Tests/PAF.Kestrel.Tests -c Release --no-build --logger "trx;LogFileName=PAF.Kestrel.trx" --results-directory ./TestResults
+          status=$?
+          if [ -f "$PAF_KESTREL_DIAGNOSTICO" ]; then cat "$PAF_KESTREL_DIAGNOSTICO"; fi
+          exit $status
 
       - uses: actions/upload-artifact@v7
         if: always()

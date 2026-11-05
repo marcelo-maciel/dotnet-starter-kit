@@ -62,7 +62,11 @@ public sealed class PafKestrelFactory : WebApplicationFactory<Program>, IAsyncLi
 
     public new async Task DisposeAsync()
     {
-        await base.DisposeAsync();
+        using (new DiagnosticoParada(Services))
+        {
+            await base.DisposeAsync();
+        }
+
         await _postgres.DisposeAsync();
     }
 
