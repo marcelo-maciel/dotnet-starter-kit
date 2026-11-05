@@ -1,6 +1,5 @@
 # Rendered by docker-entrypoint.sh into /etc/nginx/snippets/csp.conf on every start, with the environment's API
-# origin (FSH_API_URL) and its WebSocket form (FSH_API_WS_URL, for the SignalR hub), so one image serves both
-# environments. Included by the location that serves index.html.
+# origin (FSH_API_URL), so one image serves both environments. No WebSocket source: the admin opens no hub. Included by the location that serves index.html.
 #
 # Report-Only on purpose: nothing is blocked yet. Enforcing (renaming the header to Content-Security-Policy) waits
 # for a look at the browser console on the published site, where the Cloudflare edge may inject its own scripts.
@@ -10,4 +9,4 @@
 #   kept by decision of 04/11/2026); its reports go to same-origin /cdn-cgi/rum, covered by 'self'.
 # - https://*.r2.cloudflarestorage.com: presigned upload and download URLs (tenant branding, files).
 # - style-src 'unsafe-inline': Radix and sonner write style attributes and <style> elements at runtime.
-add_header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: ${FSH_API_URL} https://*.r2.cloudflarestorage.com; connect-src 'self' ${FSH_API_URL} ${FSH_API_WS_URL} https://*.r2.cloudflarestorage.com; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+add_header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: ${FSH_API_URL} https://*.r2.cloudflarestorage.com; connect-src 'self' ${FSH_API_URL} https://*.r2.cloudflarestorage.com; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
