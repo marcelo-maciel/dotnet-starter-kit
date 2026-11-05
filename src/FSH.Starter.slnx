@@ -21,10 +21,6 @@
     <Project Path="Modules/Billing/Modules.Billing.Contracts/Modules.Billing.Contracts.csproj" />
     <Project Path="Modules/Billing/Modules.Billing/Modules.Billing.csproj" />
   </Folder>
-  <Folder Name="/Modules/Catalog/">
-    <Project Path="Modules/Catalog/Modules.Catalog.Contracts/Modules.Catalog.Contracts.csproj" />
-    <Project Path="Modules/Catalog/Modules.Catalog/Modules.Catalog.csproj" />
-  </Folder>
   <Folder Name="/Modules/Files/">
     <Project Path="Modules/Files/Modules.Files.Contracts/Modules.Files.Contracts.csproj" />
     <Project Path="Modules/Files/Modules.Files/Modules.Files.csproj" />
@@ -44,10 +40,6 @@
   <Folder Name="/Modules/PAF/">
     <Project Path="Modules/PAF/Modules.PAF.Contracts/Modules.PAF.Contracts.csproj" />
     <Project Path="Modules/PAF/Modules.PAF/Modules.PAF.csproj" />
-  </Folder>
-  <Folder Name="/Modules/Tickets/">
-    <Project Path="Modules/Tickets/Modules.Tickets.Contracts/Modules.Tickets.Contracts.csproj" />
-    <Project Path="Modules/Tickets/Modules.Tickets/Modules.Tickets.csproj" />
   </Folder>
   <Folder Name="/Modules/Webhooks/">
     <Project Path="Modules/Webhooks/Modules.Webhooks.Contracts/Modules.Webhooks.Contracts.csproj" />
@@ -69,7 +61,6 @@
     <Project Path="Tests/Architecture.Tests/Architecture.Tests.csproj" />
     <Project Path="Tests/Auditing.Tests/Auditing.Tests.csproj" />
     <Project Path="Tests/Billing.Tests/Billing.Tests.csproj" />
-    <Project Path="Tests/Catalog.Tests/Catalog.Tests.csproj" />
     <Project Path="Tests/Webhooks.Tests/Webhooks.Tests.csproj" />
     <Project Path="Tests/Files.Tests/Files.Tests.csproj" />
     <Project Path="Tests/Framework.Tests/Framework.Tests.csproj" />

@@ -4,14 +4,12 @@ using FSH.Framework.Shared.Constants;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Auditing.Contracts.Authorization;
 using FSH.Modules.Billing.Contracts.Authorization;
-using FSH.Modules.Catalog.Contracts.Authorization;
 using FSH.Modules.Files.Contracts.Authorization;
 using FSH.Modules.Identity.Authorization;
 using FSH.Modules.Identity.Contracts.Authorization;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Data;
 using FSH.Modules.Identity.Domain;
-using FSH.Modules.Tickets.Contracts.Authorization;
 using FSH.Modules.Webhooks.Contracts.Authorization;
 using Integration.Tests.Infrastructure;
 using Microsoft.AspNetCore.Identity;
@@ -21,7 +19,7 @@ namespace Integration.Tests.Tests.Roles;
 /// <summary>
 /// Billing.Manage and Users.Impersonate are root-only: the plan catalog Billing.Manage edits is global, and acting
 /// as a client's user is support done by the Codefi operator. So are the kit modules the PAF does not ship (Billing,
-/// Catalog, Files and Helpdesk, 31/10/2026), except Files.Upload, which the profile photo needs, and the kit's
+/// Files, 31/10/2026), except Files.Upload, which the profile photo needs, and the kit's
 /// Users, Roles and Groups administration (02/11/2026), which /paf/usuarios replaces. A client's roles never hold
 /// them, no role of the client can get them back, and a client seeded while they were still tenant permissions loses
 /// them on the startup role sync. AuditTrails.View stopped being basic (03/11/2026): the client's Admin keeps it and
@@ -33,7 +31,7 @@ public sealed class RootOnlyTenantPermissionsTests
 {
     private static readonly string[] HiddenModules =
     [
-        .. new[] { BillingPermissions.All, CatalogPermissions.All, FilesPermissions.All, TicketsPermissions.All }
+        .. new[] { BillingPermissions.All, FilesPermissions.All }
             .SelectMany(module => module)
             .Select(p => p.Name)
             .Where(name => name != FilesPermissions.Upload),
@@ -47,9 +45,7 @@ public sealed class RootOnlyTenantPermissionsTests
     [
         "/api/v1/billing/invoices/me?pageNumber=1&pageSize=10",
         "/api/v1/billing/subscriptions/me",
-        "/api/v1/catalog/brands?pageNumber=1&pageSize=10",
         "/api/v1/files/trash?pageNumber=1&pageSize=10",
-        "/api/v1/tickets?pageNumber=1&pageSize=10",
         $"{TestConstants.IdentityBasePath}/users/search?PageNumber=1&PageSize=10",
         $"{TestConstants.IdentityBasePath}/roles?pageNumber=1&pageSize=10",
         $"{TestConstants.IdentityBasePath}/groups",
@@ -168,7 +164,7 @@ public sealed class RootOnlyTenantPermissionsTests
         var customAfter = await PermissionsAsync(tenant, customRoleId);
         var (_, rootAfter) = await RoleAsync(await TenantAsync(TestConstants.RootTenantId), RoleConstants.Admin);
         adminBefore.ShouldContain(BillingPermissions.Manage, "premise: the stale claim was written");
-        adminBefore.ShouldContain(CatalogPermissions.Brands.View, "premise: the stale claim was written");
+        adminBefore.ShouldContain(FilesPermissions.ViewTrash, "premise: the stale claim was written");
         adminBefore.ShouldContain(IdentityPermissions.Roles.Update, "premise: the stale claim was written");
         customBefore.ShouldContain(IdentityPermissions.Users.Impersonate, "premise: the stale claim was written");
         adminAfter.Intersect(RootOnly).ShouldBeEmpty();
@@ -226,13 +222,17 @@ public sealed class RootOnlyTenantPermissionsTests
         mine.StatusCode.ShouldBe(HttpStatusCode.OK, await mine.Content.ReadAsStringAsync());
     }
 
-    [Fact]
-    public async Task ChatRoute_Should_Be404_EvenForRoot()
+    [Theory]
+    [InlineData("/api/v1/chat/channels?pageNumber=1&pageSize=10")]
+    [InlineData("/api/v1/catalog/brands?pageNumber=1&pageSize=10")]
+    [InlineData("/api/v1/tickets?pageNumber=1&pageSize=10")]
+    public async Task RemovedModuleRoute_Should_Be404_EvenForRoot(string route)
     {
-        // The Chat module left the repo (04/11/2026): its routes are gone, not hidden behind a permission.
+        // Chat, Catalog and Helpdesk left the repo (04/11/2026, ADR 0009): their routes are gone, not hidden behind a
+        // permission.
         using var root = await _auth.CreateRootAdminClientAsync();
 
-        using var response = await root.GetAsync("/api/v1/chat/channels?pageNumber=1&pageSize=10");
+        using var response = await root.GetAsync(route);
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound, await response.Content.ReadAsStringAsync());
     }
