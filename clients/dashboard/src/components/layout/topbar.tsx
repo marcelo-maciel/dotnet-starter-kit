@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useCommandPalette } from "@/components/command-palette/command-palette";
 import { MobileNavTrigger } from "@/components/layout/mobile-nav";
-import { NotificationBell } from "@/components/notifications/notification-bell";
+import { RealtimeStatusPill } from "@/components/realtime/realtime-status-pill";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -239,8 +239,8 @@ export function Topbar() {
         </kbd>
       </button>
 
-      {/* Notification bell — bell badge + dropdown inbox. */}
-      <NotificationBell />
+      {/* The only shared-hub connection indicator; below md only the dot shows, to save topbar width. */}
+      <RealtimeStatusPill announce className="[&>span:last-child]:max-md:sr-only" />
 
       {/* `modal={false}` is required because we open the sign-out
           confirmation Dialog from a DropdownMenuItem. Default modal mode

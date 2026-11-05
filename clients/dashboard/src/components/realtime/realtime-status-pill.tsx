@@ -12,8 +12,7 @@ const LABEL: Record<string, string> = {
 /**
  * Compact connection-state indicator backed by the shared SignalR hub. Mono
  * caption + colored dot — green when live, amber pulsing while reconnecting,
- * destructive when down. Mounted in the notification bell footer so the
- * surface that depends on realtime stays honest about it.
+ * destructive when down. Mounted in the topbar so realtime state stays visible.
  *
  * `announce` opt-in: only one instance of this pill should announce status
  * changes to AT (otherwise reconnect events get spoken twice). Pass

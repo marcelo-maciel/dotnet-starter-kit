@@ -4,7 +4,7 @@ import { installShellMocks } from "../helpers/shell-mocks";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 
 // Notificações is not part of the PAF product (02/11/2026): the page was a roadmap stub. The route redirects home like
-// the other kit screens left out; the bell itself stays, without its link to the preferences page.
+// the other kit screens left out; the bell was hidden from the topbar (no backend code creates notifications since the Chat module was removed).
 const GUICHE = "Permissions.PAF.Guiches.Selecionar";
 
 test.beforeEach(async ({ page }) => {
@@ -20,7 +20,7 @@ test.describe("settings/notifications — fora do produto", () => {
     await expect(page).toHaveURL(/\/paf\/guiche$/);
   });
 
-  test("Minha conta, a paleta e o sino não levam às preferências de notificação", async ({ page }) => {
+  test("Minha conta e a paleta não levam às preferências de notificação", async ({ page }) => {
     await page.goto("/settings/profile");
     await expect(page.getByRole("link", { name: /Segurança/ }).first()).toBeVisible();
     await expect(page.locator('a[href="/settings/notifications"]')).toHaveCount(0);
@@ -31,8 +31,12 @@ test.describe("settings/notifications — fora do produto", () => {
     await expect(paleta.getByRole("option", { name: /^Notificações/ })).toHaveCount(0);
     await page.keyboard.press("Escape");
 
-    await page.getByRole("button", { name: /^Notificações/ }).click();
-    await expect(page.getByText("Tudo em dia")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Preferências/ })).toHaveCount(0);
+  });
+
+  test("o topbar não tem sino e mostra o estado da conexão em tempo real", async ({ page }) => {
+    await page.goto("/settings/profile");
+    const topbar = page.getByRole("banner");
+    await expect(topbar.getByRole("button", { name: /^Notificações/ })).toHaveCount(0);
+    await expect(topbar.getByRole("status")).toBeVisible();
   });
 });

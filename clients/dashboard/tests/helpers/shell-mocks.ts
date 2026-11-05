@@ -21,12 +21,12 @@ export const DEFAULT_PROFILE = {
 /**
  * Mock every API call the authenticated AppShell fires on load so any
  * protected page can be visited in isolation without hanging on the
- * topbar's notification badge or the SSE/realtime providers.
+ * the SSE/realtime providers.
  *
  * ORDERING: Playwright matches the MOST RECENTLY registered route first.
  * We register broad globs first and the more-specific ones last. Callers
  * register their page-specific mocks AFTER calling this, so those win over
- * these defaults (e.g. a notifications spec can return real rows).
+ * these defaults (e.g. a spec can return real rows).
  */
 export async function installShellMocks(page: Page): Promise<void> {
   // Long-lived realtime transports — abort so they neither keep the network
@@ -34,11 +34,6 @@ export async function installShellMocks(page: Page): Promise<void> {
   await page.route("**/api/v1/sse/**", (r: Route) => r.abort());
   await page.route("**/negotiate**", (r: Route) => r.abort());
   await page.route("**/api/v1/realtime/**", (r: Route) => r.abort());
-
-  // Notifications — register the list glob first, then the more specific
-  // unread-count (so the count request resolves to a number, not []).
-  await mockJsonResponse(page, "**/api/v1/notifications**", []);
-  await mockJsonResponse(page, "**/api/v1/notifications/unread-count**", 0);
 
   // Defensive: profile + permissions (harmless if a page re-reads them).
   await mockJsonResponse(page, "**/api/v1/identity/profile", DEFAULT_PROFILE);

@@ -1004,7 +1004,7 @@ body {
 }
 .reduce-motion body { background-image: none; }
 
-/* Connection-state pill — used in the notification-bell footer to honestly
+/* Connection-state pill — used in the topbar to honestly
    reflect SignalR status. The dot pulses while reconnecting. */
 @keyframes fsh-realtime-status-pulse {
   0%, 100% { opacity: 1;   transform: scale(1);    }
