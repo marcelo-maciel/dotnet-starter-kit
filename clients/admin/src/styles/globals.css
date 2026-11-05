@@ -882,49 +882,6 @@
     }
     @keyframes fsh-toast-fade-in { from { opacity: 0; } to { opacity: 1; } }
   }
-
-  /* ── CHAT TOASTS — opt out of the console-card treatment.
-        Sonner appends per-toast `className` to the toaster's global
-        classNames.toast, so the wrapper li carries BOTH .fsh-toast (from
-        FshToaster) AND .fsh-chat-toast-wrapper (per-toast). The rules
-        below neutralise every piece of console-card chrome — the
-        gradient border, the frosted surface, the atmospheric glow, the
-        icon disc, the drain bar, the close button — so the chat card
-        rendered inside the title slot can paint edge-to-edge without
-        the surrounding toast peeking through.
-
-        We deliberately DO NOT `display: none` the title element itself,
-        because sonner hosts the custom JSX inside it. ────────────── */
-  [data-sonner-toast].fsh-toast.fsh-chat-toast-wrapper {
-    display: block !important;
-    grid-template-columns: none !important;
-    grid-template-areas: none !important;
-    background: transparent !important;
-    border: none !important;
-    padding: 0 !important;
-    box-shadow: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-  [data-sonner-toast].fsh-toast.fsh-chat-toast-wrapper::before,
-  [data-sonner-toast].fsh-toast.fsh-chat-toast-wrapper::after {
-    display: none !important;
-  }
-  [data-sonner-toast].fsh-toast.fsh-chat-toast-wrapper [data-icon],
-  [data-sonner-toast].fsh-toast.fsh-chat-toast-wrapper .fsh-toast-close {
-    display: none !important;
-  }
-  [data-sonner-toast].fsh-toast.fsh-chat-toast-wrapper .fsh-toast-title {
-    grid-area: unset !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    display: block !important;
-    color: inherit !important;
-  }
-  [data-sonner-toast].fsh-toast.fsh-chat-toast-wrapper .fsh-toast-title::before {
-    content: none !important;
-    display: none !important;
-  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────

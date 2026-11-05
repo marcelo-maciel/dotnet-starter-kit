@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, Check, MessageCircle } from "lucide-react";
+import { Bell, Check } from "lucide-react";
 import {
   getUnreadCount,
   listNotifications,
@@ -202,7 +202,7 @@ function NotificationRow({
           : "hover:bg-[var(--color-accent)]",
       )}
     >
-      {/* Type icon chip — currently only chat.mention; switch when more types ship. */}
+      {/* Type icon chip — one generic icon until per-type icons ship. */}
       <span
         aria-hidden
         className={cn(
@@ -212,7 +212,7 @@ function NotificationRow({
             : "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]",
         )}
       >
-        <MessageCircle className="h-3.5 w-3.5" />
+        <Bell className="h-3.5 w-3.5" />
       </span>
 
       <div className="min-w-0 flex-1">

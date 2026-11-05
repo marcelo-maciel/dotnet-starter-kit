@@ -52,7 +52,7 @@ export default defineConfig(({ mode }) => {
         // ws: true forwards the WebSocket upgrade used by SignalR's hub
         // transport at /api/v1/realtime/hub. Without it the negotiate
         // succeeds over HTTP but the WS upgrade falls into Vite's own
-        // dev server, so the chat status stalls on "CONNECTING" while
+        // dev server, so the realtime status stalls on "CONNECTING" while
         // SignalR retries forever.
         "/api": { target: apiBase, changeOrigin: true, secure: false, ws: true },
         "/openapi": { target: apiBase, changeOrigin: true, secure: false },

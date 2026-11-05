@@ -32,7 +32,7 @@ type RealtimeContextValue = {
   status: RealtimeStatus;
   /** Wire a handler for a server event. Returns an unsubscribe function. */
   on: <T = unknown>(event: string, handler: (payload: T) => void) => () => void;
-  /** Invoke a hub method (e.g. `Typing(channelId)`). Fire-and-forget. */
+  /** Invoke a hub method. Fire-and-forget. */
   invoke: (method: string, ...args: unknown[]) => Promise<void>;
 };
 
@@ -136,19 +136,6 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       // Pre-register every known server event so subscribers added before any
       // payload arrives don't miss the first message.
       for (const event of [
-        "ChatMessageCreated",
-        "ChatMessageEdited",
-        "ChatMessageDeleted",
-        "ChatMessagePinned",
-        "ChatMessageUnpinned",
-        "ChatChannelMemberAdded",
-        "ChatChannelMemberRemoved",
-        "ChatChannelMemberRead",
-        "ChatChannelAdded",
-        "ChatChannelRemoved",
-        "ChatChannelRead",
-        "ChatReactionChanged",
-        "ChatTypingStarted",
         "PresenceChanged",
         "NotificationCreated",
       ]) {
