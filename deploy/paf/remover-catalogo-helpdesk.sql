@@ -1,9 +1,9 @@
--- One-off cleanup after the Catalog and Tickets (Helpdesk) modules were removed (Marcelo, 04/11/2026; ADR 0009 do
--- PAF, in PAFV2/Analise/adr, outside this repo). Run by hand, once per environment, only AFTER the release without
--- them is live: the previous release's catalog and tickets routes query these schemas, and its Catalog handler of
--- FileStorageKeyChangedIntegrationEvent reads catalog."ProductImages" whenever the Files module moves an object, so
--- dropping them under that release breaks those paths. /health/ready would NOT show it: db:catalog and db:tickets
--- only test the connection.
+-- One-off cleanup after the Catalog and Tickets (Helpdesk) modules were removed (Marcelo, 04/11/2026; ADR 0009 do PAF
+-- (PAFV2/Analise/adr, fora deste repo)). Run by hand, once per environment, only AFTER the release without them is
+-- live: the previous release's catalog and tickets routes and module code still query these schemas (its Catalog
+-- handler of FileStorageKeyChangedIntegrationEvent reads catalog."ProductImages" whenever the Files module moves an
+-- object), so dropping them under that release breaks those paths. /health/ready would NOT show it: the db:catalog
+-- and db:tickets health checks only test the connection.
 --
 -- One transaction on purpose: schemas, migration rows and permission claims go together. If only the schemas went,
 -- a rollback to the previous release would find the 13 rows applied and never recreate the tables; with the rows
