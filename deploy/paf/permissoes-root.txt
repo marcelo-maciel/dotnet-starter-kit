@@ -20,13 +20,6 @@ Permissions.Catalog.Products.Delete
 Permissions.Catalog.Products.Restore
 Permissions.Catalog.Products.Update
 Permissions.Catalog.Products.View
-Permissions.Chat.Channels.Create
-Permissions.Chat.Channels.ManageAll
-Permissions.Chat.Channels.View
-Permissions.Chat.Messages.DeleteAny
-Permissions.Chat.Messages.DeleteOwn
-Permissions.Chat.Messages.EditOwn
-Permissions.Chat.Messages.Send
 Permissions.Files.DeleteAny
 Permissions.Files.DeleteOwn
 Permissions.Files.Restore

@@ -15,8 +15,7 @@ namespace Integration.Tests.Tests.Catalog;
 /// Exercises <c>ProductFileAccessPolicy</c> (OwnerType=Product) through the Files endpoints that
 /// resolve it: upload-url (CanAttach), download-url (CanRead), and delete (CanDelete). The policy
 /// keeps reads open and limits delete to the uploader, so a second user must be blocked from
-/// deleting an admin-uploaded product image. Mirrors the file-access-policy testing approach in
-/// <see cref="Chat.ChatChannelFileAccessTests"/>.
+/// deleting an admin-uploaded product image.
 /// </summary>
 [Collection(FshCollectionDefinition.Name)]
 public sealed class ProductFileAccessPolicyTests
@@ -199,8 +198,7 @@ public sealed class ProductFileAccessPolicyTests
 
     /// <summary>
     /// Register a second user under the root tenant and confirm their email so they can log in.
-    /// Mirrors <see cref="Chat.ChatChannelFileAccessTests"/>: the Finbuckle tenant context is set
-    /// inline inside the DI scope to avoid the AsyncLocal NRE in the tenant query filter.
+    /// The Finbuckle tenant context is set inline inside the DI scope to avoid the AsyncLocal NRE in the tenant query filter.
     /// </summary>
     private async Task<(string email, string password)> RegisterAndConfirmAsync(HttpClient adminClient, string prefix)
     {

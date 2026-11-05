@@ -100,7 +100,7 @@ jobs:
         env:
           TZ: America/Sao_Paulo
         run: |
-          for proj in Architecture Auditing Caching Generic Identity Multitenancy Billing Catalog Chat Files Framework Notifications Webhooks; do
+          for proj in Architecture Auditing Caching Generic Identity Multitenancy Billing Catalog Files Framework Notifications Webhooks; do
             echo "::group::${proj}.Tests"
             dotnet test "src/Tests/${proj}.Tests" -c Release --no-build \
               --collect:"XPlat Code Coverage" --settings coverage.runsettings \
