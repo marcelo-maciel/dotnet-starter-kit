@@ -129,9 +129,9 @@ function withSuspense(node: React.ReactNode) {
 }
 
 // Kit screens the PAF does not ship (product decision of 31/10/2026; the Users, Roles and Groups administration on
-// 02/11/2026, replaced by /paf/usuarios): the pages stay in the tree, the URL only redirects, so an old bookmark lands
-// on the PAF home and never on a dead page. Chat, Catalog and Helpdesk left the code (04/11/2026); their paths stay
-// here for the same bookmarks.
+// 02/11/2026, replaced by /paf/usuarios): the URL only redirects, so an old bookmark lands on the PAF home and never on
+// a dead page. Chat, Catalog and Helpdesk pages were deleted with their modules on 04/11/2026 (ADR 0009 do PAF);
+// their redirects stay for the same bookmarks.
 const TELAS_DO_KIT_FORA_DO_PRODUTO = [
   "subscription",
   "wallet",
