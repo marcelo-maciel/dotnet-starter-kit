@@ -157,8 +157,8 @@ try {
   await p.goto(`${WEB}/paf/guiche`);
   const linkMenu = p.locator('aside a[href="/paf/estatistica"]');
   check("menu: entrada Estatística para quem tem Estatisticas.View", await linkMenu.waitFor({ state: "attached", timeout: TIMEOUT }).then(() => true, () => false));
-  const secao = p.locator('button[aria-controls="nav-section-paf"]');
-  if ((await secao.getAttribute("aria-expanded")) === "false") await secao.click();
+  // The route opens the section by itself: wait for it instead of toggling, which could close it.
+  await p.locator('button[aria-controls="nav-section-paf"][aria-expanded="true"]').waitFor({ timeout: TIMEOUT });
   await linkMenu.click();
   await p.waitForURL((u) => u.pathname === "/paf/estatistica", { timeout: TIMEOUT });
   check("tela: aviso fixo da soma do escopo", await visivel(p.getByText(/soma das unidades do seu escopo/)));

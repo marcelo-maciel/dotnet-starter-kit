@@ -259,7 +259,7 @@ export const router = createBrowserRouter([
               { path: "security", element: withSuspense(<SecuritySettings />) },
               { path: "appearance", element: withSuspense(<AppearanceSettings />) },
               // Marca, Notificações and Chaves de API are not part of the PAF product (02/11/2026): the pages stay in
-              // the tree, the URL redirects home like the other kit screens left out.
+              // the tree (Notificações was deleted with the bell), the URL redirects home like the other kit screens left out.
               { path: "branding", element: <Navigate to="/" replace /> },
               { path: "notifications", element: <Navigate to="/" replace /> },
               { path: "api-keys", element: <Navigate to="/" replace /> },

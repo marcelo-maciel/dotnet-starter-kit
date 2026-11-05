@@ -10,7 +10,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, feat/paf-esqueleto]
   workflow_dispatch:
 
 concurrency:
@@ -73,7 +73,8 @@ jobs:
     name: E2E (${{ matrix.app }})
     needs: changes
     if: needs.changes.outputs.frontend == 'true'
-    runs-on: ubuntu-latest
+    # ponytail: Playwright does not support ubuntu 26.04 yet (run 41962532637); back to ubuntu-latest when it does.
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:

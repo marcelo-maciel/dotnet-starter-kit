@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import { useCommandPalette } from "@/components/command-palette/command-palette";
 import { MobileNavTrigger } from "@/components/layout/mobile-nav";
-import { NotificationBell } from "@/components/notifications/notification-bell";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -238,9 +237,6 @@ export function Topbar() {
           ⌘K
         </kbd>
       </button>
-
-      {/* Notification bell — bell badge + dropdown inbox. */}
-      <NotificationBell />
 
       {/* `modal={false}` is required because we open the sign-out
           confirmation Dialog from a DropdownMenuItem. Default modal mode
