@@ -7,7 +7,7 @@ argument-hint: "[ModuleName] [MigrationName]"
 # Create Migration
 
 All migrations live in **one** project — `src/Host/FSH.Starter.Migrations.PostgreSQL` — but are foldered
-**per module/context** (`Catalog/`, `Identity/`, …), each with its own `{X}DbContextModelSnapshot`. The DB
+**per module/context** (`Billing/`, `Identity/`, …), each with its own `{X}DbContextModelSnapshot`. The DB
 is **not** migrated at API startup; the `DbMigrator` host applies it.
 
 ## Step 0 — restore the pinned tool (first time)

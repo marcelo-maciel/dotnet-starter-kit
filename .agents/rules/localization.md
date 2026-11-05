@@ -17,7 +17,7 @@
 
 Catalogs are named for **specific** cultures (`.pt-BR`, never a neutral `.pt`), matching the front-end catalog folders. The neutral, un-suffixed `.resx` is the en-US / ultimate-fallback catalog.
 
-Key naming: `Error.<Module>.<Case>` for domain messages (`Catalog.ProductNotFound`), `Error.<CrossCutting>` / `Validation.<Case>` for Core. PascalCase. Placeholders are `{0}`, `{1}` (`string.Format` via the localizer) — **not** the frontend's `{{name}}`.
+Key naming: `Error.<Module>.<Case>` for domain messages (`Identity.UserNotFoundById`), `Error.<CrossCutting>` / `Validation.<Case>` for Core. PascalCase. Placeholders are `{0}`, `{1}` (`string.Format` via the localizer) — **not** the frontend's `{{name}}`.
 
 **Placeholder arguments must be culture-insensitive.** The localizer's indexer calls `string.Format` under `CurrentCulture`, which is invariant (above). Pass `int`/`long`/`string`/enum — never a `double`, `decimal`, `DateTime` or `TimeSpan.TotalX`, which would render with an invariant separator instead of the reader's. Where a count is conceptually whole, expose it as an `int` at the source rather than converting at the call site (see `GetAuditsQueryHandler.MaxWindowDays` next to `MaxWindow`). Money and dates belong in structured response fields formatted by the client, not interpolated into a message.
 
@@ -27,11 +27,11 @@ Throw with the **English message** as `Exception.Message` (used for logs and fal
 
 ```csharp
 // domain message -> module catalog
-throw new NotFoundException($"Product {id} not found.")
+throw new NotFoundException($"User {userId} not found.")
 {
-    MessageKey = "Catalog.ProductNotFound",
-    MessageArgs = [id],
-    ResourceSource = typeof(CatalogResources),
+    MessageKey = "Identity.UserNotFoundById",
+    MessageArgs = [userId],
+    ResourceSource = typeof(IdentityResources),
 };
 
 // cross-cutting message -> Core catalog (ResourceSource omitted = SharedResources)

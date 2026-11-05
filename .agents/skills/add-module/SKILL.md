@@ -17,7 +17,7 @@ src/Modules/{Name}/
 └── Modules.{Name}.Contracts/  ← public API: v1/ (commands/queries), Dtos/, Authorization/, Events/
 ```
 
-**Copy an existing module's two `.csproj` files** (e.g. `Modules.Catalog`) and rename — don't hand-write
+**Copy an existing module's two `.csproj` files** (e.g. `Modules.Webhooks`) and rename — don't hand-write
 project references. The runtime project references its Contracts project + the BuildingBlocks it needs;
 the Contracts project references `Mediator` + shared contracts.
 
@@ -63,11 +63,11 @@ public sealed class {Name}Module : IModule
 }
 ```
 
-`Order` controls load sequence (Auditing 300, Files 350, Webhooks 400, Billing 500, Catalog 600, Tickets 700, Notifications 750, PAF 900). If your module consumes another's events, load after it.
+`Order` controls load sequence (Auditing 300, Files 350, Webhooks 400, Billing 500, Notifications 750, PAF 900). If your module consumes another's events, load after it.
 
 ## Step 2 — Permissions (Contracts/Authorization)
 
-`{Name}Permissions` with nested resource classes and an `All` collection registered via `PermissionConstants.Register({Name}Permissions.All)`. Mirror the shape of `CatalogPermissions`.
+`{Name}Permissions` with nested resource classes and an `All` collection registered via `PermissionConstants.Register({Name}Permissions.All)`. Mirror the shape of `WebhooksPermissions`.
 
 ## Step 3 — DbContext (extends `BaseDbContext`)
 
