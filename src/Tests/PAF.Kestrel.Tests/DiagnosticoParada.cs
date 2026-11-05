@@ -28,47 +28,87 @@ internal sealed class DiagnosticoParada : IDisposable
 
     private readonly ConcurrentDictionary<string, ConexaoAberta> _conexoesKestrel;
 
+    // Every catch below records what failed and goes on: the record must never change the fixture's outcome, nor
+    // replace the stop's own exception, nor keep the host from being stopped.
     public DiagnosticoParada(IServiceProvider servicos, ConcurrentDictionary<string, ConexaoAberta> conexoesKestrel)
     {
         _conexoesKestrel = conexoesKestrel;
-        Anotar($"conexões PafHub ainda registradas: {servicos.GetRequiredService<ConexoesPaf>().Locais().Count}");
-        AnotarConexoesKestrel();
-        // Singletons: the same instances the host runs (the Hangfire servers are transient and not BackgroundService).
-        foreach (var servico in servicos.GetServices<IHostedService>().OfType<BackgroundService>())
+        try
         {
-            var nome = servico.GetType().Name;
-            if (servico.ExecuteTask is { } execucao)
+            Anotar($"conexões PafHub ainda registradas: {servicos.GetRequiredService<ConexoesPaf>().Locais().Count}");
+            AnotarConexoesKestrel();
+            // Singletons: the same instances the host runs (the Hangfire servers are transient and not BackgroundService).
+            foreach (var servico in servicos.GetServices<IHostedService>().OfType<BackgroundService>())
             {
-                _ = execucao.ContinueWith(t => Anotar($"{nome}: ExecuteAsync terminou ({t.Status})"), TaskScheduler.Default);
+                var nome = servico.GetType().Name;
+                if (servico.ExecuteTask is { } execucao)
+                {
+                    _ = execucao.ContinueWith(t => Anotar($"{nome}: ExecuteAsync terminou ({t.Status})"), TaskScheduler.Default);
+                }
             }
-        }
 
-        _vigia = VigiarAsync(servicos.GetRequiredService<JobStorage>().GetMonitoringApi());
+            _vigia = VigiarAsync(servicos.GetRequiredService<JobStorage>().GetMonitoringApi());
+        }
+        catch (Exception ex)
+        {
+            Anotar($"diagnóstico não começou: {ex.GetType().Name}: {ex.Message}");
+            _vigia = Task.CompletedTask;
+        }
     }
 
     public void Dispose()
     {
         _fim.Cancel();
-        _vigia.GetAwaiter().GetResult();
+        try
+        {
+            _vigia.GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            Anotar($"vigia falhou: {ex.GetType().Name}: {ex.Message}");
+        }
+
         _fim.Dispose();
         AnotarConexoesKestrel();
         Anotar("parada do host terminou");
         var destino = Environment.GetEnvironmentVariable("PAF_KESTREL_DIAGNOSTICO")
             ?? Path.Combine(AppContext.BaseDirectory, "paf-kestrel-parada.log");
-        File.WriteAllLines(destino, _linhas);
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(destino))!);
+            File.WriteAllLines(destino, _linhas);
+        }
+        catch (Exception ex)
+        {
+            // Last channel left: the CI step only prints the file, so say on stderr why there is none.
+            Console.Error.WriteLine($"DiagnosticoParada: {destino} não foi gravado: {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     private async Task VigiarAsync(IMonitoringApi hangfire)
     {
         try
         {
-            await Task.Delay(Limiar, _fim.Token);
+            await Task.Delay(Limiar, _fim.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
             return;
         }
 
+        try
+        {
+            AnotarEstado(hangfire);
+        }
+        catch (Exception ex)
+        {
+            // The provider may already be disposing the in-memory storage behind the monitoring API.
+            Anotar($"vigia não leu o estado: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    private void AnotarEstado(IMonitoringApi hangfire)
+    {
         ThreadPool.GetAvailableThreads(out var livres, out _);
         ThreadPool.GetMaxThreads(out var maximo, out _);
         Anotar($"parada passou de {Limiar.TotalSeconds:0} s; thread pool: {ThreadPool.ThreadCount} threads, "
@@ -113,9 +153,10 @@ internal sealed class UltimoPedidoDaConexao(ConcurrentDictionary<string, Conexao
     {
         app.Use(async (contexto, proximo) =>
         {
+            // TryUpdate, not the indexer: a connection the Kestrel middleware removed meanwhile must not come back.
             if (conexoes.TryGetValue(contexto.Connection.Id, out var conexao))
             {
-                conexoes[contexto.Connection.Id] = conexao with { UltimoPedido = $"{contexto.Request.Method} {contexto.Request.Path}" };
+                conexoes.TryUpdate(contexto.Connection.Id, conexao with { UltimoPedido = $"{contexto.Request.Method} {contexto.Request.Path}" }, conexao);
             }
 
             await proximo(contexto);
