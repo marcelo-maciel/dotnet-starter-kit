@@ -119,20 +119,23 @@ public sealed class PafReocupacaoLicencaTests(FshWebApplicationFactory factory) 
         var unidade = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);
         var ana = await _tenant.CriarUsuarioAsync(unidade.UnidadeId);
         var tokenAna = (await _tenant.EntrarAsync(ana)).AccessToken;
-        await EnvelhecerMarcaAsync(tokenAna);
-        await _tenant.EntrarAsync(await _tenant.CriarUsuarioAsync(unidade.UnidadeId));
+        // The refusal path neither renews nor deletes the mark (no LiberarAsync), so the protection holds until the
+        // last read; released earlier, the job's blocked DELETE would remove the still-stale row.
+        await using (await _tenant.ProtegerMarcaDaLimpezaAsync(PafTenantCliente.SessaoDoToken(tokenAna)))
+        {
+            await EnvelhecerMarcaAsync(tokenAna);
+            await _tenant.EntrarAsync(await _tenant.CriarUsuarioAsync(unidade.UnidadeId));
 
-        var chamada = await InvocarFiltroAsync(Principal(tokenAna));
-        var abertura = await ConectarNoFiltroAsync(Principal(tokenAna));
+            var chamada = await InvocarFiltroAsync(Principal(tokenAna));
+            var abertura = await ConectarNoFiltroAsync(Principal(tokenAna));
 
-        chamada.Erro.ShouldBeAssignableTo<HubException>()!.Message.ShouldBe(Licencas.MensagemLimite);
-        chamada.Abortada.ShouldBeTrue("a chamada recusada derruba a conexão");
-        // On connect there is no Abort: the exception itself ends the connection in SignalR.
-        abertura.Erro.ShouldBeAssignableTo<HubException>()!.Message.ShouldBe(Licencas.MensagemLimite);
-        // The host's ManutencaoLicencas deletes stale marks on every 5-minute tick, so the row may be gone; what must
-        // never be there is a renewed one.
-        (await _tenant.AtividadesAsync(Guid.Parse(ana.UserId)))
-            .ShouldAllBe(a => a.UltimaAtividadeEm < DateTime.UtcNow.AddMinutes(-10), "recusada, a marca vencida não é renovada");
+            chamada.Erro.ShouldBeAssignableTo<HubException>()!.Message.ShouldBe(Licencas.MensagemLimite);
+            chamada.Abortada.ShouldBeTrue("a chamada recusada derruba a conexão");
+            // On connect there is no Abort: the exception itself ends the connection in SignalR.
+            abertura.Erro.ShouldBeAssignableTo<HubException>()!.Message.ShouldBe(Licencas.MensagemLimite);
+            (await _tenant.AtividadesAsync(Guid.Parse(ana.UserId))).ShouldHaveSingleItem().UltimaAtividadeEm
+                .ShouldBeLessThan(DateTime.UtcNow.AddMinutes(-10), "recusada, a marca vencida não é renovada nem apagada");
+        }
     }
 
     [Fact]
