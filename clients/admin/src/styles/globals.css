@@ -1008,55 +1008,6 @@ body {
 }
 .reduce-motion body { background-image: none; }
 
-/* CHAT-ONLY page chrome (.chat-typing-dot, .chat-unread-divider,
-   .chat-day-rule, .chat-reaction-chip, .chat-channel-header,
-   .chat-jump-pill, .chat-mention) lives in `pages/chat/chat.css` so
-   Vite extracts it into the chat-route CSS chunk — every other page
-   stops shipping ~3 KB gzip of selectors it'll never use.
-
-   The .chat-status-pill family below stays here because the same
-   primitive is consumed by the global notification-bell footer via
-   RealtimeStatusPill. */
-
-/* Connection-state pill — used in the rail footer + bell footer to honestly
-   reflect SignalR status. The dot pulses while reconnecting. */
-@keyframes fsh-chat-status-pulse {
-  0%, 100% { opacity: 1;   transform: scale(1);    }
-  50%      { opacity: 0.4; transform: scale(0.78); }
-}
-.chat-status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--color-muted-foreground);
-}
-.chat-status-pill[data-status="connected"] .chat-status-dot {
-  background-color: var(--color-success);
-  box-shadow: 0 0 0 3px oklch(from var(--color-success) l c h / 0.18);
-}
-.chat-status-pill[data-status="reconnecting"] .chat-status-dot,
-.chat-status-pill[data-status="connecting"]   .chat-status-dot {
-  background-color: var(--color-warning);
-  box-shadow: 0 0 0 3px oklch(from var(--color-warning) l c h / 0.18);
-  animation: fsh-chat-status-pulse 1.2s var(--ease-in-out-cubic) infinite;
-}
-.chat-status-pill[data-status="error"] .chat-status-dot,
-.chat-status-pill[data-status="idle"]  .chat-status-dot {
-  background-color: var(--color-destructive);
-  box-shadow: 0 0 0 3px oklch(from var(--color-destructive) l c h / 0.18);
-}
-.chat-status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 9999px;
-  flex-shrink: 0;
-}
-
-
 /* ============================================================================
    LEGACY ADMIN SHIM — temporary bridge during the design unification.
    ----------------------------------------------------------------------------
