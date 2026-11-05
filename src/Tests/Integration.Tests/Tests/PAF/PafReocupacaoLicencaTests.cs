@@ -123,8 +123,10 @@ public sealed class PafReocupacaoLicencaTests(FshWebApplicationFactory factory) 
         chamada.Abortada.ShouldBeTrue("a chamada recusada derruba a conexão");
         // On connect there is no Abort: the exception itself ends the connection in SignalR.
         abertura.Erro.ShouldBeAssignableTo<HubException>()!.Message.ShouldBe(Licencas.MensagemLimite);
-        (await _tenant.AtividadesAsync(Guid.Parse(ana.UserId))).ShouldHaveSingleItem().UltimaAtividadeEm
-            .ShouldBeLessThan(DateTime.UtcNow.AddMinutes(-10), "recusada, a marca vencida não é renovada");
+        // The host's ManutencaoLicencas deletes stale marks on every 5-minute tick, so the row may be gone; what must
+        // never be there is a renewed one.
+        (await _tenant.AtividadesAsync(Guid.Parse(ana.UserId)))
+            .ShouldAllBe(a => a.UltimaAtividadeEm < DateTime.UtcNow.AddMinutes(-10), "recusada, a marca vencida não é renovada");
     }
 
     [Fact]
