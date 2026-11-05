@@ -227,16 +227,24 @@ public sealed class PafLoginPorEmailTests(FshWebApplicationFactory factory) : IA
     public async Task LimitePorIp_CemTentativasPassam_ACentesimaPrimeira429_OutroIpSegue()
     {
         const string ip = "203.0.113.40";
-        var tentativas = Enumerable.Range(0, 100)
-            .Select(async _ =>
+        var outrasRespostas = new System.Collections.Concurrent.ConcurrentBag<string>();
+        // Ten at a time: the window counts attempts, not simultaneity. A hundred at once took a hundred connections from
+        // the API pool while earlier classes' pools still held theirs on the shared container, and PostgreSQL refused
+        // the excess with 53300 "too many clients" (two 500s in the full Backend CI). Ten waves stay well inside the
+        // 60 s window even with the 400 ms response floor.
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, 100),
+            new ParallelOptions { MaxDegreeOfParallelism = 10 },
+            async (_, ct) =>
             {
                 using var r = await LoginAsync($"nat-{Guid.NewGuid():N}@paf.test", SenhaErrada, ip);
-                return r.StatusCode == HttpStatusCode.Unauthorized
-                    ? string.Empty
-                    : $"{(int)r.StatusCode}: {await r.Content.ReadAsStringAsync()}";
+                if (r.StatusCode != HttpStatusCode.Unauthorized)
+                {
+                    outrasRespostas.Add($"{(int)r.StatusCode}: {await r.Content.ReadAsStringAsync(ct)}");
+                }
             });
         // The body of any other answer is the server's exception (DetailedTestExceptionHandler): a bare status list hid it.
-        (await Task.WhenAll(tentativas)).Where(s => s.Length > 0).ShouldBeEmpty();
+        outrasRespostas.ShouldBeEmpty();
 
         using var excedente = await LoginAsync($"nat-{Guid.NewGuid():N}@paf.test", SenhaErrada, ip);
         using var outroIp = await LoginAsync($"nat-{Guid.NewGuid():N}@paf.test", SenhaErrada, "203.0.113.41");
