@@ -64,7 +64,9 @@ public sealed class ReocupacaoSessao(
                 throw new UnauthorizedException(SessionCheckMiddleware.MensagemSessaoInvalida);
             }
 
-            if (unidadeAnterior is { } anterior && anterior != reserva.UnidadeId)
+            // Unknown earlier unit counts as changed, as in RefreshTokenLicenseBehavior: the grace release or the
+            // maintenance may have deleted the mark.
+            if (unidadeAnterior != reserva.UnidadeId)
             {
                 aviso = UnidadeCorrenteAlteradaPaf.Criar(
                     tenantId, OperacaoGuiche.Correlacao(), usuarioId.ToString(), new UnidadeCorrenteAlterada(Guid.CreateVersion7(), reserva.UnidadeId));

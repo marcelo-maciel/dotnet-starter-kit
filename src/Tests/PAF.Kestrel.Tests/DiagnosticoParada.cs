@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Hangfire.Storage;
 using Microsoft.Extensions.Hosting;
+using Xunit.Abstractions;
+using Xunit.Sdk;
 
 namespace PAF.Kestrel.Tests;
 
@@ -15,7 +17,8 @@ namespace PAF.Kestrel.Tests;
 /// and nothing in the log said what held it. The host stops its services one after the other with one shared token, so
 /// the service that throws is not necessarily the one that held the stop: this keeps when each BackgroundService ended
 /// and, if the stop passes 10 s, what Hangfire was running and how the thread pool looked. Written to the file named by
-/// PAF_KESTREL_DIAGNOSTICO (the CI step prints it), or next to the test assembly. It changes nothing in the stop.
+/// PAF_KESTREL_DIAGNOSTICO (the CI step prints it), or next to the test assembly; when that fails, the reason and the
+/// record go to xUnit's diagnostic messages instead. It changes nothing in the stop.
 /// </summary>
 internal sealed class DiagnosticoParada : IDisposable
 {
@@ -30,9 +33,12 @@ internal sealed class DiagnosticoParada : IDisposable
 
     // Every catch below records what failed and goes on: the record must never change the fixture's outcome, nor
     // replace the stop's own exception, nor keep the host from being stopped.
-    public DiagnosticoParada(IServiceProvider servicos, ConcurrentDictionary<string, ConexaoAberta> conexoesKestrel)
+    private readonly IMessageSink _xunit;
+
+    public DiagnosticoParada(IServiceProvider servicos, ConcurrentDictionary<string, ConexaoAberta> conexoesKestrel, IMessageSink xunit)
     {
         _conexoesKestrel = conexoesKestrel;
+        _xunit = xunit;
         try
         {
             Anotar($"conexões PafHub ainda registradas: {servicos.GetRequiredService<ConexoesPaf>().Locais().Count}");
@@ -80,8 +86,25 @@ internal sealed class DiagnosticoParada : IDisposable
         }
         catch (Exception ex)
         {
-            // Last channel left: the CI step only prints the file, so say on stderr why there is none.
-            Console.Error.WriteLine($"DiagnosticoParada: {destino} não foi gravado: {ex.GetType().Name}: {ex.Message}");
+            // The CI step only prints the file, so the reason and the record itself go to xUnit's diagnostic messages
+            // (xunit.runner.json turns them on), which dotnet test prints; the test host's stderr it does not.
+            Relatar($"{destino} não foi gravado: {ex.GetType().Name}: {ex.Message}");
+            foreach (var linha in _linhas)
+            {
+                Relatar(linha);
+            }
+        }
+    }
+
+    private void Relatar(string mensagem)
+    {
+        try
+        {
+            _xunit.OnMessage(new DiagnosticMessage($"DiagnosticoParada: {mensagem}"));
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"DiagnosticoParada: {mensagem} (o sink do xUnit falhou: {ex.GetType().Name})");
         }
     }
 

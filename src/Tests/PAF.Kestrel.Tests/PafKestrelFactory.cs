@@ -16,6 +16,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Testcontainers.PostgreSql;
+using Xunit.Abstractions;
 
 namespace PAF.Kestrel.Tests;
 
@@ -44,8 +45,13 @@ public sealed class PafKestrelFactory : WebApplicationFactory<Program>, IAsyncLi
     // Kestrel connections still open, for DiagnosticoParada: Kestrel's stop waits for them up to the host's timeout.
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, ConexaoAberta> _conexoes = new();
 
-    public PafKestrelFactory()
+    // xUnit hands collection fixtures its diagnostic sink; DiagnosticoParada reports through it when it cannot write
+    // its file, since the test host's stderr never reaches the dotnet test output.
+    private readonly IMessageSink _diagnostico;
+
+    public PafKestrelFactory(IMessageSink diagnostico)
     {
+        _diagnostico = diagnostico;
         // Port 0: Kestrel picks a free port; read back from IServerAddressesFeature after the start.
         UseKestrel(0);
     }
@@ -65,7 +71,7 @@ public sealed class PafKestrelFactory : WebApplicationFactory<Program>, IAsyncLi
 
     public new async Task DisposeAsync()
     {
-        using (new DiagnosticoParada(Services, _conexoes))
+        using (new DiagnosticoParada(Services, _conexoes, _diagnostico))
         {
             await base.DisposeAsync();
         }

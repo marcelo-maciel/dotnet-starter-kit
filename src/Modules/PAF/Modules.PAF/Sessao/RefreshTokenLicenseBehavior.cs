@@ -67,8 +67,19 @@ internal sealed class RefreshTokenLicenseBehavior(
             throw new UnauthorizedException(SessionCheckMiddleware.MensagemSessaoInvalida);
         }
 
+        // Also under the lock, as in ReocupacaoSessao: a REST request or hub reconnection of the same session may have
+        // revived it while this refresh waited; occupying again would take a second seat and send a second notice. The
+        // session then only renews, and the reservation is released by the using.
+        if (await licencas.UnidadeDaMarcaVivaAsync(tenantId, sessaoId, cancellationToken) is not null)
+        {
+            return await next(message, cancellationToken);
+        }
+
+        // An unknown earlier unit counts as changed: the grace release (RenovacaoPelaConexao) and, past 10 minutes,
+        // ManutencaoLicencas both delete the mark, and without a manual switch nothing else remembers the unit the
+        // screen shows. A needless notice is a silent context reload.
         UnidadeCorrenteAlteradaPaf? aviso = null;
-        if (unidadeAnterior is { } anterior && anterior != reserva.UnidadeId)
+        if (unidadeAnterior != reserva.UnidadeId)
         {
             aviso = UnidadeCorrenteAlteradaPaf.Criar(
                 tenantId, OperacaoGuiche.Correlacao(), credencial.Subject, new UnidadeCorrenteAlterada(Guid.CreateVersion7(), reserva.UnidadeId));
