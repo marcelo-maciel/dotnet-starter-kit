@@ -179,7 +179,8 @@ public sealed class PafCascataRenovacaoTests(FshWebApplicationFactory factory) :
         var token = await _tenant.EntrarAsync(usuario);
         var sessaoId = PafTenantCliente.SessaoDoToken(token.AccessToken);
         HttpResponseMessage resposta;
-        // Without the aged row there is no earlier unit, and "no notice" would pass whatever the comparison does.
+        // The aged row is what makes the earlier unit known: deleted by the job first, the unknown unit would count as
+        // changed and the refresh would send a notice, so the row stays protected until the refresh reads it.
         await using (await _tenant.ProtegerMarcaDaLimpezaAsync(sessaoId))
         {
             await EnvelhecerAsync(sessaoId);

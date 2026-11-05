@@ -70,6 +70,9 @@ public sealed class PafReocupacaoLicencaTests(FshWebApplicationFactory factory) 
         atividade.SessaoId.ShouldBe(PafTenantCliente.SessaoDoToken(tokenAna));
         atividade.UnidadeId.ShouldBe(unidade.UnidadeId);
         (await ConectarAsync(tokenAna)).State.ShouldBe(HubConnectionState.Connected);
+        // The grace release deleted the row, so the earlier unit is unknown and counts as changed even though it is the
+        // same unit: one silent context reload, once for the occupation and not again for the reconnection.
+        (await AvisosDeUnidadeAsync(ana.UserId)).ShouldBe(1);
 
         // Occupied again, the seat is the session's: a second user in the limit-1 unit is refused.
         var outro = await _tenant.CriarUsuarioAsync(unidade.UnidadeId);
@@ -85,9 +88,9 @@ public sealed class PafReocupacaoLicencaTests(FshWebApplicationFactory factory) 
         var b = await _tenant.CriarUnidadeAsync(limiteSessoes: 1);
         var usuario = await _tenant.CriarUsuarioAsync(a.UnidadeId, b.UnidadeId);
         var token = (await _tenant.EntrarAsync(usuario)).AccessToken;
-        // Expired mark, row kept: its unit is what the screen showed, so moving to B is noticed (the grace release
-        // deletes the row, and without Valkey state there is then no earlier unit to compare with). The host's
-        // ManutencaoLicencas would delete it the same way on a 5-minute tick, hence the protection until both land.
+        // Expired mark, row kept: its unit is what the screen showed, so moving to B is noticed by comparison. The
+        // host's ManutencaoLicencas would delete it on a 5-minute tick, and an unknown earlier unit is noticed too, so
+        // the protection keeps this test on the known-unit path until both land.
         using var cliente = _tenant.Cliente(token);
         HttpResponseMessage[] respostas;
         HubConnection conexao;
@@ -131,6 +134,12 @@ public sealed class PafReocupacaoLicencaTests(FshWebApplicationFactory factory) 
         resposta.StatusCode.ShouldBe(HttpStatusCode.OK, await resposta.Content.ReadAsStringAsync());
         (await _tenant.AtividadesAsync(Guid.Parse(usuario.UserId))).ShouldHaveSingleItem().UnidadeId.ShouldBe(b.UnidadeId);
         (await AvisosDeUnidadeAsync(usuario.UserId)).ShouldBe(1);
+
+        // Occupied again, the mark is live: later requests and the hub only renew it, with no notice of their own.
+        using var segunda = await cliente.GetAsync(Perfil);
+        segunda.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await ConectarAsync(token)).State.ShouldBe(HubConnectionState.Connected);
+        (await AvisosDeUnidadeAsync(usuario.UserId)).ShouldBe(1, "o aviso não se repete");
     }
 
     [Fact]

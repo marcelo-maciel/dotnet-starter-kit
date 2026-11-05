@@ -64,7 +64,8 @@ public sealed class ReocupacaoSessao(
                 throw new UnauthorizedException(SessionCheckMiddleware.MensagemSessaoInvalida);
             }
 
-            // Unknown earlier unit counts as changed, as in RefreshTokenLicenseBehavior: the mark may be gone.
+            // Unknown earlier unit counts as changed, as in RefreshTokenLicenseBehavior: the grace release or the
+            // maintenance may have deleted the mark.
             if (unidadeAnterior != reserva.UnidadeId)
             {
                 aviso = UnidadeCorrenteAlteradaPaf.Criar(
