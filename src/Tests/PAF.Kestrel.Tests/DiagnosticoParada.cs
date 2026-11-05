@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using FSH.Modules.PAF.TempoReal;
 using Hangfire;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Hangfire.Storage;
 using Microsoft.Extensions.Hosting;
 
@@ -24,9 +26,13 @@ internal sealed class DiagnosticoParada : IDisposable
     private readonly CancellationTokenSource _fim = new();
     private readonly Task _vigia;
 
-    public DiagnosticoParada(IServiceProvider servicos)
+    private readonly ConcurrentDictionary<string, ConexaoAberta> _conexoesKestrel;
+
+    public DiagnosticoParada(IServiceProvider servicos, ConcurrentDictionary<string, ConexaoAberta> conexoesKestrel)
     {
+        _conexoesKestrel = conexoesKestrel;
         Anotar($"conexões PafHub ainda registradas: {servicos.GetRequiredService<ConexoesPaf>().Locais().Count}");
+        AnotarConexoesKestrel();
         // Singletons: the same instances the host runs (the Hangfire servers are transient and not BackgroundService).
         foreach (var servico in servicos.GetServices<IHostedService>().OfType<BackgroundService>())
         {
@@ -45,6 +51,7 @@ internal sealed class DiagnosticoParada : IDisposable
         _fim.Cancel();
         _vigia.GetAwaiter().GetResult();
         _fim.Dispose();
+        AnotarConexoesKestrel();
         Anotar("parada do host terminou");
         var destino = Environment.GetEnvironmentVariable("PAF_KESTREL_DIAGNOSTICO")
             ?? Path.Combine(AppContext.BaseDirectory, "paf-kestrel-parada.log");
@@ -66,6 +73,7 @@ internal sealed class DiagnosticoParada : IDisposable
         ThreadPool.GetMaxThreads(out var maximo, out _);
         Anotar($"parada passou de {Limiar.TotalSeconds:0} s; thread pool: {ThreadPool.ThreadCount} threads, "
             + $"{ThreadPool.PendingWorkItemCount} itens pendentes, {maximo - livres} workers ocupados");
+        AnotarConexoesKestrel();
         foreach (var servidor in hangfire.Servers())
         {
             Anotar($"  Hangfire servidor {servidor.Name}: {servidor.WorkersCount} workers, filas {string.Join(',', servidor.Queues)}, heartbeat {servidor.Heartbeat:O}");
@@ -82,6 +90,36 @@ internal sealed class DiagnosticoParada : IDisposable
         }
     }
 
+    private void AnotarConexoesKestrel()
+    {
+        Anotar($"conexões Kestrel abertas: {_conexoesKestrel.Count}");
+        foreach (var (id, conexao) in _conexoesKestrel)
+        {
+            Anotar($"  {id} de {conexao.Remoto} aberta {conexao.AbertaEm:HH:mm:ss.fff}, último pedido {conexao.UltimoPedido ?? "(nenhum)"}");
+        }
+    }
+
     private void Anotar(string linha) =>
         _linhas.Enqueue($"[{Stopwatch.GetElapsedTime(_inicio).TotalMilliseconds,8:0} ms] {linha}");
+}
+
+/// <summary>A Kestrel connection still open: where from, since when, and the last request it carried (path only).</summary>
+internal sealed record ConexaoAberta(string? Remoto, DateTimeOffset AbertaEm, string? UltimoPedido);
+
+/// <summary>Writes each request's method and path on its connection's entry, so an open connection says what it served.</summary>
+internal sealed class UltimoPedidoDaConexao(ConcurrentDictionary<string, ConexaoAberta> conexoes) : IStartupFilter
+{
+    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+    {
+        app.Use(async (contexto, proximo) =>
+        {
+            if (conexoes.TryGetValue(contexto.Connection.Id, out var conexao))
+            {
+                conexoes[contexto.Connection.Id] = conexao with { UltimoPedido = $"{contexto.Request.Method} {contexto.Request.Path}" };
+            }
+
+            await proximo(contexto);
+        });
+        next(app);
+    };
 }
