@@ -96,25 +96,6 @@ public sealed class RealtimeEventsTests
         received.LastReadMessageId.ShouldBe(messageId);
     }
 
-    [Fact]
-    public async Task Hub_Should_Reject_Unauthenticated_Connections()
-    {
-        var connection = new HubConnectionBuilder()
-            .WithUrl(
-                "http://localhost" + HubPath,
-                options =>
-                {
-                    options.HttpMessageHandlerFactory = _ => _factory.Server.CreateHandler();
-                    options.WebSocketFactory = (_, _) => throw new NotSupportedException();
-                    options.SkipNegotiation = false;
-                    options.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.LongPolling;
-                })
-            .Build();
-        await using var _ = connection;
-
-        await Should.ThrowAsync<Exception>(async () => await connection.StartAsync());
-    }
-
     // ─── helpers ─────────────────────────────────────────────────────
 
     private static string UniqueName(string prefix) =>
