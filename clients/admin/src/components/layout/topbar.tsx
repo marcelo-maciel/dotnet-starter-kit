@@ -11,7 +11,6 @@ import {
   UserRound,
 } from "lucide-react";
 import { MobileNavTrigger } from "@/components/layout/mobile-nav";
-import { NotificationBell } from "@/components/notifications/notification-bell";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -179,9 +178,6 @@ export function Topbar() {
 
       {/* Spacer pushes right-side actions to the trailing edge */}
       <div className="flex-1" />
-
-      {/* Notification bell */}
-      <NotificationBell />
 
       {/* User dropdown — `modal={false}` so the sign-out confirmation
           Dialog doesn't deadlock pointer-events via nested modals. */}

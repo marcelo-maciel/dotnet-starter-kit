@@ -5,7 +5,6 @@ import { Toaster } from "sonner";
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, Loader2 } from "lucide-react";
 import { queryClient } from "@/lib/query-client";
 import { AuthProvider } from "@/auth/auth-context";
-import { RealtimeProvider } from "@/realtime/realtime-context";
 import { ThemeProvider, useTheme } from "@/components/theme/theme-provider";
 import { router } from "@/routes";
 
@@ -14,7 +13,6 @@ export function App() {
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <RealtimeProvider>
             {/* Top-level boundary so the public lazy routes (login, password
                 reset, confirm-email) have a Suspense ancestor on cold chunk
                 fetch — the protected routes also have AppShell's own. */}
@@ -29,7 +27,6 @@ export function App() {
             >
               <RouterProvider router={router} />
             </Suspense>
-          </RealtimeProvider>
           <FshToaster />
         </AuthProvider>
       </QueryClientProvider>
