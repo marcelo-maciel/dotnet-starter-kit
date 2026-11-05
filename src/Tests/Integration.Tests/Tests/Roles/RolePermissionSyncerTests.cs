@@ -2,7 +2,7 @@ using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Shared.Constants;
 using FSH.Framework.Shared.Multitenancy;
-using FSH.Modules.Catalog.Contracts.Authorization;
+using FSH.Modules.Webhooks.Contracts.Authorization;
 using FSH.Modules.Identity.Authorization;
 using FSH.Modules.Identity.Data;
 using FSH.Modules.Identity.Domain;
@@ -11,14 +11,14 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Integration.Tests.Tests.Catalog;
+namespace Integration.Tests.Tests.Roles;
 
 /// <summary>
 /// Direct service-level test for <see cref="RolePermissionSyncer"/>. Verifies the
 /// "permissions added in a release after tenant was already provisioned" path —
 /// which the per-tenant <c>IDbInitializer.SeedAsync</c> flow does not run again
 /// for already-provisioned tenants in production. This is the path that produced
-/// 401s in dev when the Catalog module was added.
+/// 401s in dev when a module was added after the tenant was provisioned.
 /// </summary>
 [Collection(FshCollectionDefinition.Name)]
 public sealed class RolePermissionSyncerTests
@@ -35,15 +35,15 @@ public sealed class RolePermissionSyncerTests
     {
         var rootTenant = await GetRootTenantAsync();
 
-        var catalogPermissions = CatalogPermissions.All.Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
+        var modulePermissions = WebhooksPermissions.All.Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
 
-        // 1. Wipe Admin's Catalog.* claims directly. Simulates "perms registered in a
+        // 1. Wipe Admin's Webhooks.* claims directly. Simulates "perms registered in a
         //    later release that never made it into this tenant's RoleClaims table."
-        await WipeClaimsAsync(rootTenant, "Admin", catalogPermissions);
+        await WipeClaimsAsync(rootTenant, "Admin", modulePermissions);
 
         var afterWipe = await GetClaimsAsync(rootTenant, "Admin");
-        afterWipe.Intersect(catalogPermissions).ShouldBeEmpty(
-            "Pre-condition: Admin must not have any Catalog claims after the wipe.");
+        afterWipe.Intersect(modulePermissions).ShouldBeEmpty(
+            "Pre-condition: Admin must not have any Webhooks claims after the wipe.");
 
         // 2. Run the syncer through the production scope/tenant pattern.
         using (var scope = _factory.Services.CreateScope())
@@ -55,11 +55,11 @@ public sealed class RolePermissionSyncerTests
             await syncer.SyncAsync(CancellationToken.None);
         }
 
-        // 3. All Catalog perms should be back on the Admin role.
+        // 3. All Webhooks perms should be back on the Admin role.
         var afterSync = await GetClaimsAsync(rootTenant, "Admin");
-        var missing = catalogPermissions.Where(p => !afterSync.Contains(p)).ToList();
+        var missing = modulePermissions.Where(p => !afterSync.Contains(p)).ToList();
         missing.ShouldBeEmpty(
-            $"Syncer failed to restore {missing.Count} catalog permission(s): " +
+            $"Syncer failed to restore {missing.Count} webhooks permission(s): " +
             $"[{string.Join(", ", missing)}]");
     }
 
