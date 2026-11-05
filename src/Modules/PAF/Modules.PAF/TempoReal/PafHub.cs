@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 namespace FSH.Modules.PAF.TempoReal;
 
 /// <summary>
-/// PAF's own hub (seção 7): AppHub joins chat groups on connect and extending it would be a kit edit
+/// PAF's own hub (seção 7): AppHub is the kit's shared hub and extending it would be a kit edit
 /// outside ADR 0008. Server-to-client, plus <see cref="EntrarNoGuiche"/> for the guichê screen. Every connect
 /// and call passes <see cref="PafHubFilter"/> first, which also installs the token's tenant.
 /// </summary>

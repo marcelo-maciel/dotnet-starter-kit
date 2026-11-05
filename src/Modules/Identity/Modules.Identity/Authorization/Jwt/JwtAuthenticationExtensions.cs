@@ -30,7 +30,7 @@ internal static class JwtAuthenticationExtensions
             // AND the fallback policy:
             //   - FallbackPolicy covers endpoints with no auth metadata at all.
             //   - DefaultPolicy covers endpoints that opt in via .RequireAuthorization() —
-            //     including the module route-groups (Catalog/Billing/Chat/Files/…). Without
+            //     including the module route-groups (Catalog/Billing/Files/…). Without
             //     this, a group-level .RequireAuthorization() applied the built-in
             //     authenticated-only default, which SUPPRESSED the fallback, so
             //     .RequirePermission(...) was never evaluated and any authenticated tenant

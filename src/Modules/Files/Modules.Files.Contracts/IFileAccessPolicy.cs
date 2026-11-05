@@ -23,7 +23,7 @@ public interface IFileAccessPolicy
     /// <summary>
     /// Whether the caller may change a file's <see cref="FileAccessContext.Visibility"/> after
     /// upload. Defaults to the same rule as <see cref="CanDeleteAsync"/> — only the uploader.
-    /// Modules whose files are tied to a domain entity (Catalog product images, Chat attachments)
+    /// Modules whose files are tied to a domain entity (Catalog product images)
     /// can override to disallow visibility flips entirely.
     /// </summary>
     Task<bool> CanChangeVisibilityAsync(FileAccessContext context, string currentUserId, CancellationToken cancellationToken)
