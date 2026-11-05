@@ -29,7 +29,7 @@ public sealed class CorsConfigurationTests
 
     // Every non-safelisted header the React clients (and the SignalR client) send must be allowed,
     // or the browser rejects the preflight: tenant on every call, X-FSH-App on login,
-    // Idempotency-Key on chat sends, X-Requested-With / X-SignalR-User-Agent on hub negotiate.
+    // Idempotency-Key on idempotent writes, X-Requested-With / X-SignalR-User-Agent on hub negotiate.
     [Theory]
     [InlineData("appsettings.json", "tenant")]
     [InlineData("appsettings.json", "x-fsh-app")]

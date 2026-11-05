@@ -63,7 +63,7 @@ public sealed class {Name}Module : IModule
 }
 ```
 
-`Order` controls load sequence (Auditing 300, Files 350, Webhooks 400, Billing 500, Catalog 600, Tickets 700, Notifications 750, Chat 800). If your module consumes another's events, load after it.
+`Order` controls load sequence (Auditing 300, Files 350, Webhooks 400, Billing 500, Catalog 600, Tickets 700, Notifications 750, PAF 900). If your module consumes another's events, load after it.
 
 ## Step 2 — Permissions (Contracts/Authorization)
 

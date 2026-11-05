@@ -880,8 +880,7 @@ public sealed class ImpersonationTests : IAsyncLifetime
         var userName = $"{prefix}{unique}";
         const string password = "Test@1234!";
 
-        // Endpoint is `/identity/register` (not `/identity/users/register`) —
-        // mirrors the existing seed pattern in ChatSendMessageTests.
+        // Endpoint is `/identity/register` (not `/identity/users/register`).
         using var response = await adminClient.PostAsJsonAsync(
             $"{TestConstants.IdentityBasePath}/register", new
             {

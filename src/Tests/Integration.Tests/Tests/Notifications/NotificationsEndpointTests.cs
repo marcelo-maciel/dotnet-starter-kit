@@ -12,10 +12,8 @@ using Microsoft.AspNetCore.Identity;
 namespace Integration.Tests.Tests.Notifications;
 
 /// <summary>
-/// End-to-end coverage for the four Notifications inbox endpoints. The integration-event ingress
-/// path (Chat @-mention → Notification row + SignalR push) is covered by MentionAndNotificationTests
-/// — this file seeds rows directly via the DbContext and focuses on the read/mark-read surface so
-/// edge cases (cross-user MarkRead, idempotency, unread filter, paging) are explicit.
+/// End-to-end coverage for the four Notifications inbox endpoints. This file seeds rows directly
+/// via the DbContext and focuses on the read/mark-read surface so edge cases (cross-user MarkRead, idempotency, unread filter, paging) are explicit.
 /// </summary>
 [Collection(FshCollectionDefinition.Name)]
 public sealed class NotificationsEndpointTests

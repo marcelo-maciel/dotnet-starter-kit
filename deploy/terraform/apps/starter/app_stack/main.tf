@@ -175,7 +175,7 @@ module "app_s3" {
   enable_intelligent_tiering = var.app_s3_enable_intelligent_tiering
   lifecycle_rules            = var.app_s3_lifecycle_rules
 
-  # Browser presigned uploads (My Files, chat attachments) PUT directly from the
+  # Browser presigned uploads (My Files) PUT directly from the
   # SPA origins to S3, so the bucket must allow those origins — not just a custom
   # domain. Reuse the API's allow-list (SPA CloudFront/alias origins + custom
   # domain + extras), so it works on the default CloudFront domains too.

@@ -13,7 +13,7 @@ skill — follow it. This playbook covers the surrounding facts and troubleshoot
 - **Build before `migrations add`** — it reads the snapshot, which regenerates from a build; a stale snapshot silently loses changes. `migrations remove` rewrites the snapshot, so only ever remove the latest and rebuild after.
 
 ## Context names (real)
-`IdentityDbContext`, `TenantDbContext` (the tenant catalog — **not** "MultitenancyDbContext"), `AuditDbContext`, `BillingDbContext`, `CatalogDbContext`, `TicketsDbContext`, `FilesDbContext`, `ChatDbContext`, `NotificationsDbContext`, `WebhookDbContext`.
+`IdentityDbContext`, `TenantDbContext` (the tenant catalog — **not** "MultitenancyDbContext"), `AuditDbContext`, `BillingDbContext`, `CatalogDbContext`, `TicketsDbContext`, `FilesDbContext`, `NotificationsDbContext`, `WebhookDbContext`.
 
 ## Apply (canonical path)
 ```bash

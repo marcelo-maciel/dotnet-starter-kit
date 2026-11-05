@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR.Client;
 
-namespace Integration.Tests.Tests.Chat;
+namespace Integration.Tests.Tests.Realtime;
 
 [Collection(FshCollectionDefinition.Name)]
 public sealed class PresenceTests
@@ -142,6 +142,25 @@ public sealed class PresenceTests
 
         using var response = await anonymous.GetAsync($"{PresencePath}?userIds={Guid.NewGuid()}");
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Hub_Should_Reject_Unauthenticated_Connections()
+    {
+        var connection = new HubConnectionBuilder()
+            .WithUrl(
+                "http://localhost" + HubPath,
+                options =>
+                {
+                    options.HttpMessageHandlerFactory = _ => _factory.Server.CreateHandler();
+                    options.WebSocketFactory = (_, _) => throw new NotSupportedException();
+                    options.SkipNegotiation = false;
+                    options.Transports = HttpTransportType.LongPolling;
+                })
+            .Build();
+        await using var _ = connection;
+
+        await Should.ThrowAsync<Exception>(async () => await connection.StartAsync());
     }
 
     // ─── helpers ─────────────────────────────────────────────────────

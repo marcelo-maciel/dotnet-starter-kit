@@ -8,5 +8,5 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- pg_trgm is used by the full-text search GIN indexes (chat search).
+-- pg_trgm backs the audit trail GIN trigram indexes on Source and UserName (Auditing, HardenAuditIndexes).
 CREATE EXTENSION IF NOT EXISTS pg_trgm;

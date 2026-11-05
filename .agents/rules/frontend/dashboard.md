@@ -18,7 +18,7 @@ The JWT carries **only role names**. `auth-context.tsx` fetches the effective pe
 
 - Every route element is wrapped in `withSuspense(node)` (per-route skeleton fallback). No per-route permission guards.
 - `RealtimeProvider` **and** `SseProvider` are mounted inside `AppShell` (authenticated routes only), under a `CommandPaletteProvider` (cmdk).
-- SignalR provider pre-wires ~11 chat/notification events.
+- SignalR provider pre-wires the `PresenceChanged` and `NotificationCreated` events.
 - **SSE** (`src/sse/`, dashboard-only): two-step token — `POST /api/v1/sse/token`, then `GET /api/v1/sse/stream?token=<guid>` consumed via fetch streaming (`parseSseStream` async generator; EventSource can't send auth headers). **Two split contexts:** `useSseStatus()` (stable, for status dots) vs `useSseEvents()` (mutates per event) to avoid cascading re-renders; `useSse()` is the composite.
 
 ## Impersonation
@@ -27,7 +27,7 @@ The JWT carries **only role names**. `auth-context.tsx` fetches the effective pe
 
 ## Performance
 
-- `@tanstack/react-virtual` for long lists — use it for any large collection (chat history, big tables).
+- No list-virtualization library is installed; add one (e.g. `@tanstack/react-virtual`) when a collection needs it.
 - `cmdk` powers the command palette.
 
 ## Theme

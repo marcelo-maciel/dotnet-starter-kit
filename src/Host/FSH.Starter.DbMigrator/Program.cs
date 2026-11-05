@@ -40,7 +40,7 @@ if (cli.Help)
 var builder = Host.CreateApplicationBuilder(args);
 
 // Disable build-time DI validation: auto-on in Development, it walks ALL descriptors incl. handlers this
-// reduced-graph process never invokes (Chat→IHubContext, Identity→IMailService) and throws — false positive.
+// reduced-graph process never invokes (e.g. Identity→IMailService) and throws — false positive.
 builder.ConfigureContainer(new DefaultServiceProviderFactory(
     new ServiceProviderOptions { ValidateOnBuild = false, ValidateScopes = false }));
 
@@ -99,8 +99,6 @@ builder.Services.AddMediator(o =>
         typeof(FSH.Modules.Tickets.TicketsModule),
         typeof(FSH.Modules.Files.Contracts.v1.Commands.RequestUploadUrlCommand),
         typeof(FSH.Modules.Files.FilesModule),
-        typeof(FSH.Modules.Chat.Contracts.v1.Commands.CreateChannelCommand),
-        typeof(FSH.Modules.Chat.ChatModule),
         typeof(FSH.Modules.Notifications.Contracts.v1.Commands.MarkNotificationReadCommand),
         typeof(FSH.Modules.Notifications.NotificationsModule),
         typeof(FSH.Modules.PAF.Contracts.PafContractsMarker),
@@ -118,7 +116,6 @@ var moduleAssemblies = new Assembly[]
     typeof(BillingModule).Assembly,
     typeof(CatalogModule).Assembly,
     typeof(TicketsModule).Assembly,
-    typeof(FSH.Modules.Chat.ChatModule).Assembly,
     typeof(FSH.Modules.Notifications.NotificationsModule).Assembly,
     typeof(PafModule).Assembly,
 };

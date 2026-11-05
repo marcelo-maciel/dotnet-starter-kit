@@ -11,7 +11,7 @@ relevant rule file before working in that area** (see the index below). Keep thi
 ## What this is
 
 A **modular monolith** (Vertical Slice Architecture) backend that ships with two **React + Vite**
-front-ends and a CLI. Multitenancy, auth, auditing, billing, files, chat and more are first-class.
+front-ends and a CLI. Multitenancy, auth, auditing, billing, files and more are first-class.
 
 - **Backend** — .NET 10, EF Core 10, PostgreSQL, Redis, JWT + ASP.NET Identity, Finbuckle multitenancy,
   Hangfire, OpenAPI/Scalar, Serilog + OpenTelemetry, .NET Aspire.
@@ -115,7 +115,7 @@ Single long-lived branch: **`main`** (the default) — there is **no `develop`**
 | Unit test conventions, NetArchTest | `testing.md` |
 | Integration tests (Testcontainers harness + gotchas) | `integration-testing.md` |
 | **Modifying `src/BuildingBlocks`** (read first — it's protected) | `buildingblocks-protection.md` |
-| A specific module's quirks | `modules/{module}.md` (identity, multitenancy, chat, files, webhooks, auditing, billing, catalog, tickets, notifications) |
+| A specific module's quirks | `modules/{module}.md` (identity, multitenancy, files, webhooks, auditing, billing, catalog, tickets, notifications) |
 
 **Frontend** (`.agents/rules/frontend/`)
 

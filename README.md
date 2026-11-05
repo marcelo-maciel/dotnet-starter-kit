@@ -4,7 +4,7 @@
 
 **A production-ready, modular .NET 10 monolith + two React 19 apps — the fastest way to ship a multi-tenant SaaS.**
 
-Identity, multitenancy, billing, auditing, webhooks, files, chat, real-time, caching, jobs, storage, OpenAPI and OpenTelemetry — already wired, fully tested, and **100% yours as source** (no black-box packages).
+Identity, multitenancy, billing, auditing, webhooks, files, real-time, caching, jobs, storage, OpenAPI and OpenTelemetry — already wired, fully tested, and **100% yours as source** (no black-box packages).
 
 [![fsh CLI](https://img.shields.io/nuget/v/FullStackHero.CLI?label=fsh%20cli&color=512BD4)](https://www.nuget.org/packages/FullStackHero.CLI)
 [![template](https://img.shields.io/nuget/v/FullStackHero.NET.StarterKit?label=dotnet%20new%20fsh&color=512BD4)](https://www.nuget.org/packages/FullStackHero.NET.StarterKit)
@@ -52,7 +52,7 @@ dotnet run --project src/Host/MyApp.AppHost   # 🎉 whole stack up: API + 2 Rea
 - Runtime config (`/config.json`, no rebuild per environment), hand-written typed API client, and **Playwright** E2E suites.
 
 ### Modules (bounded contexts)
-**Identity · Multitenancy · Billing · Catalog · Tickets · Chat · Files · Webhooks · Auditing · Notifications** — each a runtime project plus a `.Contracts` project (its only public surface), boundaries enforced by architecture tests.
+**Identity · Multitenancy · Billing · Catalog · Tickets · Files · Webhooks · Auditing · Notifications** — each a runtime project plus a `.Contracts` project (its only public surface), boundaries enforced by architecture tests.
 
 ### Cloud-native & DevOps
 - **.NET Aspire** orchestrates the entire stack locally with one command (Postgres + pgAdmin, Valkey + RedisInsight, RustFS, migrator, demo-seeder, API, and both React apps).
@@ -172,7 +172,7 @@ Full guides, module references, and architecture decisions live at **[fullstackh
 
 - [Getting started](https://fullstackhero.net/docs/getting-started/introduction/) — scaffold, run, and the default credentials
 - [Architecture](https://fullstackhero.net/docs/architecture/) — modular monolith + vertical slices, multitenancy deep-dive
-- [Modules](https://fullstackhero.net/docs/modules/) — Identity, Catalog, Tickets, Chat, and more
+- [Modules](https://fullstackhero.net/docs/modules/) — Identity, Catalog, Tickets, and more
 - [Local orchestration with Aspire](https://fullstackhero.net/docs/deployment/aspire/)
 - [CLI reference](https://fullstackhero.net/docs/cli/) · [Changelog](https://fullstackhero.net/docs/changelog/)
 

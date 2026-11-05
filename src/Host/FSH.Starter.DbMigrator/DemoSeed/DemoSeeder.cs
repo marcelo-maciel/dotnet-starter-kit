@@ -9,8 +9,6 @@ using FSH.Modules.Billing.Data;
 using FSH.Modules.Billing.Domain;
 using FSH.Modules.Catalog.Data;
 using FSH.Modules.Catalog.Domain;
-using FSH.Modules.Chat.Data;
-using FSH.Modules.Chat.Domain;
 using FSH.Modules.Identity.Contracts.Authorization;
 using FSH.Modules.Identity.Data;
 using FSH.Modules.Identity.Domain;
@@ -31,7 +29,7 @@ namespace FSH.Starter.DbMigrator.DemoSeed;
 /// <summary>
 /// Owns the "rich demo content" that the dev environment needs to feel lived-in:
 /// the <c>acme</c> and <c>globex</c> tenants, their demo users, custom roles,
-/// catalog content, tickets, and chat. Invoked by the migrator's
+/// catalog content and tickets. Invoked by the migrator's
 /// <c>seed-demo</c> verb — never by the API runtime.
 ///
 /// Idempotent: every step checks before writing, so re-running the verb
@@ -86,13 +84,12 @@ internal sealed class DemoSeeder
             await SeedTenantUsersAsync(demo, cancellationToken).ConfigureAwait(false);
             await SeedTenantCatalogAsync(demo, cancellationToken).ConfigureAwait(false);
             await SeedTenantTicketsAsync(demo, cancellationToken).ConfigureAwait(false);
-            await SeedTenantChatAsync(demo, cancellationToken).ConfigureAwait(false);
         }
 
         if (_logger.IsEnabled(LogLevel.Information))
         {
             _logger.LogInformation(
-                "[demo-seed] complete · root superadmin + {Acme} + {Globex} populated with users / catalog / tickets / chat",
+                "[demo-seed] complete · root superadmin + {Acme} + {Globex} populated with users / catalog / tickets",
                 Acme.Id, Globex.Id);
         }
     }
@@ -130,7 +127,7 @@ internal sealed class DemoSeeder
             }
 
             // Same per-tenant path the migrator's apply verb uses. The Identity initializer creates
-            // the tenant admin, while Catalog/Tickets/Chat initializers are no-ops today.
+            // the tenant admin, while Catalog/Tickets initializers are no-ops today.
             await tenantService.MigrateTenantAsync(existing, cancellationToken).ConfigureAwait(false);
             await tenantService.SeedTenantAsync(existing, cancellationToken).ConfigureAwait(false);
 
@@ -528,167 +525,6 @@ internal sealed class DemoSeeder
                 "[demo-seed] [{Tenant}] seeded {Count} demo ticket(s)",
                 tenant.Id, number - 1);
         }
-    }
-
-    // ─── Chat ───────────────────────────────────────────────────────────
-
-    private async Task SeedTenantChatAsync(DemoTenant demo, CancellationToken cancellationToken)
-    {
-        using var scope = _services.CreateScope();
-        var tenantStore = scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
-        var tenant = await tenantStore.GetAsync(demo.Id).ConfigureAwait(false);
-        if (tenant is null) return;
-
-        scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>()
-            .MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenant);
-
-        var dbContext = scope.ServiceProvider.GetRequiredService<ChatDbContext>();
-        if (await dbContext.Channels.AnyAsync(cancellationToken).ConfigureAwait(false))
-        {
-            return;
-        }
-
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<FshUser>>();
-        var usersByEmail = await userManager.Users
-            .ToDictionaryAsync(u => u.Email!, u => u.Id, cancellationToken)
-            .ConfigureAwait(false);
-
-        string? UserId(string email) =>
-            usersByEmail.TryGetValue(email, out var id) ? id : null;
-
-        int channelCount = 0;
-        int messageCount = 0;
-
-        if (demo.Id == Acme.Id)
-        {
-            var general = await SeedChannelAsync(
-                dbContext,
-                creator: UserId("admin@acme.com"),
-                name: "general",
-                description: "Company-wide announcements and watercooler chatter.",
-                isPrivate: false,
-                additionalMembers: usersByEmail.Values
-                    .Where(id => id != UserId("admin@acme.com"))
-                    .ToList(),
-                messages:
-                [
-                    (UserId("admin@acme.com"), "Welcome to Acme! 👋 This channel is for company-wide announcements."),
-                    (UserId("manager@acme.com"), "Glad to have everyone here. Standups Mondays 10am sharp."),
-                    (UserId("alice@acme.com"), "👋"),
-                    (UserId("bob@acme.com"), "Coffee chat in 10?"),
-                ],
-                cancellationToken);
-            if (general is not null) { channelCount++; messageCount += 4; }
-
-            var engineering = await SeedChannelAsync(
-                dbContext,
-                creator: UserId("manager@acme.com"),
-                name: "engineering",
-                description: "Eng-only. Tickets, deploys, post-mortems.",
-                isPrivate: true,
-                additionalMembers: [UserId("alice@acme.com"), UserId("bob@acme.com"), UserId("carol@acme.com")],
-                messages:
-                [
-                    (UserId("manager@acme.com"), "What's everyone shipping this week?"),
-                    (UserId("alice@acme.com"), "Login redesign — code review out tomorrow."),
-                    (UserId("bob@acme.com"), "Mobile hydration fix, then a perf pass on /reports."),
-                ],
-                cancellationToken);
-            if (engineering is not null) { channelCount++; messageCount += 3; }
-
-            var random = await SeedChannelAsync(
-                dbContext,
-                creator: UserId("admin@acme.com"),
-                name: "random",
-                description: "Off-topic. Memes, weekend plans, dog photos.",
-                isPrivate: false,
-                additionalMembers: usersByEmail.Values
-                    .Where(id => id != UserId("admin@acme.com"))
-                    .ToList(),
-                messages:
-                [
-                    (UserId("gina@acme.com"), "Anyone tried the new ramen place on 5th?"),
-                    (UserId("henry@acme.com"), "Two thumbs up. The tonkotsu is worth the wait."),
-                ],
-                cancellationToken);
-            if (random is not null) { channelCount++; messageCount += 2; }
-
-            // DM between alice + bob
-            var aliceId = UserId("alice@acme.com");
-            var bobId = UserId("bob@acme.com");
-            if (aliceId is not null && bobId is not null)
-            {
-                var dm = ChatChannel.CreateDirect(aliceId, bobId);
-                dbContext.Channels.Add(dm);
-                await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-                dbContext.Messages.Add(Message.Create(dm.Id, aliceId, "hey, got a sec for the hydration thing?"));
-                dbContext.Messages.Add(Message.Create(dm.Id, bobId,   "yeah, throw me a repro and i'll look in the morning"));
-                await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-                channelCount++; messageCount += 2;
-            }
-        }
-        else if (demo.Id == Globex.Id)
-        {
-            var general = await SeedChannelAsync(
-                dbContext,
-                creator: UserId("admin@globex.com"),
-                name: "general",
-                description: "Company-wide channel.",
-                isPrivate: false,
-                additionalMembers: [UserId("dave@globex.com")],
-                messages:
-                [
-                    (UserId("admin@globex.com"), "Welcome to Globex. Ping me here if you need anything."),
-                ],
-                cancellationToken);
-            if (general is not null) { channelCount++; messageCount += 1; }
-        }
-
-        if (_logger.IsEnabled(LogLevel.Information) && channelCount > 0)
-        {
-            _logger.LogInformation(
-                "[demo-seed] [{Tenant}] seeded {Channels} chat channel(s) and {Messages} message(s)",
-                tenant.Id, channelCount, messageCount);
-        }
-    }
-
-    private static async Task<ChatChannel?> SeedChannelAsync(
-        ChatDbContext dbContext,
-        string? creator,
-        string name,
-        string description,
-        bool isPrivate,
-        IReadOnlyList<string?> additionalMembers,
-        IReadOnlyList<(string? AuthorUserId, string Body)> messages,
-        CancellationToken cancellationToken)
-    {
-        if (creator is null) return null;
-
-        var channel = ChatChannel.CreateChannel(name, description, isPrivate, creator);
-        foreach (var memberId in additionalMembers.Where(m => m is not null && m != creator).Distinct())
-        {
-            try
-            {
-                channel.AddMember(memberId!, addedByUserId: creator);
-            }
-            catch (InvalidOperationException)
-            {
-                // "User already a member" — defensive against duplicate ids in the list.
-            }
-        }
-        dbContext.Channels.Add(channel);
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-        foreach (var (authorUserId, body) in messages)
-        {
-            if (authorUserId is null) continue;
-            dbContext.Messages.Add(Message.Create(channel.Id, authorUserId, body));
-        }
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-        return channel;
     }
 
     // ─── Demo content shapes ───────────────────────────────────────────

@@ -39,9 +39,6 @@ public class HostArchitectureTests
         {
             "FSH.Modules.Auditing.Features",
             "FSH.Modules.Auditing.Data",
-            "FSH.Modules.Chat.Features",
-            "FSH.Modules.Chat.Data",
-            "FSH.Modules.Chat.Domain",
             "FSH.Modules.Identity.Features",
             "FSH.Modules.Identity.Data",
             "FSH.Modules.Multitenancy.Features",

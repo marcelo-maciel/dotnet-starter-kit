@@ -33,8 +33,8 @@ const RealtimeContext = createContext<RealtimeContextValue | null>(null);
 /**
  * RealtimeProvider — single shared SignalR connection to /api/v1/realtime/hub
  * authenticated via ?access_token=. Reconnect with backoff [2s, 5s, 10s, 30s].
- * Admin only wires NotificationCreated today; the dashboard's variant subscribes
- * to chat events too. Re-runs on tokenStore changes so login/refresh/impersonation
+ * Admin only wires NotificationCreated; the dashboard's variant also pre-registers
+ * PresenceChanged, which no screen consumes since the chat screens were removed. Re-runs on tokenStore changes so login/refresh/impersonation
  * cleanly tear down and rebuild.
  */
 export function RealtimeProvider({ children }: { children: ReactNode }) {

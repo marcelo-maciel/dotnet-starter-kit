@@ -19,8 +19,8 @@ public sealed class IdempotencyFilterTests
     // These cover the wiring: Idempotency-Replayed presence/absence, and that a distinct key forces fresh
     // execution. Replay of the exact body — no longer out of reach, the filter buffers the executed result
     // instead of caching the raw IResult — is asserted end-to-end against real Redis in
-    // ChatSendMessageTests.SendMessage_Should_Replay_Same_Response_When_Idempotency_Key_Reused, and branch
-    // by branch in Framework.Tests/Web/IdempotencyEndpointFilterReplayTests.
+    // CreateBillingPlan_Should_ReplaySameResponse_When_IdempotencyKeyReused below, and branch by branch
+    // in Framework.Tests/Web/IdempotencyEndpointFilterReplayTests.
 
     [Fact]
     public async Task CreateBillingPlan_Should_ExecuteNormally_When_NoIdempotencyKey()
@@ -72,6 +72,34 @@ public sealed class IdempotencyFilterTests
         secondResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         secondResponse.Headers.Contains(ReplayedHeader).ShouldBeFalse(
             "A different idempotency key must route through a fresh execution.");
+    }
+
+    [Fact]
+    public async Task CreateBillingPlan_Should_ReplaySameResponse_When_IdempotencyKeyReused()
+    {
+        using var client = await _auth.CreateRootAdminClientAsync();
+        var uniqueId = Guid.NewGuid().ToString("N")[..8];
+        var key = $"idem-replay-{uniqueId}";
+        var payload = new
+        {
+            key = $"replay-{uniqueId}",
+            name = $"Replay Plan {uniqueId}",
+            currency = "USD",
+            monthlyBasePrice = 2m
+        };
+
+        using var firstRequest = BuildRequest(payload, key);
+        using var first = await client.SendAsync(firstRequest);
+        first.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var firstBody = await first.Content.ReadAsStringAsync();
+
+        // Plan keys are unique, so a second execution would fail instead of answering 200 with the same id.
+        using var secondRequest = BuildRequest(payload, key);
+        using var second = await client.SendAsync(secondRequest);
+        second.StatusCode.ShouldBe(HttpStatusCode.OK);
+        second.Headers.Contains(ReplayedHeader).ShouldBeTrue(
+            "Second call with the same idempotency key must carry the Idempotency-Replayed header.");
+        (await second.Content.ReadAsStringAsync()).ShouldBe(firstBody, "Replay must return the exact first body.");
     }
 
     private static HttpRequestMessage BuildRequest(object payload, string idempotencyKey)
