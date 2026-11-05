@@ -138,10 +138,10 @@ public sealed class PafKestrelFactory : WebApplicationFactory<Program>, IAsyncLi
             // session is only caught by PafHubFilter on the next call, which is the path under test.
             var remover = services
                 .Where(d => d.ServiceType == typeof(IHostedService) &&
-                    (d.ImplementationType?.Name == "RolePermissionSyncHostedService" ||
-                     d.ImplementationType?.FullName?.Contains("Hangfire", StringComparison.Ordinal) == true ||
-                     d.ImplementationType?.Name == "HangfireStaleLockCleanupService" ||
-                     d.ImplementationType?.Name == "OutboxDispatcherHostedService"))
+                    HostedServiceDescriptors.ImplementationTypeOf(d) is { } tipo &&
+                    (tipo.Name == "RolePermissionSyncHostedService" ||
+                     (tipo.FullName ?? string.Empty).Contains("Hangfire", StringComparison.Ordinal) ||
+                     tipo.Name == "OutboxDispatcherHostedService"))
                 .ToList();
             foreach (var servico in remover)
             {
