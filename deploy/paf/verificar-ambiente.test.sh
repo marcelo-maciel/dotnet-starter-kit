@@ -156,6 +156,8 @@ caso "mesmo bucket nos dois" "buckets do R2 diferentes" trocar "$HOMOLOG" Storag
 caso "CORS sem x-paf-unidade" "CORS aceita x-paf-unidade" trocar "$PROD" CorsOptions__AllowedHeaders__8 ""
 caso "CORS perde cabeçalho do kit" "CORS mantém os cabeçalhos do kit" trocar "$PROD" CorsOptions__AllowedHeaders__2 "CorsOptions__AllowedHeaders__2=x-paf-unidade"
 caso "banco sem Command Timeout" "PostgreSQL Command Timeout explícito" trocar "$PROD" DatabaseOptions__ConnectionString 'DatabaseOptions__ConnectionString=Host=postgres;Database=fsh;Username=fsh;Password=${POSTGRES_PASSWORD};Timeout=15'
+caso "banco sem Maximum Pool Size" "PostgreSQL Maximum Pool Size explícito" trocar "$PROD" DatabaseOptions__ConnectionString 'DatabaseOptions__ConnectionString=Host=postgres;Database=fsh;Username=fsh;Password=${POSTGRES_PASSWORD};Timeout=15;Command Timeout=30'
+caso "pool das duas APIs acima do max_connections" "PostgreSQL Maximum Pool Size explícito" trocar "$HOMOLOG" DatabaseOptions__ConnectionString 'DatabaseOptions__ConnectionString=Host=postgres;Database=fsh;Username=fsh;Password=${POSTGRES_PASSWORD};Timeout=15;Command Timeout=30;Maximum Pool Size=100'
 caso "banco com prazo acima do teto" "PostgreSQL Timeout explícito" trocar "$PROD" DatabaseOptions__ConnectionString 'DatabaseOptions__ConnectionString=Host=postgres;Database=fsh;Username=fsh;Password=${POSTGRES_PASSWORD};Timeout=60;Command Timeout=30'
 caso "Valkey sem syncTimeout" "Valkey synctimeout explícito" trocar "$PROD" CachingOptions__Redis 'CachingOptions__Redis=valkey:6379,password=${VALKEY_PASSWORD},connectTimeout=5000,asyncTimeout=5000'
 caso "fuso ausente na API" "TZ=America/Sao_Paulo" trocar "$PROD" TZ ""

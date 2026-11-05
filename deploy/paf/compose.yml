@@ -30,7 +30,9 @@ services:
     image: postgres:18-alpine
     restart: unless-stopped
     # RNF10: the instance's own timezone, not only the containers' TZ.
-    command: [ "postgres", "-c", "timezone=America/Sao_Paulo", "-c", "log_timezone=America/Sao_Paulo" ]
+    # max_connections: two API pools (Maximum Pool Size in the connection string) plus migrator, backup and psql;
+    # verificar-ambiente.mjs proves the sum fits.
+    command: [ "postgres", "-c", "timezone=America/Sao_Paulo", "-c", "log_timezone=America/Sao_Paulo", "-c", "max_connections=150" ]
     environment:
       TZ: America/Sao_Paulo
       POSTGRES_DB: fsh
