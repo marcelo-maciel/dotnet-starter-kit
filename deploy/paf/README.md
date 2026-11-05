@@ -70,6 +70,7 @@ Renderiza os dois ambientes com `docker compose config` (todos os perfis ligados
 - `KnownNetworks` vazio e `KnownProxies` igual ao IP fixo do Caddy; faixa dinâmica dentro da subnet e sem o gateway; IP do Caddy dentro da subnet, fora da faixa dinâmica e diferente do gateway; o Caddy confiando só na faixa dinâmica; subnets sem sobreposição;
 - Valkey e PostgreSQL do próprio projeto, com as senhas do arquivo; nomes de projeto, portas e buckets do R2 diferentes;
 - `x-paf-unidade` no CORS sem perder nenhum cabeçalho de `appsettings.Production.json`;
+- teto do pool de cada API (`Maximum Pool Size`) que, somado nas duas instâncias e com a reserva de 20 conexões, cabe no `max_connections` do postgres (150 no compose);
 - prazos explícitos de PostgreSQL (`Timeout`, `Command Timeout`) e Valkey (`connectTimeout`, `syncTimeout`, `asyncTimeout`) até o teto de 30 s do teste de O19;
 - `TZ=America/Sao_Paulo` na API, no DbMigrator e no PostgreSQL; `Storage:Provider=s3` (R2, ADR 0007);
 - nenhum valor de exemplo (`<...>`), nenhum `container_name`, nenhum serviço atrás de perfil, toda porta em `127.0.0.1`, Valkey sem porta publicada.

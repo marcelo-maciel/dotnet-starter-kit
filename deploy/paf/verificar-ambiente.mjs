@@ -13,6 +13,11 @@ import { existsSync, readFileSync } from "node:fs";
 const FUSO = "America/Sao_Paulo";
 // RNF05 ceiling shared with the O19 test (src/Tests/PAF.Tests/PrazosEntradaSaida/RegrasDePrazo.cs, Teto = 30 s).
 const TETO_PRAZO_S = 30;
+// Connections left outside the two API pools: migrator, backup (pg_dump), a manual psql and PostgreSQL's own
+// superuser_reserved_connections (3). Without the cap Npgsql defaults to 100 per instance: two instances past
+// max_connections answer 53300 (too many clients) under load.
+const RESERVA_CONEXOES = 20;
+const MAX_CONEXOES_PADRAO_PG = 100;
 const SERVICOS_DOTNET = ["api-a", "api-b", "migrator"];
 // O12 floors: the measured worst minute at the D20 volume (deploy/paf/README.md, "Limite de taxa"), below which a
 // store opening is refused. Auth is the acceptance criterion: 15 logins of one store behind its NAT in 60 s.
@@ -243,6 +248,11 @@ function conferirAmbiente({ rotulo, env, modelo, avisos }) {
     conferir(s("senha do PostgreSQL = POSTGRES_PASSWORD"), banco.get("password") === postgres?.environment?.POSTGRES_PASSWORD);
     conferir(s(`PostgreSQL Timeout explícito, 1..${TETO_PRAZO_S} s`), inteiroNoIntervalo(banco.get("timeout"), 1, TETO_PRAZO_S), banco.get("timeout") ?? "ausente");
     conferir(s(`PostgreSQL Command Timeout explícito, 1..${TETO_PRAZO_S} s`), inteiroNoIntervalo(banco.get("commandtimeout"), 1, TETO_PRAZO_S), banco.get("commandtimeout") ?? "ausente");
+    const comandoPg = postgres?.command ?? [];
+    const maxConexoes = Number((comandoPg.find((c) => String(c).startsWith("max_connections=")) ?? `max_connections=${MAX_CONEXOES_PADRAO_PG}`).split("=")[1]);
+    const instanciasApi = SERVICOS_DOTNET.filter((n) => n.startsWith("api-")).length;
+    const tetoPool = Math.floor((maxConexoes - RESERVA_CONEXOES) / instanciasApi);
+    conferir(s(`PostgreSQL Maximum Pool Size explícito, 1..${tetoPool} (${instanciasApi} APIs, max_connections ${maxConexoes}, reserva ${RESERVA_CONEXOES})`), inteiroNoIntervalo(banco.get("maximumpoolsize"), 1, tetoPool), banco.get("maximumpoolsize") ?? "ausente");
 
     const partesValkey = String(e.CachingOptions__Redis ?? "").split(",").map((p) => p.trim()).filter((p) => p !== "");
     const destinos = partesValkey.filter((p) => !p.includes("="));
