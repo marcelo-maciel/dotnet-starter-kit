@@ -99,18 +99,20 @@ public sealed class PafFichasDoDiaTests(FshWebApplicationFactory factory) : IAsy
              WHERE "Id" = {liberado.AtendimentoId}
             """);
         await _tenant.ExecutarAsync($"""
-            UPDATE paf."Atendimentos" SET "Estado" = 'Chamado', "EstacaoId" = {c.GuicheA}, "Versao" = 1,
+            UPDATE paf."Atendimentos" SET "Estado" = 'Chamado', "EstacaoId" = {c.GuicheA}, "Versao" = 1, "CriadoEm" = now() - interval '10 minutes',
                    "ElegivelDesde" = now() - interval '1 hour', "ChamadoEm" = now() - interval '1 hour' + interval '5 minutes'
              WHERE "Id" = {chamado.AtendimentoId}
             """);
         await _tenant.ExecutarAsync($"""
-            UPDATE paf."Atendimentos" SET "Estado" = 'Cancelado', "Versao" = 1,
+            UPDATE paf."Atendimentos" SET "Estado" = 'Cancelado', "Versao" = 1, "CriadoEm" = now() - interval '10 minutes',
                    "ElegivelDesde" = now() - interval '30 minutes', "CanceladoEm" = now() - interval '29 minutes'
              WHERE "Id" = {canceladoSemChamar.AtendimentoId}
             """);
         using var supervisor = await SupervisorAsync(c.UnidadeId);
 
-        var lista = await ListarOkAsync(supervisor, "");
+        // DataOperacional follows CriadoEm in São Paulo: run between 00:00 and 00:10 there, the rows above belong to
+        // yesterday, so the list asks for their day instead of today's.
+        var lista = await ListarOkAsync(supervisor, $"?data={await DataOperacionalAsync(c, liberado.AtendimentoId):yyyy-MM-dd}");
 
         var esperaLiberado = lista.Atendimentos.Single(a => a.AtendimentoId == liberado.AtendimentoId).EsperaSegundos;
         esperaLiberado.ShouldBeInRange(120, 180, "conta da liberação, não da criação de dez minutos atrás");
@@ -272,6 +274,13 @@ public sealed class PafFichasDoDiaTests(FshWebApplicationFactory factory) : IAsy
                       join f in db.Fichas on a.FichaId equals f.Id
                       where f.Letra == letra && f.Numero == numero
                       select a.Id).SingleAsync();
+    }
+
+    private async Task<DateOnly> DataOperacionalAsync(CenarioOperacao c, Guid atendimentoId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = _tenant.Contexto(scope, c.UnidadeId);
+        return await db.Atendimentos.Where(a => a.Id == atendimentoId).Select(a => a.DataOperacional).SingleAsync();
     }
 
     /// <summary>Independent of the handler: no shared SQL, the day taken by PostgreSQL itself.</summary>
