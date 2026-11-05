@@ -3,7 +3,7 @@ namespace FSH.Framework.Web.Frontend;
 /// <summary>
 /// Resolves the front-end (SPA) origin used to build user-facing links inside e-mails and
 /// notifications. Framework-level so any module that sends such links (Identity, Notifications,
-/// Billing, Tickets, …) resolves the origin the same way.
+/// Billing, …) resolves the origin the same way.
 /// </summary>
 public interface IFrontendOriginResolver
 {

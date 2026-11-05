@@ -42,7 +42,7 @@ ctor, `ValueTask<T>`, `.ConfigureAwait(false)`, guard first. Tenant/audit fields
 inject `ICurrentUser` if you need the acting user (`GetUserId()` / `GetTenant()`).
 
 ```csharp
-public sealed class Create{Entity}CommandHandler(CatalogDbContext dbContext)
+public sealed class Create{Entity}CommandHandler({Module}DbContext dbContext)
     : ICommandHandler<Create{Entity}Command, Guid>
 {
     public async ValueTask<Guid> Handle(Create{Entity}Command command, CancellationToken cancellationToken)

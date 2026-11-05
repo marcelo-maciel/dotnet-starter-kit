@@ -52,7 +52,7 @@ dotnet run --project src/Host/MyApp.AppHost   # 🎉 whole stack up: API + 2 Rea
 - Runtime config (`/config.json`, no rebuild per environment), hand-written typed API client, and **Playwright** E2E suites.
 
 ### Modules (bounded contexts)
-**Identity · Multitenancy · Billing · Catalog · Tickets · Files · Webhooks · Auditing · Notifications** — each a runtime project plus a `.Contracts` project (its only public surface), boundaries enforced by architecture tests.
+**Identity · Multitenancy · Billing · Files · Webhooks · Auditing · Notifications** — each a runtime project plus a `.Contracts` project (its only public surface), boundaries enforced by architecture tests.
 
 ### Cloud-native & DevOps
 - **.NET Aspire** orchestrates the entire stack locally with one command (Postgres + pgAdmin, Valkey + RedisInsight, RustFS, migrator, demo-seeder, API, and both React apps).
@@ -172,7 +172,7 @@ Full guides, module references, and architecture decisions live at **[fullstackh
 
 - [Getting started](https://fullstackhero.net/docs/getting-started/introduction/) — scaffold, run, and the default credentials
 - [Architecture](https://fullstackhero.net/docs/architecture/) — modular monolith + vertical slices, multitenancy deep-dive
-- [Modules](https://fullstackhero.net/docs/modules/) — Identity, Catalog, Tickets, and more
+- [Modules](https://fullstackhero.net/docs/modules/) — Identity, Billing, Files, and more
 - [Local orchestration with Aspire](https://fullstackhero.net/docs/deployment/aspire/)
 - [CLI reference](https://fullstackhero.net/docs/cli/) · [Changelog](https://fullstackhero.net/docs/changelog/)
 

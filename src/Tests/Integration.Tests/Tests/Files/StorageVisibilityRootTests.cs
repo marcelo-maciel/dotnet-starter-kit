@@ -6,8 +6,6 @@ using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Core.Domain;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Framework.Storage.Services;
-using FSH.Modules.Catalog.Data;
-using FSH.Modules.Catalog.Domain;
 using FSH.Modules.Files.Contracts.v1.DTOs;
 using FSH.Modules.Files.Data;
 using FSH.Modules.Files.Domain;
@@ -157,7 +155,6 @@ public sealed class StorageVisibilityRootTests
 
         // Files uploaded before #1410: keys under tenants/…, objects at those keys.
         var avatar = await SeedLegacyAssetAsync(TestConstants.RootTenantId, "User", Guid.Parse(adminId), Visibility.Public);
-        var productImage = await SeedLegacyAssetAsync(TestConstants.RootTenantId, "Product", null, Visibility.Public);
         var legacyPrivate = await SeedLegacyAssetAsync(TestConstants.RootTenantId, "MyFiles", null, Visibility.Private);
         var otherTenantPublic = await SeedLegacyAssetAsync(otherTenantId, "MyFiles", null, Visibility.Public);
 
@@ -165,7 +162,6 @@ public sealed class StorageVisibilityRootTests
         // (what compose stored before it set PublicBaseUrl). The move must repair the base, not keep it.
         const string StaleBase = "http://rustfs:9000/" + Bucket + "/";
         var originalAvatarUrl = await SetAvatarUrlAsync(adminId, StaleBase + avatar.Key);
-        var productImageId = await SeedProductImageAsync(productImage.Id, StaleBase + productImage.Key);
 
         try
         {
@@ -177,7 +173,6 @@ public sealed class StorageVisibilityRootTests
             foreach (var (tenantId, asset) in new[]
             {
                 (TestConstants.RootTenantId, avatar),
-                (TestConstants.RootTenantId, productImage),
                 (otherTenantId, otherTenantPublic),
             })
             {
@@ -193,7 +188,6 @@ public sealed class StorageVisibilityRootTests
 
             // Persisted URLs followed their objects, onto the API's current public URL.
             (await ReadAvatarUrlAsync(adminId)).ShouldBe(PublicUrlFor("public/" + avatar.Key));
-            (await ReadProductImageUrlAsync(productImageId)).ShouldBe(PublicUrlFor("public/" + productImage.Key));
 
             // Act — a second run (every API start enqueues one) finds nothing left to do.
             await RunMigrationJobAsync();
@@ -483,32 +477,6 @@ public sealed class StorageVisibilityRootTests
         await db.SaveChangesAsync();
 
         return new LegacyAsset(id, key, bytes);
-    }
-
-    private async Task<Guid> SeedProductImageAsync(Guid fileAssetId, string url)
-    {
-        using var scope = _factory.Services.CreateScope();
-        SetTenant(scope, TestConstants.RootTenantId);
-        var db = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
-
-        var suffix = Guid.NewGuid().ToString("N")[..8];
-        var brand = Brand.Create($"vis-brand-{suffix}", null, null);
-        var category = Category.Create($"vis-category-{suffix}", null, null);
-        var product = Product.Create($"VIS-{suffix}", $"vis product {suffix}", null, brand.Id, category.Id, new Money(10m, "USD"), 1);
-        var image = product.AddImage(fileAssetId, url);
-        db.Brands.Add(brand);
-        db.Categories.Add(category);
-        db.Products.Add(product);
-        await db.SaveChangesAsync();
-        return image.Id;
-    }
-
-    private async Task<string> ReadProductImageUrlAsync(Guid imageId)
-    {
-        using var scope = _factory.Services.CreateScope();
-        SetTenant(scope, TestConstants.RootTenantId);
-        var db = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
-        return await db.Set<ProductImage>().AsNoTracking().Where(i => i.Id == imageId).Select(i => i.Url).SingleAsync();
     }
 
     private async Task<string> GetUserIdAsync(string tenantId, string email)

@@ -15,14 +15,14 @@ type Props = {
   onChange: (next: string) => void;
   /**
    * Owner binding for the upload. The Files module's per-OwnerType IFileAccessPolicy
-   * decides who can attach what. For product images, ownerType="Product" + the product id.
+   * decides who can attach what. For an avatar, ownerType="User" + the user id.
    */
   ownerType: string;
   ownerId?: string | null;
   /** Allowed extensions (lower-case w/ leading dot). Server enforces too. */
   allowedExtensions?: string[];
   maxBytes?: number;
-  /** Visual treatment for the preview tile — "square" for products, "circle" for avatars. */
+  /** Visual treatment for the preview tile — "square" for logos, "circle" for avatars. */
   shape?: "square" | "circle";
   className?: string;
 };

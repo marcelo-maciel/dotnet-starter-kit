@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace Integration.Tests.Infrastructure;
 
 /// <summary>
-/// The kit modules the PAF does not ship (Billing, Catalog, Files and Helpdesk) are root-only since 31/10/2026,
+/// The kit modules the PAF does not ship (Billing and Files) are root-only since 31/10/2026,
 /// and so is the kit's Users, Roles and Groups administration since 02/11/2026, so a client tenant's Admin no longer
 /// holds their permissions. Their tenant-isolation tests, and the tests that set up a client's users and roles through
 /// the kit endpoints, still need a client tenant that uses them: this writes back on that tenant's Admin role the

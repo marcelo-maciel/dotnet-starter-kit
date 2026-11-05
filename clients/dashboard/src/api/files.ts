@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/api-client";
-import type { PagedResponse } from "@/api/catalog";
+import type { PagedResponse } from "@/api/paged-response";
 
 // Mirrors FSH.Modules.Files.Contracts.v1.DTOs.Visibility. The API serializes enums as
 // their string name (global JsonStringEnumConverter).

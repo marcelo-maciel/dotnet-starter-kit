@@ -369,8 +369,8 @@ function RecentAuditRow({ row }: { row: AuditSummaryDto }) {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Quick actions — shortcut tiles to the most useful destinations. Catalog and
-// Subscription are not part of the PAF product (31/10/2026), nor the kit's
+// Quick actions — shortcut tiles to the most useful destinations.
+// Subscription is not part of the PAF product (31/10/2026), nor the kit's
 // Users screen (02/11/2026, the client invites users on /paf/usuarios); their
 // routes redirect home, so they have no tile.
 // ────────────────────────────────────────────────────────────────────────

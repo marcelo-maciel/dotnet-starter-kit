@@ -212,7 +212,7 @@ public sealed class GlobalExceptionHandlerLocalizationTests
     // A 409 must not be titled "an unexpected error occurred". Before Error.Conflict existed the
     // status-to-key map fell through to Error.Unexpected — which RESOLVES, so the type-name fallback
     // never fired and every conflict in the API reported a title contradicting its own status and its
-    // own detail. There are 41 Conflict throw sites across Billing and Catalog.
+    // own detail. Billing, among others, throws Conflict.
     [Theory]
     [InlineData("en-US", "Conflict")]
     [InlineData("pt-BR", "Conflito")]

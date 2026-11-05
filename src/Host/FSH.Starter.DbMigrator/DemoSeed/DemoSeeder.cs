@@ -7,17 +7,12 @@ using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Billing.Contracts;
 using FSH.Modules.Billing.Data;
 using FSH.Modules.Billing.Domain;
-using FSH.Modules.Catalog.Data;
-using FSH.Modules.Catalog.Domain;
 using FSH.Modules.Identity.Contracts.Authorization;
 using FSH.Modules.Identity.Data;
 using FSH.Modules.Identity.Domain;
 using FSH.Modules.Multitenancy.Contracts;
 using FSH.Modules.Multitenancy.Data;
 using FSH.Modules.Multitenancy.Provisioning;
-using FSH.Modules.Tickets.Contracts.Dtos;
-using FSH.Modules.Tickets.Data;
-using FSH.Modules.Tickets.Domain;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -28,8 +23,8 @@ namespace FSH.Starter.DbMigrator.DemoSeed;
 
 /// <summary>
 /// Owns the "rich demo content" that the dev environment needs to feel lived-in:
-/// the <c>acme</c> and <c>globex</c> tenants, their demo users, custom roles,
-/// catalog content and tickets. Invoked by the migrator's
+/// the <c>acme</c> and <c>globex</c> tenants, their subscriptions, demo users and
+/// custom roles. Invoked by the migrator's
 /// <c>seed-demo</c> verb — never by the API runtime.
 ///
 /// Idempotent: every step checks before writing, so re-running the verb
@@ -82,14 +77,12 @@ internal sealed class DemoSeeder
         {
             await SeedTenantSubscriptionAsync(demo, cancellationToken).ConfigureAwait(false);
             await SeedTenantUsersAsync(demo, cancellationToken).ConfigureAwait(false);
-            await SeedTenantCatalogAsync(demo, cancellationToken).ConfigureAwait(false);
-            await SeedTenantTicketsAsync(demo, cancellationToken).ConfigureAwait(false);
         }
 
         if (_logger.IsEnabled(LogLevel.Information))
         {
             _logger.LogInformation(
-                "[demo-seed] complete · root superadmin + {Acme} + {Globex} populated with users / catalog / tickets",
+                "[demo-seed] complete · root superadmin + {Acme} + {Globex} populated with subscriptions / users",
                 Acme.Id, Globex.Id);
         }
     }
@@ -127,7 +120,7 @@ internal sealed class DemoSeeder
             }
 
             // Same per-tenant path the migrator's apply verb uses. The Identity initializer creates
-            // the tenant admin, while Catalog/Tickets initializers are no-ops today.
+            // the tenant admin.
             await tenantService.MigrateTenantAsync(existing, cancellationToken).ConfigureAwait(false);
             await tenantService.SeedTenantAsync(existing, cancellationToken).ConfigureAwait(false);
 
@@ -413,120 +406,6 @@ internal sealed class DemoSeeder
         }
     }
 
-    // ─── Catalog ────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Idempotently seeds the Catalog demo dataset (4 brands / 11 categories /
-    /// 10 products) into the demo tenant. Bails when any catalog row already
-    /// exists for that tenant.
-    /// </summary>
-    private async Task SeedTenantCatalogAsync(DemoTenant demo, CancellationToken cancellationToken)
-    {
-        using var scope = _services.CreateScope();
-        var tenantStore = scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
-        var tenant = await tenantStore.GetAsync(demo.Id).ConfigureAwait(false);
-        if (tenant is null) return;
-
-        scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>()
-            .MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenant);
-
-        var dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
-        bool alreadySeeded = await dbContext.Brands.AnyAsync(cancellationToken).ConfigureAwait(false)
-            || await dbContext.Categories.AnyAsync(cancellationToken).ConfigureAwait(false)
-            || await dbContext.Products.AnyAsync(cancellationToken).ConfigureAwait(false);
-        if (alreadySeeded) return;
-
-        var brands = CatalogSeedData.BuildBrands();
-        dbContext.Brands.AddRange(brands);
-
-        var (roots, children) = CatalogSeedData.BuildCategories();
-        dbContext.Categories.AddRange(roots);
-        dbContext.Categories.AddRange(children);
-
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-        var brandsByName = brands.ToDictionary(b => b.Name, b => b);
-        var categoriesByName = roots.Concat(children).ToDictionary(c => c.Name, c => c);
-        var products = CatalogSeedData.BuildProducts(brandsByName, categoriesByName);
-        dbContext.Products.AddRange(products);
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-        if (_logger.IsEnabled(LogLevel.Information))
-        {
-            _logger.LogInformation(
-                "[demo-seed] [{Tenant}] seeded {BrandCount} brands, {CategoryCount} categories, {ProductCount} products",
-                tenant.Id, brands.Count, roots.Count + children.Count, products.Count);
-        }
-    }
-
-    // ─── Tickets ────────────────────────────────────────────────────────
-
-    private async Task SeedTenantTicketsAsync(DemoTenant demo, CancellationToken cancellationToken)
-    {
-        using var scope = _services.CreateScope();
-        var tenantStore = scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
-        var tenant = await tenantStore.GetAsync(demo.Id).ConfigureAwait(false);
-        if (tenant is null) return;
-
-        scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>()
-            .MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenant);
-
-        var dbContext = scope.ServiceProvider.GetRequiredService<TicketsDbContext>();
-        if (await dbContext.Tickets.AnyAsync(cancellationToken).ConfigureAwait(false))
-        {
-            return;
-        }
-
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<FshUser>>();
-        var usersByEmail = await userManager.Users
-            .ToDictionaryAsync(u => u.Email!, u => Guid.Parse(u.Id), cancellationToken)
-            .ConfigureAwait(false);
-
-        Guid? UserId(string email) =>
-            usersByEmail.TryGetValue(email, out var id) ? id : null;
-
-        IReadOnlyList<TicketScenario> scenarios;
-        if (demo.Id == Acme.Id) scenarios = AcmeTicketScenarios(UserId);
-        else if (demo.Id == Globex.Id) scenarios = GlobexTicketScenarios(UserId);
-        else scenarios = [];
-
-        int number = 1;
-        foreach (var scenario in scenarios)
-        {
-            if (scenario.ReporterUserId is null) continue;
-
-            var ticket = Ticket.Create(
-                number: $"TK-{number.ToString(CultureInfo.InvariantCulture)}",
-                title: scenario.Title,
-                description: scenario.Description,
-                priority: scenario.Priority,
-                reporterUserId: scenario.ReporterUserId.Value,
-                assignedToUserId: scenario.AssignedToUserId);
-
-            foreach (var (authorUserId, body) in scenario.Comments)
-            {
-                if (authorUserId is null) continue;
-                ticket.AddComment(authorUserId.Value, body);
-            }
-
-            if (scenario.Resolve)
-            {
-                ticket.Resolve(scenario.ResolutionNote);
-            }
-
-            dbContext.Tickets.Add(ticket);
-            number++;
-        }
-
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        if (_logger.IsEnabled(LogLevel.Information))
-        {
-            _logger.LogInformation(
-                "[demo-seed] [{Tenant}] seeded {Count} demo ticket(s)",
-                tenant.Id, number - 1);
-        }
-    }
-
     // ─── Demo content shapes ───────────────────────────────────────────
 
     internal sealed record DemoTenant(string Id, string Name, string AdminEmail, string Issuer, string PlanKey);
@@ -537,15 +416,6 @@ internal sealed class DemoSeeder
         string LastName,
         IReadOnlyList<string> Roles);
     internal sealed record DemoRole(string Name, string Description, IReadOnlyList<string> Permissions);
-    private sealed record TicketScenario(
-        string Title,
-        string? Description,
-        TicketPriority Priority,
-        Guid? ReporterUserId,
-        Guid? AssignedToUserId,
-        IReadOnlyList<(Guid? AuthorUserId, string Body)> Comments,
-        bool Resolve,
-        string? ResolutionNote);
 
     private static IReadOnlyList<DemoUser> BuildRootUsers() =>
     [
@@ -573,13 +443,13 @@ internal sealed class DemoSeeder
 
     // Permission claims reference the module contracts constants — never raw strings.
     // A hand-typed name that doesn't match a registry entry (e.g. the old
-    // "Permissions.Brands.View" vs the real "Permissions.Catalog.Brands.View")
+    // "Permissions.Session.View" vs the real "Permissions.Sessions.View")
     // is a claim that grants nothing, silently.
     private static IReadOnlyList<DemoRole> BuildAcmeCustomRoles() =>
     [
         new(
             "Manager",
-            // Catalog, Tickets and the Users, Roles and Groups administration are root-only in the PAF (hidden from the
+            // The kit's Users, Roles and Groups administration is root-only in the PAF (hidden from the
             // client panel): granting them here would be written straight to the table and then stripped by the API's
             // role sync on the next start.
             "Operations manager — own sessions.",
@@ -597,92 +467,5 @@ internal sealed class DemoSeeder
                 IdentityPermissions.Sessions.View,
                 IdentityPermissions.Sessions.Revoke,
             ]),
-    ];
-
-    private static IReadOnlyList<TicketScenario> AcmeTicketScenarios(Func<string, Guid?> uid) =>
-    [
-        new("Login button broken on mobile",
-            "Tapping login on iOS Safari does nothing on first tap. Have to double-tap.",
-            TicketPriority.High,
-            uid("alice@acme.com"),
-            uid("support@acme.com"),
-            [
-                (uid("support@acme.com"),
-                 "Confirmed on iPhone 15 Safari. Looks like a hydration race on the auth button. Looking now."),
-            ],
-            Resolve: false,
-            ResolutionNote: null),
-
-        new("Add dark mode to the dashboard",
-            "Several customers have asked. Let's match the system preference by default.",
-            TicketPriority.Medium,
-            uid("bob@acme.com"),
-            uid("manager@acme.com"),
-            [],
-            Resolve: false,
-            ResolutionNote: null),
-
-        new("Slow page load on /reports",
-            "Initial render takes 6-8s with the full quarter view. Need to chunk the query or add a loader.",
-            TicketPriority.High,
-            uid("carol@acme.com"),
-            uid("manager@acme.com"),
-            [
-                (uid("manager@acme.com"), "Profiling now — the join against audits is the culprit."),
-                (uid("carol@acme.com"),   "Thanks. Let me know if you need a repro account."),
-            ],
-            Resolve: false,
-            ResolutionNote: null),
-
-        new("Update copyright year in footer",
-            "Footer still says © 2024. Tiny fix, just flagging.",
-            TicketPriority.Low,
-            uid("dan@acme.com"),
-            uid("support@acme.com"),
-            [],
-            Resolve: true,
-            ResolutionNote: "Bumped to 2026 and added a year() helper so we don't have to chase it again."),
-
-        new("Email notifications missing tenant logo",
-            "Notification emails render the default placeholder instead of the tenant brand mark.",
-            TicketPriority.Medium,
-            uid("erin@acme.com"),
-            uid("manager@acme.com"),
-            [
-                (uid("manager@acme.com"),
-                 "Template was hardcoded to /assets/default.png — switched to tenant.theme.logoUrl."),
-            ],
-            Resolve: true,
-            ResolutionNote: "Released in 1.4.2. Verified across acme and globex."),
-
-        new("Onboarding survey wording feels stiff",
-            "Step 3 copy is robotic. Could we soften it?",
-            TicketPriority.Low,
-            uid("frank@acme.com"),
-            null,
-            [],
-            Resolve: false,
-            ResolutionNote: null),
-    ];
-
-    private static IReadOnlyList<TicketScenario> GlobexTicketScenarios(Func<string, Guid?> uid) =>
-    [
-        new("Need help wiring our Salesforce integration",
-            "We're trying to set up the inbound webhook but it keeps returning 401. Maybe a tenant header thing?",
-            TicketPriority.Medium,
-            uid("dave@globex.com"),
-            null,
-            [],
-            Resolve: false,
-            ResolutionNote: null),
-
-        new("Export to CSV truncates long descriptions",
-            "Product descriptions over ~500 chars get cut off in the CSV download.",
-            TicketPriority.Low,
-            uid("dave@globex.com"),
-            null,
-            [],
-            Resolve: false,
-            ResolutionNote: null),
     ];
 }

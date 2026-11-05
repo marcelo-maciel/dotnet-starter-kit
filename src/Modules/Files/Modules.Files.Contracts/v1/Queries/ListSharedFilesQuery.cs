@@ -7,7 +7,7 @@ namespace FSH.Modules.Files.Contracts.v1.Queries;
 /// <summary>
 /// List files marked Public and tagged with the built-in tenant-wide owner types
 /// (<c>MyFiles</c>, <c>User</c>) — the inverse of <c>ListMyFilesQuery</c>. Domain-bound
-/// attachments (Product images, Ticket files) deliberately don't show up
+/// attachments deliberately don't show up
 /// here: their visibility is a function of their owning entity's access rules, not a
 /// free-standing share decision.
 /// </summary>
