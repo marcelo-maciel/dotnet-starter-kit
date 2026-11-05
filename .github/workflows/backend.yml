@@ -131,6 +131,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
+    # About 30 min when green; without a ceiling a hung host or container holds the runner for the 6 h default.
+    timeout-minutes: 60
     # Testcontainers requires Docker — ubuntu-latest has it pre-installed.
     steps:
       - name: Checkout
