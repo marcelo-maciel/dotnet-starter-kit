@@ -10,8 +10,10 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+  # The PAF integrates on feat/paf-esqueleto long before main: paf.yml runs only the Paf* integration classes, so
+  # without this a PR there never runs the kit's integration suite, whose classes share the PAF's host and database.
   pull_request:
-    branches: [main]
+    branches: [main, feat/paf-esqueleto]
   workflow_dispatch:
     inputs:
       version:
