@@ -36,6 +36,11 @@
         <ProjectReference Include="..\..\Host\FSH.Starter.Api\FSH.Starter.Api.csproj" />
     </ItemGroup>
 
+    <!-- Diagnostic messages on: DiagnosticoParada reports through them when it cannot write its file. -->
+    <ItemGroup>
+        <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
     <!-- Host-agnostic helpers of the shared harness, linked rather than copied so they cannot drift. -->
     <ItemGroup>
         <Compile Include="..\Integration.Tests\Infrastructure\TestConstants.cs" Link="Linked\TestConstants.cs" />
