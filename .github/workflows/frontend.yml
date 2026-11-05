@@ -73,7 +73,7 @@ jobs:
     name: E2E (${{ matrix.app }})
     needs: changes
     if: needs.changes.outputs.frontend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
