@@ -21,7 +21,7 @@ export const DEFAULT_PROFILE = {
 /**
  * Mock every API call the authenticated AppShell fires on load so any
  * protected page can be visited in isolation without hanging on the
- * the SSE/realtime providers.
+ * SSE provider.
  *
  * ORDERING: Playwright matches the MOST RECENTLY registered route first.
  * We register broad globs first and the more-specific ones last. Callers
@@ -29,11 +29,9 @@ export const DEFAULT_PROFILE = {
  * these defaults (e.g. a spec can return real rows).
  */
 export async function installShellMocks(page: Page): Promise<void> {
-  // Long-lived realtime transports — abort so they neither keep the network
-  // busy nor spew reconnect noise. The shell simply shows an "offline" dot.
+  // Long-lived transports — abort so they neither keep the network busy nor spew reconnect noise.
   await page.route("**/api/v1/sse/**", (r: Route) => r.abort());
   await page.route("**/negotiate**", (r: Route) => r.abort());
-  await page.route("**/api/v1/realtime/**", (r: Route) => r.abort());
 
   // Defensive: profile + permissions (harmless if a page re-reads them).
   await mockJsonResponse(page, "**/api/v1/identity/profile", DEFAULT_PROFILE);

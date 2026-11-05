@@ -30,13 +30,11 @@ test.describe("settings/notifications — fora do produto", () => {
     await expect(paleta.getByRole("option", { name: /^Segurança/ })).toBeVisible();
     await expect(paleta.getByRole("option", { name: /^Notificações/ })).toHaveCount(0);
     await page.keyboard.press("Escape");
-
   });
 
-  test("o topbar não tem sino e mostra o estado da conexão em tempo real", async ({ page }) => {
+  test("o topbar não tem sino", async ({ page }) => {
     await page.goto("/settings/profile");
     const topbar = page.getByRole("banner");
     await expect(topbar.getByRole("button", { name: /^Notificações/ })).toHaveCount(0);
-    await expect(topbar.getByRole("status")).toBeVisible();
   });
 });
