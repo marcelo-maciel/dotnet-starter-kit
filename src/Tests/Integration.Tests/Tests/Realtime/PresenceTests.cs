@@ -160,7 +160,10 @@ public sealed class PresenceTests
             .Build();
         await using var _ = connection;
 
-        await Should.ThrowAsync<Exception>(async () => await connection.StartAsync());
+        // The hub is [Authorize]: negotiate answers 401 and the client surfaces it as is, not some other failure
+        // (a 404 on a mistyped path or a 500 would also throw).
+        var ex = await Should.ThrowAsync<HttpRequestException>(async () => await connection.StartAsync());
+        ex.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     // ─── helpers ─────────────────────────────────────────────────────
