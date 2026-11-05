@@ -33,7 +33,7 @@ playbook is the review procedure, not a second copy of the rules.
 **Cross-cutting**
 - **Structured logging only** — no `$"..."` interpolation in log calls.
 - `CancellationToken` propagated into EF/IO calls.
-- Cross-module events go via the Outbox (`IOutboxWriter.AddAsync`), not a direct bus publish. The only sanctioned exception is Chat mentions, which carries its reason in a comment.
+- Cross-module events go via the Outbox (`IOutboxWriter.AddAsync`), not a direct bus publish. An exception must carry its reason in a comment at the call site.
 
 **Frontend** (`frontend/*` rules)
 - Hand-written types + `apiFetch`; mutation data passed via `mutate(arg)`; query keys hierarchical; admin gates routes with `RouteGuard` + mirrors the permission; dashboard uses `withSuspense`.
