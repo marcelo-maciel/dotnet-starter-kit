@@ -6,6 +6,7 @@ using FSH.Modules.Identity.Contracts.v1.Impersonation;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Sessao;
 using Hangfire;
+using Hangfire.States;
 using Hangfire.Storage;
 using Integration.Tests.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -109,6 +110,64 @@ public sealed class PafManutencaoLicencasTests(FshWebApplicationFactory factory)
         job.Cron.ShouldBe(ManutencaoLicencas.Cron);
         job.Job.Type.ShouldBe(typeof(ManutencaoLicencas));
         job.Job.Method.Name.ShouldBe(nameof(ManutencaoLicencas.ExecutarAsync));
+    }
+
+    [Fact]
+    public async Task SemPassadaDoHost_NovaTentativaPendente_ApagadaESegueSegurandoATrava()
+    {
+        var storage = factory.Services.GetRequiredService<JobStorage>();
+        string pendente;
+        using (var conexao = storage.GetConnection())
+        {
+            await LongeDoProximoTickAsync(conexao);
+            // Planted under the scheduler's own lock, so no tick lands between the job and the hash write.
+            using (conexao.AcquireDistributedLock(TravaDoAgendador, TimeSpan.FromSeconds(30)))
+            {
+                // What AutomaticRetry leaves after a failed pass: the same job, Scheduled for later, as the last one.
+                var recorrente = conexao.GetRecurringJobs().Single(j => j.Id == ManutencaoLicencas.IdRecorrente);
+                pendente = new BackgroundJobClient(storage).Create(recorrente.Job, new ScheduledState(TimeSpan.FromHours(1)));
+                using var transacao = conexao.CreateWriteTransaction();
+                transacao.SetRangeInHash($"recurring-job:{ManutencaoLicencas.IdRecorrente}", [new("LastJobId", pendente)]);
+                transacao.Commit();
+            }
+
+            conexao.GetRecurringJobs().Single(j => j.Id == ManutencaoLicencas.IdRecorrente).LastJobId.ShouldBe(pendente);
+            conexao.GetJobData(pendente).State.ShouldBe(ScheduledState.StateName);
+        }
+
+        var relogio = System.Diagnostics.Stopwatch.StartNew();
+        using (await _tenant.SemPassadaDoHostAsync())
+        {
+            relogio.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(10), "o helper esperou a nova tentativa em vez de apagá-la");
+            using var conexao = storage.GetConnection();
+            conexao.GetJobData(pendente).State.ShouldBe(DeletedState.StateName);
+            Should.Throw<DistributedLockTimeoutException>(
+                () => conexao.AcquireDistributedLock(TravaDoAgendador, TimeSpan.FromSeconds(1)).Dispose());
+        }
+
+        using (var conexao = storage.GetConnection())
+        using (conexao.AcquireDistributedLock(TravaDoAgendador, TimeSpan.FromSeconds(5)))
+        {
+            // Released on dispose: the host's ticks resume.
+        }
+    }
+
+    private const string TravaDoAgendador = "recurring-jobs:lock";
+
+    // A tick due right after the planting would replace LastJobId before the helper reads it.
+    private static async Task LongeDoProximoTickAsync(IStorageConnection conexao)
+    {
+        var limite = DateTime.UtcNow.AddMinutes(6);
+        while (conexao.GetRecurringJobs().Single(j => j.Id == ManutencaoLicencas.IdRecorrente).NextExecution is not { } proxima
+            || proxima < DateTime.UtcNow.AddSeconds(30))
+        {
+            if (DateTime.UtcNow > limite)
+            {
+                throw new TimeoutException("a próxima execução da manutenção não saiu dos próximos 30 s em 6 min");
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(500));
+        }
     }
 
     [Fact]
