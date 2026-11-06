@@ -1,7 +1,7 @@
 // E5 walk against a REAL API (no response mocks; one request is tampered on the way out, marked NEGATIVE): the RF07
 // screen shows total 1 with both times filled after one ficha goes through the guichê, the prioridade filter changes
 // the total exactly as the API answers it, copy carries TSV, the CSV file has BOM, `;`, CRLF and decimal comma, an
-// inverted period is blocked on the screen, the server's 400 and 403 are shown with their message.
+// inverted period is blocked on the screen, the server's 400 is shown with its message, and a user without the permission gets the sem-acesso notice.
 //
 // Run through the walk harness (fresh database, seed-demo, API and dashboard on free ports, everything torn down):
 //   PAF_SENHA_DEMO=<not the kit default> PAF_WALK=tests/e2e/paf-estatistica.walk.mjs deploy/paf/walk-local.sh
@@ -252,22 +252,27 @@ try {
   check("400 do servidor: mensagem da regra na tela", await visivel(p.locator("[data-erro-consulta]", { hasText: MSG_PERIODO })));
   check("400 do servidor: tabela anterior some", (await p.locator("[data-tabela-estatistica]").count()) === 0);
 
-  // ── 403: a user without Estatisticas.View has no menu entry and sees the refusal on the screen ──
+  // ── 403: a user without Estatisticas.View has no menu entry and the URL shows the notice ──
   const ctxBob = await browser.newContext();
   const pBob = await entrar(ctxBob, SEM_PERMISSAO);
   // The guichê entry (Guiches.Selecionar, an Atendente permission) proves the menu has rendered before counting.
   await pBob.locator('aside a[href="/paf/guiche"]').waitFor({ state: "attached", timeout: TIMEOUT });
   check("403: sem entrada no menu", (await pBob.locator('aside a[href="/paf/estatistica"]').count()) === 0);
+  // The PAF layout refuses the URL before mounting the screen: the notice replaces it and no request is made.
+  const chamadasEstatistica = [];
+  pBob.on("request", (r) => {
+    if (r.url().includes(ROTA_API)) chamadasEstatistica.push(r.url());
+  });
   await pBob.goto(`${WEB}/paf/estatistica`);
-  check(
-    "403: filtros de fila e prioridade sem permissão somem com aviso, a tela continua",
-    (await visivel(pBob.getByText(/Filtro de fila indisponível/))) && (await pBob.getByLabel("Fila").count()) === 0 && (await pBob.getByLabel("Prioridade").count()) === 0,
-  );
-  const recusa = await consultar(pBob);
-  check("403: status real 403", recusa.status === 403, String(recusa.status));
-  // The PAF text wins when the server wrote one in Portuguese (paf-erros.ts); either way the refusal is spelled out.
-  const textoRecusa = typeof recusa.corpo?.detail === "string" && /[à-úÀ-Ú]/.test(recusa.corpo.detail) ? recusa.corpo.detail : "Você não tem permissão";
-  check("403: mensagem na tela", await visivel(pBob.locator("[data-erro-consulta]", { hasText: textoRecusa })), `esperado "${textoRecusa}"`);
+  check("403: a tela mostra o aviso de sem acesso", await visivel(pBob.locator("[data-sem-acesso]")));
+  check("403: nenhuma tela de consulta montada", (await pBob.getByRole("button", { name: "Consultar" }).count()) === 0);
+  // The PAF hub keeps a connection open, so the network never idles: give a stray request time to leave instead.
+  await pBob.waitForTimeout(2_000);
+  check("403: a tela não chamou a API", chamadasEstatistica.length === 0, JSON.stringify(chamadasEstatistica));
+  // The server still refuses on its own, with the bob token the browser holds.
+  const tokenBob = await pBob.evaluate(() => localStorage.getItem("fsh.dashboard.accessToken"));
+  const recusa = await fetch(API + ROTA_API, { headers: { tenant: TENANT, "X-FSH-App": "dashboard", Authorization: `Bearer ${tokenBob}` }, signal: AbortSignal.timeout(TIMEOUT) });
+  check("403: status real 403 da API", recusa.status === 403, String(recusa.status));
 } catch (erro) {
   falhas += 1;
   console.log(`FAIL exceção :: ${erro?.stack ?? erro}`);
