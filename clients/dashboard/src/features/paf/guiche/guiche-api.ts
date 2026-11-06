@@ -33,6 +33,8 @@ export type PostoDto = {
   estacaoId: string | null;
   guiche: string | null;
   atendimento: AtendimentoEmCursoDto | null;
+  /** The guichê's "selecionar ficha" option; false with no guichê. */
+  selecionarFicha: boolean;
 };
 
 export type ChamadaDto = {

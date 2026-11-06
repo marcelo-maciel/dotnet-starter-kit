@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using FSH.Modules.PAF.Contracts.v1.Atendimentos;
+using FSH.Modules.PAF.Contracts.v1.Guiches;
 using FSH.Modules.PAF.Data;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Features.v1.Atendimentos;
@@ -19,6 +20,7 @@ namespace Integration.Tests.Tests.PAF;
 public sealed class PafSelecaoFichaTests(FshWebApplicationFactory factory) : IAsyncLifetime
 {
     private const string RotaLista = "/api/v1/paf/guiche/fichas-em-espera";
+    private const string RotaPosto = "/api/v1/paf/guiche/posto";
     private static readonly TimeSpan Prazo = TimeSpan.FromSeconds(15);
 
     private readonly PafTenantCliente _tenant = new(factory, "paf-sel");
@@ -109,6 +111,32 @@ public sealed class PafSelecaoFichaTests(FshWebApplicationFactory factory) : IAs
         }
 
         await ShouldBeIntactoAsync(c, ficha.AtendimentoId);
+    }
+
+    // The screen asks for the list only when the post says the option is on: the flag must be true exactly where the
+    // list answers 200, or the screen either fires a predictable 409 or hides a list it could show.
+    [Fact]
+    public async Task Posto_InformaAOpcao_VerdadeiroSoOndeAListaResponde()
+    {
+        var c = await _op.CriarAsync();
+        using var guicheA = await _op.AtendenteAsync(c, c.GuicheA);
+
+        foreach (var (configuracao, ligada) in new[]
+        {
+            ("{}", false),
+            ("""{"selecionarFicha": false}""", false),
+            ("""{"selecionarFicha": "true"}""", false),
+            ("""{"selecionarFicha": true}""", true),
+        })
+        {
+            await _tenant.ExecutarAsync($"""UPDATE paf."Estacoes" SET "Configuracao" = {configuracao}::jsonb WHERE "Id" = {c.GuicheA}""");
+
+            var posto = await guicheA.GetFromJsonAsync<PostoGuicheDto>(RotaPosto);
+            posto.ShouldNotBeNull().EstacaoId.ShouldBe(c.GuicheA);
+            posto.SelecionarFicha.ShouldBe(ligada, configuracao);
+            using var lista = await guicheA.GetAsync(RotaLista);
+            lista.StatusCode.ShouldBe(ligada ? HttpStatusCode.OK : HttpStatusCode.Conflict, configuracao);
+        }
     }
 
     // ─── recusas da escolha ──────────────────────────────────────────
