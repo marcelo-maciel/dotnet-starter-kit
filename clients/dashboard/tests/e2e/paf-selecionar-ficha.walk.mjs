@@ -176,15 +176,28 @@ try {
   const alice = await entrar(await browser.newContext(), ALICE, guiche1.id);
 
   // ── Option off: the screen lists the fichas but offers no out-of-order call ──
+  // The post tells the option, so the screen must not even ask for the waiting list: the 409 it would get is
+  // handled, but the browser still logs it as an error on every visit.
+  const pedidosEmEspera = [];
+  const errosNoConsole = [];
+  alice.on("request", (r) => {
+    if (r.url().includes("/api/v1/paf/guiche/fichas-em-espera")) pedidosEmEspera.push(r.url());
+  });
+  alice.on("console", (m) => {
+    if (m.type() === "error") errosNoConsole.push(m.text());
+  });
   await alice.goto(`${WEB}/paf/fichas-do-dia`);
   check("sem a opção: as fichas aparecem Aguardando", await estadoNaTela(alice, x1, "Aguardando"));
   await alice.waitForTimeout(1_000);
   check("sem a opção: nenhum Chamar esta", (await alice.locator("[data-chamar-esta]").count()) === 0);
   check("sem a opção: nenhum erro na tela", (await alice.getByRole("alert").count()) === 0);
+  check("sem a opção: nenhuma requisição a fichas-em-espera", pedidosEmEspera.length === 0, pedidosEmEspera.join(" "));
+  check("sem a opção: nenhum erro no console", errosNoConsole.length === 0, errosNoConsole.join(" | "));
 
   await configurarGuiche1(true);
   await alice.reload();
   check("com a opção: Chamar esta aparece", await botao(alice, x1).waitFor({ timeout: TIMEOUT }).then(() => true, () => false));
+  check("com a opção: a lista de fichas em espera é pedida", pedidosEmEspera.length > 0);
   const rotulos = await Promise.all(fichas.map((f) => botao(alice, f).textContent()));
   check("posição na chamada: a mais antiga é a 1ª, na ordem de emissão",
     rotulos.join(",") === "Chamar esta (1ª),Chamar esta (2ª),Chamar esta (3ª),Chamar esta (4ª)", rotulos.join(","));

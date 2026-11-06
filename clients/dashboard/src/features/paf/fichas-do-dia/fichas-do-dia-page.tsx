@@ -56,15 +56,16 @@ export function FichasDoDiaPage() {
   // ponytail: no realtime here; the operator refreshes. Subscribe to FilaAtualizada/AtendimentoAtualizado if asked.
   const consulta = useQuery({ queryKey: chave, queryFn: () => listarFichasDoDia(filtro) });
 
-  // F21: "Chamar esta" exists only on the session's guichê with the selecionarFicha option (REQ seção 4). No retry:
-  // the 409 of an option that is off is an answer, not a transient failure.
+  // F21: "Chamar esta" exists only on the session's guichê with the selecionarFicha option (REQ seção 4). The post
+  // says whether the option is on, so the list is asked for only where it answers. No retry: a 409 left is the option
+  // switched off meanwhile, an answer and not a transient failure.
   const podeSelecionar = permissoes.includes(PERMISSAO_SELECIONAR_FICHA);
   const posto = useQuery({ queryKey: ["paf", "guiche", "posto"], queryFn: obterPosto, enabled: podeSelecionar, retry: false });
   const estacaoDoPosto = posto.data?.estacaoId ?? null;
   const emEspera = useQuery({
     queryKey: ["paf", "fichas-do-dia", "em-espera", estacaoDoPosto],
     queryFn: listarFichasEmEspera,
-    enabled: podeSelecionar && estacaoDoPosto !== null,
+    enabled: podeSelecionar && estacaoDoPosto !== null && posto.data?.selecionarFicha === true,
     retry: false,
   });
   const posicoes = posicaoNaChamada(emEspera.data ?? []);
