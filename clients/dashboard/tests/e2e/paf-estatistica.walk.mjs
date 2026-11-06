@@ -266,7 +266,8 @@ try {
   await pBob.goto(`${WEB}/paf/estatistica`);
   check("403: a tela mostra o aviso de sem acesso", await visivel(pBob.locator("[data-sem-acesso]")));
   check("403: nenhuma tela de consulta montada", (await pBob.getByRole("button", { name: "Consultar" }).count()) === 0);
-  await pBob.waitForLoadState("networkidle");
+  // The PAF hub keeps a connection open, so the network never idles: give a stray request time to leave instead.
+  await pBob.waitForTimeout(2_000);
   check("403: a tela não chamou a API", chamadasEstatistica.length === 0, JSON.stringify(chamadasEstatistica));
   // The server still refuses on its own, with the bob token the browser holds.
   const tokenBob = await pBob.evaluate(() => localStorage.getItem("fsh.dashboard.accessToken"));
