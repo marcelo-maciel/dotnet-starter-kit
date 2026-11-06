@@ -6,6 +6,7 @@ using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Framework.Shared.Quota;
 using FSH.Modules.Billing.Contracts;
+using FSH.Modules.Billing.Contracts.Authorization;
 using FSH.Modules.Billing.Contracts.Dtos;
 using FSH.Modules.Billing.Data;
 using FSH.Modules.Billing.Domain;
@@ -65,7 +66,7 @@ public sealed class BillingTenantIsolationTests
         var otherAdminEmail = $"billing-inv-admin-{uniqueId}@tenant.com";
 
         await CreateTenantAsync(rootClient, otherTenantId, otherAdminEmail);
-        await WaitForProvisioningAsync(rootClient, otherTenantId);
+        await TenantProvisioningWait.WaitForProvisioningAsync(rootClient, otherTenantId);
         using var otherClient = await CreateTenantAdminClientWithRetryAsync(
             otherAdminEmail, TestConstants.DefaultPassword, otherTenantId);
 
@@ -108,14 +109,14 @@ public sealed class BillingTenantIsolationTests
         var otherAdminEmail = $"billing-sub-admin-{uniqueId}@tenant.com";
 
         await CreateTenantAsync(rootClient, otherTenantId, otherAdminEmail);
-        await WaitForProvisioningAsync(rootClient, otherTenantId);
+        await TenantProvisioningWait.WaitForProvisioningAsync(rootClient, otherTenantId);
         using var otherClient = await CreateTenantAdminClientWithRetryAsync(
             otherAdminEmail, TestConstants.DefaultPassword, otherTenantId);
 
         // Act + Assert — owner reads its own subscription back.
         var ownerSub = await GetSubscriptionAsync(rootClient, TestConstants.RootTenantId);
         ownerSub.ShouldNotBeNull("the owning tenant must be able to read its own subscription");
-        ownerSub!.Id.ShouldBe(rootSubId);
+        ownerSub.Id.ShouldBe(rootSubId);
         ownerSub.TenantId.ShouldBe(TestConstants.RootTenantId);
 
         // Act + Assert — tenant B passing root's tenant id must NOT receive root's subscription.
@@ -146,7 +147,7 @@ public sealed class BillingTenantIsolationTests
     // alone is insufficient). Each test below has tenant B target root's resource; pre-fix these succeeded.
 
     [Fact]
-    public async Task VoidInvoice_Should_Return404_When_OwnedByDifferentTenant()
+    public async Task VoidInvoice_Should_BeRefused_When_OwnedByDifferentTenant()
     {
         var (year, month) = NextPeriod();
         var invoiceId = await SeedDraftInvoiceAsync(TestConstants.RootTenantId, year, month, basePrice: 77.00m);
@@ -155,10 +156,11 @@ public sealed class BillingTenantIsolationTests
         var (otherClient, _) = await CreateForeignTenantClientAsync(rootClient, "void");
         using var _o = otherClient;
 
-        // Tenant B tries to void root's invoice → must 404, and the invoice must stay Draft.
+        // Tenant B tries to void root's invoice → refused, and the invoice must stay Draft. Billing.Manage is
+        // root-only, so B stops at the permission gate (403) before the handler's ownership check (404).
         using var crossResp = await otherClient.PostAsJsonAsync(
             $"{BillingBasePath}/invoices/{invoiceId}/void", new { reason = "malicious" });
-        crossResp.StatusCode.ShouldBe(HttpStatusCode.NotFound,
+        crossResp.StatusCode.ShouldBe(HttpStatusCode.Forbidden,
             "a tenant must not be able to void another tenant's invoice by id");
 
         using var ownerRead = await rootClient.GetAsync($"{BillingBasePath}/invoices/{invoiceId}");
@@ -189,7 +191,7 @@ public sealed class BillingTenantIsolationTests
 
         var rootSubAfter = await GetSubscriptionAsync(rootClient, TestConstants.RootTenantId);
         rootSubAfter.ShouldNotBeNull();
-        rootSubAfter!.Id.ShouldBe(rootSubId,
+        rootSubAfter.Id.ShouldBe(rootSubId,
             "a tenant must not be able to cancel/replace root's subscription via a foreign tenant id");
     }
 
@@ -229,23 +231,19 @@ public sealed class BillingTenantIsolationTests
     }
 
     [Fact]
-    public async Task CaptureUsage_Should_BeScopedToCaller_When_NonRootPassesForeignTenantId()
+    public async Task CaptureUsage_Should_BeRefused_When_NonRootPassesForeignTenantId()
     {
         var (year, month) = NextPeriod();
         using var rootClient = await _auth.CreateRootAdminClientAsync();
         var (otherClient, _) = await CreateForeignTenantClientAsync(rootClient, "capture");
         using var _o = otherClient;
 
-        // B asks to capture usage FOR ROOT. The handler must pin to B, so nothing it returns/writes
-        // belongs to root.
+        // B asks to capture usage FOR ROOT. Billing.Manage is root-only, so B stops at the permission gate
+        // (403); the handler still pins to the caller as a second line.
         using var resp = await otherClient.PostAsJsonAsync(
             $"{BillingBasePath}/usage/snapshots/capture",
             new { tenantId = TestConstants.RootTenantId, periodYear = year, periodMonth = month });
-        resp.StatusCode.ShouldBe(HttpStatusCode.OK, await resp.Content.ReadAsStringAsync());
-
-        var snaps = await ParseAsync<List<UsageSnapshotDto>>(resp);
-        snaps.ShouldAllBe(s => s.TenantId != TestConstants.RootTenantId,
-            "a tenant capturing usage must be scoped to itself — never able to write another tenant's usage");
+        resp.StatusCode.ShouldBe(HttpStatusCode.Forbidden, await resp.Content.ReadAsStringAsync());
     }
 
     [Fact]
@@ -297,7 +295,7 @@ public sealed class BillingTenantIsolationTests
         var generated = await InvokeGenerateInvoiceForPeriodAsync(TestConstants.RootTenantId, year, month);
 
         generated.ShouldNotBeNull("the generator must produce an invoice when an active subscription exists");
-        generated!.Purpose.ShouldBe(InvoicePurpose.Usage,
+        generated.Purpose.ShouldBe(InvoicePurpose.Usage,
             "the usage invoice must be generated even when a subscription invoice already shares the month");
     }
 
@@ -405,6 +403,7 @@ public sealed class BillingTenantIsolationTests
     private async Task<HttpClient> CreateTenantAdminClientWithRetryAsync(
         string email, string password, string tenant, int maxRetries = 30)
     {
+        await HiddenModulePermissions.GrantToTenantAdminAsync(_factory, tenant, [BillingPermissions.View]);
         for (int i = 0; i < maxRetries; i++)
         {
             try
@@ -427,7 +426,7 @@ public sealed class BillingTenantIsolationTests
         var tenantId = $"billing-{label}-iso-{uniqueId}";
         var adminEmail = $"billing-{label}-admin-{uniqueId}@tenant.com";
         await CreateTenantAsync(rootClient, tenantId, adminEmail);
-        await WaitForProvisioningAsync(rootClient, tenantId);
+        await TenantProvisioningWait.WaitForProvisioningAsync(rootClient, tenantId);
         var client = await CreateTenantAdminClientWithRetryAsync(adminEmail, TestConstants.DefaultPassword, tenantId);
         return (client, tenantId);
     }
@@ -456,41 +455,6 @@ public sealed class BillingTenantIsolationTests
         });
         var body = await response.Content.ReadAsStringAsync();
         response.StatusCode.ShouldBe(HttpStatusCode.Created, $"Create tenant failed: {body}");
-    }
-
-    private static async Task WaitForProvisioningAsync(HttpClient client, string tenantId, int maxRetries = 60)
-    {
-        for (int i = 0; i < maxRetries; i++)
-        {
-            var statusResponse = await client.GetAsync(
-                $"{TestConstants.TenantsBasePath}/{tenantId}/provisioning");
-
-            if (statusResponse.IsSuccessStatusCode)
-            {
-                var content = await statusResponse.Content.ReadAsStringAsync();
-                if (content.Contains("Completed", StringComparison.OrdinalIgnoreCase))
-                {
-                    return;
-                }
-
-                if (content.Contains("Failed", StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new InvalidOperationException(
-                        $"Tenant {tenantId} provisioning failed: {content}");
-                }
-            }
-
-            await Task.Delay(1000);
-        }
-
-        var finalResponse = await client.GetAsync(
-            $"{TestConstants.TenantsBasePath}/{tenantId}/provisioning");
-        var finalContent = finalResponse.IsSuccessStatusCode
-            ? await finalResponse.Content.ReadAsStringAsync()
-            : $"HTTP {finalResponse.StatusCode}";
-
-        throw new TimeoutException(
-            $"Tenant {tenantId} provisioning did not complete within {maxRetries} seconds. Last status: {finalContent}");
     }
 
     #endregion

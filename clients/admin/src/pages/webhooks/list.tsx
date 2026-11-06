@@ -31,8 +31,9 @@ import {
 } from "@/components/list";
 import { EmptyState } from "@/components/empty-state";
 import { CreateWebhookDialog } from "@/components/webhooks/create-webhook-dialog";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
+import { SAO_PAULO } from "@/lib/format";
 
 const PAGE_SIZE = 25;
 
@@ -221,7 +222,7 @@ function Row({
               </span>
             )}
             <span className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-[var(--color-muted-foreground)]">
-              · since {new Date(sub.createdAtUtc).toLocaleDateString()}
+              · since {new Date(sub.createdAtUtc).toLocaleDateString(undefined, { timeZone: SAO_PAULO })}
             </span>
           </div>
         </button>
@@ -254,7 +255,7 @@ function Row({
 }
 
 function describe(err: unknown): string {
-  if (err instanceof ApiRequestError) return err.problem?.detail ?? err.problem?.title ?? err.message;
+  if (err instanceof ApiRequestError) return describeError(err);
   if (err instanceof Error) return err.message;
   return String(err);
 }

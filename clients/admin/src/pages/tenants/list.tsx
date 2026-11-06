@@ -11,6 +11,7 @@ import { cn } from "@/lib/cn";
 import { CreateTenantDialog } from "@/components/tenants/create-tenant-dialog";
 import { useAuth } from "@/auth/use-auth";
 import { MultitenancyPermissions } from "@/lib/permissions";
+import { SAO_PAULO } from "@/lib/format";
 
 const PAGE_SIZE = 12;
 
@@ -19,7 +20,7 @@ const DESKTOP_COLS = "grid-cols-[1fr_140px_24px] lg:grid-cols-[1.6fr_1.4fr_140px
 
 function formatDate(value: string): string {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString();
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(undefined, { timeZone: SAO_PAULO });
 }
 
 export function TenantsListPage() {

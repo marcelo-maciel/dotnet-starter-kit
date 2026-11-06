@@ -73,7 +73,7 @@ export function Sidebar() {
   return (
     <aside
       data-collapsed={collapsed || undefined}
-      aria-label="Primary navigation"
+      aria-label="Navegação principal"
       className={cn(
         "hidden shrink-0 flex-col border-r border-[var(--color-border)]",
         "bg-[oklch(from_var(--color-card)_l_c_h_/_0.85)] backdrop-blur-xl backdrop-saturate-150 md:flex",
@@ -91,20 +91,18 @@ export function Sidebar() {
         <div className={cn("flex items-center", collapsed ? "" : "gap-2.5")}>
           <span
             aria-hidden
-            className={cn(
-              "brand-mark grid size-8 place-items-center rounded-lg shrink-0",
-              "font-display text-[12px] font-bold text-[var(--color-primary-foreground)]",
-            )}
+            className="grid size-8 shrink-0 place-items-center rounded-lg bg-white p-0.5 ring-1 ring-[var(--color-border)]"
           >
-            F
+            {/* ponytail: logo files are rasters cut from a 373x507 PNG; swap for the vector logo when Marcelo has one. */}
+            <img src="/logo-paf-simbolo.png" alt="" className="size-full object-contain" />
           </span>
           {!collapsed && (
             <div className="flex flex-col">
               <span className="whitespace-nowrap font-display text-[15px] font-bold leading-none tracking-tight text-[var(--color-foreground)]">
-                fullstack<span className="text-[var(--color-primary)]">hero</span>
+                Passo a <span className="text-[var(--color-primary)]">Frente</span>
               </span>
               <span className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.7)]">
-                Dashboard
+                Atendimento
               </span>
             </div>
           )}
@@ -114,9 +112,9 @@ export function Sidebar() {
           <button
             type="button"
             onClick={toggle}
-            aria-label="Collapse sidebar"
+            aria-label="Recolher menu"
             aria-expanded={!collapsed}
-            title="Collapse sidebar"
+            title="Recolher menu"
             className={cn(
               "grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-md",
               "text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)] hover:text-[var(--color-foreground)]",
@@ -146,9 +144,9 @@ export function Sidebar() {
           <button
             type="button"
             onClick={toggle}
-            aria-label="Expand sidebar"
+            aria-label="Expandir menu"
             aria-expanded={false}
-            title="Expand sidebar"
+            title="Expandir menu"
             className={cn(
               "grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-md",
               "text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)] hover:text-[var(--color-foreground)]",
@@ -160,7 +158,7 @@ export function Sidebar() {
           </button>
         ) : (
           <p className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-[var(--color-muted-foreground)]">
-            v0.1 · dashboard
+            v0.1
           </p>
         )}
       </div>

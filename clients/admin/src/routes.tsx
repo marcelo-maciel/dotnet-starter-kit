@@ -14,6 +14,7 @@ import {
   MultitenancyPermissions,
   WebhooksPermissions,
 } from "@/lib/permissions";
+import { PermissoesOperadorPaf } from "@/features/paf/operador/api-operador";
 
 // Lazy-loaded pages — each `import()` becomes its own bundle chunk so the
 // initial paint only ships the shell + dashboard. We re-export the named
@@ -41,9 +42,10 @@ const TopupsListPage = lazyNamed(() => import("@/pages/billing/topups-list"), "T
 const AuditsListPage = lazyNamed(() => import("@/pages/audits/list"), "AuditsListPage");
 const HealthPage = lazyNamed(() => import("@/pages/health/page"), "HealthPage");
 const ImpersonationListPage = lazyNamed(() => import("@/pages/impersonation/list"), "ImpersonationListPage");
+const UnidadesOperadorPage = lazyNamed(() => import("@/features/paf/operador/unidades-operador-page"), "UnidadesOperadorPage");
+const EstacoesOperadorPage = lazyNamed(() => import("@/features/paf/operador/estacoes-operador-page"), "EstacoesOperadorPage");
 const WebhooksListPage = lazyNamed(() => import("@/pages/webhooks/list"), "WebhooksListPage");
 const WebhookDetailPage = lazyNamed(() => import("@/pages/webhooks/detail"), "WebhookDetailPage");
-const NotificationsInboxPage = lazyNamed(() => import("@/pages/notifications/inbox"), "NotificationsInboxPage");
 const SettingsLayout = lazyNamed(() => import("@/pages/settings/layout"), "SettingsLayout");
 const ProfileSettings = lazyNamed(() => import("@/pages/settings/profile"), "ProfileSettings");
 const SecuritySettings = lazyNamed(() => import("@/pages/settings/security"), "SecuritySettings");
@@ -196,7 +198,7 @@ export const router = createBrowserRouter([
           },
 
           // Webhooks — list/detail both read subscriptions, which the server
-          // gates on Webhooks.View (granted to Basic by default).
+          // gates on Webhooks.View (Admin only).
           {
             path: "webhooks",
             element: (
@@ -214,8 +216,27 @@ export const router = createBrowserRouter([
             ),
           },
 
-          // Notifications inbox — available to every signed-in user
-          { path: "notifications", element: <NotificationsInboxPage /> },
+          // PAF: Codefi operator side (ADR 0008, module registration)
+          {
+            path: "paf/unidades",
+            element: (
+              <RouteGuard perms={[PermissoesOperadorPaf.UnidadesOperar]}>
+                <UnidadesOperadorPage />
+              </RouteGuard>
+            ),
+          },
+          // O13: station monitoring (RNF20)
+          {
+            path: "paf/estacoes",
+            element: (
+              <RouteGuard perms={[PermissoesOperadorPaf.UnidadesOperar]}>
+                <EstacoesOperadorPage />
+              </RouteGuard>
+            ),
+          },
+
+          // The inbox was removed (nothing creates notifications since the Chat module left): old bookmarks go home.
+          { path: "notifications", element: <Navigate to="/" replace /> },
 
           // Health — public probes; signed-in users only see this from inside the app
           { path: "health", element: <HealthPage /> },

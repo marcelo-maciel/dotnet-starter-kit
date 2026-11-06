@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Camera, Fingerprint, UserCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/use-auth";
-import { getMyProfile, setProfileImage, updateMyProfile } from "@/api/identity";
+import { getMyProfileWithETag, setProfileImage, updateMyProfile } from "@/api/identity";
+import type { UserDto } from "@/api/identity";
 import { ApiRequestError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,11 +20,18 @@ export function ProfileSettings() {
 
   const profileQuery = useQuery({
     queryKey: PROFILE_KEY,
-    queryFn: getMyProfile,
+    queryFn: getMyProfileWithETag,
   });
 
-  const profile = profileQuery.data;
+  const profile = profileQuery.data?.profile;
   const loading = profileQuery.isLoading;
+
+  // The version this form is editing against, captured when the form is seeded. Deliberately a
+  // ref and not `profileQuery.data`: a background refetch would otherwise move it to a version
+  // the user never saw, and the save would carry an If-Match that matches whatever someone else
+  // just wrote — silently overwriting it, which is exactly what the ETag exists to prevent. It
+  // moves only on a deliberate step: a successful save, or the user being told about a conflict.
+  const editingVersionRef = useRef<{ profile: UserDto; etag: string | null } | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
@@ -35,40 +43,82 @@ export function ProfileSettings() {
   const seededRef = useRef(false);
   useEffect(() => {
     if (seededRef.current) return;
-    if (profile) {
-      setFirstName(profile.firstName ?? "");
-      setLastName(profile.lastName ?? "");
-      setPhone(profile.phoneNumber ?? "");
+    if (profileQuery.data) {
+      const { profile: seeded } = profileQuery.data;
+      setFirstName(seeded.firstName ?? "");
+      setLastName(seeded.lastName ?? "");
+      setPhone(seeded.phoneNumber ?? "");
+      editingVersionRef.current = profileQuery.data;
       seededRef.current = true;
     } else if (user && loading) {
       setFirstName(user.name?.split(" ")[0] ?? "");
       setLastName(user.name?.split(" ").slice(1).join(" ") ?? "");
     }
-  }, [profile, user, loading]);
+  }, [profileQuery.data, user, loading]);
+
+  // Re-reads the profile and adopts it as the version the form edits against, so the next save
+  // carries a tag the server will accept.
+  const adoptCurrentVersion = async () => {
+    const fresh = await queryClient.fetchQuery({
+      queryKey: PROFILE_KEY,
+      queryFn: getMyProfileWithETag,
+      // Must reach the network. The client's default staleTime would hand back the cached copy,
+      // and the cached copy carries the very tag the server just rejected.
+      staleTime: 0,
+    });
+    editingVersionRef.current = fresh;
+    return fresh;
+  };
 
   const saveMutation = useMutation({
-    mutationFn: () =>
-      updateMyProfile({
-        firstName: firstName.trim() || null,
-        lastName: lastName.trim() || null,
-        phoneNumber: phone.trim() || null,
-      }),
-    onSuccess: () => {
-      toast.success("Profile saved");
-      queryClient.invalidateQueries({ queryKey: PROFILE_KEY });
+    mutationFn: updateMyProfile,
+    onSuccess: async () => {
+      toast.success("Perfil salvo");
+      // The save moved the profile on, so the tag the form holds is spent: adopt the new one or
+      // a second save in the same sitting would 412 against the user's own write. Awaited rather
+      // than fire-and-forget: isPending has to stay true until the new tag is in hand, or the
+      // button re-enables over a spent one and a quick second click 412s against the user's own
+      // save. It also keeps a failed refetch from becoming an unhandled rejection that would
+      // strand the form on a tag the server has already rejected.
+      await adoptCurrentVersion();
     },
-    onError: (err: unknown) => {
+    onError: async (err: unknown) => {
+      // 412 means someone else wrote the profile after this form was seeded. Do NOT resend: the
+      // only body available is the one typed against the old values, and pushing it through
+      // against a fresh tag performs the overwrite the 412 just prevented. Keep the user's
+      // edits on screen, adopt the current version, and let them decide whether to save again.
+      if (err instanceof ApiRequestError && err.status === 412) {
+        await adoptCurrentVersion();
+        toast.warning("Perfil alterado em outro lugar", {
+          description:
+            "Alguém atualizou este perfil enquanto você editava. Revise suas alterações e salve de novo para aplicá-las.",
+        });
+        return;
+      }
+
       const message =
         err instanceof ApiRequestError
           ? err.problem?.detail ?? err.problem?.title ?? err.message
-          : "Failed to save profile";
-      toast.error("Save failed", { description: message });
+          : "Falha ao salvar o perfil";
+      toast.error("Falha ao salvar", { description: message });
     },
   });
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    saveMutation.mutate();
+    const editing = editingVersionRef.current;
+    if (!editing) return;
+    // Everything the save needs travels through mutate(), never through state the callbacks
+    // close over: the values that go out must be the ones on screen when the button was pressed.
+    saveMutation.mutate({
+      profile: editing.profile,
+      expectedETag: editing.etag,
+      firstName: firstName.trim() || null,
+      lastName: lastName.trim() || null,
+      // "" (not null) when the field was emptied: updateMyProfile reads null as "keep the stored
+      // value", so null here made a phone number impossible to remove.
+      phoneNumber: phone.trim(),
+    });
   };
 
   const onReset = () => {
@@ -84,18 +134,25 @@ export function ProfileSettings() {
     (profile?.firstName ?? "") !== firstName ||
     (profile?.lastName ?? "") !== lastName ||
     (profile?.phoneNumber ?? "") !== phone;
+  // A save carries the unedited fields and the version tag off the profile read, so until that
+  // read lands there is nothing to save against. Disabled rather than silently doing nothing.
+  const canSave = profileQuery.isSuccess;
 
   const imageMutation = useMutation({
     mutationFn: (url: string | null) => setProfileImage(url),
-    onSuccess: () => {
-      toast.success("Profile image updated");
-      queryClient.invalidateQueries({ queryKey: PROFILE_KEY });
+    onSuccess: async () => {
+      toast.success("Foto do perfil atualizada");
+      // The avatar URL is one of the fields the profile version hashes, so setting the image moves
+      // the tag and the one this form is holding is spent. Adopting the new version (which
+      // also refreshes the cache, so the topbar avatar still updates) keeps the next save from
+      // answering 412 and telling the user someone else edited their profile.
+      await adoptCurrentVersion();
     },
     onError: (e: unknown) => {
       const message =
         e instanceof ApiRequestError
           ? (e.problem?.detail ?? e.problem?.title ?? e.message)
-          : "Failed to update profile image";
+          : "Falha ao atualizar a foto do perfil";
       toast.error(message);
     },
   });
@@ -108,15 +165,15 @@ export function ProfileSettings() {
           className="flex items-start gap-2 rounded-lg border border-[oklch(from_var(--color-destructive)_l_c_h_/_0.30)] bg-[oklch(from_var(--color-destructive)_l_c_h_/_0.06)] px-3 py-2 text-[13px] text-[var(--color-destructive)]"
         >
           <span>
-            Couldn't load your profile. Showing details from your session;
-            saved changes may not reflect the latest server state.
+            Não foi possível carregar seu perfil. Os dados mostrados vêm da sua sessão; salvar fica
+            desligado até o perfil carregar, porque o salvamento precisa levar a versão lida.
           </span>
         </div>
       )}
       <SettingsSection
-        title="Photo"
+        title="Foto"
         icon={Camera}
-        description="Shown in the topbar and on your activity. Square crops work best — JPG, PNG, or WebP."
+        description="Aparece no topo da tela e na sua atividade. Imagens quadradas ficam melhores: JPG, PNG ou WebP."
       >
         <ImageInput
           value={profile?.imageUrl ?? ""}
@@ -128,28 +185,28 @@ export function ProfileSettings() {
       </SettingsSection>
 
       <SettingsSection
-        title="Identity"
+        title="Identificação"
         icon={UserCircle2}
-        description="Your name and contact details, visible across the dashboard."
+        description="Seu nome e seus dados de contato, visíveis em todo o sistema."
         footer={
           <div className="flex items-center justify-end gap-2">
             <Button
               type="button"
               variant="ghost"
               onClick={onReset}
-              disabled={saving || !dirty}
+              disabled={saving || !dirty || !canSave}
               size="sm"
             >
-              Reset
+              Desfazer
             </Button>
-            <Button type="submit" disabled={saving || !dirty} size="sm">
-              {saving ? "Saving…" : "Save changes"}
+            <Button type="submit" disabled={saving || !dirty || !canSave} size="sm">
+              {saving ? "Salvando…" : "Salvar alterações"}
             </Button>
           </div>
         }
       >
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field id="first-name" label="First name">
+          <Field id="first-name" label="Nome">
             <Input
               id="first-name"
               value={firstName}
@@ -159,7 +216,7 @@ export function ProfileSettings() {
               className="h-10 text-[13px]"
             />
           </Field>
-          <Field id="last-name" label="Last name">
+          <Field id="last-name" label="Sobrenome">
             <Input
               id="last-name"
               value={lastName}
@@ -169,7 +226,7 @@ export function ProfileSettings() {
               className="h-10 text-[13px]"
             />
           </Field>
-          <Field id="email" label="Email">
+          <Field id="email" label="E-mail">
             <Input
               id="email"
               type="email"
@@ -179,10 +236,10 @@ export function ProfileSettings() {
               className="h-10 cursor-not-allowed bg-[var(--color-muted)] text-[13px]"
             />
             <p className="mt-1 text-[11px] text-[var(--color-muted-foreground)]">
-              Contact your tenant admin to change your sign-in email.
+              Fale com o administrador da empresa para trocar o e-mail de entrada.
             </p>
           </Field>
-          <Field id="phone" label="Phone">
+          <Field id="phone" label="Telefone">
             <Input
               id="phone"
               type="tel"
@@ -198,9 +255,9 @@ export function ProfileSettings() {
       </SettingsSection>
 
       <SettingsSection
-        title="Subject identifier"
+        title="Identificador da conta"
         icon={Fingerprint}
-        description="The unique ID this account uses inside the platform. Read-only."
+        description="O ID único desta conta dentro do sistema. Somente leitura."
       >
         <code className="block w-full overflow-x-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] px-3 py-2 font-mono text-xs">
           {profile?.id ?? user?.id ?? "—"}

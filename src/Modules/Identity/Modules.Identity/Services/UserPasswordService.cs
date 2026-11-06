@@ -1,5 +1,6 @@
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Core.Exceptions;
+using FSH.Framework.Core.Localization;
 using FSH.Framework.Jobs.Services;
 using FSH.Framework.Mailing;
 using FSH.Framework.Mailing.Services;
@@ -7,9 +8,14 @@ using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Data;
 using FSH.Modules.Identity.Domain;
+using FSH.Modules.Identity.Localization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Options;
 using System.Collections.ObjectModel;
+using System.Net;
 using System.Text;
 
 namespace FSH.Modules.Identity.Services;
@@ -21,7 +27,9 @@ internal sealed class UserPasswordService(
     IMailService mailService,
     IMultiTenantContextAccessor<AppTenantInfo> multiTenantContextAccessor,
     IPasswordHistoryService passwordHistoryService,
-    IPasswordExpiryService passwordExpiryService) : IUserPasswordService
+    IPasswordExpiryService passwordExpiryService,
+    IOptions<RequestLocalizationOptions> localizationOptions,
+    IStringLocalizer<SharedResources> sharedLocalizer) : IUserPasswordService
 {
     public async Task ForgotPasswordAsync(string email, string origin, CancellationToken cancellationToken)
     {
@@ -51,10 +59,17 @@ internal sealed class UserPasswordService(
                 ["email"] = email,
                 ["tenant"] = multiTenantContextAccessor?.MultiTenantContext?.TenantInfo?.Id,
             });
+        // The body is sent as text/html, so the link has to be an anchor: a bare URL in an HTML part is
+        // not auto-linked by most clients, which is how the reset link reached users as dead text.
+        // Written in the user's language, or the deployment's when they chose none: the request's own
+        // culture is the anonymous caller's browser, not the account holder's.
+        var culture = IdentityEmails.CultureFor(user.Locale, localizationOptions.Value.DefaultRequestCulture.UICulture);
+        var (subject, html, text) = IdentityEmails.ResetPassword(resetPasswordUri, culture);
         var mailRequest = new MailRequest(
             new Collection<string> { user.Email },
-            "Reset Password",
-            $"Please reset your password using the following link: {resetPasswordUri}");
+            subject,
+            html,
+            textBody: text);
 
         jobService.Enqueue(() => mailService.SendAsync(mailRequest, CancellationToken.None));
     }
@@ -66,7 +81,11 @@ internal sealed class UserPasswordService(
         var user = await userManager.FindByEmailAsync(email);
         if (user == null)
         {
-            throw new NotFoundException("user not found");
+            throw new NotFoundException("user not found")
+            {
+                MessageKey = "Identity.UserNotFound",
+                ResourceSource = typeof(IdentityResources),
+            };
         }
 
         token = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(token));
@@ -75,7 +94,11 @@ internal sealed class UserPasswordService(
         if (!result.Succeeded)
         {
             var errors = result.Errors.Select(e => e.Description).ToList();
-            throw new CustomException("error resetting password", errors);
+            throw new CustomException("error resetting password", errors)
+            {
+                MessageKey = "Identity.ErrorResettingPassword",
+                ResourceSource = typeof(IdentityResources),
+            };
         }
 
         // Raise domain event for password reset
@@ -88,14 +111,22 @@ internal sealed class UserPasswordService(
     {
         var user = await userManager.FindByIdAsync(userId);
 
-        _ = user ?? throw new NotFoundException("user not found");
+        _ = user ?? throw new NotFoundException("user not found")
+        {
+            MessageKey = "Identity.UserNotFound",
+            ResourceSource = typeof(IdentityResources),
+        };
 
         var result = await userManager.ChangePasswordAsync(user, password, newPassword);
 
         if (!result.Succeeded)
         {
             var errors = result.Errors.Select(e => e.Description).ToList();
-            throw new CustomException("failed to change password", errors);
+            throw new CustomException("failed to change password", errors)
+            {
+                MessageKey = "Identity.FailedToChangePassword",
+                ResourceSource = typeof(IdentityResources),
+            };
         }
 
         // Raise domain event for password change
@@ -110,11 +141,56 @@ internal sealed class UserPasswordService(
         await passwordHistoryService.SavePasswordHistoryAsync(userId, cancellationToken);
     }
 
+    public async Task SetPasswordByAdminAsync(string userId, string newPassword, CancellationToken cancellationToken)
+    {
+        EnsureValidTenant();
+
+        var user = await userManager.FindByIdAsync(userId) ?? throw new NotFoundException("user not found")
+            {
+                MessageKey = "Identity.UserNotFound",
+                ResourceSource = typeof(IdentityResources),
+            };
+
+        // A user who never changed his password has an empty history, so the current one is checked on its own.
+        if (await userManager.CheckPasswordAsync(user, newPassword)
+            || await passwordHistoryService.IsPasswordInHistoryAsync(userId, newPassword, cancellationToken))
+        {
+            throw new CustomException(
+                "password reused",
+                [sharedLocalizer["Validation.PasswordRecentlyUsed"]],
+                HttpStatusCode.BadRequest)
+            {
+                MessageKey = "Validation.PasswordRecentlyUsed",
+            };
+        }
+
+        // Reset (not Remove + Add) so the policy validators run and the hash is replaced in a single write.
+        var token = await userManager.GeneratePasswordResetTokenAsync(user);
+        var result = await userManager.ResetPasswordAsync(user, token, newPassword);
+        if (!result.Succeeded)
+        {
+            throw new CustomException("error setting password", result.Errors.Select(e => e.Description), HttpStatusCode.BadRequest)
+            {
+                MessageKey = "Identity.ErrorSettingPassword",
+                ResourceSource = typeof(IdentityResources),
+            };
+        }
+
+        var tenantId = multiTenantContextAccessor?.MultiTenantContext?.TenantInfo?.Id;
+        user.RecordPasswordChanged(wasReset: true, tenantId);
+        await db.SaveChangesAsync(cancellationToken);
+        await passwordExpiryService.UpdateLastPasswordChangeDateAsync(userId, cancellationToken);
+        await passwordHistoryService.SavePasswordHistoryAsync(userId, cancellationToken);
+    }
+
     private void EnsureValidTenant()
     {
         if (string.IsNullOrWhiteSpace(multiTenantContextAccessor?.MultiTenantContext?.TenantInfo?.Id))
         {
-            throw new UnauthorizedException("invalid tenant");
+            throw new UnauthorizedException("invalid tenant")
+            {
+                MessageKey = "Error.InvalidTenant",
+            };
         }
     }
 }

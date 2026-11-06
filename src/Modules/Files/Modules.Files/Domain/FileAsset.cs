@@ -8,7 +8,7 @@ namespace FSH.Modules.Files.Domain;
 
 /// <summary>
 /// A file asset tracked by the Files module. Owns a presigned upload lifecycle (PendingUpload →
-/// Available | Quarantined) plus soft-delete semantics consistent with Catalog/Tickets entities.
+/// Available | Quarantined) plus soft-delete semantics consistent with the other soft-deletable entities.
 /// Tenant scoping is implicit (one DB/schema per tenant via the framework's BaseDbContext); we do
 /// not carry a TenantId column here.
 /// </summary>
@@ -130,6 +130,18 @@ public sealed class FileAsset : AggregateRoot<Guid>, ISoftDeletable
         }
         if (Visibility == next) return;
         Visibility = next;
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Point the asset at the key its object was copied to. The caller owns the object move itself
+    /// (copy → save this → delete the old object); see <c>FileStorageRelocator</c>.
+    /// </summary>
+    public void RelocateStorage(string newStorageKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(newStorageKey);
+        if (string.Equals(StorageKey, newStorageKey, StringComparison.Ordinal)) return;
+        StorageKey = newStorageKey;
         UpdatedAtUtc = DateTime.UtcNow;
     }
 }

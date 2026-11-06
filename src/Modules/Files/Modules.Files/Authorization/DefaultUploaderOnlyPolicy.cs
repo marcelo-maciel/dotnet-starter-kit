@@ -9,7 +9,7 @@ namespace FSH.Modules.Files.Authorization;
 /// - Delete: only the uploader.
 ///
 /// Tenant scoping is handled by the framework's BaseDbContext (schema-per-tenant), not here.
-/// Owning modules with different rules (e.g. Tickets — participants only) register their own
+/// Owning modules with different rules (e.g. participants only) register their own
 /// <see cref="IFileAccessPolicy"/> implementation that supersedes this one.
 /// </summary>
 internal sealed class DefaultUploaderOnlyPolicy : IFileAccessPolicy

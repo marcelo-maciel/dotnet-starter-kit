@@ -29,7 +29,7 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 
 // ─── Schema (unchanged contract) ────────────────────────────────────────────
@@ -309,7 +309,7 @@ export function CreateTenantDialog({
     onError: (err) => {
       const detail =
         err instanceof ApiRequestError
-          ? err.problem?.detail ?? err.problem?.title ?? err.message
+          ? describeError(err)
           : (err as Error).message;
       toast.error("Create failed", { description: detail });
     },

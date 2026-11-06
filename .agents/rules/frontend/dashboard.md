@@ -17,8 +17,7 @@ The JWT carries **only role names**. `auth-context.tsx` fetches the effective pe
 ## Routing & realtime/SSE
 
 - Every route element is wrapped in `withSuspense(node)` (per-route skeleton fallback). No per-route permission guards.
-- `RealtimeProvider` **and** `SseProvider` are mounted inside `AppShell` (authenticated routes only), under a `CommandPaletteProvider` (cmdk).
-- SignalR provider pre-wires ~11 chat/notification events.
+- `SseProvider` is mounted inside `AppShell` (authenticated routes only), under a `CommandPaletteProvider` (cmdk). There is no kit `RealtimeProvider`: the PAF screens open their own PafHub (`features/paf/paf-hub.ts`).
 - **SSE** (`src/sse/`, dashboard-only): two-step token — `POST /api/v1/sse/token`, then `GET /api/v1/sse/stream?token=<guid>` consumed via fetch streaming (`parseSseStream` async generator; EventSource can't send auth headers). **Two split contexts:** `useSseStatus()` (stable, for status dots) vs `useSseEvents()` (mutates per event) to avoid cascading re-renders; `useSse()` is the composite.
 
 ## Impersonation
@@ -27,7 +26,7 @@ The JWT carries **only role names**. `auth-context.tsx` fetches the effective pe
 
 ## Performance
 
-- `@tanstack/react-virtual` for long lists — use it for any large collection (chat history, big tables).
+- No list-virtualization library is installed; add one (e.g. `@tanstack/react-virtual`) when a collection needs it.
 - `cmdk` powers the command palette.
 
 ## Theme
@@ -38,5 +37,5 @@ The JWT carries **only role names**. `auth-context.tsx` fetches the effective pe
 
 - Hand-roll forms (no RHF/zod).
 - Wrap the route element in `withSuspense(<X/>)`; no permission guard.
-- If it consumes pushes: `useRealtimeEvent("EventName", handler)` (register the name in `realtime-context.tsx`) or `useSseEvents()` for SSE.
+- If it consumes pushes: `useSseEvents()` for SSE, or the PafHub (`features/paf/paf-hub.ts`) for PAF screens.
 - Use `react-virtual` for long lists; keep neutrals chroma 0.

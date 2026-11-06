@@ -72,7 +72,7 @@ export function GroupsPage() {
     <div className="space-y-4 sm:space-y-6">
       <EntityPageHeader
         icon={UsersRound}
-        title="Groups"
+        title="Grupos"
         total={query.data ? groups.length : null}
         unit="group"
         description="Groups bundle members and roles into reusable cohorts. Add a user to a group to grant every role attached to that group."

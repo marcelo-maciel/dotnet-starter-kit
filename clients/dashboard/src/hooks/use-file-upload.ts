@@ -68,7 +68,7 @@ const DEFAULT_OPTIONS = {
 /**
  * Orchestrates the three-step presigned-upload protocol:
  *   1. POST /api/v1/files/upload-url  — server mints presigned PUT + reserves a FileAsset row
- *   2. PUT  <uploadUrl>                — browser pushes bytes straight to S3/MinIO (XHR for progress)
+ *   2. PUT  <uploadUrl>                — browser pushes bytes straight to S3 (RustFS locally) (XHR for progress)
  *   3. POST /api/v1/files/{id}/finalize — server HEADs the object, transitions to Available
  *
  * Progress is reported via the in-state `progress` snapshot — XMLHttpRequest is used (instead of fetch)
@@ -100,7 +100,7 @@ export function useFileUpload(options: UploadOptions): UseFileUploadResult {
         const dot = file.name.lastIndexOf(".");
         const ext = dot >= 0 ? file.name.slice(dot).toLowerCase() : "";
         if (!opts.allowedExtensions.includes(ext)) {
-          const message = `Extension ${ext || "(none)"} is not allowed.`;
+          const message = `A extensão ${ext || "(nenhuma)"} não é permitida.`;
           setProgress({
             fileName: file.name,
             totalBytes: file.size,
@@ -113,7 +113,7 @@ export function useFileUpload(options: UploadOptions): UseFileUploadResult {
         }
       }
       if (opts.maxBytes !== undefined && file.size > opts.maxBytes) {
-        const message = `File is ${formatBytes(file.size)}; limit is ${formatBytes(opts.maxBytes)}.`;
+        const message = `O arquivo tem ${formatBytes(file.size)}; o limite é ${formatBytes(opts.maxBytes)}.`;
         setProgress({
           fileName: file.name,
           totalBytes: file.size,
@@ -156,7 +156,7 @@ export function useFileUpload(options: UploadOptions): UseFileUploadResult {
         );
         throw e;
       }
-      if (cancelledRef.current) throw new Error("Upload cancelled.");
+      if (cancelledRef.current) throw new Error("Envio cancelado.");
 
       setProgress((p) =>
         p ? { ...p, status: "uploading", fileAssetId: presigned.fileAssetId } : null,
@@ -184,7 +184,7 @@ export function useFileUpload(options: UploadOptions): UseFileUploadResult {
         setProgress((p) => (p ? { ...p, status: "error", error: message } : null));
         throw e instanceof Error ? e : new Error(message);
       }
-      if (cancelledRef.current) throw new Error("Upload cancelled.");
+      if (cancelledRef.current) throw new Error("Envio cancelado.");
 
       setProgress((p) => (p ? { ...p, status: "finalizing", percent: 99 } : null));
 
@@ -237,10 +237,10 @@ function xhrPut(
     };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new Error(`PUT failed: ${xhr.status} ${xhr.statusText || ""}`.trim()));
+      else reject(new Error(`Falha no envio: ${xhr.status} ${xhr.statusText || ""}`.trim()));
     };
-    xhr.onerror = () => reject(new Error("Network error during upload."));
-    xhr.onabort = () => reject(new Error("Upload cancelled."));
+    xhr.onerror = () => reject(new Error("Erro de rede durante o envio."));
+    xhr.onabort = () => reject(new Error("Envio cancelado."));
     xhr.send(body);
   });
 }
@@ -250,7 +250,7 @@ function describeError(e: unknown): string {
     return e.problem?.detail ?? e.problem?.title ?? e.message;
   }
   if (e instanceof Error) return e.message;
-  return "Unknown error";
+  return "Erro desconhecido";
 }
 
 export function formatBytes(bytes: number): string {

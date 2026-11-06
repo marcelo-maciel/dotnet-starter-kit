@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      O17: p95 of the call latency (RNF18) under the reference volume (D20), over real WebSockets on Kestrel with a
+      real Valkey behind a delaying relay. Its own process: it builds two hosts (the reference hop between two
+      instances), which resets the kit's static ModuleLoader, so no other harness may share the process.
+    -->
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <IsPackable>false</IsPackable>
+        <IsPublishable>false</IsPublishable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <!-- Same test-project analyzer suppressions as Integration.Tests, whose helpers are linked below. -->
+        <NoWarn>$(NoWarn);CA1515;CA1861;CA1707;CA1307;CA2234;CA2000;CA1062;CA1031;CA1812;CA1056;S1481;S125</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="coverlet.collector">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Testcontainers.PostgreSql" />
+        <PackageReference Include="Testcontainers.Redis" />
+        <PackageReference Include="Hangfire.InMemory" />
+        <PackageReference Include="xunit" />
+        <PackageReference Include="xunit.runner.visualstudio">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Shouldly" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Host\FSH.Starter.Api\FSH.Starter.Api.csproj" />
+    </ItemGroup>
+
+    <!-- Host-agnostic helpers, linked rather than copied so they cannot drift. -->
+    <ItemGroup>
+        <Compile Include="..\Integration.Tests\Infrastructure\TestConstants.cs" Link="Linked\TestConstants.cs" />
+        <Compile Include="..\Integration.Tests\Infrastructure\TenantProvisioningWait.cs" Link="Linked\TenantProvisioningWait.cs" />
+        <Compile Include="..\Integration.Tests\Infrastructure\Dtos.cs" Link="Linked\Dtos.cs" />
+        <Compile Include="..\Integration.Tests\Infrastructure\NoOpMailService.cs" Link="Linked\NoOpMailService.cs" />
+        <Compile Include="..\Integration.Tests\Infrastructure\DetailedTestExceptionHandler.cs" Link="Linked\DetailedTestExceptionHandler.cs" />
+        <Compile Include="..\PAF.Kestrel.Tests\ConexaoWebSocket.cs" Link="Linked\ConexaoWebSocket.cs" />
+    </ItemGroup>
+
+</Project>

@@ -62,36 +62,37 @@ test.beforeEach(async ({ page }) => {
 
 test.describe("impersonation revoked mid-session", () => {
   test("a 401 on an impersonation session routes to the terminal page", async ({ page }) => {
-    // The products list 401s the moment the grant is revoked. The dev build
+    // The sessions list 401s the moment the grant is revoked (the kit's Roles
+    // screen, used before, redirects home since 02/11/2026). The dev build
     // surfaces the JwtBearer rejection reason on the ProblemDetails.
-    await mockProblemDetails(page, "**/api/v1/catalog/products**", 401, {
+    await mockProblemDetails(page, "**/api/v1/identity/sessions**", 401, {
       title: "Unauthorized",
       detail: "Authentication is required to access this resource.",
     });
 
-    await page.goto("/catalog/products");
+    await page.goto("/system/sessions");
 
     // Lands on the dedicated terminal page rather than showing an inline
-    // error band under the half-loaded catalog.
+    // error band under the half-loaded list.
     await expect(page).toHaveURL(/\/impersonation-ended$/);
     await expect(
-      page.getByRole("heading", { name: /impersonation ended/i }),
+      page.getByRole("heading", { name: /acesso do operador encerrado/i }),
     ).toBeVisible();
     await expect(
-      page.getByText(/revoked or has expired/i),
+      page.getByText(/foi revogado ou expirou/i),
     ).toBeVisible();
   });
 
   test("'Back to sign in' clears the dead token and routes to /login", async ({ page }) => {
-    await mockProblemDetails(page, "**/api/v1/catalog/products**", 401, {
+    await mockProblemDetails(page, "**/api/v1/identity/sessions**", 401, {
       title: "Unauthorized",
       detail: "Authentication is required to access this resource.",
     });
 
-    await page.goto("/catalog/products");
+    await page.goto("/system/sessions");
     await expect(page).toHaveURL(/\/impersonation-ended$/);
 
-    await page.getByRole("button", { name: /back to sign in/i }).click();
+    await page.getByRole("button", { name: /voltar para a entrada/i }).click();
 
     await expect(page).toHaveURL(/\/login$/);
     // The dead impersonation token is cleared so a stale token can't bounce

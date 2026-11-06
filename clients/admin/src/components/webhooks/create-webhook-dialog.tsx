@@ -21,7 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Field } from "@/components/list";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 
 const schema = z.object({
@@ -87,7 +87,7 @@ export function CreateWebhookDialog({
     onError: (err) => {
       const detail =
         err instanceof ApiRequestError
-          ? err.problem?.detail ?? err.problem?.title ?? err.message
+          ? describeError(err)
           : (err as Error).message;
       toast.error("Create failed", { description: detail });
     },

@@ -10,8 +10,10 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+  # The PAF integrates on feat/paf-esqueleto long before main: paf.yml runs only the Paf* integration classes, so
+  # without this a PR there never runs the kit's integration suite, whose classes share the PAF's host and database.
   pull_request:
-    branches: [main]
+    branches: [main, feat/paf-esqueleto]
   workflow_dispatch:
     inputs:
       version:
@@ -95,8 +97,12 @@ jobs:
           echo "::endgroup::"
 
       - name: Run unit tests with coverage
+        # Brasília, where the product runs: tests that build a Local DateTime (UtcInstantTests,
+        # TenantServiceValidityKindTests) only catch a UTC relabel off UTC, and skip on a UTC machine.
+        env:
+          TZ: America/Sao_Paulo
         run: |
-          for proj in Architecture Auditing Caching Generic Identity Multitenancy Billing Catalog Chat Files Framework Webhooks; do
+          for proj in Architecture Auditing Caching Generic Identity Multitenancy Billing Files Framework Notifications Webhooks; do
             echo "::group::${proj}.Tests"
             dotnet test "src/Tests/${proj}.Tests" -c Release --no-build \
               --collect:"XPlat Code Coverage" --settings coverage.runsettings \
@@ -125,6 +131,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
+    # About 30 min when green; without a ceiling a hung host or container holds the runner for the 6 h default.
+    timeout-minutes: 60
     # Testcontainers requires Docker — ubuntu-latest has it pre-installed.
     steps:
       - name: Checkout

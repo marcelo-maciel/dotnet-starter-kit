@@ -4,9 +4,11 @@ using FSH.Framework.Shared.Constants;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Domain;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace FSH.Modules.Identity.Data;
 
@@ -18,7 +20,8 @@ internal sealed class IdentityDbInitializer(
     TimeProvider timeProvider,
     IMultiTenantContextAccessor<AppTenantInfo> multiTenantContextAccessor,
     ITenantInitialPasswordBuffer passwordBuffer,
-    IConfiguration configuration) : IDbInitializer
+    IConfiguration configuration,
+    IOptions<RequestLocalizationOptions> localizationOptions) : IDbInitializer
 {
     public async Task MigrateAsync(CancellationToken cancellationToken)
     {
@@ -54,7 +57,11 @@ internal sealed class IdentityDbInitializer(
             // Assign permissions
             if (roleName == RoleConstants.Basic)
             {
-                await AssignPermissionsToRoleAsync(context, PermissionConstants.Basic, role, cancellationToken);
+                // A root-only permission can also be basic; only the root tenant's Basic role gets it.
+                var basicPermissions = multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id == MultitenancyConstants.Root.Id
+                    ? PermissionConstants.Basic
+                    : [.. PermissionConstants.Basic.Where(p => !p.IsRoot)];
+                await AssignPermissionsToRoleAsync(context, basicPermissions, role, cancellationToken);
             }
             else if (roleName == RoleConstants.Admin)
             {
@@ -175,6 +182,24 @@ internal sealed class IdentityDbInitializer(
         }
     }
 
+    // UpdateUserCommandValidator caps LastName at 50 and the profile screen resends it on every save, so a
+    // longer client name would make every profile update of the seeded admin fail with 400.
+    internal const int LastNameMaxLength = 50;
+
+    internal static string? TenantNameAsLastName(string? tenantName)
+    {
+        string? name = tenantName?.Trim();
+        if (name is null || name.Length <= LastNameMaxLength)
+        {
+            return name;
+        }
+
+        // Cutting between the halves of a surrogate pair (an emoji at the limit) leaves a lone high surrogate,
+        // which Npgsql refuses to encode as UTF-8 and the seed would fail; the cut moves back one char instead.
+        int cut = char.IsHighSurrogate(name[LastNameMaxLength - 1]) ? LastNameMaxLength - 1 : LastNameMaxLength;
+        return name[..cut].TrimEnd();
+    }
+
     private async Task SeedAdminUserAsync(CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id) || string.IsNullOrWhiteSpace(multiTenantContextAccessor.MultiTenantContext.TenantInfo?.AdminEmail))
@@ -182,32 +207,35 @@ internal sealed class IdentityDbInitializer(
             return;
         }
 
-        if (await userManager.Users.FirstOrDefaultAsync(u => u.Email == multiTenantContextAccessor.MultiTenantContext.TenantInfo!.AdminEmail, cancellationToken)
+        if (await userManager.Users.FirstOrDefaultAsync(u => u.Email == multiTenantContextAccessor.MultiTenantContext.TenantInfo.AdminEmail, cancellationToken)
             is not FshUser adminUser)
         {
             string adminUserName = $"{multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id.Trim()}.{RoleConstants.Admin}".ToUpperInvariant();
             adminUser = new FshUser
             {
-                FirstName = multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id.Trim().ToUpperInvariant(),
-                LastName = RoleConstants.Admin,
+                // Shown as the person's name on the client's user screens, so the client's own name, not its identifier.
+                FirstName = "Administrador",
+                LastName = TenantNameAsLastName(multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Name ?? multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id),
                 Email = multiTenantContextAccessor.MultiTenantContext.TenantInfo?.AdminEmail,
                 UserName = adminUserName,
                 EmailConfirmed = true,
                 PhoneNumberConfirmed = true,
-                NormalizedEmail = multiTenantContextAccessor.MultiTenantContext.TenantInfo?.AdminEmail!.ToUpperInvariant(),
+                NormalizedEmail = multiTenantContextAccessor.MultiTenantContext.TenantInfo?.AdminEmail.ToUpperInvariant(),
                 NormalizedUserName = adminUserName.ToUpperInvariant(),
                 // No default avatar: the asset was never shipped, and baking an absolute
                 // {OriginUrl}/… URL at seed time pinned it to the seeder's localhost origin
                 // (migrator has no OriginOptions). Leave null → the SPA renders initials.
                 ImageUrl = null,
-                IsActive = true
+                IsActive = true,
+                // The tenant admin reads the billing e-mails and opens the panel first: the deployment's language.
+                Locale = localizationOptions.Value.DefaultRequestCulture.UICulture.Name,
             };
 
             if (logger.IsEnabled(LogLevel.Information))
             {
                 logger.LogInformation("Seeding Default Admin User for '{TenantId}' Tenant.", multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id);
             }
-            var initialPassword = ResolveInitialAdminPassword(multiTenantContextAccessor.MultiTenantContext.TenantInfo!.Id!);
+            var initialPassword = ResolveInitialAdminPassword(multiTenantContextAccessor.MultiTenantContext.TenantInfo!.Id);
             var password = new PasswordHasher<FshUser>();
             adminUser.PasswordHash = password.HashPassword(adminUser, initialPassword);
             // MUST check IdentityResult: a silent failure (password-policy reject, transient DB error)
@@ -216,7 +244,7 @@ internal sealed class IdentityDbInitializer(
             if (!createResult.Succeeded)
             {
                 throw new InvalidOperationException(
-                    $"Failed to seed admin user for tenant '{multiTenantContextAccessor.MultiTenantContext.TenantInfo!.Id}': "
+                    $"Failed to seed admin user for tenant '{multiTenantContextAccessor.MultiTenantContext.TenantInfo.Id}': "
                     + string.Join("; ", createResult.Errors.Select(e => e.Description)));
             }
         }

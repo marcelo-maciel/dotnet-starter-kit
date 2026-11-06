@@ -157,7 +157,7 @@ export const PERMISSION_CATALOG: readonly PermissionGroup[] = [
     category: "Audit trails",
     blurb: "Inspect security and entity-change audit events.",
     entries: [
-      { name: AuditingPermissions.AuditTrails.View, description: "View audit trails", basic: true },
+      { name: AuditingPermissions.AuditTrails.View, description: "View audit trails" },
       {
         name: AuditingPermissions.AuditTrails.ViewCrossTenant,
         description: "View audit trails across tenants",
@@ -177,7 +177,7 @@ export const PERMISSION_CATALOG: readonly PermissionGroup[] = [
     category: "Webhooks",
     blurb: "Manage outbound webhook subscriptions and inspect their deliveries.",
     entries: [
-      { name: WebhooksPermissions.Subscriptions.View, description: "View webhook subscriptions & deliveries", basic: true },
+      { name: WebhooksPermissions.Subscriptions.View, description: "View webhook subscriptions & deliveries" },
       { name: WebhooksPermissions.Subscriptions.Create, description: "Create webhook subscriptions" },
       { name: WebhooksPermissions.Subscriptions.Delete, description: "Delete webhook subscriptions" },
       { name: WebhooksPermissions.Subscriptions.Test, description: "Send test webhook deliveries" },

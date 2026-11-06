@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # Stage 1: build the SPA bundle
-FROM node:22-alpine AS build
+FROM node:22.23.4-alpine3.24 AS build
 WORKDIR /app
 
 # Install deps with a cached layer
@@ -10,10 +10,10 @@ RUN npm ci
 
 # Build
 COPY . .
-RUN npm run build
+RUN npm run build && node scripts/check-csp-hash.mjs
 
 # Stage 2: serve via nginx
-FROM nginx:alpine AS runtime
+FROM nginx:1.31.8-alpine3.24 AS runtime
 WORKDIR /usr/share/nginx/html
 
 # nginx:alpine needs `envsubst` from gettext (it ships busybox without it).
@@ -22,10 +22,13 @@ RUN apk add --no-cache gettext
 # Replace the default nginx site
 RUN rm -rf ./* /etc/nginx/conf.d/default.conf
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker/security-headers.conf /etc/nginx/snippets/security-headers.conf
 
-# Copy the built bundle, the runtime config template, and the entrypoint
+# Copy the built bundle, the runtime config template (outside the web root so
+# it is never served), and the entrypoint
 COPY --from=build /app/dist/ ./
-COPY docker/config.json.template ./config.json.template
+COPY docker/config.json.template /etc/fsh/config.json.template
+COPY docker/csp.conf.template /etc/fsh/csp.conf.template
 COPY docker/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 

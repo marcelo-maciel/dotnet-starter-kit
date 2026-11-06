@@ -25,6 +25,7 @@ import { RevokeGrantDialog } from "@/components/impersonation/revoke-grant-dialo
 import { IdentityPermissions } from "@/lib/permissions";
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
+import { formatStampMinutes as formatTimestamp, SAO_PAULO } from "@/lib/format";
 
 const REFRESH_INTERVAL_MS = 5_000;
 
@@ -304,11 +305,11 @@ function Details({ grant }: { grant: ImpersonationGrantDto }) {
       <DRow label="Actor"><code className="code-chip">{grant.actorUserId}</code> @ {grant.actorTenantId}</DRow>
       <DRow label="Impersonated"><code className="code-chip">{grant.impersonatedUserId}</code></DRow>
       {grant.endedAtUtc && (
-        <DRow label="Ended at">{new Date(grant.endedAtUtc).toLocaleString()}</DRow>
+        <DRow label="Ended at">{new Date(grant.endedAtUtc).toLocaleString(undefined, { timeZone: SAO_PAULO })}</DRow>
       )}
       {grant.revokedAtUtc && (
         <>
-          <DRow label="Revoked at">{new Date(grant.revokedAtUtc).toLocaleString()}</DRow>
+          <DRow label="Revoked at">{new Date(grant.revokedAtUtc).toLocaleString(undefined, { timeZone: SAO_PAULO })}</DRow>
           <DRow label="Revoked by">{grant.revokedByUserName ?? grant.revokedByUserId ?? "—"}</DRow>
           <DRow label="Revoke reason" wide>
             <span className="text-[var(--color-muted-foreground)]">{grant.revokeReason || "—"}</span>
@@ -353,9 +354,3 @@ function StatusBadge({ status }: { status: ImpersonationGrantStatus }) {
   );
 }
 
-function formatTimestamp(value: string): string {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}

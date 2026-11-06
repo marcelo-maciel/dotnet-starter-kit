@@ -5,6 +5,7 @@ using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Framework.Shared.Persistence;
 using FSH.Modules.Billing.Contracts;
+using FSH.Modules.Billing.Contracts.Authorization;
 using FSH.Modules.Billing.Contracts.Dtos;
 using FSH.Modules.Billing.Data;
 using FSH.Modules.Billing.Domain;
@@ -64,7 +65,7 @@ public sealed class TopupApprovalTests
         {
             var request = await db.TopupRequests.FindAsync(requestId);
             request.ShouldNotBeNull();
-            request!.Status.ShouldBe(TopupRequestStatus.Invoiced, "request must be Invoiced after approval");
+            request.Status.ShouldBe(TopupRequestStatus.Invoiced, "request must be Invoiced after approval");
             request.InvoiceId.ShouldBe(invoiceId, "request.InvoiceId must match the returned invoice id");
         });
 
@@ -73,7 +74,7 @@ public sealed class TopupApprovalTests
         {
             var invoice = await db.Invoices.FindAsync(invoiceId);
             invoice.ShouldNotBeNull();
-            invoice!.TenantId.ShouldBe(TestConstants.RootTenantId);
+            invoice.TenantId.ShouldBe(TestConstants.RootTenantId);
             invoice.Purpose.ShouldBe(InvoicePurpose.Topup);
             invoice.Status.ShouldBe(InvoiceStatus.Issued);
         });
@@ -102,7 +103,7 @@ public sealed class TopupApprovalTests
         {
             var request = await db.TopupRequests.FindAsync(requestId);
             request.ShouldNotBeNull();
-            request!.Status.ShouldBe(TopupRequestStatus.Rejected);
+            request.Status.ShouldBe(TopupRequestStatus.Rejected);
             request.DecisionNote.ShouldBe("rejected in integration test");
         });
     }
@@ -147,7 +148,7 @@ public sealed class TopupApprovalTests
         var tenantBId = $"topup-iso-{uniqueId}";
         var tenantBAdminEmail = $"topup-admin-{uniqueId}@tenant.com";
         await CreateTenantAsync(rootClient, tenantBId, tenantBAdminEmail);
-        await WaitForProvisioningAsync(rootClient, tenantBId);
+        await TenantProvisioningWait.WaitForProvisioningAsync(rootClient, tenantBId);
 
         using var tenantBClient = await CreateTenantAdminClientWithRetryAsync(
             tenantBAdminEmail, TestConstants.DefaultPassword, tenantBId);
@@ -256,31 +257,10 @@ public sealed class TopupApprovalTests
         response.StatusCode.ShouldBe(HttpStatusCode.Created, $"Create tenant failed: {body}");
     }
 
-    private static async Task WaitForProvisioningAsync(HttpClient client, string tenantId, int maxRetries = 60)
-    {
-        for (int i = 0; i < maxRetries; i++)
-        {
-            var statusResponse = await client.GetAsync(
-                $"{TestConstants.TenantsBasePath}/{tenantId}/provisioning");
-
-            if (statusResponse.IsSuccessStatusCode)
-            {
-                var content = await statusResponse.Content.ReadAsStringAsync();
-                if (content.Contains("Completed", StringComparison.OrdinalIgnoreCase))
-                    return;
-                if (content.Contains("Failed", StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidOperationException($"Tenant {tenantId} provisioning failed: {content}");
-            }
-
-            await Task.Delay(1000);
-        }
-
-        throw new TimeoutException($"Tenant {tenantId} provisioning did not complete within {maxRetries}s.");
-    }
-
     private async Task<HttpClient> CreateTenantAdminClientWithRetryAsync(
         string email, string password, string tenant, int maxRetries = 30)
     {
+        await HiddenModulePermissions.GrantToTenantAdminAsync(_factory, tenant, [BillingPermissions.View]);
         for (int i = 0; i < maxRetries; i++)
         {
             try

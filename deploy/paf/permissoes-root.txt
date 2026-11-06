@@ -1,0 +1,43 @@
+# Every root-only permission (PermissionConstants.Root): no role of a non-root tenant may hold one. deploy.sh step 7
+# checks the database against this list after the APIs restart; PermissoesRootDoDeployTests fails when it drifts from
+# the C# registry. One name per line; lines starting with # are ignored.
+Permissions.AuditTrails.ViewCrossTenant
+Permissions.Billing.Manage
+Permissions.Billing.View
+Permissions.Files.DeleteAny
+Permissions.Files.DeleteOwn
+Permissions.Files.Restore
+Permissions.Files.ViewTrash
+Permissions.Groups.Create
+Permissions.Groups.Delete
+Permissions.Groups.ManageMembers
+Permissions.Groups.Update
+Permissions.Groups.View
+Permissions.PAF.Contratos.Manage
+Permissions.PAF.Unidades.Operar
+Permissions.Platform.Audits.ViewAll
+Permissions.Platform.Invoices.Admin
+Permissions.Platform.Plans.Manage
+Permissions.Platform.Subscriptions.Manage
+Permissions.Platform.Tenants.Create
+Permissions.Platform.Tenants.Delete
+Permissions.Platform.Tenants.Suspend
+Permissions.Platform.Tenants.Update
+Permissions.Platform.Tenants.View
+Permissions.Platform.Users.Impersonate
+Permissions.Platform.Webhooks.Admin
+Permissions.Roles.Create
+Permissions.Roles.Delete
+Permissions.Roles.Update
+Permissions.Roles.View
+Permissions.Tenants.Create
+Permissions.Tenants.Update
+Permissions.Tenants.UpgradeSubscription
+Permissions.Tenants.View
+Permissions.Users.ConfirmEmail
+Permissions.Users.Create
+Permissions.Users.Delete
+Permissions.Users.Impersonate
+Permissions.Users.ManageRoles
+Permissions.Users.Update
+Permissions.Users.View

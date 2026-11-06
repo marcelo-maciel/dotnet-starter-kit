@@ -6,8 +6,11 @@ using FSH.Modules.Identity.Contracts.DTOs;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Data;
 using FSH.Modules.Identity.Domain;
+using FSH.Modules.Identity.Localization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using UAParser;
 
 namespace FSH.Modules.Identity.Services;
@@ -40,7 +43,10 @@ public sealed class SessionService : ISessionService
     {
         if (string.IsNullOrWhiteSpace(_multiTenantContextAccessor?.MultiTenantContext?.TenantInfo?.Id))
         {
-            throw new UnauthorizedException("Invalid tenant");
+            throw new UnauthorizedException("Invalid tenant")
+            {
+                MessageKey = "Error.InvalidTenant",
+            };
         }
     }
 
@@ -88,7 +94,11 @@ public sealed class SessionService : ISessionService
         var currentUserId = _currentUser.GetUserId().ToString();
         if (!string.Equals(userId, currentUserId, StringComparison.OrdinalIgnoreCase))
         {
-            throw new UnauthorizedAccessException("Cannot view sessions for another user");
+            throw new LocalizedUnauthorizedAccessException("Cannot view sessions for another user")
+            {
+                MessageKey = "Identity.CannotViewOthersSessions",
+                ResourceSource = typeof(IdentityResources),
+            };
         }
 
         var now = _timeProvider.GetUtcNow().UtcDateTime;
@@ -98,7 +108,19 @@ public sealed class SessionService : ISessionService
             .OrderByDescending(s => s.LastActivityAt)
             .ToListAsync(cancellationToken);
 
-        return sessions.Select(s => MapToDto(s, isCurrentSession: false)).ToList();
+        var currentSessionId = ReadCurrentSessionId();
+        return sessions.Select(s => MapToDto(s, isCurrentSession: s.Id == currentSessionId)).ToList();
+    }
+
+    // The access token names its session in `sid`. JwtBearer's default inbound map leaves `sid` as is, but a map
+    // that renamed it would turn it into ClaimTypes.Sid, so both are read. A token without the claim (impersonation,
+    // or issued before the claim existed) marks no session as current.
+    private Guid? ReadCurrentSessionId()
+    {
+        var sid = _currentUser.GetUserClaims()?
+            .FirstOrDefault(c => c.Type is JwtRegisteredClaimNames.Sid or ClaimTypes.Sid)?
+            .Value;
+        return Guid.TryParse(sid, out var sessionId) ? sessionId : null;
     }
 
     public async Task<List<UserSessionDto>> GetUserSessionsForAdminAsync(
@@ -196,7 +218,11 @@ public sealed class SessionService : ISessionService
         var currentUserId = _currentUser.GetUserId().ToString();
         if (!string.Equals(session.UserId, currentUserId, StringComparison.OrdinalIgnoreCase))
         {
-            throw new UnauthorizedAccessException("Cannot revoke session for another user");
+            throw new LocalizedUnauthorizedAccessException("Cannot revoke session for another user")
+            {
+                MessageKey = "Identity.CannotRevokeOthersSession",
+                ResourceSource = typeof(IdentityResources),
+            };
         }
 
         var tenantId = _multiTenantContextAccessor?.MultiTenantContext?.TenantInfo?.Id;
@@ -224,7 +250,11 @@ public sealed class SessionService : ISessionService
         var currentUserId = _currentUser.GetUserId().ToString();
         if (!string.Equals(userId, currentUserId, StringComparison.OrdinalIgnoreCase))
         {
-            throw new UnauthorizedAccessException("Cannot revoke sessions for another user");
+            throw new LocalizedUnauthorizedAccessException("Cannot revoke sessions for another user")
+            {
+                MessageKey = "Identity.CannotRevokeOthersSessions",
+                ResourceSource = typeof(IdentityResources),
+            };
         }
 
         var query = _db.UserSessions

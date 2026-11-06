@@ -82,8 +82,8 @@ public sealed class Invoice : AggregateRoot<Guid>
             PeriodYear = periodYear,
             PeriodMonth = periodMonth,
             Purpose = purpose,
-            PeriodStartUtc = periodStartUtc is { } s ? DateTime.SpecifyKind(s, DateTimeKind.Utc) : null,
-            PeriodEndUtc = periodEndUtc is { } e ? DateTime.SpecifyKind(e, DateTimeKind.Utc) : null,
+            PeriodStartUtc = periodStartUtc is { } s ? UtcInstant.From(s) : null,
+            PeriodEndUtc = periodEndUtc is { } e ? UtcInstant.From(e) : null,
             SubtotalAmount = Money.Zero(currency.ToUpperInvariant()),
             Status = InvoiceStatus.Draft,
             CreatedAtUtc = DateTime.UtcNow
@@ -126,7 +126,7 @@ public sealed class Invoice : AggregateRoot<Guid>
         IssuedAtUtc = DateTime.UtcNow;
         DueAtUtc = dueAtUtc is null
             ? IssuedAtUtc.Value.AddDays(14)
-            : DateTime.SpecifyKind(dueAtUtc.Value, DateTimeKind.Utc);
+            : UtcInstant.From(dueAtUtc.Value);
     }
 
     public void MarkPaid()

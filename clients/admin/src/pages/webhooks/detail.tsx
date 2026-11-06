@@ -34,8 +34,9 @@ import {
   Pagination,
   SettingsSection,
 } from "@/components/list";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
+import { formatStampSeconds as formatTimestamp, SAO_PAULO } from "@/lib/format";
 
 const PAGE_SIZE = 25;
 
@@ -150,7 +151,7 @@ export function WebhookDetailPage() {
                 </Badge>
               } />
               <FieldRow label="Subscription id" mono value={sub.id} />
-              <FieldRow label="Created" mono value={new Date(sub.createdAtUtc).toLocaleString()} />
+              <FieldRow label="Created" mono value={new Date(sub.createdAtUtc).toLocaleString(undefined, { timeZone: SAO_PAULO })} />
             </dl>
           </SettingsSection>
 
@@ -266,15 +267,9 @@ function FieldRow({ label, value, mono }: { label: string; value: React.ReactNod
   );
 }
 
-function formatTimestamp(value: string): string {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
 
 function describe(err: unknown): string {
-  if (err instanceof ApiRequestError) return err.problem?.detail ?? err.problem?.title ?? err.message;
+  if (err instanceof ApiRequestError) return describeError(err);
   if (err instanceof Error) return err.message;
   return String(err);
 }

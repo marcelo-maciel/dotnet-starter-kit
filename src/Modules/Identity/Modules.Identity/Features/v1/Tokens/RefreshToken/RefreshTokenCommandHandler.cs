@@ -3,6 +3,7 @@ using FSH.Modules.Auditing.Contracts;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Framework.Core.Exceptions;
 using FSH.Modules.Identity.Contracts.v1.Tokens.RefreshToken;
+using FSH.Modules.Identity.Localization;
 using Mediator;
 using Microsoft.Extensions.Logging;
 using System.IdentityModel.Tokens.Jwt;
@@ -50,8 +51,12 @@ public sealed class RefreshTokenCommandHandler
 
         if (validated is null)
         {
-            await _securityAudit.TokenRevokedAsync("unknown", clientId!, "InvalidRefreshToken", cancellationToken);
-            throw new UnauthorizedException("Invalid refresh token.");
+            await _securityAudit.TokenRevokedAsync("unknown", clientId, "InvalidRefreshToken", cancellationToken);
+            throw new UnauthorizedException("Invalid refresh token.")
+            {
+                MessageKey = "Identity.InvalidRefreshToken",
+                ResourceSource = typeof(IdentityResources),
+            };
         }
 
         var (subject, claims) = validated.Value;
@@ -61,8 +66,12 @@ public sealed class RefreshTokenCommandHandler
         var isSessionValid = await _sessionService.ValidateSessionAsync(refreshTokenHash, cancellationToken);
         if (!isSessionValid)
         {
-            await _securityAudit.TokenRevokedAsync(subject, clientId!, "SessionRevoked", cancellationToken);
-            throw new UnauthorizedException("Session has been revoked.");
+            await _securityAudit.TokenRevokedAsync(subject, clientId, "SessionRevoked", cancellationToken);
+            throw new UnauthorizedException("Session has been revoked.")
+            {
+                MessageKey = "Identity.SessionRevoked",
+                ResourceSource = typeof(IdentityResources),
+            };
         }
 
         // Optionally, cross-check the provided access token subject
@@ -86,13 +95,25 @@ public sealed class RefreshTokenCommandHandler
             if (!string.IsNullOrEmpty(accessTokenSubject) &&
                 !string.Equals(accessTokenSubject, subject, StringComparison.Ordinal))
             {
-                await _securityAudit.TokenRevokedAsync(subject, clientId!, "RefreshTokenSubjectMismatch", cancellationToken);
-                throw new UnauthorizedException("Access token subject mismatch.");
+                await _securityAudit.TokenRevokedAsync(subject, clientId, "RefreshTokenSubjectMismatch", cancellationToken);
+                throw new UnauthorizedException("Access token subject mismatch.")
+                {
+                    MessageKey = "Identity.AccessTokenSubjectMismatch",
+                    ResourceSource = typeof(IdentityResources),
+                };
             }
         }
 
         // Audit previous token revocation by rotation (no raw tokens)
-        await _securityAudit.TokenRevokedAsync(subject, clientId!, "RefreshTokenRotated", cancellationToken);
+        await _securityAudit.TokenRevokedAsync(subject, clientId, "RefreshTokenRotated", cancellationToken);
+
+        // PAF (ADR 0008, "Claim de sessão"): the renewed access token keeps the session claim of the login.
+        // A refresh token with no session row (issued before the claim existed) gets no claim and is refused downstream.
+        var sessionId = await _sessionService.GetSessionIdByRefreshTokenAsync(refreshTokenHash, cancellationToken);
+        if (sessionId is { } id)
+        {
+            claims = claims.Append(new Claim(JwtRegisteredClaimNames.Sid, id.ToString())).ToList();
+        }
 
         // Issue new tokens
         var newToken = await _tokenService.IssueAsync(subject, claims, null, cancellationToken);
@@ -113,7 +134,7 @@ public sealed class RefreshTokenCommandHandler
         await _securityAudit.TokenIssuedAsync(
             userId: subject,
             userName: claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value ?? string.Empty,
-            clientId: clientId!,
+            clientId: clientId,
             tokenFingerprint: fingerprint,
             expiresUtc: newToken.AccessTokenExpiresAt,
             ct: cancellationToken);

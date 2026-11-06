@@ -21,27 +21,17 @@ export const DEFAULT_PROFILE = {
 /**
  * Mock every API call the authenticated AppShell fires on load so any
  * protected page can be visited in isolation without hanging on the
- * topbar's notification/chat badges or the SSE/realtime providers.
+ * SSE provider.
  *
  * ORDERING: Playwright matches the MOST RECENTLY registered route first.
  * We register broad globs first and the more-specific ones last. Callers
  * register their page-specific mocks AFTER calling this, so those win over
- * these defaults (e.g. a chat spec can return real channels).
+ * these defaults (e.g. a spec can return real rows).
  */
 export async function installShellMocks(page: Page): Promise<void> {
-  // Long-lived realtime transports — abort so they neither keep the network
-  // busy nor spew reconnect noise. The shell simply shows an "offline" dot.
+  // Long-lived transports — abort so they neither keep the network busy nor spew reconnect noise.
   await page.route("**/api/v1/sse/**", (r: Route) => r.abort());
   await page.route("**/negotiate**", (r: Route) => r.abort());
-  await page.route("**/api/v1/realtime/**", (r: Route) => r.abort());
-
-  // Notifications — register the list glob first, then the more specific
-  // unread-count (so the count request resolves to a number, not []).
-  await mockJsonResponse(page, "**/api/v1/notifications**", []);
-  await mockJsonResponse(page, "**/api/v1/notifications/unread-count**", 0);
-
-  // Topbar chat unread badge.
-  await mockJsonResponse(page, "**/api/v1/chat/channels**", []);
 
   // Defensive: profile + permissions (harmless if a page re-reads them).
   await mockJsonResponse(page, "**/api/v1/identity/profile", DEFAULT_PROFILE);

@@ -74,7 +74,25 @@ test.describe("session restore — expired access token at boot", () => {
     await page.goto("/");
 
     await expect(page).toHaveURL(/\/login$/);
-    await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /bem-vindo de volta/i })).toBeVisible();
+  });
+
+  // C3: a 503 at boot (API restarting) is no verdict on the refresh token; the next load tries again.
+  test("keeps the stored tokens when the silent refresh gets a 503", async ({ page }) => {
+    await seedExpiredSession(page);
+    let refreshCalls = 0;
+    await page.route("**/api/v1/identity/token/refresh", (route) => {
+      refreshCalls += 1;
+      return route.fulfill({ status: 503, body: "" });
+    });
+
+    await page.goto("/");
+
+    await expect.poll(() => refreshCalls).toBeGreaterThan(0);
+    await expect
+      .poll(async () => page.evaluate((k) => localStorage.getItem(k), REFRESH_KEY))
+      .toBe("stale-refresh-token");
+    expect(await page.evaluate((k) => localStorage.getItem(k), ACCESS_KEY)).toBe(EXPIRED_TOKEN);
   });
 
   test("silently refreshes and stays signed in when the refresh succeeds", async ({ page }) => {

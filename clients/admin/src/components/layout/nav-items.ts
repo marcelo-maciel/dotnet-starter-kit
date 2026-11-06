@@ -18,6 +18,7 @@ import {
   MultitenancyPermissions,
   WebhooksPermissions,
 } from "@/lib/permissions";
+import { secaoOperadorPaf } from "@/features/paf/operador/menu-operador-paf";
 
 /** A single nav destination — label, route, icon, optional perm guard. */
 export type NavSpec = {
@@ -39,11 +40,11 @@ export type NavSection = {
 // ─── Top-level singletons ────────────────────────────────────────────────────
 
 export const topNavTop: NavSpec[] = [
-  { to: "/", label: "Overview", icon: LayoutDashboard },
+  { to: "/", label: "Visão geral", icon: LayoutDashboard },
 ];
 
 export const topNavBottom: NavSpec[] = [
-  { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/settings", label: "Configurações", icon: Settings },
 ];
 
 // ─── Section accordions ──────────────────────────────────────────────────────
@@ -51,12 +52,12 @@ export const topNavBottom: NavSpec[] = [
 export const sections: NavSection[] = [
   {
     id: "multitenancy",
-    caption: "Tenants",
+    caption: "Clientes",
     icon: Building2,
     items: [
       {
         to: "/tenants",
-        label: "Tenants",
+        label: "Clientes",
         icon: Building2,
         perms: [MultitenancyPermissions.Tenants.View],
       },
@@ -64,24 +65,24 @@ export const sections: NavSection[] = [
   },
   {
     id: "identity",
-    caption: "Identity",
+    caption: "Identidade",
     icon: UsersRound,
     items: [
       {
         to: "/users",
-        label: "Users",
+        label: "Usuários",
         icon: UsersRound,
         perms: [IdentityPermissions.Users.View],
       },
       {
         to: "/roles",
-        label: "Roles",
+        label: "Perfis",
         icon: ShieldCheck,
         perms: [IdentityPermissions.Roles.View],
       },
       {
         to: "/impersonation",
-        label: "Impersonation",
+        label: "Acessar como cliente",
         icon: UserCog,
         perms: [IdentityPermissions.Impersonation.View],
       },
@@ -89,12 +90,12 @@ export const sections: NavSection[] = [
   },
   {
     id: "operations",
-    caption: "Operations",
+    caption: "Operações",
     icon: Activity,
     items: [
       {
         to: "/billing",
-        label: "Billing",
+        label: "Faturamento",
         icon: Receipt,
         perms: [BillingPermissions.View],
       },
@@ -106,17 +107,18 @@ export const sections: NavSection[] = [
       },
       {
         to: "/audits",
-        label: "Audits",
+        label: "Auditoria",
         icon: ScrollText,
         perms: [AuditingPermissions.AuditTrails.View],
       },
       {
         to: "/health",
-        label: "Health",
+        label: "Saúde",
         icon: Activity,
       },
     ],
   },
+  secaoOperadorPaf,
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

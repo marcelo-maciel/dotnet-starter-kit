@@ -51,11 +51,11 @@ export function TenantDeactivatedPage() {
         </div>
 
         <h1 className="mb-2 font-display text-display-stat font-semibold tracking-tight text-[var(--color-foreground)]">
-          Tenant deactivated
+          Empresa desativada
         </h1>
         <p className="mb-7 max-w-[380px] text-[14px] leading-relaxed text-[var(--color-muted-foreground)]">
-          This tenant has been deactivated and is no longer available. If you
-          think this is a mistake, please contact your administrator.
+          Esta empresa foi desativada e não está mais disponível. Se você
+          acha que isso é um engano, fale com o seu administrador.
         </p>
 
         {/* Primary action */}
@@ -65,7 +65,7 @@ export function TenantDeactivatedPage() {
           className="group h-11 px-5 text-[14px] font-semibold"
         >
           <LogIn className="size-4" />
-          <span>Back to sign in</span>
+          <span>Voltar para a entrada</span>
         </Button>
       </div>
     </div>

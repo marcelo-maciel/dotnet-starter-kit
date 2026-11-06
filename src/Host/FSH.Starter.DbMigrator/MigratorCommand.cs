@@ -64,8 +64,8 @@ internal sealed record MigratorCommand(
         Verbs:
           apply           Apply pending migrations (default). Use --seed to also run SeedAsync.
           seed            Run only the SeedAsync step per tenant.
-          seed-demo       Provision the demo tenants (acme, globex) with users, catalog,
-                          tickets, and chat. Dev-only — refuses to run unless
+          seed-demo       Provision the demo tenants (acme, globex) with their
+                          subscriptions and users. Dev-only — refuses to run unless
                           DOTNET_ENVIRONMENT=Development.
           list-pending    Print pending migrations without applying anything.
 

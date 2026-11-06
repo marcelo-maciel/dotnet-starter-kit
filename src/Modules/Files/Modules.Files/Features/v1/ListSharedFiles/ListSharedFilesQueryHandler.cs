@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using FSH.Framework.Persistence;
 using FSH.Framework.Storage.Services;
 using FSH.Modules.Files.Contracts.v1.DTOs;
 using FSH.Modules.Files.Contracts.v1.Queries;
@@ -18,7 +19,7 @@ namespace FSH.Modules.Files.Features.v1.ListSharedFiles;
 public sealed class ListSharedFilesQueryHandler(FilesDbContext db, IStorageService storage)
     : IQueryHandler<ListSharedFilesQuery, ReadOnlyCollection<FileAssetDto>>
 {
-    // Free-standing tenant files (not bound to a domain entity). Catalog/Tickets/Chat attachments
+    // Free-standing tenant files (not bound to a domain entity). Entity-bound attachments
     // are excluded — their visibility follows the owning entity's access policy, not a share decision.
     private static readonly string[] SharedOwnerTypes = ["MyFiles", "User"];
 
@@ -34,7 +35,7 @@ public sealed class ListSharedFilesQueryHandler(FilesDbContext db, IStorageServi
                 && f.Status == FileAssetStatus.Available
                 && SharedOwnerTypes.Contains(f.OwnerType))
             .OrderByDescending(f => f.CreatedAtUtc)
-            .Skip((page - 1) * pageSize)
+            .Skip(PaginationExtensions.GetOffset(page, pageSize))
             .Take(pageSize)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);

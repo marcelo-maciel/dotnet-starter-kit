@@ -15,7 +15,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
+import { SAO_PAULO } from "@/lib/format";
 
 function formatMoney(amount: number, currency: string): string {
   try {
@@ -28,7 +29,7 @@ function formatMoney(amount: number, currency: string): string {
 function formatDate(value?: string | null): string {
   if (!value) return "—";
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString();
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString(undefined, { timeZone: SAO_PAULO });
 }
 
 /**
@@ -83,7 +84,7 @@ export function RenewTenantDialog({
     onError: (err) => {
       const detail =
         err instanceof ApiRequestError
-          ? err.problem?.detail ?? err.problem?.title ?? err.message
+          ? describeError(err)
           : (err as Error).message;
       toast.error("Renew failed", { description: detail });
     },

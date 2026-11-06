@@ -28,6 +28,7 @@ import {
   type ToneIconTileTone,
 } from "@/components/list";
 import { cn } from "@/lib/cn";
+import { SAO_PAULO } from "@/lib/list-helpers";
 
 // ────────────────────────────────────────────────────────────────────────
 // Tone helpers — keep status-to-aesthetic mapping in one place so the
@@ -64,18 +65,24 @@ const PILL_TONE: Record<Tone, EntityStatusTone> = {
   danger: "danger",
 };
 
+const HEALTH_STATUS_LABEL: Record<HealthStatus, string> = {
+  Healthy: "Saudável",
+  Degraded: "Degradado",
+  Unhealthy: "Com falha",
+};
+
 const HERO_COPY: Record<HealthStatus, { headline: string; subline: string }> = {
   Healthy: {
-    headline: "All systems operational",
-    subline: "Every dependency is responding within tolerance.",
+    headline: "Todos os sistemas funcionando",
+    subline: "Todas as dependências estão respondendo dentro do esperado.",
   },
   Degraded: {
-    headline: "Partial degradation",
-    subline: "One or more checks are reporting elevated latency or warnings.",
+    headline: "Degradação parcial",
+    subline: "Uma ou mais verificações estão com latência alta ou alertas.",
   },
   Unhealthy: {
-    headline: "Disruption detected",
-    subline: "At least one critical dependency is unreachable. Investigate the failing checks below.",
+    headline: "Falha detectada",
+    subline: "Pelo menos uma dependência crítica está inacessível. Veja as verificações com falha abaixo.",
   },
 };
 
@@ -139,12 +146,12 @@ function splitLatency(ms: number): [string, string] {
 
 function formatRelative(iso: string, now: number = Date.now()): string {
   const delta = Math.max(0, Math.floor((now - Date.parse(iso)) / 1000));
-  if (delta < 5) return "just now";
-  if (delta < 60) return `${delta}s ago`;
+  if (delta < 5) return "agora";
+  if (delta < 60) return `há ${delta} s`;
   const m = Math.floor(delta / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return `há ${m} min`;
   const h = Math.floor(m / 60);
-  return `${h}h ago`;
+  return `há ${h} h`;
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -191,12 +198,12 @@ export function HealthPage() {
   return (
     <div className="space-y-7 pb-12">
       <PageHero
-        eyebrow="System · Health"
-        title="Health"
+        eyebrow="Sistema · Saúde"
+        title="Saúde"
         subtitle={
           <>
-            Live readiness probe across every registered dependency. Polled every{" "}
-            <span className="font-mono">{POLL_INTERVAL_MS / 1000}s</span>.
+            Verificação de prontidão ao vivo de todas as dependências registradas, a cada{" "}
+            <span className="font-mono">{POLL_INTERVAL_MS / 1000} s</span>.
           </>
         }
         actions={
@@ -205,14 +212,14 @@ export function HealthPage() {
               variant="outline"
               size="sm"
               onClick={() => setAutoRefresh((v) => !v)}
-              title={autoRefresh ? "Pause auto-refresh" : "Resume auto-refresh"}
+              title={autoRefresh ? "Pausar a atualização automática" : "Retomar a atualização automática"}
             >
               {autoRefresh ? (
                 <Pause className="mr-1.5 h-3.5 w-3.5" />
               ) : (
                 <Play className="mr-1.5 h-3.5 w-3.5" />
               )}
-              {autoRefresh ? "Live" : "Paused"}
+              {autoRefresh ? "Ao vivo" : "Pausado"}
             </Button>
             <Button
               variant="outline"
@@ -223,7 +230,7 @@ export function HealthPage() {
               <RefreshCw
                 className={cn("mr-1.5 h-3.5 w-3.5", query.isFetching && "animate-spin")}
               />
-              Refresh
+              Atualizar
             </Button>
           </>
         }
@@ -246,14 +253,14 @@ export function HealthPage() {
       </section>
 
       {/* ── Dependencies list ───────────────────────────────────────────── */}
-      <section aria-label="Dependencies" className="fsh-enter fsh-enter-3">
+      <section aria-label="Dependências" className="fsh-enter fsh-enter-3">
         <div className="mb-3 flex items-baseline justify-between gap-3">
           <h2 className="font-display text-[16px] font-semibold tracking-tight text-[var(--color-foreground)]">
-            Dependencies
+            Dependências
           </h2>
           {snapshot && (
             <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--color-muted-foreground)]">
-              {computed?.total ?? 0} checks · total{" "}
+              {computed?.total ?? 0} verificações · total{" "}
               <span className="font-mono tabular-nums text-[var(--color-foreground)]">
                 {formatLatency(computed?.totalDuration ?? 0)}
               </span>
@@ -325,7 +332,7 @@ function HeroPanel({
             <ToneIconTile icon={Icon} tone={TILE_TONE[tone]} size="lg" />
             <div className="flex items-baseline gap-2">
               <EntityStatusBadge tone={PILL_TONE[tone]} withDot>
-                {snapshot.status}
+                {HEALTH_STATUS_LABEL[snapshot.status]}
               </EntityStatusBadge>
               <span className="font-mono text-[10.5px] font-medium uppercase tracking-wider text-[var(--color-muted-foreground)]">
                 HTTP {snapshot.httpStatus}
@@ -343,18 +350,19 @@ function HeroPanel({
 
           {/* Vitals row */}
           <dl className="mt-6 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
-            <Vital label="Checks" value={`${total - failing}/${total}`} hint="passing" />
+            <Vital label="Verificações" value={`${total - failing}/${total}`} hint="sem falha" />
             <Vital
-              label="Round-trip"
+              label="Ida e volta"
               value={formatLatency(snapshot.roundTripMs)}
-              hint="end-to-end"
+              hint="de ponta a ponta"
             />
-            <Vital label="Slowest" value={formatLatency(slowestMs)} hint="single check" />
+            <Vital label="Mais lenta" value={formatLatency(slowestMs)} hint="uma verificação" />
             <Vital
-              label="Last poll"
+              label="Última consulta"
               value={formatRelative(snapshot.fetchedAt)}
-              hint={new Date(snapshot.fetchedAt).toLocaleTimeString("en-US", {
-                hour12: false,
+              hint={new Date(snapshot.fetchedAt).toLocaleTimeString("pt-BR", {
+                hourCycle: "h23",
+                timeZone: SAO_PAULO,
               })}
             />
           </dl>
@@ -365,13 +373,13 @@ function HeroPanel({
         <div className="lg:w-[176px]">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">
-              Recent polls
+              Consultas recentes
             </span>
             <Activity className="size-3 text-[var(--color-muted-foreground)]" aria-hidden />
           </div>
           <HistoryPips ticks={history} />
           <p className="mt-2 font-mono text-[10.5px] tabular-nums text-[var(--color-muted-foreground)]">
-            {history.length} / {HISTORY_LIMIT} this session
+            {history.length} / {HISTORY_LIMIT} nesta sessão
           </p>
         </div>
       </div>
@@ -416,15 +424,15 @@ function HistoryPips({ ticks }: { ticks: Tick[] }) {
     ...ticks,
   ];
   return (
-    <div className="flex gap-[3px]" role="img" aria-label="Recent poll history">
+    <div className="flex gap-[3px]" role="img" aria-label="Histórico das consultas recentes">
       {filled.map((tick, i) => (
         <span
           key={i}
           className="h-6 flex-1 rounded-[2px] transition-colors"
           title={
             tick
-              ? `${tick.status} · ${new Date(tick.at).toLocaleTimeString()}`
-              : "no data"
+              ? `${HEALTH_STATUS_LABEL[tick.status]} · ${new Date(tick.at).toLocaleTimeString("pt-BR", { timeZone: SAO_PAULO })}`
+              : "sem dados"
           }
           style={{
             backgroundColor: tick
@@ -553,7 +561,7 @@ function DependencyRow({
             </p>
           ) : (
             <p className="mt-0.5 truncate text-[11.5px] italic text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.7)]">
-              No description registered.
+              Nenhuma descrição registrada.
             </p>
           )}
         </div>
@@ -573,7 +581,7 @@ function DependencyRow({
           className="hidden shrink-0 text-[10.5px] font-semibold uppercase tracking-wider sm:inline"
           style={{ color: toneColor }}
         >
-          {entry.status}
+          {HEALTH_STATUS_LABEL[entry.status]}
         </span>
 
         {/* Chevron */}
@@ -593,7 +601,7 @@ function DependencyRow({
             <div>
               <div className="flex items-baseline justify-between gap-3">
                 <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">
-                  Latency budget
+                  Orçamento de latência
                 </span>
                 <span className="font-mono text-[11px] tabular-nums text-[var(--color-muted-foreground)]">
                   {formatLatency(entry.durationMs)} / 500 ms
@@ -609,19 +617,19 @@ function DependencyRow({
                 />
               </div>
               <p className="mt-2 text-[11px] leading-relaxed text-[var(--color-muted-foreground)]">
-                Scaled against a soft 500 ms readiness budget. Bars in the upper
-                third are early-warning territory.
+                Em escala contra um orçamento de prontidão de 500 ms. Barras no terço
+                de cima já são um sinal de alerta.
               </p>
             </div>
 
             {/* Detail key/value table */}
             <div>
               <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">
-                Detail
+                Detalhes
               </span>
               {detailEntries.length === 0 ? (
                 <p className="mt-2 text-[12px] italic text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.7)]">
-                  No additional details reported.
+                  Nenhum detalhe adicional informado.
                 </p>
               ) : (
                 <dl className="mt-2 divide-y divide-[oklch(from_var(--color-border)_l_c_h_/_0.5)] rounded-lg border border-[var(--color-border)] bg-[var(--color-card)]">
@@ -643,7 +651,7 @@ function DependencyRow({
                   ))}
                   {detailEntries.length > 6 && (
                     <div className="px-3 py-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">
-                      +{detailEntries.length - 6} more
+                      +{detailEntries.length - 6} a mais
                     </div>
                   )}
                 </dl>
@@ -721,11 +729,11 @@ function ErrorPanel({ message }: { message?: string }) {
       <ToneIconTile icon={CircleAlert} tone="destructive" size="md" />
       <div className="min-w-0 flex-1">
         <p className="font-display text-[14px] font-semibold tracking-tight text-[var(--color-destructive)]">
-          Health endpoint unreachable
+          Endpoint de saúde inacessível
         </p>
         <p className="mt-1 text-[12.5px] leading-relaxed text-[var(--color-muted-foreground)]">
           {message ??
-            "The browser couldn't reach /health/ready. The API may be down, or a network policy is blocking the request."}
+            "O navegador não conseguiu acessar /health/ready. A API pode estar fora do ar, ou uma regra de rede está bloqueando a requisição."}
         </p>
       </div>
     </div>
@@ -737,14 +745,14 @@ function EmptyChecks() {
     <div className="flex flex-col items-center justify-center gap-2.5 rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-card)] px-5 py-12 text-center">
       <ToneIconTile icon={ShieldCheck} tone="muted" size="lg" className="rounded-full" />
       <p className="font-display text-[14px] font-semibold tracking-tight text-[var(--color-foreground)]">
-        No checks registered
+        Nenhuma verificação registrada
       </p>
       <p className="max-w-sm text-[11.5px] leading-relaxed text-[var(--color-muted-foreground)]">
-        Modules can register dependency checks via{" "}
+        Os módulos podem registrar verificações de dependência com{" "}
         <code className="rounded bg-[var(--color-muted)] px-1.5 py-0.5 font-mono text-[10.5px] text-[var(--color-foreground)]">
           AddHealthChecks()
         </code>
-        . None are reporting yet.
+        . Nenhuma está respondendo ainda.
       </p>
     </div>
   );

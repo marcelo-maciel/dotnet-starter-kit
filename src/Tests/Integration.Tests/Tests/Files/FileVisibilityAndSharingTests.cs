@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Shared.Multitenancy;
+using FSH.Modules.Files.Contracts.Authorization;
 using FSH.Modules.Files.Contracts.v1.DTOs;
 using FSH.Modules.Identity.Domain;
 using Integration.Tests.Infrastructure;
@@ -213,6 +214,29 @@ public sealed class FileVisibilityAndSharingTests
     }
 
     [Fact]
+    public async Task DeleteFile_Should_Return403_When_Caller_Is_Not_The_Uploader()
+    {
+        // Arrange — a Public file, so the non-owner can see it and the 403 comes from CanDeleteAsync, not from
+        // the existence check (a Private file would answer 404).
+        using var ownerClient = await _auth.CreateRootAdminClientAsync();
+        var fileId = await UploadAndFinalizeAsync(ownerClient, "owner-deletes.pdf", "application/pdf", 256, visibility: 0);
+
+        using var granteeClient = await RegisterAndLoginAsync("not-the-deleter");
+        using var permissionsResponse = await granteeClient.GetAsync($"{TestConstants.IdentityBasePath}/permissions");
+        var permissions = await permissionsResponse.DeserializeAsync<string[]>();
+        permissions.ShouldContain(FilesPermissions.DeleteOwn,
+            "premise: the non-owner holds Files.DeleteOwn, so only the uploader-only policy can refuse");
+
+        // Act — non-owner tries to delete it.
+        using var response = await granteeClient.DeleteAsync($"{FilesBasePath}/{fileId}");
+
+        // Assert — DefaultUploaderOnlyPolicy.CanDeleteAsync is uploader-only → 403, and the file is still there.
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        using var stillThere = await ownerClient.GetAsync($"{FilesBasePath}/{fileId}");
+        stillThere.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
     public async Task ChangeVisibility_Should_Hide_Public_File_From_NonOwner_When_Flipped_To_Private()
     {
         // Arrange — start Public (non-owner can read), then the owner un-shares it (→ Private).
@@ -274,7 +298,7 @@ public sealed class FileVisibilityAndSharingTests
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<FshUser>>();
             var user = await userManager.FindByIdAsync(registered.UserId);
             user.ShouldNotBeNull();
-            if (!user!.EmailConfirmed)
+            if (!user.EmailConfirmed)
             {
                 user.EmailConfirmed = true;
                 (await userManager.UpdateAsync(user)).Succeeded.ShouldBeTrue();

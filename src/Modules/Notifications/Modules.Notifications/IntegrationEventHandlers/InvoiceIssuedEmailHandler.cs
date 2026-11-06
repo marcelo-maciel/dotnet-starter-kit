@@ -1,9 +1,12 @@
+using System.Globalization;
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Eventing.Abstractions;
 using FSH.Framework.Mailing.Services;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Billing.Contracts.Events;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace FSH.Modules.Notifications.IntegrationEventHandlers;
 
@@ -12,9 +15,15 @@ namespace FSH.Modules.Notifications.IntegrationEventHandlers;
 public sealed class InvoiceIssuedEmailHandler(
     IMultiTenantStore<AppTenantInfo> tenantStore,
     IMailService mailService,
-    ILogger<InvoiceIssuedEmailHandler> logger)
+    ILogger<InvoiceIssuedEmailHandler> logger,
+    IOptions<RequestLocalizationOptions> localizationOptions)
     : IIntegrationEventHandler<InvoiceIssuedIntegrationEvent>
 {
+    // The recipient is the tenant's AdminEmail, a string on the tenant record: reading that user's own
+    // locale would cross into Identity from a background handler, so the deployment's default culture
+    // (pt-BR in production) decides.
+    private CultureInfo DeploymentCulture => localizationOptions.Value.DefaultRequestCulture.UICulture;
+
     public async Task HandleAsync(InvoiceIssuedIntegrationEvent @event, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(@event);
@@ -29,9 +38,9 @@ public sealed class InvoiceIssuedEmailHandler(
             return;
         }
 
-        var (subject, body) = BillingEmailBodies.InvoiceIssued(
-            @event.InvoiceNumber, @event.Amount, @event.Currency, @event.DueAtUtc);
-        await BillingEmailSender.SendAsync(mailService, logger, tenant.AdminEmail, subject, body, "invoice-issued", ct)
+        var (subject, body, textBody) = BillingEmailBodies.InvoiceIssued(
+            @event.InvoiceNumber, @event.Amount, @event.Currency, @event.DueAtUtc, DeploymentCulture);
+        await BillingEmailSender.SendAsync(mailService, logger, tenant.AdminEmail, subject, body, textBody, "invoice-issued", ct)
             .ConfigureAwait(false);
     }
 }

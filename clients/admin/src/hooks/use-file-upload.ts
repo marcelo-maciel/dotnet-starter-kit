@@ -7,7 +7,7 @@ import {
   Visibility,
   type VisibilityValue,
 } from "@/api/files";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError as describeApiError } from "@/lib/api-client";
 
 export type UploadOptions = {
   ownerType?: string;
@@ -68,7 +68,7 @@ const DEFAULT_OPTIONS = {
 /**
  * Orchestrates the three-step presigned-upload protocol:
  *   1. POST /api/v1/files/upload-url  — server mints presigned PUT + reserves a FileAsset row
- *   2. PUT  <uploadUrl>                — browser pushes bytes straight to S3/MinIO (XHR for progress)
+ *   2. PUT  <uploadUrl>                — browser pushes bytes straight to S3 (RustFS locally) (XHR for progress)
  *   3. POST /api/v1/files/{id}/finalize — server HEADs the object, transitions to Available
  *
  * Progress is reported via the in-state `progress` snapshot — XMLHttpRequest is used (instead of fetch)
@@ -247,7 +247,7 @@ function xhrPut(
 
 function describeError(e: unknown): string {
   if (e instanceof ApiRequestError) {
-    return e.problem?.detail ?? e.problem?.title ?? e.message;
+    return describeApiError(e);
   }
   if (e instanceof Error) return e.message;
   return "Unknown error";

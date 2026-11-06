@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AlertCircle, ArrowRight, Eye, EyeOff, Loader2, Sparkles, TimerOff } from "lucide-react";
 import { useAuth } from "@/auth/use-auth";
@@ -7,21 +7,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthShell } from "@/components/auth/auth-shell";
-import { DemoAccountsDialog } from "@/components/auth/demo-accounts-dialog";
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 import { env } from "@/env";
 import type { DemoAccount } from "@/pages/login.demo-accounts";
+
+// The demo accounts (shared password, root e-mail) are public credentials the moment any environment seeds
+// them, so they must not ship in a production bundle: the dynamic import sits behind a build-time constant
+// and the bundler drops the chunk altogether (C8). The runtime demoMode flag then only
+// chooses among builds that contain it.
+// ponytail: dev builds only; a staging image that needs the picker needs a build flag, not a runtime one.
+const DemoAccountsDialog = import.meta.env.DEV
+  ? lazy(() => import("@/components/auth/demo-accounts-dialog").then((m) => ({ default: m.DemoAccountsDialog })))
+  : null;
 
 type LocationState = { from?: { pathname: string } };
 
 // ────────────────────────────────────────────────────────────────────────
 // Login — dentalOS "welcome back" card on rose+saffron atmospheric orbs
 // (chrome supplied by AuthShell, shared with the rest of the auth flow).
-// FSH stays multi-tenant, so the Tenant field leads the form; Email +
-// Password follow. The demo picker ("Step into any role") signs in
-// instantly and is gated on the runtime demoMode flag — on in staging,
-// off in production.
+// PAF (O2): e-mail and password only; the server finds the company from
+// the e-mail and the session keeps it. The demo picker ("Step into any role") signs in
+// instantly and exists only in dev builds (see DemoAccountsDialog above),
+// behind the runtime demoMode flag.
 // ────────────────────────────────────────────────────────────────────────
 
 export function LoginPage() {
@@ -32,7 +40,6 @@ export function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [tenant, setTenant] = useState(env.defaultTenant);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [demoOpen, setDemoOpen] = useState(false);
@@ -42,7 +49,7 @@ export function LoginPage() {
   // Surface why the previous session ended (read-and-clear, one-shot).
   useEffect(() => {
     if (consumeSignedOutReason() === "inactivity") {
-      setNotice("You were signed out due to inactivity.");
+      setNotice("Sua sessão foi encerrada por inatividade.");
     }
   }, []);
 
@@ -50,7 +57,7 @@ export function LoginPage() {
     return <Navigate to={from} replace />;
   }
 
-  const performLogin = async (creds: { email: string; password: string; tenant: string }) => {
+  const performLogin = async (creds: { email: string; password: string }) => {
     setError(null);
     setSubmitting(true);
     try {
@@ -62,7 +69,7 @@ export function LoginPage() {
           ? err.problem?.detail ?? err.problem?.title ?? err.message
           : err instanceof Error
             ? err.message
-            : "Login failed";
+            : "Não foi possível entrar";
       setError(message);
     } finally {
       setSubmitting(false);
@@ -71,16 +78,15 @@ export function LoginPage() {
 
   const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    await performLogin({ email, password, tenant });
+    await performLogin({ email, password });
   };
 
   // Demo picker → reflect the chosen creds in the form, then sign in
-  // instantly. Each demo account carries its own tenant + password.
+  // instantly. The server finds each demo account's company from its e-mail.
   const onPickDemo = (account: DemoAccount) => {
     setEmail(account.email);
     setPassword(account.password);
-    setTenant(account.tenant);
-    void performLogin({ email: account.email, password: account.password, tenant: account.tenant });
+    void performLogin({ email: account.email, password: account.password });
   };
 
   return (
@@ -88,10 +94,10 @@ export function LoginPage() {
       <AuthShell>
         <div className="mb-6 sm:mb-8">
           <h1 className="mb-1.5 font-display text-[22px] font-semibold tracking-tight text-[var(--color-foreground)]">
-            Welcome back
+            Bem-vindo de volta
           </h1>
           <p className="text-[13px] text-[var(--color-muted-foreground)]">
-            Sign in to your account
+            Entre na sua conta
           </p>
         </div>
 
@@ -111,39 +117,19 @@ export function LoginPage() {
           noValidate
           aria-describedby={error ? "login-error" : undefined}
         >
-          {/* Tenant — FSH stays multi-tenant, so this leads the form. */}
-          <div className="space-y-1.5">
-            <Label
-              htmlFor="tenant"
-              className="block text-[11.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]"
-            >
-              Tenant
-            </Label>
-            <Input
-              id="tenant"
-              value={tenant}
-              onChange={(e) => setTenant(e.target.value)}
-              placeholder="root"
-              autoComplete="organization"
-              required
-              aria-invalid={error ? true : undefined}
-              className="h-11 text-[14px]"
-            />
-          </div>
-
           <div className="space-y-1.5">
             <Label
               htmlFor="email"
               className="block text-[11.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]"
             >
-              Email
+              E-mail
             </Label>
             <Input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@example.com"
+              placeholder="nome@empresa.com.br"
               autoComplete="email"
               required
               aria-invalid={error ? true : undefined}
@@ -157,13 +143,13 @@ export function LoginPage() {
                 htmlFor="password"
                 className="text-[11.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]"
               >
-                Password
+                Senha
               </Label>
               <Link
                 to="/forgot-password"
                 className="text-[11px] font-medium text-[var(--color-muted-foreground)] underline-offset-4 transition-colors hover:text-[var(--color-primary)] hover:underline"
               >
-                Forgot?
+                Esqueceu?
               </Link>
             </div>
             <div className="relative">
@@ -172,7 +158,7 @@ export function LoginPage() {
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
+                placeholder="Sua senha"
                 autoComplete="current-password"
                 required
                 aria-invalid={error ? true : undefined}
@@ -181,7 +167,7 @@ export function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                 className="absolute right-3.5 top-1/2 grid h-6 w-6 -translate-y-1/2 cursor-pointer place-items-center rounded text-[var(--color-muted-foreground)] transition-colors hover:text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
               >
                 {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
@@ -208,17 +194,17 @@ export function LoginPage() {
           <div className="pt-1.5">
             <Button
               type="submit"
-              disabled={submitting || !email || !password || !tenant}
+              disabled={submitting || !email || !password}
               className="group h-11 w-full text-[14px] font-semibold"
             >
               {submitting ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
-                  <span>Signing in…</span>
+                  <span>Entrando…</span>
                 </>
               ) : (
                 <>
-                  <span>Sign in</span>
+                  <span>Entrar</span>
                   <ArrowRight className="size-[14px] opacity-60 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-100" />
                 </>
               )}
@@ -227,7 +213,7 @@ export function LoginPage() {
         </form>
 
         {/* Demo accounts — runtime-gated (staging on, prod off). */}
-        {env.demoMode && (
+        {env.demoMode && DemoAccountsDialog && (
           <div className="mt-7">
             <button
               type="button"
@@ -235,14 +221,16 @@ export function LoginPage() {
               className="flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-primary/25 bg-transparent text-[12.5px] font-medium text-primary/70 transition-all duration-150 hover:border-primary/40 hover:bg-primary/[0.04] hover:text-primary"
             >
               <Sparkles className="size-[13px]" />
-              <span>Sign in with a demo account</span>
+              <span>Entrar com uma conta de demonstração</span>
             </button>
           </div>
         )}
       </AuthShell>
 
-      {env.demoMode && (
-        <DemoAccountsDialog open={demoOpen} onOpenChange={setDemoOpen} onPick={onPickDemo} />
+      {env.demoMode && DemoAccountsDialog && (
+        <Suspense fallback={null}>
+          <DemoAccountsDialog open={demoOpen} onOpenChange={setDemoOpen} onPick={onPickDemo} />
+        </Suspense>
       )}
     </>
   );

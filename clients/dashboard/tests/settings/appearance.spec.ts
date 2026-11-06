@@ -10,37 +10,36 @@ test.beforeEach(async ({ page }) => {
   await installShellMocks(page);
 });
 
-test.describe("settings/appearance — theme + accent (client-side)", () => {
-  test("renders the theme, accent, font, and density sections", async ({ page }) => {
+test.describe("settings/appearance — theme, font, density (client-side)", () => {
+  test("renders the theme, font, and density sections", async ({ page }) => {
     await page.goto("/settings/appearance");
 
     // CardTitle is a styled <div>, not a heading — assert on the text.
-    await expect(page.getByText("Theme", { exact: true })).toBeVisible();
-    await expect(page.getByText("Accent", { exact: true })).toBeVisible();
-    await expect(page.getByText("Font", { exact: true })).toBeVisible();
-    await expect(page.getByText("Density", { exact: true })).toBeVisible();
+    await expect(page.getByText("Tema", { exact: true })).toBeVisible();
+    await expect(page.getByText("Fonte", { exact: true })).toBeVisible();
+    await expect(page.getByText("Densidade", { exact: true })).toBeVisible();
 
     // The three theme swatches are buttons with descriptive aria-labels.
-    await expect(page.getByRole("button", { name: "Light theme" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "System theme" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Dark theme" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Tema Claro" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Tema Sistema" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Tema Escuro" })).toBeVisible();
   });
 
   test("selecting Dark applies dark mode; Light reverts it", async ({ page }) => {
     await page.goto("/settings/appearance");
     const html = page.locator("html");
 
-    await page.getByRole("button", { name: "Dark theme" }).click();
+    await page.getByRole("button", { name: "Tema Escuro" }).click();
     await expect(html).toHaveClass(/dark/);
     // The chosen mode is the active swatch (aria-pressed).
-    await expect(page.getByRole("button", { name: "Dark theme" })).toHaveAttribute(
+    await expect(page.getByRole("button", { name: "Tema Escuro" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
 
-    await page.getByRole("button", { name: "Light theme" }).click();
+    await page.getByRole("button", { name: "Tema Claro" }).click();
     await expect(html).not.toHaveClass(/dark/);
-    await expect(page.getByRole("button", { name: "Light theme" })).toHaveAttribute(
+    await expect(page.getByRole("button", { name: "Tema Claro" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
@@ -49,29 +48,16 @@ test.describe("settings/appearance — theme + accent (client-side)", () => {
   test("persists the selected mode to localStorage", async ({ page }) => {
     await page.goto("/settings/appearance");
 
-    await page.getByRole("button", { name: "Dark theme" }).click();
+    await page.getByRole("button", { name: "Tema Escuro" }).click();
     const stored = await page.evaluate(() => window.localStorage.getItem("fsh.theme"));
     expect(stored).toBe("dark");
   });
 
-  test("opens the custom accent dialog and applies a brand colour", async ({ page }) => {
+  test("has no accent colour choice, only theme, font and density", async ({ page }) => {
     await page.goto("/settings/appearance");
+    await expect(page.getByText("Fonte", { exact: true })).toBeVisible();
 
-    await page.getByRole("button", { name: "Custom accent" }).click();
-
-    const dialog = page.getByRole("dialog");
-    await expect(
-      dialog.getByRole("heading", { name: /pick your brand colour/i }),
-    ).toBeVisible();
-    await expect(dialog.getByLabel("Hue")).toBeVisible();
-    await expect(dialog.getByLabel("Saturation")).toBeVisible();
-
-    await dialog.getByRole("button", { name: /apply accent/i }).click();
-    await expect(page.getByRole("dialog")).not.toBeVisible();
-    // The custom accent is now the active swatch.
-    await expect(page.getByRole("button", { name: "Custom accent" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    await expect(page.getByText("Cor de destaque")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /cor de destaque/i })).toHaveCount(0);
   });
 });

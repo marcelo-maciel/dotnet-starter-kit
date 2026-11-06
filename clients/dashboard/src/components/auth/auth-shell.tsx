@@ -4,8 +4,8 @@ import { ShieldCheck } from "lucide-react";
 // ────────────────────────────────────────────────────────────────────────
 // AuthShell — calm centered-card chrome for unauthenticated pages
 // (forgot-password, reset-password, confirm-email). Mirrors login.tsx's
-// dentalOS vocabulary: atmospheric rose+saffron orbs, Outfit "fullstackhero"
-// brand lockup, warm-paper card with backdrop blur. No parallax, no
+// dentalOS vocabulary: atmospheric rose+saffron orbs, PAF logo
+// lockup, warm-paper card with backdrop blur. No parallax, no
 // brackets, no graph paper, no dialog-script eyebrow.
 // ────────────────────────────────────────────────────────────────────────
 
@@ -63,22 +63,11 @@ export function AuthShell({
 
       {/* Card column */}
       <div className="relative z-10 w-full max-w-[420px] fsh-enter fsh-enter-1">
-        {/* Brand lockup — FSH logo + Outfit wordmark + .NET 10 caption */}
+        {/* Brand lockup: the logo has a navy wordmark, so it sits on a white plate to stay legible in the dark theme.
+            ponytail: logo files are rasters cut from a 373x507 PNG; swap for the vector logo when Marcelo has one. */}
         <div className="mb-8 flex flex-col items-center">
-          <div className="flex items-center gap-2.5">
-            <img
-              src="/logo-fullstackhero.png"
-              alt="fullstackhero"
-              className="size-9 object-contain"
-            />
-            <span className="font-display text-[26px] font-semibold tracking-tight text-[var(--color-foreground)]">
-              fullstack<span className="text-[var(--color-primary)]">hero</span>
-            </span>
-          </div>
-          <div className="mt-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.7)]">
-            <span aria-hidden className="h-px w-6 bg-[var(--color-border)]" />
-            <span>.NET 10 Starter Kit</span>
-            <span aria-hidden className="h-px w-6 bg-[var(--color-border)]" />
+          <div className="rounded-xl bg-white px-6 py-4 shadow-[0_1px_3px_oklch(0_0_0_/_0.06)]">
+            <img src="/logo-paf.png" alt="Passo a Frente" className="h-36 w-auto object-contain" />
           </div>
         </div>
 
@@ -95,10 +84,10 @@ export function AuthShell({
 
         <div className="mt-6 flex items-center justify-center gap-1.5 text-[11px] text-[var(--color-muted-foreground)]">
           <ShieldCheck className="size-3" />
-          <span>Encrypted in transit · JWT-secured session</span>
+          <span>Conexão criptografada · sessão protegida</span>
         </div>
         <p className="mt-4 text-center text-[10px] font-medium uppercase tracking-wider text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.5)]">
-          fullstackhero Administration
+          Passo a Frente
         </p>
       </div>
     </div>

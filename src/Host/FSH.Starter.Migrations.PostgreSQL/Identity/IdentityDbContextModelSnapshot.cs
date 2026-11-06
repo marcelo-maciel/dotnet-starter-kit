@@ -128,6 +128,10 @@ namespace FSH.Starter.Migrations.PostgreSQL.Identity
                     b.Property<DateTime>("LastPasswordChangeDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Locale")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");
 
@@ -183,6 +187,10 @@ namespace FSH.Starter.Migrations.PostgreSQL.Identity
                     b.HasIndex("NormalizedUserName", "TenantId")
                         .IsUnique()
                         .HasDatabaseName("UserNameIndex");
+
+                    b.HasIndex(new[] { "NormalizedEmail" }, "IX_Users_NormalizedEmail_Clientes")
+                        .IsUnique()
+                        .HasFilter("\"TenantId\" <> 'root'");
 
                     b.ToTable("Users", "identity");
 

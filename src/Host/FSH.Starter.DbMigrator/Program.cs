@@ -6,7 +6,6 @@ using FSH.Framework.Web;
 using FSH.Framework.Web.Modules;
 using FSH.Modules.Auditing;
 using FSH.Modules.Billing;
-using FSH.Modules.Catalog;
 using FSH.Modules.Identity;
 using FSH.Modules.Identity.Contracts.v1.Tokens.TokenGeneration;
 using FSH.Modules.Identity.Features.v1.Tokens.TokenGeneration;
@@ -15,7 +14,7 @@ using FSH.Modules.Multitenancy.Contracts;
 using FSH.Modules.Multitenancy.Contracts.v1.GetTenantStatus;
 using FSH.Modules.Multitenancy.Data;
 using FSH.Modules.Multitenancy.Features.v1.GetTenantStatus;
-using FSH.Modules.Tickets;
+using FSH.Modules.PAF;
 using FSH.Modules.Webhooks;
 using FSH.Starter.DbMigrator;
 using FSH.Starter.DbMigrator.DemoSeed;
@@ -39,7 +38,7 @@ if (cli.Help)
 var builder = Host.CreateApplicationBuilder(args);
 
 // Disable build-time DI validation: auto-on in Development, it walks ALL descriptors incl. handlers this
-// reduced-graph process never invokes (Chat→IHubContext, Identity→IMailService) and throws — false positive.
+// reduced-graph process never invokes (e.g. Identity→IMailService) and throws — false positive.
 builder.ConfigureContainer(new DefaultServiceProviderFactory(
     new ServiceProviderOptions { ValidateOnBuild = false, ValidateScopes = false }));
 
@@ -92,16 +91,12 @@ builder.Services.AddMediator(o =>
         typeof(FSH.Modules.Webhooks.WebhooksModule),
         typeof(FSH.Modules.Billing.Contracts.BillingContractsMarker),
         typeof(FSH.Modules.Billing.BillingModule),
-        typeof(FSH.Modules.Catalog.Contracts.CatalogContractsMarker),
-        typeof(FSH.Modules.Catalog.CatalogModule),
-        typeof(FSH.Modules.Tickets.Contracts.TicketsContractsMarker),
-        typeof(FSH.Modules.Tickets.TicketsModule),
         typeof(FSH.Modules.Files.Contracts.v1.Commands.RequestUploadUrlCommand),
         typeof(FSH.Modules.Files.FilesModule),
-        typeof(FSH.Modules.Chat.Contracts.v1.Commands.CreateChannelCommand),
-        typeof(FSH.Modules.Chat.ChatModule),
         typeof(FSH.Modules.Notifications.Contracts.v1.Commands.MarkNotificationReadCommand),
         typeof(FSH.Modules.Notifications.NotificationsModule),
+        typeof(FSH.Modules.PAF.Contracts.PafContractsMarker),
+        typeof(FSH.Modules.PAF.PafModule),
     ];
 });
 
@@ -113,10 +108,8 @@ var moduleAssemblies = new Assembly[]
     typeof(FSH.Modules.Files.FilesModule).Assembly,
     typeof(WebhooksModule).Assembly,
     typeof(BillingModule).Assembly,
-    typeof(CatalogModule).Assembly,
-    typeof(TicketsModule).Assembly,
-    typeof(FSH.Modules.Chat.ChatModule).Assembly,
     typeof(FSH.Modules.Notifications.NotificationsModule).Assembly,
+    typeof(PafModule).Assembly,
 };
 
 // Disable runtime-only concerns; persistence + multitenancy stay on so DbInitializers resolve. Caching
@@ -307,6 +300,22 @@ try
         using var scope = host.Services.CreateScope();
         var seeder = scope.ServiceProvider.GetRequiredService<DemoSeeder>();
         await seeder.RunAsync(CancellationToken.None).ConfigureAwait(false);
+        // PAF (ADR 0008, module registration): its demo data needs the demo tenants and their admins above.
+        var pafSeeder = scope.ServiceProvider.GetRequiredService<FSH.Modules.PAF.Data.PafDemoSeeder>();
+        foreach (var demo in new[] { DemoSeeder.Acme, DemoSeeder.Globex })
+        {
+            using var pafScope = host.Services.CreateScope();
+            var demoTenant = await pafScope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>()
+                .GetAsync(demo.Id).ConfigureAwait(false)
+                ?? throw new InvalidOperationException($"Demo tenant '{demo.Id}' missing.");
+            pafScope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>().MultiTenantContext =
+                new MultiTenantContext<AppTenantInfo>(demoTenant);
+            var demoAdmin = await pafScope.ServiceProvider
+                .GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<FSH.Modules.Identity.Domain.FshUser>>()
+                .FindByEmailAsync(demo.AdminEmail).ConfigureAwait(false)
+                ?? throw new InvalidOperationException($"Demo admin of '{demo.Id}' missing.");
+            await pafSeeder.SemearAsync(demo.Id, Guid.Parse(demoAdmin.Id), CancellationToken.None).ConfigureAwait(false);
+        }
         await Console.Out.WriteLineAsync("[demo-seed] done").ConfigureAwait(false);
     }
 

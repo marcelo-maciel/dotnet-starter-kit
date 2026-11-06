@@ -1,0 +1,13 @@
+{
+  "rules": [
+    {
+      "id": "paf-midia-30d",
+      "enabled": true,
+      "prefix": "paf-midia/",
+      "condition": {
+        "type": "Age",
+        "maxAgeSeconds": 2592000
+      }
+    }
+  ]
+}

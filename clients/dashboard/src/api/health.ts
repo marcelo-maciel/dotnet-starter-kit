@@ -41,7 +41,7 @@ export async function getReadiness(signal?: AbortSignal): Promise<HealthSnapshot
   const roundTripMs = performance.now() - t0;
 
   if (response.status !== 200 && response.status !== 503) {
-    throw new Error(`Health endpoint returned ${response.status}`);
+    throw new Error(`O endpoint de saúde respondeu ${response.status}`);
   }
 
   const body = (await response.json()) as HealthResult;

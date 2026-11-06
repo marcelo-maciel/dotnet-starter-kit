@@ -4,7 +4,6 @@ import { useMutation } from "@tanstack/react-query";
 import {
   AlertCircle,
   ArrowRight,
-  Building2,
   Check,
   Loader2,
   Mail,
@@ -15,14 +14,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthHeadline, AuthShell } from "@/components/auth/auth-shell";
-import { requestPasswordReset } from "@/api/identity";
+import { requestPasswordResetByEmail } from "@/api/identity";
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
-import { env } from "@/env";
 
 /**
- * Forgot-password — step 1 of the reset flow. Collects (email, tenant)
- * and asks the server to email a one-time reset link to that address.
+ * Forgot-password — step 1 of the reset flow. Collects the e-mail only (O3):
+ * the server finds the company and emails a one-time reset link that
+ * carries it, which the reset page reads.
  *
  * Security note: the backend deliberately returns 200 even when the email
  * doesn't exist (no account-enumeration). The UI must NOT branch on the
@@ -32,15 +31,14 @@ import { env } from "@/env";
 export function ForgotPasswordPage() {
   const { isAuthenticated } = useAuth();
   const [email, setEmail] = useState("");
-  const [tenant, setTenant] = useState(env.defaultTenant);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const mutation = useMutation({
-    mutationFn: () => requestPasswordReset({ email, tenant }),
+    mutationFn: () => requestPasswordResetByEmail({ email }),
     onSuccess: () => setSubmitted(true),
     onError: (err: unknown) => {
-      // Most failures here are infra (tenant not resolvable, server down) —
+      // Failures here are infra (server down, too many attempts) —
       // we surface those plainly; account-existence is intentionally hidden
       // by the server's uniform 200 response.
       const detail =
@@ -65,12 +63,12 @@ export function ForgotPasswordPage() {
     <AuthShell
       footer={
         <span>
-          Remembered it?{" "}
+          Lembrou?{" "}
           <Link
             to="/login"
             className="text-[var(--color-foreground)] underline-offset-4 hover:underline"
           >
-            Sign in
+            Entrar
           </Link>
         </span>
       }
@@ -86,23 +84,21 @@ export function ForgotPasswordPage() {
             </span>
           </div>
           <div>
-            <AuthHeadline lead="Check your" accent="inbox" />
+            <AuthHeadline lead="Confira sua" accent="caixa de entrada" />
             <p className="text-[13px] leading-relaxed text-[var(--color-muted-foreground)]">
-              If an account exists for{" "}
-              <span className="text-[var(--color-foreground)]">{email}</span> in
-              tenant{" "}
-              <span className="text-[var(--color-foreground)]">{tenant}</span>,
-              a one-time reset link is on its way. The link expires in 30 minutes.
+              Se existir uma conta para{" "}
+              <span className="text-[var(--color-foreground)]">{email}</span>,
+              um link de uso único para redefinir a senha está a caminho. O link expira em 30 minutos.
             </p>
           </div>
           <ul className="space-y-1.5 text-left text-[12.5px] text-[var(--color-muted-foreground)]">
             <li className="flex items-start gap-2">
               <Check className="mt-0.5 size-3.5 shrink-0 text-[var(--color-success)]" />
-              Didn't get it? Wait a minute, then check spam.
+              Não chegou? Espere um minuto e confira a pasta de spam.
             </li>
             <li className="flex items-start gap-2">
               <Check className="mt-0.5 size-3.5 shrink-0 text-[var(--color-success)]" />
-              Still nothing? Confirm the email + tenant and try again.
+              Ainda nada? Confira o e-mail e tente de novo.
             </li>
           </ul>
           <div className="flex items-center gap-2 pt-1">
@@ -114,11 +110,11 @@ export function ForgotPasswordPage() {
                 setError(null);
               }}
             >
-              Try a different address
+              Tentar outro endereço
             </Button>
             <Link to="/login" className="ml-auto">
               <Button type="button" variant="outline">
-                Back to sign in
+                Voltar para a entrada
               </Button>
             </Link>
           </div>
@@ -126,42 +122,19 @@ export function ForgotPasswordPage() {
       ) : (
         <>
           <div className="mb-6 sm:mb-8">
-            <AuthHeadline lead="Reset your" accent="password" />
+            <AuthHeadline lead="Recupere sua" accent="senha" />
             <p className="text-[13px] text-[var(--color-muted-foreground)]">
-              Enter the email you sign in with. We'll send a one-time link.
+              Informe o e-mail que você usa para entrar. Vamos enviar um link de uso único.
             </p>
           </div>
 
           <form onSubmit={onSubmit} className="space-y-5" noValidate aria-describedby={error ? "forgot-error" : undefined}>
             <div className="space-y-1.5">
               <Label
-                htmlFor="reset-tenant"
-                className="block text-[11.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]"
-              >
-                Tenant
-              </Label>
-              <div className="relative">
-                <Building2 className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.6)]" />
-                <Input
-                  id="reset-tenant"
-                  value={tenant}
-                  onChange={(e) => setTenant(e.target.value)}
-                  placeholder="root"
-                  autoComplete="organization"
-                  required
-                  aria-invalid={error ? true : undefined}
-                  aria-describedby={error ? "forgot-error" : undefined}
-                  className="h-11 pl-10 text-[14px]"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label
                 htmlFor="reset-email"
                 className="block text-[11.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]"
               >
-                Email
+                E-mail
               </Label>
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.6)]" />
@@ -170,7 +143,7 @@ export function ForgotPasswordPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
+                  placeholder="nome@empresa.com.br"
                   autoComplete="email"
                   required
                   autoFocus
@@ -200,17 +173,17 @@ export function ForgotPasswordPage() {
             <div className="pt-1.5">
               <Button
                 type="submit"
-                disabled={mutation.isPending || !email || !tenant}
+                disabled={mutation.isPending || !email}
                 className="group h-11 w-full text-[14px] font-semibold"
               >
                 {mutation.isPending ? (
                   <>
                     <Loader2 className="size-4 animate-spin" />
-                    <span>Sending link…</span>
+                    <span>Enviando o link…</span>
                   </>
                 ) : (
                   <>
-                    <span>Send reset link</span>
+                    <span>Enviar link de redefinição</span>
                     <ArrowRight className="size-[14px] opacity-60 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-100" />
                   </>
                 )}

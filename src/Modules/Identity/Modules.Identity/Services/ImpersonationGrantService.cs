@@ -1,5 +1,8 @@
+using System.Diagnostics;
 using FSH.Framework.Caching;
 using FSH.Framework.Core.Exceptions;
+using FSH.Framework.Eventing.Abstractions;
+using FSH.Modules.Identity.Contracts.Events;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Contracts.v1.Impersonation;
 using FSH.Modules.Identity.Data;
@@ -12,7 +15,8 @@ namespace FSH.Modules.Identity.Services;
 internal sealed class ImpersonationGrantService(
     IdentityDbContext db,
     HybridCache cache,
-    TimeProvider timeProvider) : IImpersonationGrantService
+    TimeProvider timeProvider,
+    IOutboxWriter outbox) : IImpersonationGrantService
 {
     public async Task<ImpersonationGrantDto> CreateAsync(CreateGrantInput input, CancellationToken ct = default)
     {
@@ -57,15 +61,16 @@ internal sealed class ImpersonationGrantService(
     {
         ArgumentNullException.ThrowIfNullOrWhiteSpace(jti);
 
-        var grant = await db.ImpersonationGrants
-            .FirstOrDefaultAsync(g => g.Jti == jti, ct)
-            .ConfigureAwait(false);
+        var (grant, terminated) = await TerminateAsync(
+            c => LoadLockedByJtiAsync(jti, c),
+            g => g.MarkEnded(timeProvider.GetUtcNow().UtcDateTime),
+            ImpersonationGrantStatus.Ended,
+            ct).ConfigureAwait(false);
         if (grant is null) return null;
-        if (grant.IsTerminal) return ToDto(grant);
-
-        grant.MarkEnded(timeProvider.GetUtcNow().UtcDateTime);
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
-        await SetCachedStatusAsync(grant, GrantState.EndedOrRevoked, ct).ConfigureAwait(false);
+        if (terminated)
+        {
+            await SetCachedStatusAsync(grant, GrantState.EndedOrRevoked, ct).ConfigureAwait(false);
+        }
 
         return ToDto(grant);
     }
@@ -79,27 +84,23 @@ internal sealed class ImpersonationGrantService(
     {
         ArgumentNullException.ThrowIfNullOrWhiteSpace(revokedByUserId);
 
-        var grant = await db.ImpersonationGrants
-            .FirstOrDefaultAsync(g => g.Id == id, ct)
-            .ConfigureAwait(false)
-            ?? throw new NotFoundException("impersonation grant not found");
+        var (grant, terminated) = await TerminateAsync(
+            c => LoadLockedByIdAsync(id, c),
+            g => g.Revoke(
+                revokedAtUtc: timeProvider.GetUtcNow().UtcDateTime,
+                revokedByUserId: revokedByUserId,
+                revokedByUserName: revokedByUserName,
+                reason: reason),
+            ImpersonationGrantStatus.Revoked,
+            ct).ConfigureAwait(false);
+        if (grant is null) throw new NotFoundException("impersonation grant not found");
 
-        if (grant.IsTerminal)
+        // An already-terminal grant is returned as is (idempotent). Otherwise the revocation marker is
+        // written BEFORE returning so a racing request doesn't slip through with a cached Active marker.
+        if (terminated)
         {
-            // Idempotent — surface the existing terminal state to the caller.
-            return ToDto(grant);
+            await SetCachedStatusAsync(grant, GrantState.EndedOrRevoked, ct).ConfigureAwait(false);
         }
-
-        grant.Revoke(
-            revokedAtUtc: timeProvider.GetUtcNow().UtcDateTime,
-            revokedByUserId: revokedByUserId,
-            revokedByUserName: revokedByUserName,
-            reason: reason);
-
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
-        // Write the revocation marker BEFORE returning so a racing request
-        // doesn't slip through with a cached Active marker.
-        await SetCachedStatusAsync(grant, GrantState.EndedOrRevoked, ct).ConfigureAwait(false);
 
         return ToDto(grant);
     }
@@ -161,6 +162,84 @@ internal sealed class ImpersonationGrantService(
     }
 
     // ── helpers ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Moves the grant to a terminal state and records <see cref="ImpersonationGrantTerminatedIntegrationEvent"/>
+    /// in one transaction, so consumers (the PAF releasing the counter) learn of every termination exactly when
+    /// it commits. The row lock serialises a concurrent End and Revoke: the loser re-reads the committed terminal
+    /// row and records nothing. The cache is the caller's job, after the commit: a rolled-back termination must
+    /// not leave an EndedOrRevoked marker behind.
+    /// </summary>
+    private async Task<(ImpersonationGrant? Grant, bool Terminated)> TerminateAsync(
+        Func<CancellationToken, Task<ImpersonationGrant?>> loadLocked,
+        Action<ImpersonationGrant> terminate,
+        ImpersonationGrantStatus motivo,
+        CancellationToken ct)
+    {
+        ImpersonationGrant? grant = null;
+        var terminated = false;
+        var strategy = db.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async c =>
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(c).ConfigureAwait(false);
+            try
+            {
+                grant = await loadLocked(c).ConfigureAwait(false);
+                if (grant is null || grant.IsTerminal) return;
+
+                terminate(grant);
+                await db.SaveChangesAsync(c).ConfigureAwait(false);
+                await outbox.AddAsync(NewTerminatedEvent(grant, motivo), c).ConfigureAwait(false);
+                await transaction.CommitAsync(c).ConfigureAwait(false);
+                terminated = true;
+            }
+            finally
+            {
+                // A failed attempt must not leave the terminal state tracked: a retry would re-read the tracked
+                // instance as already terminal, and a caller that swallows the failure (EndImpersonation does)
+                // would persist it on its next SaveChanges without the event.
+                if (!terminated && grant is not null)
+                {
+                    db.Entry(grant).State = EntityState.Detached;
+                }
+            }
+        }, ct).ConfigureAwait(false);
+
+        return (grant, terminated);
+    }
+
+    private Task<ImpersonationGrant?> LoadLockedByIdAsync(Guid id, CancellationToken ct)
+    {
+        var query = db.Database.IsNpgsql()
+            ? db.ImpersonationGrants.FromSqlRaw(
+                $$"""SELECT * FROM "{{IdentityModuleConstants.SchemaName}}"."ImpersonationGrants" WHERE "Id" = {0} FOR UPDATE""",
+                id)
+            : db.ImpersonationGrants.Where(g => g.Id == id); // no portable row lock; single-writer only
+
+        return query.FirstOrDefaultAsync(ct);
+    }
+
+    private Task<ImpersonationGrant?> LoadLockedByJtiAsync(string jti, CancellationToken ct)
+    {
+        var query = db.Database.IsNpgsql()
+            ? db.ImpersonationGrants.FromSqlRaw(
+                $$"""SELECT * FROM "{{IdentityModuleConstants.SchemaName}}"."ImpersonationGrants" WHERE "Jti" = {0} FOR UPDATE""",
+                jti)
+            : db.ImpersonationGrants.Where(g => g.Jti == jti); // no portable row lock; single-writer only
+
+        return query.FirstOrDefaultAsync(ct);
+    }
+
+    private ImpersonationGrantTerminatedIntegrationEvent NewTerminatedEvent(ImpersonationGrant grant, ImpersonationGrantStatus motivo) => new(
+        Id: Guid.NewGuid(),
+        OccurredOnUtc: timeProvider.GetUtcNow().UtcDateTime,
+        TenantId: grant.ImpersonatedTenantId,
+        CorrelationId: Activity.Current?.Id ?? Guid.NewGuid().ToString(),
+        Source: "Identity",
+        GrantId: grant.Id,
+        Jti: grant.Jti,
+        ImpersonatedUserId: grant.ImpersonatedUserId,
+        Motivo: motivo);
 
     private static readonly HybridCacheEntryOptions CacheEntryOptions = new()
     {

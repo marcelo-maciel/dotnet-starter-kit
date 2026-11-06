@@ -41,7 +41,7 @@ export function ConfirmEmailPage() {
       setStatus({
         kind: "error",
         message:
-          "This confirmation link is missing required parameters. It may have been clipped by your email client.",
+          "Faltam dados obrigatórios neste link de confirmação. Ele pode ter sido cortado pelo seu programa de e-mail.",
       });
       return;
     }
@@ -55,7 +55,7 @@ export function ConfirmEmailPage() {
           message:
             typeof message === "string" && message.length > 0
               ? message
-              : "Your email is confirmed. You can now sign in.",
+              : "Seu e-mail foi confirmado. Você já pode entrar.",
         });
       })
       .catch((err: unknown) => {
@@ -79,7 +79,7 @@ export function ConfirmEmailPage() {
           to="/login"
           className="text-[var(--color-foreground)] underline-offset-4 hover:underline"
         >
-          ← Back to sign in
+          ← Voltar para a entrada
         </Link>
       }
     >
@@ -94,9 +94,9 @@ export function ConfirmEmailPage() {
             </span>
           </div>
           <div>
-            <AuthHeadline lead="Verifying your" accent="email…" />
+            <AuthHeadline lead="Verificando seu" accent="e-mail…" />
             <p className="text-[13px] leading-relaxed text-[var(--color-muted-foreground)]">
-              One moment — checking the confirmation token with the server.
+              Um momento: conferindo o token de confirmação com o servidor.
             </p>
           </div>
         </div>
@@ -113,14 +113,14 @@ export function ConfirmEmailPage() {
             </span>
           </div>
           <div>
-            <AuthHeadline lead="Email" accent="confirmed" />
+            <AuthHeadline lead="E-mail" accent="confirmado" />
             <p className="text-[13px] leading-relaxed text-[var(--color-muted-foreground)]">
               {status.message}
             </p>
           </div>
           <Link to="/login" className="block">
             <Button type="button" className="group h-11 w-full text-[14px] font-semibold">
-              <span>Continue to sign in</span>
+              <span>Continuar para a entrada</span>
               <ArrowRight className="size-[14px] opacity-60 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-100" />
             </Button>
           </Link>
@@ -138,24 +138,24 @@ export function ConfirmEmailPage() {
             </span>
           </div>
           <div>
-            <AuthHeadline lead="Couldn't" accent="confirm" trail=" your email" />
+            <AuthHeadline lead="Não foi possível" accent="confirmar" trail=" seu e-mail" />
             <p className="text-[13px] leading-relaxed text-[var(--color-muted-foreground)]">
               {status.message}
             </p>
             <p className="mt-2 text-[12px] leading-relaxed text-[var(--color-muted-foreground)]">
-              The link may have expired or been used already. If you've signed
-              in since this email was sent, you can ignore it.
+              O link pode ter expirado ou já ter sido usado. Se você entrou no
+              sistema depois que este e-mail foi enviado, pode ignorá-lo.
             </p>
           </div>
           <div className="flex items-center justify-center gap-2 pt-1">
             <Link to="/login">
               <Button type="button" variant="outline">
-                Back to sign in
+                Voltar para a entrada
               </Button>
             </Link>
             <Link to="/forgot-password">
               <Button type="button" variant="ghost">
-                Reset password instead
+                Redefinir a senha
               </Button>
             </Link>
           </div>

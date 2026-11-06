@@ -38,9 +38,10 @@ import { Label } from "@/components/ui/label";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select } from "@/components/list";
 import { KpiTile } from "@/components/kpi-tile";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 import { useAuth } from "@/auth/use-auth";
 import { BillingPermissions } from "@/lib/permissions";
+import { SAO_PAULO } from "@/lib/format";
 
 const PAGE_SIZE = 20;
 
@@ -57,6 +58,7 @@ function formatMoney(amount: number, currency: string) {
 }
 
 const dateShort = new Intl.DateTimeFormat(undefined, {
+  timeZone: SAO_PAULO,
   month: "short",
   day: "2-digit",
   year: "numeric",
@@ -84,7 +86,7 @@ function statusVariant(status: TopupRequestStatus): React.ComponentProps<typeof 
 }
 
 function describe(err: unknown, fallback: string): string {
-  if (err instanceof ApiRequestError) return err.problem?.detail ?? err.problem?.title ?? err.message;
+  if (err instanceof ApiRequestError) return describeError(err);
   if (err instanceof Error) return err.message;
   return fallback;
 }

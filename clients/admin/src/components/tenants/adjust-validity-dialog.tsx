@@ -18,7 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
+import { SAO_PAULO, startOfSaoPauloDay, toSaoPauloDay } from "@/lib/format";
 
 // A `type="date"` input yields a `YYYY-MM-DD` string. zod validates the shape
 // and that it parses to a real calendar date.
@@ -32,7 +33,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 function describe(err: unknown, fallback: string): string {
-  if (err instanceof ApiRequestError) return err.problem?.detail ?? err.problem?.title ?? err.message;
+  if (err instanceof ApiRequestError) return describeError(err);
   if (err instanceof Error) return err.message;
   return fallback;
 }
@@ -40,15 +41,7 @@ function describe(err: unknown, fallback: string): string {
 function formatDate(value?: string | null): string {
   if (!value) return "—";
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString();
-}
-
-/** `YYYY-MM-DD` (the native date input value) for an ISO/date string, for prefill. */
-function toDateInputValue(value?: string | null): string {
-  if (!value) return "";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toISOString().slice(0, 10);
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString(undefined, { timeZone: SAO_PAULO });
 }
 
 /**
@@ -79,14 +72,16 @@ export function AdjustValidityDialog({
     defaultValues: { validUpto: "" },
   });
 
-  // Prefill with the tenant's current validity each time the dialog opens.
+  // Prefill with the tenant's current validity each time the dialog opens: the Brasília day of the
+  // stored instant, the same day every page shows.
   useEffect(() => {
-    if (open) reset({ validUpto: toDateInputValue(validUpto) });
+    if (open) reset({ validUpto: toSaoPauloDay(validUpto) });
   }, [open, validUpto, reset]);
 
   const mutation = useMutation({
     // Pass the date via mutate(arg) — never close over form state at submit time.
-    mutationFn: (value: string) => adjustTenantValidity(tenantId, new Date(value).toISOString()),
+    // The picked day means that day in Brasília: its 00:00 there, 03:00 UTC.
+    mutationFn: (value: string) => adjustTenantValidity(tenantId, startOfSaoPauloDay(value)),
     onSuccess: (result) => {
       toast.success("Validity adjusted", {
         description: `Valid until ${formatDate(result.validUpto)}. No invoice was issued.`,

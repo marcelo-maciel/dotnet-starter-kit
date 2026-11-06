@@ -8,10 +8,10 @@ test.describe("confirm-email page", () => {
   test("renders the malformed-link state when params are missing", async ({ page }) => {
     await page.goto("/confirm-email");
     await expect(
-      page.getByRole("heading", { name: /couldn't confirm your email/i }),
+      page.getByRole("heading", { name: /não foi possível confirmar seu e-mail/i }),
     ).toBeVisible();
     await expect(
-      page.getByText(/missing required parameters/i),
+      page.getByText(/faltam dados obrigatórios/i),
     ).toBeVisible();
   });
 
@@ -24,9 +24,10 @@ test.describe("confirm-email page", () => {
 
     await page.goto(VALID_LINK);
 
-    await expect(page.getByRole("heading", { name: /email confirmed/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /e-mail confirmado/i })).toBeVisible();
+    // The page shows the server's own message when it sends one (backend text, not translated here).
     await expect(page.getByText(/your email is confirmed/i)).toBeVisible();
-    await expect(page.getByRole("link", { name: /continue to sign in/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /continuar para a entrada/i })).toBeVisible();
   });
 
   test("surfaces server errors as an actionable failure state", async ({ page }) => {
@@ -38,15 +39,15 @@ test.describe("confirm-email page", () => {
     await page.goto(VALID_LINK);
 
     await expect(
-      page.getByRole("heading", { name: /couldn't confirm/i }),
+      page.getByRole("heading", { name: /não foi possível confirmar/i }),
     ).toBeVisible();
     await expect(page.getByText(/no longer valid/i)).toBeVisible();
 
     // The error state offers BOTH "back to sign in" and "reset password" —
     // a stuck user has a recovery path. The footer also renders a
     // "← Back to sign in" link, so we exact-match the in-card button.
-    await expect(page.getByRole("link", { name: "Back to sign in", exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: /reset password instead/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Voltar para a entrada", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: /redefinir a senha/i })).toBeVisible();
   });
 
   test("'continue to sign in' link routes to /login", async ({ page }) => {
@@ -57,7 +58,7 @@ test.describe("confirm-email page", () => {
     );
 
     await page.goto(VALID_LINK);
-    await page.getByRole("link", { name: /continue to sign in/i }).click();
+    await page.getByRole("link", { name: /continuar para a entrada/i }).click();
     await expect(page).toHaveURL(/\/login$/);
   });
 });

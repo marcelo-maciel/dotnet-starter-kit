@@ -225,4 +225,41 @@ test.describe("tenant create dialog", () => {
     await expect(dialog.getByText(/At least 8 characters\./i)).toBeVisible();
     expect(posted).toBe(false);
   });
+
+  test("a validation failure shows the server's field message, not the generic validation text", async ({ page }) => {
+    // The API answers a validation failure with the generic sentence in `detail` and the specific one under
+    // `errors`, keyed by the property (GlobalExceptionHandler); the toast must show the specific one.
+    await page.route("**/api/v1/tenants/", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.fallback();
+        return;
+      }
+      await route.fulfill({
+        status: 400,
+        headers: { "Content-Type": "application/problem+json" },
+        body: JSON.stringify({
+          title: "Validation error",
+          status: 400,
+          detail: "One or more validation errors occurred.",
+          errors: { Name: ["Tenant Acme Corp already exists."] },
+        }),
+      });
+    });
+
+    await page.goto("/tenants");
+    await page.getByRole("button", { name: "New tenant", exact: true }).click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByLabel(/^Display name/)).toBeVisible({ timeout: 10_000 });
+    await dialog.getByLabel(/^Display name/).fill("Acme Corp");
+    await dialog.getByLabel(/^Admin email/).fill("admin@acme.example");
+    await dialog.getByLabel(/^Initial admin password/).fill("Sup3rSecret!");
+    await dialog.getByRole("button", { name: "Create tenant", exact: true }).click();
+
+    await expect(page.getByText("Create failed")).toBeVisible();
+    await expect(page.getByText("Tenant Acme Corp already exists.")).toBeVisible();
+    await expect(page.getByText("One or more validation errors occurred.")).toHaveCount(0);
+    // The dialog stays open so the operator can change the name.
+    await expect(dialog.getByLabel(/^Display name/)).toHaveValue("Acme Corp");
+  });
 });

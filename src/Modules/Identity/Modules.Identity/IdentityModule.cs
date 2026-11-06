@@ -39,6 +39,7 @@ using FSH.Modules.Identity.Features.v1.Sessions.GetTenantSessions;
 using FSH.Modules.Identity.Features.v1.Sessions.GetUserSessions;
 using FSH.Modules.Identity.Features.v1.Sessions.RevokeAllSessions;
 using FSH.Modules.Identity.Features.v1.Sessions.RevokeSession;
+using FSH.Modules.Identity.Features.v1.Tokens.IssueTokenByEmail;
 using FSH.Modules.Identity.Features.v1.Tokens.RefreshToken;
 using FSH.Modules.Identity.Features.v1.Tokens.TokenGeneration;
 using FSH.Modules.Identity.Features.v1.TwoFactor.Disable;
@@ -51,6 +52,7 @@ using FSH.Modules.Identity.Features.v1.Users.ConfirmEmail;
 using FSH.Modules.Identity.Features.v1.Users.ResendConfirmationEmail;
 using FSH.Modules.Identity.Features.v1.Users.DeleteUser;
 using FSH.Modules.Identity.Features.v1.Users.ForgotPassword;
+using FSH.Modules.Identity.Features.v1.Users.ForgotPasswordByEmail;
 using FSH.Modules.Identity.Features.v1.Users.GetUserById;
 using FSH.Modules.Identity.Features.v1.Users.GetUserGroups;
 using FSH.Modules.Identity.Features.v1.Users.GetUserPermissions;
@@ -64,6 +66,7 @@ using FSH.Modules.Identity.Features.v1.Users.SelfRegistration;
 using FSH.Modules.Identity.Features.v1.Users.SetProfileImage;
 using FSH.Modules.Identity.Features.v1.Users.ToggleUserStatus;
 using FSH.Modules.Identity.Features.v1.Users.UpdateUser;
+using FSH.Modules.Identity.Localization;
 using FSH.Modules.Identity.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -97,6 +100,10 @@ public class IdentityModule : IModule
         services.AddScoped<IRequestContext>(sp => sp.GetRequiredService<IRequestContextService>());
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<IImpersonationGrantService, ImpersonationGrantService>();
+        services.AddScoped<ClientTenantEmailDirectory>();
+        services.AddScoped<IClientTenantEmails>(sp => sp.GetRequiredService<ClientTenantEmailDirectory>());
+        services.AddOptions<EmailLoginRateLimitOptions>().BindConfiguration("EmailLoginRateLimit");
+        services.AddSingleton<EmailLoginRateLimiter>();
 
         // User services - focused single-responsibility services
         services.AddTransient<IUserRegistrationService, UserRegistrationService>();
@@ -160,7 +167,9 @@ public class IdentityModule : IModule
             options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
         })
            .AddEntityFrameworkStores<IdentityDbContext>()
-           .AddDefaultTokenProviders();
+           .AddDefaultTokenProviders()
+           .AddUserValidator<ClientTenantEmailValidator>()
+           .AddErrorDescriber<LocalizedIdentityErrorDescriber>();
 
         //metrics
         services.AddSingleton<IdentityMetrics>();
@@ -185,6 +194,9 @@ public class IdentityModule : IModule
         // tokens
         group.MapGenerateTokenEndpoint().AllowAnonymous().RequireRateLimiting("auth");
         group.MapRefreshTokenEndpoint().AllowAnonymous().RequireRateLimiting("auth");
+        // PAF (O2): not the kit's auth policy, 10 a minute per IP, which the guichês of one unit behind a NAT would
+        // exhaust at turn start. EmailLoginRateLimiter holds both windows, per e-mail and per IP, in the handler.
+        group.MapIssueTokenByEmailEndpoint();
 
         // The outbox is dispatched by the framework's OutboxDispatcherHostedService (on by default), which now claims
         // rows with FOR UPDATE SKIP LOCKED so several instances can drain safely. This module still registers no
@@ -217,8 +229,11 @@ public class IdentityModule : IModule
         group.MapSearchUsersEndpoint();
         group.MapRegisterUserEndpoint();
         group.MapForgotPasswordEndpoint().RequireRateLimiting("auth");
+        group.MapForgotPasswordByEmailEndpoint();
         group.MapResetPasswordEndpoint().RequireRateLimiting("auth");
-        group.MapSelfRegisterUserEndpoint().RequireRateLimiting("auth");
+        // PAF divergence (C7): self-register stays unmapped in every tenant, root included. An account that signs
+        // itself up would join a client with the Basic role; PAF accounts are created by an admin only (register,
+        // above, and the PAF user screens). The endpoint and its handler stay so an upstream sync conflicts on this line.
         group.MapToggleUserStatusEndpoint();
         group.MapUpdateUserEndpoint();
         group.MapSetProfileImageEndpoint();

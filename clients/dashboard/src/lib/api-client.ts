@@ -66,6 +66,8 @@ export function isImpersonationRevokedError(error: unknown): boolean {
 
 type RequestInitEx = RequestInit & {
   skipAuth?: boolean;
+  /** Send no `tenant` header: for the routes where the server finds the company from the e-mail (O2, O3). */
+  skipTenant?: boolean;
   /**
    * Per-request timeout in milliseconds. Browser fetch has no default timeout
    * so a permanently stalled request would hang React Query's promise forever.
@@ -73,6 +75,13 @@ type RequestInitEx = RequestInit & {
    * uploads) should override this explicitly.
    */
   timeoutMs?: number;
+  /**
+   * Called with the final response before its body is read, so a caller can pick up a
+   * response header `apiFetch` does not model — the `ETag` on `GET /identity/profile`,
+   * which a later `PUT` echoes back in `If-Match`. Runs for error responses too, and
+   * must not throw.
+   */
+  onResponse?: (response: Response) => void;
 };
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -83,7 +92,7 @@ function withTimeout(
   externalSignal?: AbortSignal | null,
 ): { init: RequestInit; cleanup: () => void } {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(new DOMException("Request timed out", "TimeoutError")), timeoutMs);
+  const timeoutId = window.setTimeout(() => controller.abort(new DOMException("A requisição demorou demais", "TimeoutError")), timeoutMs);
   const onExternalAbort = () => controller.abort(externalSignal?.reason);
   if (externalSignal) {
     if (externalSignal.aborted) {
@@ -107,7 +116,7 @@ export async function refreshAccessToken() {
   const refreshToken = tokenStore.getRefreshToken();
   const accessToken = tokenStore.getAccessToken();
   if (!refreshToken || !accessToken) {
-    throw new ApiRequestError(401, "No refresh token");
+    throw new ApiRequestError(401, "Sessão sem renovação");
   }
 
   // Server's RefreshTokenCommand requires both `token` (the existing, possibly expired
@@ -127,8 +136,10 @@ export async function refreshAccessToken() {
   });
 
   if (!response.ok) {
-    tokenStore.clear();
-    throw new ApiRequestError(response.status, "Refresh failed");
+    // Only a refusal ends the session. A 5xx or a 429 says nothing about the refresh token: the tokens stay and
+    // the next request tries again (C3).
+    if (isRefreshRejectedStatus(response.status)) tokenStore.clear();
+    throw new ApiRequestError(response.status, "Falha ao renovar a sessão");
   }
 
   // Server's RefreshTokenCommandResponse returns `{ token, refreshToken, refreshTokenExpiryTime }` —
@@ -138,6 +149,18 @@ export async function refreshAccessToken() {
     refreshToken: string;
   };
   tokenStore.setTokens(tokens.token, tokens.refreshToken);
+}
+
+function isRefreshRejectedStatus(status: number): boolean {
+  return status === 401 || status === 403;
+}
+
+/**
+ * True when the server answered the refresh and refused the token (401/403). Anything else (5xx, 429, a
+ * network drop or timeout, which reject with a non-API error) leaves the session alone.
+ */
+export function isRefreshRejected(error: unknown): boolean {
+  return error instanceof ApiRequestError && isRefreshRejectedStatus(error.status);
 }
 
 async function parseError(response: Response): Promise<ApiError | undefined> {
@@ -156,7 +179,7 @@ export async function apiFetch<T = unknown>(
   path: string,
   init: RequestInitEx = {},
 ): Promise<T> {
-  const { skipAuth, headers, timeoutMs = DEFAULT_TIMEOUT_MS, signal, ...rest } = init;
+  const { skipAuth, skipTenant, headers, timeoutMs = DEFAULT_TIMEOUT_MS, signal, onResponse, ...rest } = init;
 
   const mergedHeaders = new Headers(headers);
   if (!mergedHeaders.has("Content-Type") && rest.body && typeof rest.body === "string") {
@@ -173,16 +196,16 @@ export async function apiFetch<T = unknown>(
       // session state and surface a clean 401 so the UI flips to /login
       // instead of repeatedly firing tokenless requests.
       tokenStore.clear();
-      throw new ApiRequestError(401, "Not signed in", {
+      throw new ApiRequestError(401, "Sessão não iniciada", {
         status: 401,
-        title: "Unauthorized",
-        detail: "Your session is no longer available. Please sign in again.",
+        title: "Não autorizado",
+        detail: "Sua sessão não está mais disponível. Entre de novo.",
       });
     }
   }
 
   const tenant = tokenStore.getTenant() ?? env.defaultTenant;
-  if (tenant && !mergedHeaders.has("tenant")) {
+  if (!skipTenant && tenant && !mergedHeaders.has("tenant")) {
     mergedHeaders.set("tenant", tenant);
   }
 
@@ -200,13 +223,9 @@ export async function apiFetch<T = unknown>(
       refreshPromise = null;
     });
 
-    try {
-      await refreshPromise;
-    } catch (e) {
-      throw e instanceof ApiRequestError
-        ? e
-        : new ApiRequestError(401, "Session expired");
-    }
+    // A failed refresh rejects with its own error, which the caller sees as is: turning a network drop or a
+    // 503 into a 401 would read as "signed out" while the tokens are still there (C3).
+    await refreshPromise;
 
     const retryHeaders = new Headers(mergedHeaders);
     retryHeaders.set("Authorization", `Bearer ${tokenStore.getAccessToken() ?? ""}`);
@@ -217,6 +236,8 @@ export async function apiFetch<T = unknown>(
       retryTimer.cleanup();
     }
   }
+
+  onResponse?.(response);
 
   if (!response.ok) {
     const problem = await parseError(response);

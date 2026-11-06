@@ -144,6 +144,7 @@ public sealed class RefreshTokenCommandHandlerTests
             async () => await _sut.Handle(command, CancellationToken.None));
 
         exception.Message.ShouldBe("Invalid refresh token.");
+        exception.MessageKey.ShouldBe("Identity.InvalidRefreshToken");
     }
 
     [Fact]
@@ -190,6 +191,7 @@ public sealed class RefreshTokenCommandHandlerTests
             async () => await _sut.Handle(command, CancellationToken.None));
 
         exception.Message.ShouldBe("Session has been revoked.");
+        exception.MessageKey.ShouldBe("Identity.SessionRevoked");
     }
 
     [Fact]
@@ -242,6 +244,7 @@ public sealed class RefreshTokenCommandHandlerTests
             async () => await _sut.Handle(command, CancellationToken.None));
 
         exception.Message.ShouldBe("Access token subject mismatch.");
+        exception.MessageKey.ShouldBe("Identity.AccessTokenSubjectMismatch");
     }
 
     #endregion

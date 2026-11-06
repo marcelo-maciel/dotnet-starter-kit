@@ -1,0 +1,7 @@
+[
+  {
+    "AllowedOrigins": ["<PAF_DASHBOARD_URL do ambiente>"],
+    "AllowedMethods": ["GET", "HEAD", "PUT"],
+    "AllowedHeaders": ["content-type"]
+  }
+]

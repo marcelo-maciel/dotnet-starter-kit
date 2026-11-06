@@ -1,7 +1,7 @@
 namespace FSH.Modules.Files.Contracts;
 
 /// <summary>
-/// Per-OwnerType authorization for FileAssets. Each owning module (Catalog, Tickets, ...) registers
+/// Per-OwnerType authorization for FileAssets. Each owning module registers
 /// its own implementation via <c>services.AddFileAccessPolicy&lt;TPolicy&gt;()</c>. The Files module
 /// ships a uploader-only default for the built-in <c>MyFiles</c> and <c>User</c> owner types.
 /// Tenant scoping is enforced by the framework's BaseDbContext (schema-per-tenant) and is NOT
@@ -23,7 +23,7 @@ public interface IFileAccessPolicy
     /// <summary>
     /// Whether the caller may change a file's <see cref="FileAccessContext.Visibility"/> after
     /// upload. Defaults to the same rule as <see cref="CanDeleteAsync"/> — only the uploader.
-    /// Modules whose files are tied to a domain entity (Catalog product images, Chat attachments)
+    /// Modules whose files are tied to a domain entity
     /// can override to disallow visibility flips entirely.
     /// </summary>
     Task<bool> CanChangeVisibilityAsync(FileAccessContext context, string currentUserId, CancellationToken cancellationToken)

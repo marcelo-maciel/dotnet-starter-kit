@@ -17,8 +17,9 @@ import {
   FormShell,
 } from "@/components/list";
 import { IdentityPermissions } from "@/lib/permissions";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
+import { SAO_PAULO } from "@/lib/format";
 
 /**
  * UserSessionsCard — admin view on user-detail. Lists every session a user
@@ -202,11 +203,11 @@ function formatRelative(value?: string | null): string {
   if (hr < 24) return `${hr}h ago`;
   const day = Math.round(hr / 24);
   if (day < 14) return `${day}d ago`;
-  return d.toLocaleDateString();
+  return d.toLocaleDateString(undefined, { timeZone: SAO_PAULO });
 }
 
 function describe(err: unknown): string {
-  if (err instanceof ApiRequestError) return err.problem?.detail ?? err.problem?.title ?? err.message;
+  if (err instanceof ApiRequestError) return describeError(err);
   if (err instanceof Error) return err.message;
   return String(err);
 }

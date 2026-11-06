@@ -41,7 +41,7 @@ import {
   changePassword,
   disableTwoFactor,
   enrollTwoFactor,
-  getMyProfile,
+  getMyProfileWithETag,
   verifyEnrollTwoFactor,
   type TwoFactorEnrollmentResponse,
 } from "@/api/identity";
@@ -53,25 +53,14 @@ import {
 } from "@/api/sessions";
 import { ApiRequestError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
+import { formatDateTime } from "@/lib/list-helpers";
 
 const PROFILE_KEY = ["identity", "me"] as const;
 
-const dateTimeFmt = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
-function formatTimestamp(iso?: string | null) {
-  if (!iso) return "—";
-  return dateTimeFmt.format(new Date(iso));
-}
-
 function describeDevice(s: UserSessionDto): string {
-  const browser = s.browser ?? "Unknown browser";
+  const browser = s.browser ?? "Navegador desconhecido";
   const version = s.browserVersion ? ` ${s.browserVersion}` : "";
-  const os = s.operatingSystem ?? "Unknown OS";
+  const os = s.operatingSystem ?? "Sistema desconhecido";
   return `${browser}${version} · ${os}`;
 }
 
@@ -95,8 +84,9 @@ function apiErrorMessage(err: unknown, fallback: string): string {
 export function SecuritySettings() {
   const queryClient = useQueryClient();
 
-  const profileQuery = useQuery({ queryKey: PROFILE_KEY, queryFn: getMyProfile });
-  const twoFactorEnabled = profileQuery.data?.twoFactorEnabled ?? false;
+  // Same key as the topbar and the profile page, so same shape: the read carries the ETag.
+  const profileQuery = useQuery({ queryKey: PROFILE_KEY, queryFn: getMyProfileWithETag });
+  const twoFactorEnabled = profileQuery.data?.profile.twoFactorEnabled ?? false;
 
   const sessionsQuery = useQuery({
     queryKey: ["identity", "sessions", "me"],
@@ -119,10 +109,10 @@ export function SecuritySettings() {
     mutationFn: (id: string) => revokeSession(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["identity", "sessions", "me"] });
-      toast.success("Session revoked");
+      toast.success("Sessão encerrada");
     },
     onError: (err) =>
-      toast.error(apiErrorMessage(err, "Could not revoke session.")),
+      toast.error(apiErrorMessage(err, "Não foi possível encerrar a sessão.")),
   });
 
   const revokeAll = useMutation({
@@ -130,11 +120,11 @@ export function SecuritySettings() {
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ["identity", "sessions", "me"] });
       toast.success(
-        `Revoked ${data.revokedCount} ${data.revokedCount === 1 ? "session" : "sessions"}`,
+        `${data.revokedCount} ${data.revokedCount === 1 ? "sessão encerrada" : "sessões encerradas"}`,
       );
     },
     onError: (err) =>
-      toast.error(apiErrorMessage(err, "Could not revoke sessions.")),
+      toast.error(apiErrorMessage(err, "Não foi possível encerrar as sessões.")),
   });
 
   const otherActiveCount = useMemo(
@@ -146,7 +136,7 @@ export function SecuritySettings() {
     sessionsQuery.error instanceof ApiRequestError
       ? sessionsQuery.error.problem?.detail ?? sessionsQuery.error.message
       : sessionsQuery.error
-        ? "Failed to load sessions."
+        ? "Falha ao carregar as sessões."
         : null;
 
   return (
@@ -157,18 +147,18 @@ export function SecuritySettings() {
       {/* Active sessions — already wired to the backend. */}
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between sm:gap-4">
             <div>
               <CardTitle className="flex items-center gap-2">
-                Active sessions
+                Sessões ativas
                 {!sessionsQuery.isLoading && (
                   <Badge variant="default">
-                    {sessions.filter((s) => s.isActive).length} active
+                    {sessions.filter((s) => s.isActive).length} ativas
                   </Badge>
                 )}
               </CardTitle>
               <CardDescription>
-                Browsers and devices currently signed in to your account.
+                Navegadores e aparelhos conectados à sua conta agora.
               </CardDescription>
             </div>
             <Button
@@ -178,7 +168,7 @@ export function SecuritySettings() {
               onClick={() => revokeAll.mutate()}
             >
               <LogOut className="mr-1.5 h-3.5 w-3.5" />
-              Sign out everywhere else
+              Sair de todos os outros
             </Button>
           </div>
         </CardHeader>
@@ -194,9 +184,9 @@ export function SecuritySettings() {
             <SessionsSkeleton />
           ) : sessions.length === 0 ? (
             <div className="px-6 py-12 text-center">
-              <p className="text-sm font-medium tracking-tight">No sessions tracked</p>
+              <p className="text-sm font-medium tracking-tight">Nenhuma sessão registrada</p>
               <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">
-                Session activity will appear here once you sign in from any device.
+                As sessões aparecem aqui assim que você entrar por qualquer aparelho.
               </p>
             </div>
           ) : (
@@ -209,14 +199,14 @@ export function SecuritySettings() {
                   <li
                     key={s.id}
                     className={cn(
-                      "fsh-enter group/row flex items-center justify-between gap-4",
-                      "border-t border-[var(--color-border)] px-6 py-4 first:border-t-0",
+                      "fsh-enter group/row flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4",
+                      "border-t border-[var(--color-border)] px-4 py-4 first:border-t-0 sm:px-6",
                       "transition-colors",
                       !s.isActive && "opacity-60",
                     )}
                     style={{ animationDelay: `${50 * idx}ms` }}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
                       <span
                         aria-hidden
                         className={cn(
@@ -228,15 +218,15 @@ export function SecuritySettings() {
                       >
                         <Icon className="h-4 w-4" />
                       </span>
-                      <div className="space-y-0.5">
+                      <div className="min-w-0 space-y-0.5">
                         <div className="flex flex-wrap items-center gap-2 text-sm font-medium tracking-tight">
                           {describeDevice(s)}
-                          {s.isCurrentSession && <Badge variant="brand">this device</Badge>}
-                          {!s.isActive && <Badge variant="outline">revoked</Badge>}
+                          {s.isCurrentSession && <Badge variant="brand">Este dispositivo</Badge>}
+                          {!s.isActive && <Badge variant="outline">encerrada</Badge>}
                         </div>
-                        <div className="font-mono text-[11px] text-[var(--color-muted-foreground)]">
-                          {s.ipAddress ?? "unknown ip"} · last activity {formatTimestamp(s.lastActivityAt)}
-                          {" · expires "}{formatTimestamp(s.expiresAt)}
+                        <div className="break-all font-mono text-[11px] text-[var(--color-muted-foreground)]">
+                          {s.ipAddress ?? "IP desconhecido"} · última atividade {formatDateTime(s.lastActivityAt)}
+                          {" · expira em "}{formatDateTime(s.expiresAt)}
                         </div>
                       </div>
                     </div>
@@ -248,7 +238,7 @@ export function SecuritySettings() {
                         onClick={() => revokeOne.mutate(s.id)}
                       >
                         <LogOut className="mr-1.5 h-3.5 w-3.5" />
-                        {isRevoking ? "Revoking…" : "Revoke"}
+                        {isRevoking ? "Encerrando…" : "Encerrar"}
                       </Button>
                     )}
                   </li>
@@ -273,17 +263,17 @@ function PasswordCard() {
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Password</CardTitle>
+          <CardTitle>Senha</CardTitle>
           <CardDescription>
-            Used to sign in to this tenant. Choose a strong, unique password.
+            Usada para entrar nesta empresa. Escolha uma senha forte e só sua.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex items-center justify-between gap-4 px-6 pb-5 pt-1">
+        <CardContent className="flex flex-col items-start gap-3 px-6 pb-5 pt-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="text-sm text-[var(--color-muted-foreground)]">
-            We recommend a passphrase of 16+ characters with no reuse from other services.
+            Recomendamos uma frase-senha com 16 caracteres ou mais, que não seja usada em outros serviços.
           </div>
           <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-            Change password
+            Trocar senha
           </Button>
         </CardContent>
       </Card>
@@ -328,7 +318,7 @@ function PasswordField({
         <button
           type="button"
           tabIndex={-1}
-          aria-label={show ? "Hide password" : "Show password"}
+          aria-label={show ? "Ocultar senha" : "Mostrar senha"}
           onClick={() => setShow((s) => !s)}
           className="absolute right-1.5 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-md text-[var(--color-muted-foreground)] outline-none transition-colors hover:text-[var(--color-foreground)] focus-visible:ring-2 focus-visible:ring-[oklch(from_var(--color-ring)_l_c_h_/_0.5)]"
         >
@@ -349,7 +339,7 @@ function passwordStrength(pw: string): { score: number; label: string } {
   if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) s++;
   if (/\d/.test(pw) && /[^A-Za-z0-9]/.test(pw)) s++;
   s = Math.max(1, Math.min(4, s));
-  return { score: s, label: ["", "Weak", "Fair", "Good", "Strong"][s] };
+  return { score: s, label: ["", "Fraca", "Razoável", "Boa", "Forte"][s] };
 }
 
 function StrengthMeter({ password }: { password: string }) {
@@ -412,12 +402,12 @@ function ChangePasswordDialog({
         confirmNewPassword: confirm,
       }),
     onSuccess: () => {
-      toast.success("Password changed", {
-        description: "Other active sessions remain valid until you revoke them.",
+      toast.success("Senha trocada", {
+        description: "As outras sessões ativas continuam valendo até você encerrá-las.",
       });
       onOpenChange(false);
     },
-    onError: (err) => setLocalError(apiErrorMessage(err, "Could not change password.")),
+    onError: (err) => setLocalError(apiErrorMessage(err, "Não foi possível trocar a senha.")),
   });
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -425,15 +415,15 @@ function ChangePasswordDialog({
     setLocalError(null);
 
     if (next.length < 8) {
-      setLocalError("New password must be at least 8 characters.");
+      setLocalError("A nova senha precisa ter pelo menos 8 caracteres.");
       return;
     }
     if (next !== confirm) {
-      setLocalError("Passwords don't match.");
+      setLocalError("As senhas não conferem.");
       return;
     }
     if (next === current) {
-      setLocalError("New password must differ from the current one.");
+      setLocalError("A nova senha precisa ser diferente da atual.");
       return;
     }
     mutation.mutate();
@@ -447,11 +437,11 @@ function ChangePasswordDialog({
             <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[oklch(from_var(--color-primary)_l_c_h_/_0.10)] ring-1 ring-inset ring-[oklch(from_var(--color-primary)_l_c_h_/_0.20)]">
               <KeyRound className="size-4 text-[var(--color-primary)]" />
             </span>
-            <DialogTitle>Change password</DialogTitle>
+            <DialogTitle>Trocar senha</DialogTitle>
           </div>
           <DialogDescription>
-            Pick a strong password you don&apos;t reuse elsewhere. Your other
-            signed-in sessions stay active — revoke them below if you want them out.
+            Escolha uma senha forte que você não use em outro lugar. Suas outras
+            sessões continuam ativas; encerre-as abaixo se quiser tirá-las.
           </DialogDescription>
         </DialogHeader>
 
@@ -459,7 +449,7 @@ function ChangePasswordDialog({
           <DialogBody className="space-y-4">
             <PasswordField
               id="cp-current"
-              label="Current password"
+              label="Senha atual"
               value={current}
               onChange={setCurrent}
               autoComplete="current-password"
@@ -469,7 +459,7 @@ function ChangePasswordDialog({
             <div>
               <PasswordField
                 id="cp-next"
-                label="New password"
+                label="Nova senha"
                 value={next}
                 onChange={setNext}
                 autoComplete="new-password"
@@ -480,7 +470,7 @@ function ChangePasswordDialog({
             <div>
               <PasswordField
                 id="cp-confirm"
-                label="Confirm new password"
+                label="Confirme a nova senha"
                 value={confirm}
                 onChange={setConfirm}
                 autoComplete="new-password"
@@ -488,11 +478,11 @@ function ChangePasswordDialog({
               {confirm.length > 0 &&
                 (confirm === next ? (
                   <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-[var(--color-success)]">
-                    <Check className="size-3.5" /> Passwords match
+                    <Check className="size-3.5" /> As senhas conferem
                   </p>
                 ) : (
                   <p className="mt-1.5 text-[11px] text-[var(--color-muted-foreground)]">
-                    Passwords don&apos;t match yet
+                    As senhas ainda não conferem
                   </p>
                 ))}
             </div>
@@ -515,14 +505,14 @@ function ChangePasswordDialog({
               onClick={() => onOpenChange(false)}
               disabled={mutation.isPending}
             >
-              Cancel
+              Cancelar
             </Button>
             <Button
               type="submit"
               disabled={mutation.isPending || !current || !next || !confirm}
             >
               <KeyRound className="mr-1 h-3.5 w-3.5" />
-              {mutation.isPending ? "Updating…" : "Update password"}
+              {mutation.isPending ? "Atualizando…" : "Atualizar senha"}
             </Button>
           </DialogFooter>
         </form>
@@ -540,17 +530,17 @@ function TwoFactorCard({ enabled, loading }: { enabled: boolean; loading: boolea
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          Two-factor authentication
+          Verificação em duas etapas
           {loading ? (
             <Skeleton className="h-5 w-16 rounded-full" />
           ) : enabled ? (
-            <Badge variant="success">enabled</Badge>
+            <Badge variant="success">ativada</Badge>
           ) : (
-            <Badge variant="warning">disabled</Badge>
+            <Badge variant="warning">desativada</Badge>
           )}
         </CardTitle>
         <CardDescription>
-          Require a one-time code from an authenticator app on every sign-in.
+          Pede um código de uso único de um app autenticador a cada entrada.
         </CardDescription>
       </CardHeader>
       <CardContent className="px-6 pb-5 pt-1">
@@ -577,8 +567,8 @@ function TwoFactorEnroll() {
     mutationFn: enrollTwoFactor,
     onSuccess: (data) => setEnrollment(data),
     onError: (err) =>
-      toast.error("Enrollment failed", {
-        description: apiErrorMessage(err, "Could not start enrollment."),
+      toast.error("Falha ao ativar", {
+        description: apiErrorMessage(err, "Não foi possível iniciar a ativação."),
       }),
   });
 
@@ -586,22 +576,22 @@ function TwoFactorEnroll() {
     mutationFn: (otp: string) => verifyEnrollTwoFactor(otp),
     onSuccess: (data) => {
       if (data.success) {
-        toast.success("Two-factor enabled", {
-          description: "Future logins require a 6-digit code from your authenticator.",
+        toast.success("Verificação em duas etapas ativada", {
+          description: "As próximas entradas vão pedir um código de 6 dígitos do seu autenticador.",
         });
         setEnrollment(null);
         setCode("");
         setQrSvg(null);
         void queryClient.invalidateQueries({ queryKey: PROFILE_KEY });
       } else {
-        toast.error("Verification failed", {
-          description: "That code didn't match. Try again.",
+        toast.error("Falha na verificação", {
+          description: "O código não confere. Tente de novo.",
         });
       }
     },
     onError: (err) =>
-      toast.error("Verification failed", {
-        description: apiErrorMessage(err, "Could not verify code."),
+      toast.error("Falha na verificação", {
+        description: apiErrorMessage(err, "Não foi possível verificar o código."),
       }),
   });
 
@@ -652,10 +642,10 @@ function TwoFactorEnroll() {
           disabled={beginMutation.isPending}
         >
           <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
-          {beginMutation.isPending ? "Generating…" : "Enable two-factor"}
+          {beginMutation.isPending ? "Gerando…" : "Ativar verificação em duas etapas"}
         </Button>
         <span className="text-xs text-[var(--color-muted-foreground)]">
-          You'll scan a QR code in your authenticator app
+          Você vai ler um QR code no seu app autenticador
           (1Password, Google Authenticator, Authy, …).
         </span>
       </div>
@@ -668,21 +658,21 @@ function TwoFactorEnroll() {
         <div className="grid h-52 w-52 place-items-center rounded-md border border-[var(--color-border)] bg-[var(--color-card)] p-2 text-[var(--color-foreground)]">
           {qrSvg ? (
             <div
-              aria-label="Two-factor QR code"
+              aria-label="QR code da verificação em duas etapas"
               role="img"
               className="h-full w-full [&_svg]:h-full [&_svg]:w-full"
               dangerouslySetInnerHTML={{ __html: qrSvg }}
             />
           ) : (
             <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">
-              Rendering…
+              Gerando…
             </span>
           )}
         </div>
         <div className="space-y-3">
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">
-              can't scan? enter manually
+              não consegue ler? digite o código
             </div>
             <div className="mt-1 flex items-center gap-2">
               <code className="break-all rounded-md border border-[var(--color-border)] bg-[var(--color-muted)] px-2 py-1 font-mono text-[11px]">
@@ -695,11 +685,11 @@ function TwoFactorEnroll() {
               >
                 {copiedKey ? (
                   <>
-                    <ClipboardCheck className="h-3 w-3" /> copied
+                    <ClipboardCheck className="h-3 w-3" /> copiado
                   </>
                 ) : (
                   <>
-                    <Copy className="h-3 w-3" /> copy
+                    <Copy className="h-3 w-3" /> copiar
                   </>
                 )}
               </button>
@@ -707,7 +697,7 @@ function TwoFactorEnroll() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="totp-code">6-digit code from your app</Label>
+            <Label htmlFor="totp-code">Código de 6 dígitos do seu app</Label>
             <Input
               id="totp-code"
               inputMode="numeric"
@@ -728,7 +718,7 @@ function TwoFactorEnroll() {
               onClick={() => verifyMutation.mutate(code)}
               disabled={code.length < 6 || verifyMutation.isPending}
             >
-              {verifyMutation.isPending ? "Verifying…" : "Confirm & enable"}
+              {verifyMutation.isPending ? "Verificando…" : "Confirmar e ativar"}
             </Button>
             <Button
               variant="ghost"
@@ -738,7 +728,7 @@ function TwoFactorEnroll() {
               }}
               disabled={verifyMutation.isPending}
             >
-              Cancel
+              Cancelar
             </Button>
           </div>
         </div>
@@ -755,32 +745,32 @@ function TwoFactorDisable() {
     mutationFn: (pw: string) => disableTwoFactor(pw),
     onSuccess: (data) => {
       if (data.success) {
-        toast.success("Two-factor disabled");
+        toast.success("Verificação em duas etapas desativada");
         setPassword("");
         void queryClient.invalidateQueries({ queryKey: PROFILE_KEY });
       } else {
-        toast.error("Disable failed", {
-          description: "Password verification failed.",
+        toast.error("Falha ao desativar", {
+          description: "A senha não confere.",
         });
       }
     },
     onError: (err) =>
-      toast.error("Disable failed", {
-        description: apiErrorMessage(err, "Could not disable two-factor."),
+      toast.error("Falha ao desativar", {
+        description: apiErrorMessage(err, "Não foi possível desativar a verificação em duas etapas."),
       }),
   });
 
   return (
     <div className="space-y-3">
       <p className="text-sm text-[var(--color-muted-foreground)]">
-        Two-factor is currently enabled. Confirm your password to disable —
-        this rotates the authenticator secret, so a fresh enroll will generate
-        a new QR code.
+        A verificação em duas etapas está ativada. Confirme sua senha para
+        desativá-la; isso troca o segredo do autenticador, e uma nova ativação
+        vai gerar um novo QR code.
       </p>
       <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
         <PasswordField
           id="disable-pw"
-          label="Current password"
+          label="Senha atual"
           value={password}
           onChange={setPassword}
           autoComplete="current-password"
@@ -792,7 +782,7 @@ function TwoFactorDisable() {
           disabled={password.length === 0 || mutation.isPending}
         >
           <ShieldOff className="mr-1 h-3.5 w-3.5" />
-          {mutation.isPending ? "Disabling…" : "Disable two-factor"}
+          {mutation.isPending ? "Desativando…" : "Desativar verificação em duas etapas"}
         </Button>
       </div>
     </div>

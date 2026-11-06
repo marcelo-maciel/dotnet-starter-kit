@@ -87,24 +87,21 @@ export function MobileNavRoot() {
       <SheetContent side="left" className="flex flex-col p-0">
         {/* Radix Dialog requires a Title for the accessible name; keep it
             visually hidden so the drawer chrome is unchanged. */}
-        <DialogTitle className="sr-only">Primary navigation</DialogTitle>
+        <DialogTitle className="sr-only">Navegação principal</DialogTitle>
         <DialogDescription className="sr-only">
-          Site sections and account links.
+          Seções do sistema e links da conta.
         </DialogDescription>
         {/* Brand row — matches Topbar height so the drawer top aligns
             with the rest of the chrome. */}
         <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-[var(--color-border)] px-4">
           <span
             aria-hidden
-            className={cn(
-              "brand-mark grid h-7 w-7 place-items-center rounded-md",
-              "text-[11px] font-bold tracking-tight text-[var(--color-primary-foreground)]",
-              "shadow-[0_1px_0_oklch(1_0_0_/_0.18)_inset,0_4px_14px_-4px_oklch(from_var(--color-primary)_l_c_h_/_0.45)]",
-            )}
+            className="grid h-7 w-7 place-items-center rounded-md bg-white p-0.5 ring-1 ring-[var(--color-border)]"
           >
-            F
+            {/* ponytail: logo files are rasters cut from a 373x507 PNG; swap for the vector logo when Marcelo has one. */}
+            <img src="/logo-paf-simbolo.png" alt="" className="size-full object-contain" />
           </span>
-          <span className="font-semibold tracking-tight">fullstackhero</span>
+          <span className="font-semibold tracking-tight">Passo a Frente</span>
         </div>
 
         <SidebarNavBody
@@ -116,7 +113,7 @@ export function MobileNavRoot() {
 
         <div className="border-t border-[var(--color-border)] px-5 py-3">
           <p className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-[var(--color-muted-foreground)]">
-            v0.1 · dashboard
+            v0.1
           </p>
         </div>
       </SheetContent>
@@ -134,7 +131,7 @@ export function MobileNavTrigger({ className }: { className?: string }) {
   return (
     <button
       type="button"
-      aria-label="Open navigation menu"
+      aria-label="Abrir menu de navegação"
       onClick={onClick}
       className={cn(
         "grid h-9 w-9 cursor-pointer place-items-center rounded-md md:hidden",

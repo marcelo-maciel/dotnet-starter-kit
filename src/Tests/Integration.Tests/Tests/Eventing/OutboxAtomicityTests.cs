@@ -5,8 +5,8 @@ using FSH.Framework.Eventing.Outbox;
 using FSH.Framework.Eventing.Persistence;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Billing.Contracts.Events;
-using FSH.Modules.Catalog.Data;
-using FSH.Modules.Catalog.Domain;
+using FSH.Modules.Notifications.Data;
+using FSH.Modules.Notifications.Domain;
 using Integration.Tests.Infrastructure;
 
 namespace Integration.Tests.Tests.Eventing;
@@ -39,10 +39,10 @@ public sealed class OutboxAtomicityTests
             .MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenant);
 
 
-        var catalog = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+        var notifications = scope.ServiceProvider.GetRequiredService<NotificationsDbContext>();
         var eventing = scope.ServiceProvider.GetRequiredService<EventingDbContext>();
 
-        ReferenceEquals(catalog.Database.GetDbConnection(), eventing.Database.GetDbConnection())
+        ReferenceEquals(notifications.Database.GetDbConnection(), eventing.Database.GetDbConnection())
             .ShouldBeTrue("a shared DbConnection is what lets the outbox write join the business transaction");
     }
 
@@ -54,16 +54,16 @@ public sealed class OutboxAtomicityTests
         scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>()
             .MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenant);
 
-        var catalog = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+        var notifications = scope.ServiceProvider.GetRequiredService<NotificationsDbContext>();
         var store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
 
-        var brand = Brand.Create($"atomicity-{Guid.CreateVersion7():N}", null, null);
+        var notification = Notification.Create("atomicity-user", "tests.atomicity", $"atomicity-{Guid.CreateVersion7():N}", null, null, "Tests", null);
         var eventId = Guid.CreateVersion7();
 
-        await using (var transaction = await catalog.Database.BeginTransactionAsync())
+        await using (var transaction = await notifications.Database.BeginTransactionAsync())
         {
-            catalog.Brands.Add(brand);
-            await catalog.SaveChangesAsync();
+            notifications.Notifications.Add(notification);
+            await notifications.SaveChangesAsync();
 
             await store.AddAsync(NewEvent(eventId));
 
@@ -72,7 +72,7 @@ public sealed class OutboxAtomicityTests
 
         await AssertOutboxRowAsync(eventId, shouldExist: false,
             "the outbox row must not survive a rolled-back business transaction");
-        await AssertBrandAsync(brand.Id, shouldExist: false);
+        await AssertNotificationAsync(notification.Id, shouldExist: false);
     }
 
     [Fact]
@@ -83,16 +83,16 @@ public sealed class OutboxAtomicityTests
         scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>()
             .MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenant);
 
-        var catalog = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+        var notifications = scope.ServiceProvider.GetRequiredService<NotificationsDbContext>();
         var store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
 
-        var brand = Brand.Create($"atomicity-{Guid.CreateVersion7():N}", null, null);
+        var notification = Notification.Create("atomicity-user", "tests.atomicity", $"atomicity-{Guid.CreateVersion7():N}", null, null, "Tests", null);
         var eventId = Guid.CreateVersion7();
 
-        await using (var transaction = await catalog.Database.BeginTransactionAsync())
+        await using (var transaction = await notifications.Database.BeginTransactionAsync())
         {
-            catalog.Brands.Add(brand);
-            await catalog.SaveChangesAsync();
+            notifications.Notifications.Add(notification);
+            await notifications.SaveChangesAsync();
 
             await store.AddAsync(NewEvent(eventId));
 
@@ -101,7 +101,7 @@ public sealed class OutboxAtomicityTests
 
         await AssertOutboxRowAsync(eventId, shouldExist: true,
             "enlisting must not swallow the write — a committed transaction keeps both rows");
-        await AssertBrandAsync(brand.Id, shouldExist: true);
+        await AssertNotificationAsync(notification.Id, shouldExist: true);
     }
 
     [Fact]
@@ -129,11 +129,11 @@ public sealed class OutboxAtomicityTests
         scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>()
             .MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenant);
 
-        var catalog = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+        var notifications = scope.ServiceProvider.GetRequiredService<NotificationsDbContext>();
         var store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
 
         var insideId = Guid.CreateVersion7();
-        await using (var transaction = await catalog.Database.BeginTransactionAsync())
+        await using (var transaction = await notifications.Database.BeginTransactionAsync())
         {
             await store.AddAsync(NewEvent(insideId));
             await transaction.RollbackAsync();
@@ -176,16 +176,16 @@ public sealed class OutboxAtomicityTests
             .ShouldBe(shouldExist, because);
     }
 
-    private async Task AssertBrandAsync(Guid brandId, bool shouldExist)
+    private async Task AssertNotificationAsync(Guid notificationId, bool shouldExist)
     {
         var (scope, tenant) = await NewScopeAsync();
         using var scopeHandle = scope;
         scope.ServiceProvider.GetRequiredService<IMultiTenantContextSetter>()
             .MultiTenantContext = new MultiTenantContext<AppTenantInfo>(tenant);
 
-        var catalog = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+        var notifications = scope.ServiceProvider.GetRequiredService<NotificationsDbContext>();
 
-        (await catalog.Brands.AsNoTracking().AnyAsync(b => b.Id == brandId))
+        (await notifications.Notifications.AsNoTracking().AnyAsync(n => n.Id == notificationId))
             .ShouldBe(shouldExist, "the business row and the outbox row must share one fate");
     }
 

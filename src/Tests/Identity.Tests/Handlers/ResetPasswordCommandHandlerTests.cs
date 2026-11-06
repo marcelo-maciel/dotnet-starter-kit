@@ -2,6 +2,7 @@ using AutoFixture;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Contracts.v1.Users.ResetPassword;
 using FSH.Modules.Identity.Features.v1.Users.ResetPassword;
+using Identity.Tests.Support;
 using NSubstitute;
 using Shouldly;
 using Xunit;
@@ -17,8 +18,24 @@ public sealed class ResetPasswordCommandHandlerTests
     public ResetPasswordCommandHandlerTests()
     {
         _userService = Substitute.For<IUserService>();
-        _sut = new ResetPasswordCommandHandler(_userService);
+        _sut = new ResetPasswordCommandHandler(_userService, IdentityResourcesLocalizerFactory.Create());
         _fixture = new Fixture();
+    }
+
+    [Theory]
+    [InlineData("en-US", "Password has been reset.")]
+    [InlineData("pt-BR", "A senha foi redefinida.")]
+    public async Task Handle_Should_ReturnConfirmationInTheRequestCulture(string culture, string expected)
+    {
+        // Arrange
+        var command = _fixture.Create<ResetPasswordCommand>();
+        using var scope = new UiCultureScope(culture);
+
+        // Act
+        var result = await _sut.Handle(command, CancellationToken.None);
+
+        // Assert
+        result.ShouldBe(expected);
     }
 
     [Fact]
@@ -28,6 +45,7 @@ public sealed class ResetPasswordCommandHandlerTests
         var command = _fixture.Create<ResetPasswordCommand>();
 
         // Act
+        using var culture = new UiCultureScope("en-US");
         var result = await _sut.Handle(command, CancellationToken.None);
 
         // Assert

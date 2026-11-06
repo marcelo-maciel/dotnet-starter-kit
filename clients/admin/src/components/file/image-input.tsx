@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
 import { useFileUpload, formatBytes } from "@/hooks/use-file-upload";
 import { getFileMetadata, Visibility } from "@/api/files";
-import { ApiRequestError } from "@/lib/api-client";
+import { ApiRequestError, describeError } from "@/lib/api-client";
 
 type Props = {
   /** Current image URL (or empty). The component is fully controlled. */
@@ -31,7 +31,7 @@ const IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
 
 /**
  * ImageInput — composite control that lets a user either upload a new image
- * (presigned PUT to S3/MinIO) OR paste an external URL. After a successful
+ * (presigned PUT to S3) OR paste an external URL. After a successful
  * upload the component fetches the FileAsset metadata to retrieve the durable
  * `publicUrl` and forwards it through `onChange`.
  */
@@ -83,7 +83,7 @@ export function ImageInput({
       } catch (e) {
         const message =
           e instanceof ApiRequestError
-            ? (e.problem?.detail ?? e.problem?.title ?? e.message)
+            ? describeError(e)
             : e instanceof Error
               ? e.message
               : "Upload failed";
