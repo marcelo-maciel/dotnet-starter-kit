@@ -94,6 +94,7 @@ public sealed class PafLeiturasDaOperacaoTests(FshWebApplicationFactory factory)
         posto.UnidadeId.ShouldBe(c.UnidadeId);
         posto.EstacaoId.ShouldBeNull();
         posto.Atendimento.ShouldBeNull();
+        posto.SelecionarFicha.ShouldBeFalse("sem guichê não há lista de fichas em espera");
 
         var guiches = await LerOkAsync<List<GuicheDaUnidadeDto>>(atendente, RotaGuiches);
         guiches.Select(g => g.Id).ShouldBe([c.GuicheA, c.GuicheB], ignoreOrder: true);

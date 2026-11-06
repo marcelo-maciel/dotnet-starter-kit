@@ -20,7 +20,12 @@ public sealed record GuicheDaUnidadeDto(Guid Id, string Nome, string Tipo, strin
 /// <summary>Where the session stands: current unit, selected guichê and the atendimento in progress on it, so a reload resumes.</summary>
 public sealed record ObterPostoGuicheQuery : IQuery<PostoGuicheDto>;
 
-public sealed record PostoGuicheDto(Guid? UnidadeId, string? Unidade, Guid? EstacaoId, string? Guiche, AtendimentoEmCursoDto? Atendimento);
+/// <summary>
+/// <paramref name="SelecionarFicha"/> is the selected guichê's RF04 option "selecionar ficha para atendimento", false
+/// with no guichê: the screen asks for the waiting list only when the server would answer it.
+/// </summary>
+public sealed record PostoGuicheDto(
+    Guid? UnidadeId, string? Unidade, Guid? EstacaoId, string? Guiche, AtendimentoEmCursoDto? Atendimento, bool SelecionarFicha);
 
 /// <summary>
 /// Manager or unit admin releases a guichê held by a dead or absent session (RF04, seção 5); refused while an

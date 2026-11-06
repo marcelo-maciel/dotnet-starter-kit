@@ -24,7 +24,7 @@ public sealed class ObterPostoGuicheQueryHandler(PafDbContext db, SessaoCorrente
         var usuarioId = dono.UsuarioId;
         if (unidadeCorrente.UnidadeId is not { } unidadeId)
         {
-            return new PostoGuicheDto(null, null, null, null, null);
+            return new PostoGuicheDto(null, null, null, null, null, SelecionarFicha: false);
         }
 
         var unidade = await db.Unidades.AsNoTracking()
@@ -36,11 +36,11 @@ public sealed class ObterPostoGuicheQueryHandler(PafDbContext db, SessaoCorrente
             ? null
             : await db.Estacoes.AsNoTracking()
                 .Where(e => e.Id == vinculo.EstacaoId)
-                .Select(e => new { e.Id, e.Nome })
+                .Select(e => new { e.Id, e.Nome, e.Configuracao })
                 .FirstOrDefaultAsync(cancellationToken);
         if (guiche is null)
         {
-            return new PostoGuicheDto(unidadeId, unidade, null, null, null);
+            return new PostoGuicheDto(unidadeId, unidade, null, null, null, SelecionarFicha: false);
         }
 
         var emCurso = await (
@@ -55,6 +55,8 @@ public sealed class ObterPostoGuicheQueryHandler(PafDbContext db, SessaoCorrente
             ? null
             : new AtendimentoEmCursoDto(
                 emCurso.Id, emCurso.FichaId, OperacaoGuiche.Senha(emCurso.Letra, emCurso.Numero), emCurso.Estado.ToString(), emCurso.Versao);
-        return new PostoGuicheDto(unidadeId, unidade, guiche.Id, guiche.Nome, atendimento);
+        // Same reading as ListFichasEmEsperaQueryHandler, so the flag never says yes where the list would answer 409.
+        var selecionarFicha = ChamadaDeFicha.OpcaoLigada(guiche.Configuracao, ChamadaDeFicha.ChaveSelecionarFicha);
+        return new PostoGuicheDto(unidadeId, unidade, guiche.Id, guiche.Nome, atendimento, selecionarFicha);
     }
 }
