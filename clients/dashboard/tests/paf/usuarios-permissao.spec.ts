@@ -30,7 +30,7 @@ test.describe("PAF usuários: permissão antes da tela", () => {
 
     await page.goto("/paf/usuarios");
 
-    await expect(page.getByRole("alert").filter({ hasText: "Você não tem permissão para ver os usuários do PAF." })).toBeVisible();
+    await expect(page.getByRole("alert").filter({ hasText: "Você não tem permissão para ver esta tela do PAF." })).toBeVisible();
     await expect(page.getByText("Novo usuário")).toHaveCount(0);
     expect(listagens.chamadas).toBe(0);
   });
@@ -43,6 +43,6 @@ test.describe("PAF usuários: permissão antes da tela", () => {
 
     await expect(page.getByText("Novo usuário").first()).toBeVisible();
     await expect.poll(() => listagens.chamadas).toBeGreaterThan(0);
-    await expect(page.getByText("Você não tem permissão para ver os usuários do PAF.")).toHaveCount(0);
+    await expect(page.getByText("Você não tem permissão para ver esta tela do PAF.")).toHaveCount(0);
   });
 });

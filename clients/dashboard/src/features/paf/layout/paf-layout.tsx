@@ -1,8 +1,10 @@
 import { useEffect, useId, useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/auth/use-auth";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { telaPafLiberada } from "@/features/paf/navegacao/menu-paf";
 import { mensagemAmigavel } from "@/features/paf/paf-erros";
 import { definirUnidadeCorrente, listarUnidades, obterPosto } from "@/features/paf/guiche/guiche-api";
 import { AvisoLicencaFaixa } from "@/features/paf/sessao/aviso-licenca-faixa";
@@ -20,7 +22,24 @@ const CHAVE_UNIDADES = ["paf", "guiche", "unidades"] as const;
 const SELECT_CLASSES =
   "h-9 rounded-md border border-[var(--color-input)] bg-[var(--color-card)] px-3 text-sm";
 
+// Opened by URL without the permission of its menu entry, a screen would mount, call the API, take a 403 and log it.
+// The gate sits above everything the layout mounts, so nothing is requested.
 export function PafLayout() {
+  const { user, permissionsHydrated } = useAuth();
+  const { pathname } = useLocation();
+  // Deciding before the permissions arrive would flash the notice at someone who has the permission.
+  if (!permissionsHydrated) return <p className="text-[var(--color-muted-foreground)]">Carregando…</p>;
+  if (!telaPafLiberada(pathname, user?.permissions ?? [])) {
+    return (
+      <p role="alert" data-sem-acesso className="rounded-md border border-[var(--color-border)] px-4 py-3">
+        Você não tem permissão para ver esta tela do PAF.
+      </p>
+    );
+  }
+  return <MolduraPaf />;
+}
+
+function MolduraPaf() {
   const [aviso, setAviso] = useState(lerAvisoDeRecarga);
   // Read in the initializer, removed here: StrictMode runs initializers twice, and a reload shows it once.
   useEffect(() => apagarAvisoDeRecarga(), []);

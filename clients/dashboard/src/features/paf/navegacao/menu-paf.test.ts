@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { findSectionForPath, visibleSections } from "@/components/layout/nav-data";
-import { primeiraTelaPaf } from "@/features/paf/navegacao/menu-paf";
+import { primeiraTelaPaf, secaoMenuPaf, telaPafLiberada } from "@/features/paf/navegacao/menu-paf";
 
 const GUICHE = "Permissions.PAF.Guiches.Selecionar";
 
@@ -95,4 +95,30 @@ test("a tela inicial é o guichê; sem ele, a primeira tela do PAF que a pessoa 
   assert.equal(primeiraTelaPaf(["Permissions.PAF.Estatisticas.View", "Permissions.PAF.FichasDoDia.View"]), "/paf/fichas-do-dia");
   assert.equal(primeiraTelaPaf(["Permissions.Sessions.ViewAll"]), null);
   assert.equal(primeiraTelaPaf([]), null);
+});
+
+test("a URL do PAF segue a permissão da entrada do menu, tela por tela", () => {
+  for (const item of secaoMenuPaf.items) {
+    assert.ok(item.perm, `${item.to} precisa de perm no menu`);
+    assert.equal(telaPafLiberada(item.to, [item.perm]), true, `${item.to} com a permissão`);
+    assert.equal(telaPafLiberada(item.to, []), false, `${item.to} sem permissão`);
+    assert.equal(telaPafLiberada(item.to, ["Permissions.Users.Update"]), false, `${item.to} com outra permissão`);
+  }
+});
+
+test("a mesma permissão libera as telas que o menu liga a ela", () => {
+  const fichas = "Permissions.PAF.FichasDoDia.View";
+  for (const rota of ["/paf/fichas-do-dia", "/paf/consultar-ficha", "/paf/ficha-de-espera"]) {
+    assert.equal(telaPafLiberada(rota, [fichas]), true, rota);
+  }
+  assert.equal(telaPafLiberada("/paf/guiche", [fichas]), false);
+});
+
+test("barra final e subcaminho valem como a tela; caminho fora do menu não é barrado", () => {
+  assert.equal(telaPafLiberada("/paf/usuarios/", []), false);
+  assert.equal(telaPafLiberada("/paf/usuarios/novo", []), false);
+  assert.equal(telaPafLiberada("/paf/usuarios/novo", ["Permissions.PAF.Usuarios.View"]), true);
+  // Near-miss prefix: /paf/filas-extra is not /paf/filas.
+  assert.equal(telaPafLiberada("/paf/filas-extra", []), true);
+  assert.equal(telaPafLiberada("/paf", []), true);
 });

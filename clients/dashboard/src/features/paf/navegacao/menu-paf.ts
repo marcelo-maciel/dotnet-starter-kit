@@ -54,3 +54,12 @@ export const secaoMenuPaf: NavSection = {
 export function primeiraTelaPaf(permissoes: readonly string[]): string | null {
   return secaoMenuPaf.items.find((item) => item.perm !== undefined && permissoes.includes(item.perm))?.to ?? null;
 }
+
+/** Whether the permissions open the PAF screen at `pathname`: the same `perm` its menu entry carries, so the menu and
+ *  the URL can never disagree. A path outside the menu (no entry) is not gated here. */
+export function telaPafLiberada(pathname: string, permissoes: readonly string[]): boolean {
+  const caminho = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  const item = secaoMenuPaf.items.find((i) => caminho === i.to || caminho.startsWith(`${i.to}/`));
+  if (item?.perm === undefined) return true;
+  return permissoes.includes(item.perm);
+}
