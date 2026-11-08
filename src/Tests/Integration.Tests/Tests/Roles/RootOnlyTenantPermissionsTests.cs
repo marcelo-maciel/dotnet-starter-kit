@@ -242,7 +242,8 @@ public sealed class RootOnlyTenantPermissionsTests
     {
         // AuditTrails.View stopped being basic (S2, 03/11/2026): a client seeded before keeps it on Basic, and the
         // startup sync takes it off there, while the client's Admin keeps it. A custom role keeps it (it was granted,
-        // not inherited), so does a claim that is no registered permission, and the root tenant's Basic is not touched.
+        // not inherited). Since the authoritative sync (#1426) Basic holds exactly the catalog's basic set, so a claim
+        // that is no registered permission goes too, and so does the root tenant's stale AuditTrails.View.
         const string Unregistered = "Permissions.NaoRegistrada.View";
         using var root = await _auth.CreateRootAdminClientAsync();
         var (tenantAdmin, tenant) = await ProvisionTenantAsync(root, "basic");
@@ -270,12 +271,12 @@ public sealed class RootOnlyTenantPermissionsTests
 
             var basicAfter = await PermissionsAsync(tenant, basicRoleId);
             basicAfter.ShouldNotContain(AuditingPermissions.AuditTrails.View);
-            basicAfter.ShouldContain(Unregistered, "a claim that is no registered permission is left alone");
+            basicAfter.ShouldNotContain(Unregistered, "the authoritative sync leaves Basic with the catalog's basic set only");
             basicAfter.ShouldContain(IdentityPermissions.Sessions.View, "the basic permissions stay");
             basicAfter.ShouldContain(FilesPermissions.Upload, "the basic permissions stay");
             (await PermissionsAsync(tenant, adminRoleId)).ShouldContain(AuditingPermissions.AuditTrails.View, "the client's Admin keeps the trail");
             (await PermissionsAsync(tenant, customRoleId)).ShouldContain(AuditingPermissions.AuditTrails.View, "a granted claim is not the Basic role's");
-            (await PermissionsAsync(rootTenant, rootBasicRoleId)).ShouldContain(AuditingPermissions.AuditTrails.View, "the root tenant's Basic is not touched");
+            (await PermissionsAsync(rootTenant, rootBasicRoleId)).ShouldNotContain(AuditingPermissions.AuditTrails.View, "the root tenant's Basic is reconciled too");
         }
         finally
         {
