@@ -85,6 +85,16 @@ function isNavItemVisible(item: NavSpec, permissions: readonly string[]): boolea
   return true;
 }
 
+/** Whether the permissions open the kit screen at `pathname`: the gates its menu entry carries, through the same
+ *  isNavItemVisible the menu hides items with, so the menu and the URL can never disagree. A path with no entry
+ *  (and the PAF screens, which menu-paf.ts gates) is not gated here. */
+export function telaDoKitLiberada(pathname: string, permissions: readonly string[]): boolean {
+  const caminho = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  const itens = [...topNavTop, ...topNavBottom, ...sections.flatMap((s) => s.items)];
+  const item = itens.find((i) => caminho === i.to || caminho.startsWith(`${i.to}/`));
+  return item === undefined || isNavItemVisible(item, permissions);
+}
+
 /** Drop items the user can't access, then drop any section left empty. */
 export function visibleSections(permissions: readonly string[]): NavSection[] {
   return sections

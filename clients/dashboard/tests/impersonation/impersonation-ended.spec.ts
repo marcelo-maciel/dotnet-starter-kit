@@ -11,7 +11,7 @@
 // Browser: chromium only, run against the already-running Vite dev server.
 
 import { expect, test, type Page } from "@playwright/test";
-import { mockProblemDetails } from "../helpers/api-mocks";
+import { mockJsonResponse, mockProblemDetails } from "../helpers/api-mocks";
 import { installShellMocks } from "../helpers/shell-mocks";
 
 const ACCESS_KEY = "fsh.dashboard.accessToken";
@@ -58,6 +58,8 @@ async function seedImpersonationSession(page: Page): Promise<void> {
 test.beforeEach(async ({ page }) => {
   await seedImpersonationSession(page);
   await installShellMocks(page);
+  // The route refuses the screen without the permission its menu entry carries.
+  await mockJsonResponse(page, "**/api/v1/identity/permissions", ["Permissions.Sessions.ViewAll"]);
 });
 
 test.describe("impersonation revoked mid-session", () => {
