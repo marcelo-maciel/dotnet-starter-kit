@@ -2,6 +2,10 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 import { installShellMocks } from "../helpers/shell-mocks";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // C3: the refresh ends the session only when the server refuses the refresh token (401/403). A 503 while the
 // API restarts, a 429 or a dropped connection says nothing about the token: the person stays signed in and
 // the next request tries again. Before the fix every non-2xx refresh cleared the tokens and sent the guichê

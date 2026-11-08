@@ -3,6 +3,10 @@ import { mockJsonResponse } from "../helpers/api-mocks";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 import { installShellMocks } from "../helpers/shell-mocks";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // D8 (browser test of 31/10/2026, 1440px): the colour placeholder "padrão da estação" was cut, and the font-colour
 // requirement only appeared after a button colour was filled.
 test.describe("PAF filas: aparência do formulário", () => {

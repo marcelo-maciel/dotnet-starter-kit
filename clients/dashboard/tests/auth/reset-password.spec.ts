@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { captureRequest, mockJsonResponse, mockProblemDetails } from "../helpers/api-mocks";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // Helper — builds the URL the email link would produce.
 const VALID_LINK =
   "/reset-password?token=ABC123def&email=alice@acme.com&tenant=acme";

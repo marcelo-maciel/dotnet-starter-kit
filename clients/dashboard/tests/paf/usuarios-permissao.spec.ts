@@ -3,6 +3,10 @@ import { mockJsonResponse } from "../helpers/api-mocks";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 import { installShellMocks } from "../helpers/shell-mocks";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // D11 (browser test of 31/10/2026): /paf/usuarios opened by URL by a Gerente rendered the whole "Novo usuário"
 // form and only then "Acesso não autorizado." from the 403 of the list.
 const USUARIOS_VIEW = "Permissions.PAF.Usuarios.View";

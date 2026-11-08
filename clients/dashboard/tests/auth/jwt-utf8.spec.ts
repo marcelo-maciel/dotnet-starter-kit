@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // C4: the server signs the JWT payload as UTF-8. Decoding it with atob alone reads it as Latin-1, so a PAF
 // user named "João Conceição" showed as "JoÃ£o ConceiÃ§Ã£o". The token here is built the way the server
 // builds it (UTF-8 bytes, base64url) and decoded by the app's own module, served by the Vite dev server.
@@ -11,7 +15,9 @@ test("decodeJwt reads a UTF-8 payload, accents intact", async ({ page }) => {
   await page.goto("/login");
 
   const name = await page.evaluate(async (jwt) => {
-    const mod = (await import("/src/auth/jwt.ts")) as typeof import("../../src/auth/jwt");
+    // A path the Vite dev server resolves in the page, not one tsc can: a variable keeps it out of the type check.
+    const modulo = "/src/auth/jwt.ts";
+    const mod = (await import(/* @vite-ignore */ modulo)) as typeof import("../../src/auth/jwt");
     return mod.decodeJwt(jwt)?.name;
   }, token);
 

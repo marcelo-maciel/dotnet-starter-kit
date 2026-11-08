@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link, Navigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
 import {
   AlertCircle,
@@ -29,6 +30,7 @@ import { cn } from "@/lib/cn";
  * inbox" success state after a 2xx.
  */
 export function ForgotPasswordPage() {
+  const { t } = useTranslation("auth");
   const { isAuthenticated } = useAuth();
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -63,12 +65,12 @@ export function ForgotPasswordPage() {
     <AuthShell
       footer={
         <span>
-          Lembrou?{" "}
+          {t("forgot.remembered")}{" "}
           <Link
             to="/login"
             className="text-[var(--color-foreground)] underline-offset-4 hover:underline"
           >
-            Entrar
+            {t("forgot.signIn")}
           </Link>
         </span>
       }
@@ -84,21 +86,22 @@ export function ForgotPasswordPage() {
             </span>
           </div>
           <div>
-            <AuthHeadline lead="Confira sua" accent="caixa de entrada" />
+            <AuthHeadline lead={t("forgot.successLead")} accent={t("forgot.successAccent")} />
+            {/* No tenant in the sentence: the PAF resets by e-mail alone, so successMid/tenant are not used. */}
             <p className="text-[13px] leading-relaxed text-[var(--color-muted-foreground)]">
-              Se existir uma conta para{" "}
-              <span className="text-[var(--color-foreground)]">{email}</span>,
-              um link de uso único para redefinir a senha está a caminho. O link expira em 30 minutos.
+              {t("forgot.successPre")}{" "}
+              <span className="text-[var(--color-foreground)]">{email}</span>
+              {t("forgot.successPost")}
             </p>
           </div>
           <ul className="space-y-1.5 text-left text-[12.5px] text-[var(--color-muted-foreground)]">
             <li className="flex items-start gap-2">
               <Check className="mt-0.5 size-3.5 shrink-0 text-[var(--color-success)]" />
-              Não chegou? Espere um minuto e confira a pasta de spam.
+              {t("forgot.tip1")}
             </li>
             <li className="flex items-start gap-2">
               <Check className="mt-0.5 size-3.5 shrink-0 text-[var(--color-success)]" />
-              Ainda nada? Confira o e-mail e tente de novo.
+              {t("forgot.tip2")}
             </li>
           </ul>
           <div className="flex items-center gap-2 pt-1">
@@ -110,11 +113,11 @@ export function ForgotPasswordPage() {
                 setError(null);
               }}
             >
-              Tentar outro endereço
+              {t("forgot.tryDifferent")}
             </Button>
             <Link to="/login" className="ml-auto">
               <Button type="button" variant="outline">
-                Voltar para a entrada
+                {t("forgot.backToSignIn")}
               </Button>
             </Link>
           </div>
@@ -122,9 +125,9 @@ export function ForgotPasswordPage() {
       ) : (
         <>
           <div className="mb-6 sm:mb-8">
-            <AuthHeadline lead="Recupere sua" accent="senha" />
+            <AuthHeadline lead={t("forgot.titleLead")} accent={t("forgot.titleAccent")} />
             <p className="text-[13px] text-[var(--color-muted-foreground)]">
-              Informe o e-mail que você usa para entrar. Vamos enviar um link de uso único.
+              {t("forgot.subtitle")}
             </p>
           </div>
 
@@ -134,7 +137,7 @@ export function ForgotPasswordPage() {
                 htmlFor="reset-email"
                 className="block text-[11.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]"
               >
-                E-mail
+                {t("forgot.email")}
               </Label>
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.6)]" />
@@ -143,7 +146,7 @@ export function ForgotPasswordPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="nome@empresa.com.br"
+                  placeholder={t("forgot.emailPlaceholder")}
                   autoComplete="email"
                   required
                   autoFocus
@@ -179,11 +182,11 @@ export function ForgotPasswordPage() {
                 {mutation.isPending ? (
                   <>
                     <Loader2 className="size-4 animate-spin" />
-                    <span>Enviando o link…</span>
+                    <span>{t("forgot.submitting")}</span>
                   </>
                 ) : (
                   <>
-                    <span>Enviar link de redefinição</span>
+                    <span>{t("forgot.submit")}</span>
                     <ArrowRight className="size-[14px] opacity-60 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-100" />
                   </>
                 )}

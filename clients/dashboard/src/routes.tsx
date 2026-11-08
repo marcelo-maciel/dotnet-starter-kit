@@ -1,5 +1,6 @@
 import { lazy, Suspense, type ComponentType } from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/layout/app-shell";
 import { GuardaTelaDoKit } from "@/components/layout/guarda-tela-do-kit";
 import { ProtectedRoute } from "@/auth/protected-route";
@@ -101,9 +102,10 @@ const PafProgramacoesPage = lazyNamed(() => import("@/features/paf/programacoes/
  * `.skeleton` shimmer so it feels like part of the same surface family.
  */
 function RouteFallback() {
+  const { t } = useTranslation("common");
   return (
     <div className={cn("space-y-6 fsh-enter")} role="status" aria-busy="true">
-      <span className="sr-only">Carregando…</span>
+      <span className="sr-only">{t("list.loading")}</span>
       <div className="space-y-2">
         <Skeleton className="h-3 w-24" />
         <Skeleton className="h-8 w-64" />

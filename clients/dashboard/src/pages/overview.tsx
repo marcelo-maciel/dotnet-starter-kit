@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import type { ParseKeys } from "i18next";
 import {
   Activity,
   ArrowRight,
@@ -29,7 +31,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EntityDetailSection } from "@/components/list";
 import { useAuth } from "@/auth/use-auth";
 import { useSseEvents, useSseStatus, type SseEvent, type SseStatus } from "@/sse/sse-context";
-import { SSE_STATUS_LABEL } from "@/sse/sse-status-label";
 import { cn } from "@/lib/cn";
 import { SAO_PAULO } from "@/lib/list-helpers";
 
@@ -45,11 +46,11 @@ const formatNumber = (n: number) => numberFmt.format(n);
  * evening (rest). Mirrors the dentalOS dashboard greeting helper so the
  * tone of voice matches across products.
  */
-function getGreeting(): "Bom dia" | "Boa tarde" | "Boa noite" {
+function greetingKey(): "greeting.morning" | "greeting.afternoon" | "greeting.evening" {
   const hour = new Date().getHours();
-  if (hour < 12) return "Bom dia";
-  if (hour < 17) return "Boa tarde";
-  return "Boa noite";
+  if (hour < 12) return "greeting.morning";
+  if (hour < 17) return "greeting.afternoon";
+  return "greeting.evening";
 }
 
 function relativeTime(iso: string, now: number = Date.now()): string {
@@ -172,6 +173,7 @@ function SystemStatusBody({
   sseStatus: SseStatus;
   eventCount: number;
 }) {
+  const { t } = useTranslation("overview");
   const live = sseStatus === "connected";
   const errored = sseStatus === "error";
   const Icon = live ? Wifi : WifiOff;
@@ -209,24 +211,24 @@ function SystemStatusBody({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-[13px] font-semibold capitalize tracking-tight text-foreground">
-              {live ? "Transmissão ao vivo" : SSE_STATUS_LABEL[sseStatus]}
+              {live ? t("system.streamLive") : t(`connState.${sseStatus}`)}
             </span>
             {live && <Badge variant="success">SSE</Badge>}
-            {errored && <Badge variant="danger">fora do ar</Badge>}
+            {errored && <Badge variant="danger">{t("system.offline")}</Badge>}
           </div>
           <p className="mt-0.5 text-[11.5px] text-muted-foreground">
             {live
-              ? "Os eventos do servidor estão chegando em tempo real."
+              ? t("system.liveDesc")
               : errored
-                ? "Transmissão desconectada. Os eventos voltam a chegar quando ela se recuperar."
-                : "Esperando a transmissão entrar no ar."}
+                ? t("system.erroredDesc")
+                : t("system.waitingDesc")}
           </p>
         </div>
       </div>
 
       <div className="flex items-center justify-between border-t border-[oklch(from_var(--color-border)_l_c_h_/_0.5)] pt-3">
         <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
-          Eventos nesta sessão
+          {t("system.eventsThisSession")}
         </span>
         <span className="font-display text-[16px] font-bold tabular-nums text-foreground">
           {formatNumber(eventCount)}
@@ -274,20 +276,22 @@ function RecentAuditsSkeleton() {
 }
 
 function RecentAuditsNoAccess() {
+  const { t } = useTranslation("overview");
   return (
     <div className="flex flex-col items-center gap-2 py-6 text-center">
       <Lock className="size-4 text-muted-foreground" />
       <div className="text-[13px] font-semibold tracking-tight text-foreground">
-        Sem acesso à auditoria
+        {t("audits.noAccessTitle")}
       </div>
       <p className="max-w-sm text-[11.5px] text-muted-foreground">
-        A auditoria recente exige a permissão da Trilha de auditoria. Peça a um administrador se precisar.
+        {t("audits.noAccessBody")}
       </p>
     </div>
   );
 }
 
 function RecentAuditsBody() {
+  const { t } = useTranslation("overview");
   const recentAudits = useQuery({
     queryKey: ["audits", "recent", "overview"],
     queryFn: ({ signal }) => {
@@ -313,10 +317,10 @@ function RecentAuditsBody() {
       <div className="flex flex-col items-center gap-2 py-6 text-center">
         <ScrollText className="size-4 text-muted-foreground" />
         <div className="text-[13px] font-semibold tracking-tight text-foreground">
-          Nenhuma atividade recente
+          {t("audits.emptyTitle")}
         </div>
         <p className="max-w-sm text-[11.5px] text-muted-foreground">
-          As ações auditadas nas últimas 24 horas vão aparecer aqui.
+          {t("audits.emptyBody")}
         </p>
       </div>
     );
@@ -332,6 +336,7 @@ function RecentAuditsBody() {
 }
 
 function RecentAuditRow({ row }: { row: AuditSummaryDto }) {
+  const { t } = useTranslation("overview");
   const Icon = recentEventTypeIcon(row.eventType);
   const tone = recentSeverityColor(row.severity);
   return (
@@ -352,14 +357,14 @@ function RecentAuditRow({ row }: { row: AuditSummaryDto }) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="truncate text-[12.5px] font-medium tracking-tight text-foreground">
-            {row.source ?? AUDIT_EVENT_TYPE_LABELS[row.eventType] ?? "Evento"}
+            {row.source ?? AUDIT_EVENT_TYPE_LABELS[row.eventType] ?? t("audits.eventFallback")}
           </div>
           <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <span className="truncate">
-              {row.userName ?? row.userId?.slice(0, 8) ?? "sistema"}
+              {row.userName ?? row.userId?.slice(0, 8) ?? t("audits.systemActor")}
             </span>
             <span aria-hidden>·</span>
-            <span className="tabular-nums">há {relativeTime(row.occurredAtUtc)}</span>
+            <span className="tabular-nums">{t("audits.ago", { value: relativeTime(row.occurredAtUtc) })}</span>
           </div>
         </div>
         <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover/row:translate-x-0.5" />
@@ -377,8 +382,8 @@ function RecentAuditRow({ row }: { row: AuditSummaryDto }) {
 
 type QuickAction = {
   to: string;
-  title: string;
-  description: string;
+  titleKey: ParseKeys<"overview">;
+  descriptionKey: ParseKeys<"overview">;
   icon: React.ComponentType<{ className?: string }>;
   tone: StatTone;
 };
@@ -386,8 +391,8 @@ type QuickAction = {
 const QUICK_ACTIONS: QuickAction[] = [
   {
     to: "/activity",
-    title: "Atividade ao vivo",
-    description: "Eventos em tempo real.",
+    titleKey: "quick.liveActivity.title",
+    descriptionKey: "quick.liveActivity.description",
     icon: Activity,
     tone: "warning",
   },
@@ -397,6 +402,7 @@ const QUICK_ACTIONS: QuickAction[] = [
 // tracks that column, not the viewport: go two-up only when the card itself has
 // room for two 14rem tiles, instead of squeezing two into a sliver.
 function QuickActionsBody() {
+  const { t } = useTranslation("overview");
   return (
     <div className="@container">
       <div className="grid grid-cols-1 gap-2 @[28.5rem]:grid-cols-2">
@@ -420,10 +426,10 @@ function QuickActionsBody() {
             </span>
             <div className="min-w-0 flex-1">
               <div className="text-[12.5px] font-semibold tracking-tight text-foreground">
-                {a.title}
+                {t(a.titleKey)}
               </div>
               <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-                {a.description}
+                {t(a.descriptionKey)}
               </p>
             </div>
             <ArrowRight className="size-3 shrink-0 text-muted-foreground opacity-0 transition-all group-hover/qa:translate-x-0.5 group-hover/qa:opacity-100" />
@@ -440,6 +446,7 @@ function QuickActionsBody() {
 // ────────────────────────────────────────────────────────────────────────
 
 function LiveFeedBody({ events }: { events: SseEvent[] }) {
+  const { t } = useTranslation("overview");
   const visible = useMemo(() => events.slice(0, 5), [events]);
 
   if (visible.length === 0) {
@@ -447,10 +454,10 @@ function LiveFeedBody({ events }: { events: SseEvent[] }) {
       <div className="flex flex-col items-center gap-2 py-6 text-center">
         <Activity className="size-4 text-muted-foreground" />
         <div className="text-[13px] font-semibold tracking-tight text-foreground">
-          Aguardando atividade
+          {t("liveFeed.emptyTitle")}
         </div>
         <p className="max-w-sm text-[11.5px] text-muted-foreground">
-          Os eventos vão aparecer aqui conforme o servidor publicar.
+          {t("liveFeed.emptyBody")}
         </p>
       </div>
     );
@@ -475,6 +482,7 @@ function LiveFeedBody({ events }: { events: SseEvent[] }) {
 // ────────────────────────────────────────────────────────────────────────
 
 export function OverviewPage() {
+  const { t } = useTranslation("overview");
   const { user, permissionsHydrated } = useAuth();
   // GET /audits requires AuditTrails.View — only mount the query for users who
   // hold it, so everyone else gets a quiet no-access state instead of a 403.
@@ -492,11 +500,11 @@ export function OverviewPage() {
     month: "long",
     year: "numeric",
   });
-  const greeting = getGreeting();
-  const firstName = (user?.name ?? user?.email?.split("@")[0] ?? "operador")
+  const firstName = (user?.name ?? user?.email?.split("@")[0] ?? t("operator"))
     .toString()
     .split(" ")[0];
-  const tenantLabel = user?.tenant ?? "sua empresa";
+  // No tenant-status query on the PAF overview (it went with Billing), so the JWT identifier names the tenant.
+  const tenantLabel = user?.tenant ?? t("yourTenant");
 
   // No Billing here (plan, validity, usage, subscription, first-run "pick a plan"): the PAF does not use it and
   // tenant roles lose Permissions.Billing.View (31/10/2026), so those calls would only 403. The global
@@ -512,21 +520,21 @@ export function OverviewPage() {
             {dateCaption} · {tenantLabel}
           </p>
           <h1 className="mt-1 font-display text-display-page font-bold leading-tight tracking-tight text-foreground">
-            {greeting}, {firstName}
+            {t(greetingKey(), { name: firstName })}
           </h1>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <Button asChild variant="outline" size="sm">
             <Link to="/activity">
               <Activity className="mr-1.5 size-3.5" />
-              Ver atividade
+              {t("viewActivity")}
             </Link>
           </Button>
           {canViewAudits && (
             <Button asChild variant="outline" size="sm">
               <Link to="/system/audits">
                 <ScrollText className="mr-1.5 size-3.5" />
-                Ver auditoria
+                {t("viewAudits")}
               </Link>
             </Button>
           )}
@@ -539,7 +547,7 @@ export function OverviewPage() {
           index={0}
           tone="info"
           icon={Zap}
-          label="Eventos ao vivo"
+          label={t("stat.liveEvents")}
           value={<span className="tabular-nums">{formatNumber(eventCount)}</span>}
           sublabel={
             <span className="inline-flex items-center gap-1.5">
@@ -561,7 +569,7 @@ export function OverviewPage() {
                         : "var(--color-muted-foreground)",
                 }}
               />
-              <span className="capitalize">{SSE_STATUS_LABEL[sseStatus]}</span>
+              <span className="capitalize">{t(`connState.${sseStatus}`)}</span>
             </span>
           }
           href="/activity"
@@ -575,7 +583,7 @@ export function OverviewPage() {
       <div className="flex flex-col gap-4 lg:flex-row">
         {/* Left rail */}
         <aside className="w-full space-y-4 lg:w-[360px] lg:shrink-0">
-          <EntityDetailSection title="Estado do sistema" icon={Wifi}>
+          <EntityDetailSection title={t("section.systemStatus")} icon={Wifi}>
             <SystemStatusBody sseStatus={sseStatus} eventCount={eventCount} />
           </EntityDetailSection>
         </aside>
@@ -583,16 +591,16 @@ export function OverviewPage() {
         {/* Right column — 2-up widget grid */}
         <div className="grid w-full min-w-0 flex-1 grid-cols-1 gap-4 md:grid-cols-2">
           <EntityDetailSection
-            title="Auditoria recente"
+            title={t("section.recentAudits")}
             icon={ScrollText}
-            description="Últimas 24 horas, os 5 eventos mais recentes."
+            description={t("section.recentAuditsDesc")}
             action={
               canViewAudits ? (
                 <Link
                   to="/system/audits"
                   className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  Ver tudo <ArrowUpRight className="size-3" />
+                  {t("seeAll")} <ArrowUpRight className="size-3" />
                 </Link>
               ) : undefined
             }
@@ -607,23 +615,23 @@ export function OverviewPage() {
           </EntityDetailSection>
 
           <EntityDetailSection
-            title="Atalhos"
+            title={t("section.quickActions")}
             icon={Sparkles}
-            description="Vá direto aos destinos mais usados."
+            description={t("section.quickActionsDesc")}
           >
             <QuickActionsBody />
           </EntityDetailSection>
 
           <EntityDetailSection
-            title="Últimos eventos"
+            title={t("section.liveFeed")}
             icon={Activity}
-            description="Eventos do servidor em tempo real, via SSE."
+            description={t("section.liveFeedDesc")}
             action={
               <Link
                 to="/activity"
                 className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
-                Abrir <ArrowUpRight className="size-3" />
+                {t("open")} <ArrowUpRight className="size-3" />
               </Link>
             }
           >

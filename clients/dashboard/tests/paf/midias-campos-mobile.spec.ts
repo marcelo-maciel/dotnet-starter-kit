@@ -3,6 +3,10 @@ import { mockJsonResponse } from "../helpers/api-mocks";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 import { installShellMocks } from "../helpers/shell-mocks";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // iPhone Safari zooms the page when a field under 16px takes focus (v-midias-mobile of the homologação walk reported
 // one at 14px on Arquivos de mídia, Pixel 7). Every field on the screen, the file picker included, reads 16px there.
 const PIXEL_7 = { width: 412, height: 915 };

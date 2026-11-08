@@ -3,6 +3,10 @@ import { mockJsonResponse } from "../helpers/api-mocks";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 import { installShellMocks } from "../helpers/shell-mocks";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // The kit's Users screen is not part of the PAF product (02/11/2026): the client manages its users on /paf/usuarios,
 // which keeps the unidade scope and revokes sessions on deactivation. Its URLs redirect home even for someone still
 // holding the old permissions, and the page never mounts, so it never calls the kit's user endpoints.

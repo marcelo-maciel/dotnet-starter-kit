@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
+import i18n from "@/i18n";
 import {
   Activity,
   AlertTriangle,
@@ -65,27 +67,6 @@ const PILL_TONE: Record<Tone, EntityStatusTone> = {
   danger: "danger",
 };
 
-const HEALTH_STATUS_LABEL: Record<HealthStatus, string> = {
-  Healthy: "Saudável",
-  Degraded: "Degradado",
-  Unhealthy: "Com falha",
-};
-
-const HERO_COPY: Record<HealthStatus, { headline: string; subline: string }> = {
-  Healthy: {
-    headline: "Todos os sistemas funcionando",
-    subline: "Todas as dependências estão respondendo dentro do esperado.",
-  },
-  Degraded: {
-    headline: "Degradação parcial",
-    subline: "Uma ou mais verificações estão com latência alta ou alertas.",
-  },
-  Unhealthy: {
-    headline: "Falha detectada",
-    subline: "Pelo menos uma dependência crítica está inacessível. Veja as verificações com falha abaixo.",
-  },
-};
-
 // ────────────────────────────────────────────────────────────────────────
 // Per-check icon registry — keyed on the well-known names registered
 // from BuildingBlocks/Web and the modules. Falls back to a generic glyph
@@ -146,12 +127,12 @@ function splitLatency(ms: number): [string, string] {
 
 function formatRelative(iso: string, now: number = Date.now()): string {
   const delta = Math.max(0, Math.floor((now - Date.parse(iso)) / 1000));
-  if (delta < 5) return "agora";
-  if (delta < 60) return `há ${delta} s`;
+  if (delta < 5) return i18n.t("relative.justNow");
+  if (delta < 60) return i18n.t("relative.secondsAgo", { n: delta });
   const m = Math.floor(delta / 60);
-  if (m < 60) return `há ${m} min`;
+  if (m < 60) return i18n.t("relative.minutesAgo", { n: m });
   const h = Math.floor(m / 60);
-  return `há ${h} h`;
+  return i18n.t("relative.hoursAgo", { n: h });
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -161,6 +142,7 @@ function formatRelative(iso: string, now: number = Date.now()): string {
 const POLL_INTERVAL_MS = 10_000;
 
 export function HealthPage() {
+  const { t } = useTranslation("health");
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   const query = useQuery({
@@ -198,12 +180,13 @@ export function HealthPage() {
   return (
     <div className="space-y-7 pb-12">
       <PageHero
-        eyebrow="Sistema · Saúde"
-        title="Saúde"
+        eyebrow={t("eyebrow")}
+        title={t("title")}
         subtitle={
           <>
-            Verificação de prontidão ao vivo de todas as dependências registradas, a cada{" "}
-            <span className="font-mono">{POLL_INTERVAL_MS / 1000} s</span>.
+            {t("subtitlePre")}
+            <span className="font-mono">{t("pollIntervalValue", { seconds: POLL_INTERVAL_MS / 1000 })}</span>
+            {t("subtitleSuffix")}
           </>
         }
         actions={
@@ -212,14 +195,14 @@ export function HealthPage() {
               variant="outline"
               size="sm"
               onClick={() => setAutoRefresh((v) => !v)}
-              title={autoRefresh ? "Pausar a atualização automática" : "Retomar a atualização automática"}
+              title={autoRefresh ? t("pauseTitle") : t("resumeTitle")}
             >
               {autoRefresh ? (
                 <Pause className="mr-1.5 h-3.5 w-3.5" />
               ) : (
                 <Play className="mr-1.5 h-3.5 w-3.5" />
               )}
-              {autoRefresh ? "Ao vivo" : "Pausado"}
+              {autoRefresh ? t("live") : t("paused")}
             </Button>
             <Button
               variant="outline"
@@ -230,7 +213,7 @@ export function HealthPage() {
               <RefreshCw
                 className={cn("mr-1.5 h-3.5 w-3.5", query.isFetching && "animate-spin")}
               />
-              Atualizar
+              {t("refresh")}
             </Button>
           </>
         }
@@ -253,14 +236,14 @@ export function HealthPage() {
       </section>
 
       {/* ── Dependencies list ───────────────────────────────────────────── */}
-      <section aria-label="Dependências" className="fsh-enter fsh-enter-3">
+      <section aria-label={t("dependencies")} className="fsh-enter fsh-enter-3">
         <div className="mb-3 flex items-baseline justify-between gap-3">
           <h2 className="font-display text-[16px] font-semibold tracking-tight text-[var(--color-foreground)]">
-            Dependências
+            {t("dependencies")}
           </h2>
           {snapshot && (
             <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--color-muted-foreground)]">
-              {computed?.total ?? 0} verificações · total{" "}
+              {t("checksTotal", { count: computed?.total ?? 0 })}{" "}
               <span className="font-mono tabular-nums text-[var(--color-foreground)]">
                 {formatLatency(computed?.totalDuration ?? 0)}
               </span>
@@ -303,8 +286,12 @@ function HeroPanel({
   failing: number;
   total: number;
 }) {
+  const { t } = useTranslation("health");
   const tone = toneFor(snapshot.status);
-  const copy = HERO_COPY[snapshot.status];
+  const copy = {
+    headline: t(`hero.${snapshot.status}.headline`),
+    subline: t(`hero.${snapshot.status}.subline`),
+  };
   const Icon =
     snapshot.status === "Healthy"
       ? CheckCircle2
@@ -332,10 +319,10 @@ function HeroPanel({
             <ToneIconTile icon={Icon} tone={TILE_TONE[tone]} size="lg" />
             <div className="flex items-baseline gap-2">
               <EntityStatusBadge tone={PILL_TONE[tone]} withDot>
-                {HEALTH_STATUS_LABEL[snapshot.status]}
+                {t(`status.${snapshot.status}`)}
               </EntityStatusBadge>
               <span className="font-mono text-[10.5px] font-medium uppercase tracking-wider text-[var(--color-muted-foreground)]">
-                HTTP {snapshot.httpStatus}
+                {t("http", { code: snapshot.httpStatus })}
               </span>
             </div>
           </div>
@@ -350,17 +337,18 @@ function HeroPanel({
 
           {/* Vitals row */}
           <dl className="mt-6 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
-            <Vital label="Verificações" value={`${total - failing}/${total}`} hint="sem falha" />
+            <Vital label={t("vital.checks")} value={`${total - failing}/${total}`} hint={t("vital.checksHint")} />
             <Vital
-              label="Ida e volta"
+              label={t("vital.roundTrip")}
               value={formatLatency(snapshot.roundTripMs)}
-              hint="de ponta a ponta"
+              hint={t("vital.roundTripHint")}
             />
-            <Vital label="Mais lenta" value={formatLatency(slowestMs)} hint="uma verificação" />
+            <Vital label={t("vital.slowest")} value={formatLatency(slowestMs)} hint={t("vital.slowestHint")} />
             <Vital
-              label="Última consulta"
+              label={t("vital.lastPoll")}
               value={formatRelative(snapshot.fetchedAt)}
-              hint={new Date(snapshot.fetchedAt).toLocaleTimeString("pt-BR", {
+              hint={new Date(snapshot.fetchedAt).toLocaleTimeString(i18n.resolvedLanguage, {
+                // Brasília wall clock, "h23" (not hour12: false, which Chrome renders as "24:05" after midnight).
                 hourCycle: "h23",
                 timeZone: SAO_PAULO,
               })}
@@ -373,13 +361,13 @@ function HeroPanel({
         <div className="lg:w-[176px]">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">
-              Consultas recentes
+              {t("recentPolls")}
             </span>
             <Activity className="size-3 text-[var(--color-muted-foreground)]" aria-hidden />
           </div>
           <HistoryPips ticks={history} />
           <p className="mt-2 font-mono text-[10.5px] tabular-nums text-[var(--color-muted-foreground)]">
-            {history.length} / {HISTORY_LIMIT} nesta sessão
+            {t("sessionCount", { n: history.length, limit: HISTORY_LIMIT })}
           </p>
         </div>
       </div>
@@ -419,20 +407,24 @@ function Vital({
  * the strip so the ribbon has consistent width even on first paint.
  */
 function HistoryPips({ ticks }: { ticks: Tick[] }) {
+  const { t } = useTranslation("health");
   const filled: Array<Tick | null> = [
     ...Array(HISTORY_LIMIT - ticks.length).fill(null),
     ...ticks,
   ];
   return (
-    <div className="flex gap-[3px]" role="img" aria-label="Histórico das consultas recentes">
+    <div className="flex gap-[3px]" role="img" aria-label={t("historyAria")}>
       {filled.map((tick, i) => (
         <span
           key={i}
           className="h-6 flex-1 rounded-[2px] transition-colors"
           title={
             tick
-              ? `${HEALTH_STATUS_LABEL[tick.status]} · ${new Date(tick.at).toLocaleTimeString("pt-BR", { timeZone: SAO_PAULO })}`
-              : "sem dados"
+              ? t("historyTick", {
+                  status: t(`status.${tick.status}`),
+                  time: new Date(tick.at).toLocaleTimeString(i18n.resolvedLanguage, { timeZone: SAO_PAULO }),
+                })
+              : t("historyNoData")
           }
           style={{
             backgroundColor: tick
@@ -490,6 +482,7 @@ function DependencyRow({
   isExpanded: boolean;
   onToggle: () => void;
 }) {
+  const { t } = useTranslation("health");
   const tone = toneFor(entry.status);
   const Icon = iconForCheck(entry.name);
   const toneColor = TONE_VAR[tone];
@@ -561,7 +554,7 @@ function DependencyRow({
             </p>
           ) : (
             <p className="mt-0.5 truncate text-[11.5px] italic text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.7)]">
-              Nenhuma descrição registrada.
+              {t("noDescription")}
             </p>
           )}
         </div>
@@ -581,7 +574,7 @@ function DependencyRow({
           className="hidden shrink-0 text-[10.5px] font-semibold uppercase tracking-wider sm:inline"
           style={{ color: toneColor }}
         >
-          {HEALTH_STATUS_LABEL[entry.status]}
+          {t(`status.${entry.status}`)}
         </span>
 
         {/* Chevron */}
@@ -601,10 +594,10 @@ function DependencyRow({
             <div>
               <div className="flex items-baseline justify-between gap-3">
                 <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">
-                  Orçamento de latência
+                  {t("latencyBudget")}
                 </span>
                 <span className="font-mono text-[11px] tabular-nums text-[var(--color-muted-foreground)]">
-                  {formatLatency(entry.durationMs)} / 500 ms
+                  {t("latencyBudgetValue", { value: formatLatency(entry.durationMs) })}
                 </span>
               </div>
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--color-border-strong)]">
@@ -617,19 +610,18 @@ function DependencyRow({
                 />
               </div>
               <p className="mt-2 text-[11px] leading-relaxed text-[var(--color-muted-foreground)]">
-                Em escala contra um orçamento de prontidão de 500 ms. Barras no terço
-                de cima já são um sinal de alerta.
+                {t("latencyBudgetHint")}
               </p>
             </div>
 
             {/* Detail key/value table */}
             <div>
               <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">
-                Detalhes
+                {t("detail")}
               </span>
               {detailEntries.length === 0 ? (
                 <p className="mt-2 text-[12px] italic text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.7)]">
-                  Nenhum detalhe adicional informado.
+                  {t("noDetails")}
                 </p>
               ) : (
                 <dl className="mt-2 divide-y divide-[oklch(from_var(--color-border)_l_c_h_/_0.5)] rounded-lg border border-[var(--color-border)] bg-[var(--color-card)]">
@@ -651,7 +643,7 @@ function DependencyRow({
                   ))}
                   {detailEntries.length > 6 && (
                     <div className="px-3 py-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">
-                      +{detailEntries.length - 6} a mais
+                      {t("moreDetails", { count: detailEntries.length - 6 })}
                     </div>
                   )}
                 </dl>
@@ -717,6 +709,7 @@ function ChecksSkeleton() {
 }
 
 function ErrorPanel({ message }: { message?: string }) {
+  const { t } = useTranslation("health");
   return (
     <div
       role="alert"
@@ -729,11 +722,10 @@ function ErrorPanel({ message }: { message?: string }) {
       <ToneIconTile icon={CircleAlert} tone="destructive" size="md" />
       <div className="min-w-0 flex-1">
         <p className="font-display text-[14px] font-semibold tracking-tight text-[var(--color-destructive)]">
-          Endpoint de saúde inacessível
+          {t("error.title")}
         </p>
         <p className="mt-1 text-[12.5px] leading-relaxed text-[var(--color-muted-foreground)]">
-          {message ??
-            "O navegador não conseguiu acessar /health/ready. A API pode estar fora do ar, ou uma regra de rede está bloqueando a requisição."}
+          {message ?? t("error.default")}
         </p>
       </div>
     </div>
@@ -741,18 +733,19 @@ function ErrorPanel({ message }: { message?: string }) {
 }
 
 function EmptyChecks() {
+  const { t } = useTranslation("health");
   return (
     <div className="flex flex-col items-center justify-center gap-2.5 rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-card)] px-5 py-12 text-center">
       <ToneIconTile icon={ShieldCheck} tone="muted" size="lg" className="rounded-full" />
       <p className="font-display text-[14px] font-semibold tracking-tight text-[var(--color-foreground)]">
-        Nenhuma verificação registrada
+        {t("empty.title")}
       </p>
       <p className="max-w-sm text-[11.5px] leading-relaxed text-[var(--color-muted-foreground)]">
-        Os módulos podem registrar verificações de dependência com{" "}
+        {t("empty.bodyPre")}
         <code className="rounded bg-[var(--color-muted)] px-1.5 py-0.5 font-mono text-[10.5px] text-[var(--color-foreground)]">
           AddHealthChecks()
         </code>
-        . Nenhuma está respondendo ainda.
+        {t("empty.bodyPost")}
       </p>
     </div>
   );

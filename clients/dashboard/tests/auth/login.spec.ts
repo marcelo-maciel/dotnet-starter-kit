@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { mockJsonResponse, mockProblemDetails } from "../helpers/api-mocks";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // The dashboard login page (rebuilt to the dentalOS card layout): logo
 // lockup, e-mail/password card (PAF O2: no Empresa field, the server finds
 // the company from the e-mail), and a demoMode-gated "Step into any role"
@@ -126,10 +130,10 @@ test.describe("login — demo account picker", () => {
     await page.getByRole("button", { name: /entrar com uma conta de demonstração/i }).click();
 
     const dialog = page.getByRole("dialog");
-    await expect(dialog.getByRole("heading", { name: /step into any role/i })).toBeVisible();
-    await expect(dialog.getByText(/live demo/i)).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: /assuma qualquer papel/i })).toBeVisible();
+    await expect(dialog.getByText(/demonstração ao vivo/i)).toBeVisible();
     // Tenant rail — scope to the nav so we don't collide with user rows.
-    const rail = dialog.getByRole("navigation", { name: /demo tenants/i });
+    const rail = dialog.getByRole("navigation", { name: /organizações de demonstração/i });
     await expect(rail.getByRole("button", { name: /root/i })).toBeVisible();
     await expect(rail.getByRole("button", { name: /acme corp/i })).toBeVisible();
     await expect(rail.getByRole("button", { name: /globex/i })).toBeVisible();
@@ -140,7 +144,7 @@ test.describe("login — demo account picker", () => {
     await page.goto("/login");
     await page.getByRole("button", { name: /entrar com uma conta de demonstração/i }).click();
     const dialog = page.getByRole("dialog");
-    const rail = dialog.getByRole("navigation", { name: /demo tenants/i });
+    const rail = dialog.getByRole("navigation", { name: /organizações de demonstração/i });
 
     // Root is active first → its single admin shows.
     await expect(dialog.getByText("admin@root.com")).toBeVisible();
@@ -154,7 +158,7 @@ test.describe("login — demo account picker", () => {
     await page.goto("/login");
     await page.getByRole("button", { name: /entrar com uma conta de demonstração/i }).click();
     const dialog = page.getByRole("dialog");
-    const rail = dialog.getByRole("navigation", { name: /demo tenants/i });
+    const rail = dialog.getByRole("navigation", { name: /organizações de demonstração/i });
 
     await rail.getByRole("button", { name: /acme corp/i }).click();
 

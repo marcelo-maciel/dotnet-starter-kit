@@ -3,6 +3,10 @@ import { mockJsonResponse } from "../helpers/api-mocks";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 import { installShellMocks } from "../helpers/shell-mocks";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // Product decision of 31/10/2026: the dashboard opens on the PAF (the guichê, else the first PAF screen the user
 // opens) and the kit's Chat, Files, Catalog, Helpdesk and Billing leave the menu, their URLs redirecting home; the
 // kit's Users, Roles and Groups screens follow on 02/11/2026 (the client manages its users on /paf/usuarios).

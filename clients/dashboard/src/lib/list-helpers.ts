@@ -1,3 +1,4 @@
+import i18n from "@/i18n";
 import { ApiRequestError } from "@/lib/api-client";
 
 /** Every instant reads in Brasília, whatever the browser's zone: the product and its tenants are in
@@ -41,6 +42,11 @@ export function formatDateTime(iso: string | null | undefined) {
 export function formatDateTimeMono(iso: string | null | undefined) {
   if (!iso) return "—";
   return `${formatDateMono(iso)} · ${timeShort.format(new Date(iso))}`;
+}
+
+// Locale-grouped integer/decimal under the active UI language (pt-BR "1.234"), as #1384 formats counts.
+export function formatNumber(value: number) {
+  return new Intl.NumberFormat(i18n.resolvedLanguage).format(value);
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;

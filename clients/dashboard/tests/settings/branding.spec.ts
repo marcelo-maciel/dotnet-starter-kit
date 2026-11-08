@@ -3,6 +3,10 @@ import { mockJsonResponse } from "../helpers/api-mocks";
 import { installShellMocks } from "../helpers/shell-mocks";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // Marca is not part of the PAF product (02/11/2026): the editor asked for image URLs hosted through the Files module,
 // which the PAF does not ship. The route redirects home like the other kit screens left out, even for a user who
 // holds the theme permissions, and the tab is gone from Minha conta.

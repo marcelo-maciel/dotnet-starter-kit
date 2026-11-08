@@ -69,7 +69,7 @@ test("re-query with the 10 most recent keeps all 12 pending announcements, in ar
 
   const depois = reduzirPainel(antes, {
     tipo: "estadoCarregado",
-    estado: { chamadas: reconsultaDasDezMaisRecentes(() => [2, "Chamado"]) },
+    estado: { quantidadeChamadas: 10, chamadas: reconsultaDasDezMaisRecentes(() => [2, "Chamado"]) },
   });
 
   assert.deepEqual(senhasNaFila(depois), DOZE_EM_ORDEM);
@@ -78,7 +78,7 @@ test("re-query with the 10 most recent keeps all 12 pending announcements, in ar
 });
 
 test("empty re-query keeps every pending announcement", () => {
-  const depois = reduzirPainel(dozePendentes(), { tipo: "estadoCarregado", estado: { chamadas: [] } });
+  const depois = reduzirPainel(dozePendentes(), { tipo: "estadoCarregado", estado: { quantidadeChamadas: 10, chamadas: [] } });
   assert.deepEqual(senhasNaFila(depois), DOZE_EM_ORDEM);
 });
 
@@ -86,7 +86,7 @@ test("an old pending call the re-query shows Cancelado leaves the queue; the res
   const antes = dozePendentes();
   const chamadas = [...reconsultaDasDezMaisRecentes(() => [2, "Chamado"]), linha(2, 3, "Cancelado")];
 
-  const depois = reduzirPainel(antes, { tipo: "estadoCarregado", estado: { chamadas } });
+  const depois = reduzirPainel(antes, { tipo: "estadoCarregado", estado: { quantidadeChamadas: 10, chamadas } });
 
   assert.deepEqual(
     senhasNaFila(depois),
@@ -100,6 +100,7 @@ test("a state other than Chamado with a higher version removes it; with the same
   const depois = reduzirPainel(antes, {
     tipo: "estadoCarregado",
     estado: {
+      quantidadeChamadas: 10,
       chamadas: reconsultaDasDezMaisRecentes((n) => {
         if (n === 5) return [3, "EmAtendimento"];
         if (n === 6) return [2, "EmAtendimento"];
@@ -118,7 +119,7 @@ test("a recall made while offline (Chamado, higher version) keeps the single pen
   const antes = dozePendentes();
   const depois = reduzirPainel(antes, {
     tipo: "estadoCarregado",
-    estado: { chamadas: reconsultaDasDezMaisRecentes((n) => (n === 7 ? [3, "Chamado"] : [2, "Chamado"])) },
+    estado: { quantidadeChamadas: 10, chamadas: reconsultaDasDezMaisRecentes((n) => (n === 7 ? [3, "Chamado"] : [2, "Chamado"])) },
   });
 
   assert.deepEqual(senhasNaFila(depois), DOZE_EM_ORDEM);
@@ -128,7 +129,7 @@ test("a recall made while offline (Chamado, higher version) keeps the single pen
 test("after the re-query, the outbox copy of an applied SenhaChamada (same EventoId) does not re-enter", () => {
   let estado = reduzirPainel(dozePendentes(), {
     tipo: "estadoCarregado",
-    estado: { chamadas: reconsultaDasDezMaisRecentes(() => [2, "Chamado"]) },
+    estado: { quantidadeChamadas: 10, chamadas: reconsultaDasDezMaisRecentes(() => [2, "Chamado"]) },
   });
   // Highlight A1 and finish it, so a duplicate would no longer be blocked by "already in the queue".
   estado = reduzirPainel(estado, { tipo: "destaqueIniciado" });
@@ -144,7 +145,7 @@ test("after the re-query, the outbox copy of an applied SenhaChamada (same Event
 test("after the re-query, a SenhaChamada with version at or below the re-query's is not announced", () => {
   // Page reloaded: nothing pending, the re-query brings A20 at version 2 (it was called before the reload).
   let estado = reduzirPainel(ESTADO_INICIAL_PAINEL, { tipo: "anunciosIniciados" });
-  estado = reduzirPainel(estado, { tipo: "estadoCarregado", estado: { chamadas: [linha(20, 2, "Chamado")] } });
+  estado = reduzirPainel(estado, { tipo: "estadoCarregado", estado: { quantidadeChamadas: 10, chamadas: [linha(20, 2, "Chamado")] } });
 
   const igual = reduzirPainel(estado, { tipo: "senhaChamada", evento: evento(20, 2, "ev-20-outbox") });
   const menor = reduzirPainel(estado, { tipo: "senhaChamada", evento: evento(20, 1, "ev-20-velho") });

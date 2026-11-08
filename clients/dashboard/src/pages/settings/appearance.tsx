@@ -1,4 +1,6 @@
 import { Monitor, Moon, Sun } from "lucide-react";
+import type { ParseKeys } from "i18next";
+import { useTranslation } from "react-i18next";
 import {
   Card,
   CardContent,
@@ -13,16 +15,17 @@ import { cn } from "@/lib/cn";
 
 const themeOptions: Array<{
   value: ThemeMode;
-  label: string;
-  description: string;
+  labelKey: ParseKeys<"settings">;
+  descriptionKey: ParseKeys<"settings">;
   Icon: React.ComponentType<{ className?: string }>;
 }> = [
-  { value: "light", label: "Claro", description: "Fundo claro, confortável durante o dia.", Icon: Sun },
-  { value: "system", label: "Sistema", description: "Segue a preferência do sistema operacional.", Icon: Monitor },
-  { value: "dark", label: "Escuro", description: "Menos brilho para longas jornadas.", Icon: Moon },
+  { value: "light", labelKey: "appearance.theme.light", descriptionKey: "appearance.theme.lightBlurb", Icon: Sun },
+  { value: "system", labelKey: "appearance.theme.system", descriptionKey: "appearance.theme.systemBlurb", Icon: Monitor },
+  { value: "dark", labelKey: "appearance.theme.dark", descriptionKey: "appearance.theme.darkBlurb", Icon: Moon },
 ];
 
 export function AppearanceSettings() {
+  const { t } = useTranslation("settings");
   const {
     mode, setMode,
     font, setFont,
@@ -35,21 +38,22 @@ export function AppearanceSettings() {
       {/* Theme */}
       <Card>
         <CardHeader>
-          <CardTitle>Tema</CardTitle>
+          <CardTitle>{t("appearance.theme.title")}</CardTitle>
           <CardDescription>
-            Escolha o modo de cor do sistema. Sistema segue o seu sistema operacional.
+            {t("appearance.theme.description")}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 px-6 pb-5 pt-1 sm:grid-cols-3">
-          {themeOptions.map(({ value, label, description, Icon }) => {
+          {themeOptions.map(({ value, labelKey, descriptionKey, Icon }) => {
             const active = mode === value;
+            const label = t(labelKey);
             return (
               <SwatchButton
                 key={value}
                 active={active}
                 onClick={() => setMode(value)}
                 aria-pressed={active}
-                aria-label={`Tema ${label}`}
+                aria-label={t("appearance.theme.ariaLabel", { label })}
               >
                 <div className="mb-3 flex items-center justify-between">
                   <Icon
@@ -63,7 +67,7 @@ export function AppearanceSettings() {
                   {active && <ActiveTag />}
                 </div>
                 <SwatchTitle active={active}>{label}</SwatchTitle>
-                <SwatchSubtitle>{description}</SwatchSubtitle>
+                <SwatchSubtitle>{t(descriptionKey)}</SwatchSubtitle>
               </SwatchButton>
             );
           })}
@@ -73,9 +77,9 @@ export function AppearanceSettings() {
       {/* Font — four selectable families */}
       <Card>
         <CardHeader>
-          <CardTitle>Fonte</CardTitle>
+          <CardTitle>{t("appearance.font.title")}</CardTitle>
           <CardDescription>
-            A fonte da interface. Blocos de código usam sempre a JetBrains Mono.
+            {t("appearance.font.description")}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 px-6 pb-5 pt-1 sm:grid-cols-2 lg:grid-cols-4">
@@ -93,19 +97,19 @@ export function AppearanceSettings() {
       {/* Density */}
       <Card>
         <CardHeader>
-          <CardTitle>Densidade</CardTitle>
+          <CardTitle>{t("appearance.density.title")}</CardTitle>
           <CardDescription>
-            O modo compacto reduz o espaçamento dos cartões e a altura das linhas nas telas com muitos dados.
+            {t("appearance.density.description")}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex items-center justify-between gap-4 px-6 pb-5 pt-1">
           <div className="text-sm text-[var(--color-muted-foreground)]">
-            Usar espaçamento compacto em todo o sistema.
+            {t("appearance.density.toggle")}
           </div>
           <Switch
             checked={density === "compact"}
             onCheckedChange={(checked) => setDensity(checked ? "compact" : "comfortable")}
-            aria-label="Densidade compacta"
+            aria-label={t("appearance.density.ariaLabel")}
           />
         </CardContent>
       </Card>
@@ -113,23 +117,23 @@ export function AppearanceSettings() {
       {/* Motion */}
       <Card>
         <CardHeader>
-          <CardTitle>Animações</CardTitle>
+          <CardTitle>{t("appearance.motion.title")}</CardTitle>
           <CardDescription>
-            Substitui a configuração{" "}
+            {t("appearance.motion.descPre")}{" "}
             <code className="rounded bg-[var(--color-muted)] px-1 font-mono text-[11px]">
               prefers-reduced-motion
             </code>{" "}
-            do sistema.
+            {t("appearance.motion.descPost")}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex items-center justify-between gap-4 px-6 pb-5 pt-1">
           <div className="text-sm text-[var(--color-muted-foreground)]">
-            Desligar transições e animações decorativas.
+            {t("appearance.motion.toggle")}
           </div>
           <Switch
             checked={reducedMotion}
             onCheckedChange={setReducedMotion}
-            aria-label="Reduzir animações"
+            aria-label={t("appearance.motion.ariaLabel")}
           />
         </CardContent>
       </Card>
@@ -166,9 +170,10 @@ function SwatchButton({ active, className, children, ...props }: SwatchProps) {
 }
 
 function ActiveTag() {
+  const { t } = useTranslation("settings");
   return (
     <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-primary)]">
-      Ativo
+      {t("appearance.active")}
     </span>
   );
 }
@@ -203,12 +208,13 @@ function FontCard({
   active: boolean;
   onSelect: () => void;
 }) {
+  const { t } = useTranslation("settings");
   return (
     <SwatchButton
       active={active}
       onClick={onSelect}
       aria-pressed={active}
-      aria-label={`Fonte ${option.label}`}
+      aria-label={t("appearance.font.ariaLabel", { label: option.label })}
       title={option.label}
     >
       {/* Live-preview sample rendered in the candidate font. */}
@@ -223,7 +229,7 @@ function FontCard({
         aria-hidden
       >
         <span className="font-display text-2xl font-semibold tracking-tight">
-          Aa <span className="font-normal text-[var(--color-muted-foreground)]">0123</span>
+          {t("appearance.font.sample")} <span className="font-normal text-[var(--color-muted-foreground)]">0123</span>
         </span>
       </div>
       <div className="flex items-center justify-between">

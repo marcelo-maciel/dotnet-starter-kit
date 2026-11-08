@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   keepPreviousData,
   useMutation,
@@ -49,6 +50,7 @@ const DESKTOP_COLS = "grid-cols-[1.4fr_1.4fr_140px_140px_120px]";
 // ───────────────────────────────────────────────────────────────────────
 
 export function SessionsPage() {
+  const { t } = useTranslation("system");
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -99,14 +101,14 @@ export function SessionsPage() {
     mutationFn: (s: UserSessionDto) =>
       adminRevokeUserSessionById(s.userId ?? "", s.id),
     onSuccess: () => {
-      toast.success("Sessão encerrada");
+      toast.success(t("sessions.toast.revoked"));
       void queryClient.invalidateQueries({ queryKey: ["identity", "sessions"] });
     },
     onError: (err) => {
       toast.error(
         err instanceof ApiRequestError
           ? err.problem?.detail ?? err.message
-          : "Não foi possível encerrar a sessão.",
+          : t("sessions.toast.revokeError"),
       );
     },
   });
@@ -114,16 +116,14 @@ export function SessionsPage() {
   const revokeAllForUser = useMutation({
     mutationFn: (userId: string) => adminRevokeAllUserSessions(userId),
     onSuccess: (data) => {
-      toast.success(
-        `${data.revokedCount} ${data.revokedCount === 1 ? "sessão encerrada" : "sessões encerradas"}`,
-      );
+      toast.success(t("sessions.toast.revokedAll", { count: data.revokedCount }));
       void queryClient.invalidateQueries({ queryKey: ["identity", "sessions"] });
     },
     onError: (err) => {
       toast.error(
         err instanceof ApiRequestError
           ? err.problem?.detail ?? err.message
-          : "Não foi possível encerrar as sessões.",
+          : t("sessions.toast.revokeAllError"),
       );
     },
   });
@@ -135,11 +135,12 @@ export function SessionsPage() {
     <div className="space-y-4 sm:space-y-6">
       <EntityPageHeader
         icon={UserCog}
-        title="Sessões ativas"
+        title={t("sessions.title")}
         total={data?.totalCount ?? null}
-        unit="sessão"
-        units="sessões"
-        description={`Todos os navegadores e aparelhos conectados agora a ${user?.tenant ?? "esta empresa"}. Atualiza a cada 30 segundos.`}
+        unit="session"
+        description={t("sessions.description", {
+          tenant: user?.tenant ?? t("sessions.thisTenant"),
+        })}
       >
         <Button
           variant="outline"
@@ -148,34 +149,34 @@ export function SessionsPage() {
           className="h-9 flex-1 gap-1.5 rounded-lg px-4 text-[13px] font-semibold sm:flex-none"
         >
           <RefreshCw className={cn("size-4", query.isFetching && "animate-spin")} />
-          Atualizar
+          {t("sessions.refresh")}
         </Button>
       </EntityPageHeader>
 
       <EntitySearch
         value={search}
         onChange={setSearch}
-        placeholder="Buscar por usuário, e-mail ou IP…"
+        placeholder={t("sessions.searchPlaceholder")}
       />
 
       {/* Filter row */}
       <div className="flex flex-wrap items-center gap-2">
         <EntityFilterPill<boolean>
-          label="Visibilidade"
+          label={t("sessions.filter.visibility")}
           value={includeInactive}
           onChange={setIncludeInactive}
           options={[
-            { value: false, label: "Só ativas" },
-            { value: true, label: "Incluir inativas" },
+            { value: false, label: t("sessions.filter.liveOnly") },
+            { value: true, label: t("sessions.filter.includeInactive") },
           ]}
         />
         {items.length > 0 && (
           <div className="ml-auto hidden items-center gap-3 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)] sm:flex">
-            <span>{stats.active} ativas</span>
+            <span>{t("sessions.stats.active", { n: stats.active })}</span>
             <span aria-hidden className="opacity-50">·</span>
-            <span>{stats.distinctUsers} usuários</span>
+            <span>{t("sessions.stats.users", { n: stats.distinctUsers })}</span>
             <span aria-hidden className="opacity-50">·</span>
-            <span>{stats.mobile} no celular</span>
+            <span>{t("sessions.stats.mobile", { n: stats.mobile })}</span>
           </div>
         )}
       </div>
@@ -186,22 +187,22 @@ export function SessionsPage() {
       ) : items.length === 0 ? (
         <EntityEmpty
           icon={ShieldCheck}
-          title={searchActive ? "Nenhuma sessão encontrada" : "Nenhuma sessão ativa"}
+          title={searchActive ? t("sessions.empty.foundTitle") : t("sessions.empty.activeTitle")}
           body={
             debouncedSearch
-              ? `Nada corresponde a "${debouncedSearch}". Tente outro termo, ou marque Incluir inativas para ver as sessões expiradas.`
-              : "As sessões aparecem quando os usuários entram. Marque Incluir inativas para ver as sessões expiradas e encerradas."
+              ? t("sessions.empty.searchBody", { term: debouncedSearch })
+              : t("sessions.empty.body")
           }
           action={
             <div className="flex items-center gap-2">
               {debouncedSearch && (
                 <Button variant="outline" onClick={() => setSearch("")} className="h-9 rounded-lg px-4 text-[13px]">
-                  Limpar busca
+                  {t("sessions.empty.clearSearch")}
                 </Button>
               )}
               <Button onClick={() => void query.refetch()} className="h-9 rounded-lg px-4 text-[13px]">
                 <RefreshCw className="mr-1.5 size-4" />
-                Atualizar
+                {t("sessions.empty.refresh")}
               </Button>
             </div>
           }
@@ -210,7 +211,7 @@ export function SessionsPage() {
         <div>
           <div className="mb-3 flex items-center justify-between">
             <p className="text-[12px] font-medium text-[var(--color-muted-foreground)]">
-              {data?.totalCount ?? 0} {(data?.totalCount ?? 0) !== 1 ? "sessões encontradas" : "sessão encontrada"}
+              {t("sessions.found", { count: data?.totalCount ?? 0 })}
             </p>
           </div>
 
@@ -236,11 +237,11 @@ export function SessionsPage() {
           {/* Desktop list */}
           <EntityListCard className="hidden md:block">
             <EntityListHeader className={DESKTOP_COLS}>
-              <span>Usuário</span>
-              <span>Aparelho</span>
-              <span>IP</span>
-              <span>Última atividade</span>
-              <span className="text-right">Ações</span>
+              <span>{t("sessions.col.user")}</span>
+              <span>{t("sessions.col.device")}</span>
+              <span>{t("sessions.col.ip")}</span>
+              <span>{t("sessions.col.lastActivity")}</span>
+              <span className="text-right">{t("sessions.col.actions")}</span>
             </EntityListHeader>
             {items.map((session, i) => (
               <SessionDesktopRow
@@ -302,11 +303,12 @@ function SessionMobileCard({
   onRevokeAllForUser: () => void;
   isRevokingAllForUser: boolean;
 }) {
+  const { t } = useTranslation("system");
   const isMobile = (session.deviceType ?? "").toLowerCase().includes("mobile");
   const DeviceIcon = isMobile ? Smartphone : MonitorSmartphone;
-  const displayName = session.userName ?? session.userEmail ?? "Usuário desconhecido";
+  const displayName = session.userName ?? session.userEmail ?? t("sessions.unknownUser");
   const browser =
-    [session.browser, session.browserVersion].filter(Boolean).join(" ") || "Navegador desconhecido";
+    [session.browser, session.browserVersion].filter(Boolean).join(" ") || t("sessions.unknownBrowser");
 
   return (
     <div
@@ -325,10 +327,10 @@ function SessionMobileCard({
                 {displayName}
               </p>
               {session.isCurrentSession && (
-                <EntityStatusBadge tone="info">Você</EntityStatusBadge>
+                <EntityStatusBadge tone="info">{t("sessions.badge.you")}</EntityStatusBadge>
               )}
               {!session.isActive && (
-                <EntityStatusBadge tone="danger">Inativa</EntityStatusBadge>
+                <EntityStatusBadge tone="danger">{t("sessions.badge.inactive")}</EntityStatusBadge>
               )}
             </div>
             {session.userEmail && session.userName && (
@@ -363,7 +365,7 @@ function SessionMobileCard({
               className="gap-1.5"
             >
               <ShieldCheck className="size-3.5" />
-              Todos os aparelhos
+              {t("sessions.allDevices")}
             </Button>
           )}
           <Button
@@ -374,7 +376,7 @@ function SessionMobileCard({
             className="gap-1.5"
           >
             <LogOut className="size-3.5" />
-            {isRevoking ? "Encerrando…" : "Encerrar"}
+            {isRevoking ? t("sessions.revoking") : t("sessions.revoke")}
           </Button>
         </div>
       )}
@@ -401,11 +403,12 @@ function SessionDesktopRow({
   onRevokeAllForUser: () => void;
   isRevokingAllForUser: boolean;
 }) {
+  const { t } = useTranslation("system");
   const isMobile = (session.deviceType ?? "").toLowerCase().includes("mobile");
   const DeviceIcon = isMobile ? Smartphone : MonitorSmartphone;
-  const displayName = session.userName ?? session.userEmail ?? "Usuário desconhecido";
+  const displayName = session.userName ?? session.userEmail ?? t("sessions.unknownUser");
   const browser =
-    [session.browser, session.browserVersion].filter(Boolean).join(" ") || "Navegador desconhecido";
+    [session.browser, session.browserVersion].filter(Boolean).join(" ") || t("sessions.unknownBrowser");
   const os = [session.operatingSystem, session.osVersion].filter(Boolean).join(" ");
 
   return (
@@ -419,10 +422,10 @@ function SessionDesktopRow({
               {displayName}
             </span>
             {session.isCurrentSession && (
-              <EntityStatusBadge tone="info">Você</EntityStatusBadge>
+              <EntityStatusBadge tone="info">{t("sessions.badge.you")}</EntityStatusBadge>
             )}
             {!session.isActive && (
-              <EntityStatusBadge tone="danger">Inativa</EntityStatusBadge>
+              <EntityStatusBadge tone="danger">{t("sessions.badge.inactive")}</EntityStatusBadge>
             )}
           </div>
           {session.userEmail && session.userName && (
@@ -463,10 +466,10 @@ function SessionDesktopRow({
                 disabled={isRevokingAllForUser}
                 onClick={onRevokeAllForUser}
                 className="gap-1.5 text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
-                title="Encerrar as sessões deste usuário em todos os aparelhos"
+                title={t("sessions.revokeAllTitle")}
               >
                 <ShieldCheck className="size-3.5" />
-                <span className="hidden lg:inline">Todas</span>
+                <span className="hidden lg:inline">{t("sessions.all")}</span>
               </Button>
             )}
             <Button
@@ -477,7 +480,7 @@ function SessionDesktopRow({
               className="gap-1.5"
             >
               <LogOut className="size-3.5" />
-              {isRevoking ? "Encerrando…" : "Encerrar"}
+              {isRevoking ? t("sessions.revoking") : t("sessions.revoke")}
             </Button>
           </>
         ) : (

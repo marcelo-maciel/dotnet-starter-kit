@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Command } from "cmdk";
 import {
@@ -65,6 +66,7 @@ export function CommandPaletteDialog({
   open: boolean;
   onOpenChange: (next: boolean) => void;
 }) {
+  const { t } = useTranslation("commandPalette");
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { setMode } = useTheme();
@@ -102,7 +104,7 @@ export function CommandPaletteDialog({
             label: "Atividade ao vivo",
             hint: "Eventos em tempo real",
             Icon: Activity,
-            keywords: ["events", "sse", "log"],
+            keywords: t("keywords.nav-activity").split(" "),
             perform: go("/activity"),
           },
           {
@@ -110,15 +112,15 @@ export function CommandPaletteDialog({
             label: "Saúde",
             hint: "Prontidão e dependências",
             Icon: HeartPulse,
-            keywords: ["status", "uptime", "system", "ready", "redis", "postgres"],
+            keywords: t("keywords.nav-health").split(" "),
             perform: go("/system/health"),
           },
           {
             id: "nav-audits",
-            label: "Trilha de auditoria",
-            hint: "Eventos de atividade, segurança e alteração de entidades",
+            label: t("nav.audits.label"),
+            hint: t("nav.audits.hint"),
             Icon: ScrollText,
-            keywords: ["audit", "log", "compliance", "security", "trace", "correlation"],
+            keywords: t("keywords.nav-audits").split(" "),
             perform: go("/system/audits"),
             perm: "Permissions.AuditTrails.View",
           },
@@ -127,15 +129,15 @@ export function CommandPaletteDialog({
             label: "Sessões",
             hint: "Sessões ativas dos usuários",
             Icon: Shield,
-            keywords: ["devices", "logins"],
+            keywords: t("keywords.nav-sessions").split(" "),
             perform: go("/system/sessions"),
             perm: "Permissions.Sessions.ViewAll",
           },
           {
             id: "nav-settings",
-            label: "Minha conta",
+            label: t("nav.settings.label"),
             Icon: SettingsIcon,
-            keywords: ["preferences", "config"],
+            keywords: t("keywords.nav-settings").split(" "),
             perform: go("/settings"),
           },
         ],
@@ -152,10 +154,10 @@ export function CommandPaletteDialog({
           },
           {
             id: "acc-security",
-            label: "Segurança",
-            hint: "Senha, 2FA e sessões",
+            label: t("account.security.label"),
+            hint: t("account.security.hint"),
             Icon: Shield,
-            keywords: ["password", "2fa", "sessions"],
+            keywords: t("keywords.acc-security").split(" "),
             perform: go("/settings/security"),
           },
           {
@@ -163,33 +165,33 @@ export function CommandPaletteDialog({
             label: "Aparência",
             hint: "Tema, cor de destaque, fonte e densidade",
             Icon: Palette,
-            keywords: ["theme", "font", "density", "dark", "light"],
+            keywords: t("keywords.acc-appearance").split(" "),
             perform: go("/settings/appearance"),
           },
         ],
       },
       {
-        heading: "Tema",
+        heading: t("group.theme"),
         items: [
           {
             id: "theme-light",
-            label: "Mudar para o tema claro",
+            label: t("theme.light"),
             Icon: Sun,
-            keywords: ["bright", "day"],
+            keywords: t("keywords.theme-light").split(" "),
             perform: () => setMode("light"),
           },
           {
             id: "theme-dark",
-            label: "Mudar para o tema escuro",
+            label: t("theme.dark"),
             Icon: Moon,
-            keywords: ["night", "oled"],
+            keywords: t("keywords.theme-dark").split(" "),
             perform: () => setMode("dark"),
           },
           {
             id: "theme-system",
-            label: "Seguir o tema do sistema",
+            label: t("theme.system"),
             Icon: Monitor,
-            keywords: ["auto"],
+            keywords: t("keywords.theme-system").split(" "),
             perform: () => setMode("system"),
           },
         ],
@@ -202,7 +204,7 @@ export function CommandPaletteDialog({
             label: "Sair",
             hint: "Encerrar esta sessão",
             Icon: LogOut,
-            keywords: ["logout", "exit", "quit"],
+            keywords: t("keywords.sess-logout").split(" "),
             perform: () => {
               close();
               logout();
@@ -216,7 +218,7 @@ export function CommandPaletteDialog({
     return allGroups
       .map((g) => ({ ...g, items: g.items.filter(visible) }))
       .filter((g) => g.items.length > 0);
-  }, [navigate, onOpenChange, setMode, logout, permissions]);
+  }, [navigate, onOpenChange, setMode, logout, permissions, t]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -226,9 +228,9 @@ export function CommandPaletteDialog({
           "bg-[var(--color-popover)]",
         )}
       >
-        <DialogTitle className="sr-only">Paleta de comandos</DialogTitle>
+        <DialogTitle className="sr-only">{t("ui.srTitle")}</DialogTitle>
         <DialogDescription className="sr-only">
-          Busque páginas, ações da conta, tema e cor de destaque. Use as setas para navegar e Enter para selecionar.
+          {t("ui.srDescription")}
         </DialogDescription>
 
         <Command
@@ -240,8 +242,8 @@ export function CommandPaletteDialog({
           <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
             <Search className="h-[18px] w-[18px] shrink-0 text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.5)]" aria-hidden />
             <Command.Input
-              placeholder="Digite um comando ou busque…"
-              aria-label="Buscar comandos"
+              placeholder={t("ui.searchPlaceholder")}
+              aria-label={t("ui.searchAria")}
               className={cn(
                 "h-7 flex-1 bg-transparent text-[14px] tracking-tight placeholder:text-[var(--color-muted-foreground)]",
                 "focus:outline-none focus-visible:outline-none focus-visible:shadow-none",
@@ -256,9 +258,9 @@ export function CommandPaletteDialog({
           {/* Results */}
           <Command.List className="max-h-[420px] overflow-y-auto px-2 py-2">
             <Command.Empty className="px-4 py-12 text-center">
-              <p className="text-sm font-medium tracking-tight">Nada encontrado</p>
+              <p className="text-sm font-medium tracking-tight">{t("ui.emptyTitle")}</p>
               <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">
-                Tente outra palavra: nome de página, tema, cor de destaque ou sair.
+                {t("ui.emptyBody")}
               </p>
             </Command.Empty>
 
@@ -287,11 +289,11 @@ export function CommandPaletteDialog({
               <span className="flex items-center gap-1">
                 <kbd className="rounded border border-border bg-[var(--color-muted)] px-1 py-px text-[9px]">↑</kbd>
                 <kbd className="rounded border border-border bg-[var(--color-muted)] px-1 py-px text-[9px]">↓</kbd>
-                navegar
+                {t("ui.navigate")}
               </span>
               <span className="flex items-center gap-1">
                 <kbd className="rounded border border-border bg-[var(--color-muted)] px-1 py-px text-[9px]">↵</kbd>
-                selecionar
+                {t("ui.select")}
               </span>
             </div>
             <span className="text-[11px] text-[var(--color-muted-foreground)]">
