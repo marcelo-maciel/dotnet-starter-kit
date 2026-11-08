@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ComponentType } from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShell } from "@/components/layout/app-shell";
+import { GuardaTelaDoKit } from "@/components/layout/guarda-tela-do-kit";
 import { ProtectedRoute } from "@/auth/protected-route";
 import { RouteError } from "@/components/route-error";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -223,12 +224,12 @@ export const router = createBrowserRouter([
         children: [
           // The dashboard opens on the PAF; the kit overview moves to /overview.
           { index: true, element: <InicioPaf /> },
-          { path: "overview", element: withSuspense(<OverviewPage />) },
-          { path: "activity", element: withSuspense(<ActivityPage />) },
+          { path: "overview", element: <GuardaTelaDoKit>{withSuspense(<OverviewPage />)}</GuardaTelaDoKit> },
+          { path: "activity", element: <GuardaTelaDoKit>{withSuspense(<ActivityPage />)}</GuardaTelaDoKit> },
           ...TELAS_DO_KIT_FORA_DO_PRODUTO.map((path) => ({ path, element: <Navigate to="/" replace /> })),
-          { path: "system/health", element: withSuspense(<HealthPage />) },
-          { path: "system/audits", element: withSuspense(<AuditsPage />) },
-          { path: "system/sessions", element: withSuspense(<SessionsPage />) },
+          { path: "system/health", element: <GuardaTelaDoKit>{withSuspense(<HealthPage />)}</GuardaTelaDoKit> },
+          { path: "system/audits", element: <GuardaTelaDoKit>{withSuspense(<AuditsPage />)}</GuardaTelaDoKit> },
+          { path: "system/sessions", element: <GuardaTelaDoKit>{withSuspense(<SessionsPage />)}</GuardaTelaDoKit> },
           {
             // PAF screens of the signed-in user: current-unit selector on top (RF08). Later screens add children.
             path: "paf",

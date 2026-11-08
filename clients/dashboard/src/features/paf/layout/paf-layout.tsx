@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/auth/use-auth";
+import { AvisoSemAcesso } from "@/components/layout/aviso-sem-acesso";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { telaPafLiberada } from "@/features/paf/navegacao/menu-paf";
@@ -30,11 +31,7 @@ export function PafLayout() {
   // Deciding before the permissions arrive would flash the notice at someone who has the permission.
   if (!permissionsHydrated) return <p className="text-[var(--color-muted-foreground)]">Carregando…</p>;
   if (!telaPafLiberada(pathname, user?.permissions ?? [])) {
-    return (
-      <p role="alert" data-sem-acesso className="rounded-md border border-[var(--color-border)] px-4 py-3">
-        Você não tem permissão para ver esta tela do PAF.
-      </p>
-    );
+    return <AvisoSemAcesso texto="Você não tem permissão para ver esta tela do PAF." />;
   }
   return <MolduraPaf />;
 }
