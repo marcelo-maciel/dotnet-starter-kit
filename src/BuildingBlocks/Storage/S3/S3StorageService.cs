@@ -20,6 +20,7 @@ internal sealed partial class S3StorageService : IStorageService
     private readonly S3StorageOptions _options;
     private readonly ILogger<S3StorageService> _logger;
     private readonly FileExtensionContentTypeProvider _contentTypeProvider;
+    private readonly bool _sendsOverHttps;
 
     // UploadAsync always hands back a durable public URL, so these objects live under the public root
     // that bucket policies open to anonymous reads. Keys written before the root existed stay "uploads/…".
@@ -43,6 +44,9 @@ internal sealed partial class S3StorageService : IStorageService
         _options = options.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger;
         _contentTypeProvider = new FileExtensionContentTypeProvider();
+        var serviceUrl = s3.Config.ServiceURL;
+        _sendsOverHttps = !s3.Config.UseHttp
+            && (string.IsNullOrEmpty(serviceUrl) || serviceUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
 
         if (string.IsNullOrWhiteSpace(_options.Bucket))
         {
@@ -76,7 +80,13 @@ internal sealed partial class S3StorageService : IStorageService
             BucketName = _options.Bucket,
             Key = key,
             InputStream = stream,
-            ContentType = request.ContentType
+            ContentType = request.ContentType,
+            // Cloudflare R2 rejects the SDK's streaming SigV4 with a checksum trailer
+            // ("STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER not implemented", seen in homologação on 08/11/2026).
+            // Both flags are what Cloudflare documents for AWSSDK.S3. The SDK refuses an unsigned payload over
+            // plain HTTP (the local and CI S3 stacks), where the signed default is kept; R2 is always HTTPS.
+            DisablePayloadSigning = _sendsOverHttps,
+            DisableDefaultChecksumValidation = true
         };
 
         // Rely on bucket policy for public access; do not set ACLs to avoid conflicts with ACL-disabled buckets.
