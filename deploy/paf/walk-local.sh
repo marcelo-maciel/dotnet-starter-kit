@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One PAF walk against a REAL stack (walk-pilha.sh, the only copy of the stack recipe): ephemeral PostgreSQL, Valkey
-# and RustFS, a fresh seed-demo database, the API and the dashboard on free local ports, then the walk in Chrome. Every
-# clients/dashboard/tests/e2e/paf-*.walk.mjs runs through it; what a walk needs from the stack (production build, API
+# and RustFS, a fresh seed-demo database, the API and the web app on free local ports, then the walk in Chrome. Every
+# paf-*.walk.mjs of clients/dashboard/tests/e2e and clients/admin/tests/e2e runs through it; what a walk needs from the stack (production build, API
 # settings) is set by walk-pilha.sh from its file name. Exit code = the walk's; any setup failure exits non-zero first.
 #
 # Usage: PAF_SENHA_DEMO=<secret> PAF_WALK=tests/e2e/<walk>.mjs deploy/paf/walk-local.sh
@@ -14,9 +14,15 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/walk-pilha.sh"
 pilha_validar_segredo
 if [ -z "${PAF_WALK:-}" ]; then echo "FAIL uso: PAF_WALK ausente (ex.: tests/e2e/paf-midias.walk.mjs)" >&2; exit 2; fi
-if [ ! -f "$PILHA_DASHBOARD/$PAF_WALK" ]; then echo "FAIL uso: $PILHA_DASHBOARD/$PAF_WALK não existe" >&2; exit 2; fi
+cliente="$(pilha_cliente_do_walk "$PAF_WALK")"
 
 trap pilha_limpar EXIT
-if pilha_precisa_build_web "$PAF_WALK"; then pilha_subir 0 1; else pilha_subir 1 0; fi
+if [ "$cliente" = "$PILHA_ADMIN" ]; then
+  pilha_subir 0 0 1
+elif pilha_precisa_build_web "$PAF_WALK"; then
+  pilha_subir 0 1 0
+else
+  pilha_subir 1 0 0
+fi
 (pilha_walk "$PAF_WALK")
 echo "WALK-LOCAL OK $PAF_WALK"
