@@ -11,11 +11,15 @@ namespace FSH.Modules.Identity.Localization;
 /// </summary>
 public sealed class LocalizedIdentityErrorDescriber(IStringLocalizer<IdentityResources> localizer) : IdentityErrorDescriber
 {
+    // A computed key, so it is kept out of the literal-key scan of LocalizedKeyReferenceTests (which would read the
+    // prefix as a key of its own).
+    private const string KeyPrefix = "Identity.Error.";
+
     // The base Code is the method name, so it doubles as the catalog key suffix. A missing key keeps the
     // framework's English description instead of surfacing the raw key to the user.
     private IdentityError Localize(IdentityError error, params object[] args)
     {
-        var description = localizer["Identity.Error." + error.Code, args];
+        var description = localizer[KeyPrefix + error.Code, args];
         return new IdentityError
         {
             Code = error.Code,

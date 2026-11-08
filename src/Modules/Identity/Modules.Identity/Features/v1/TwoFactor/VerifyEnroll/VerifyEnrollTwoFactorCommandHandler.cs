@@ -33,11 +33,7 @@ public sealed class VerifyEnrollTwoFactorCommandHandler
         var userId = _currentUser.GetUserId().ToString();
         var user = await _userManager.FindByIdAsync(userId)
             ?? throw new NotFoundException($"User {userId} not found.")
-            {
-                MessageKey = "Identity.UserNotFoundById",
-                MessageArgs = [userId],
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.UserNotFoundById", userId);
 
         var sanitized = command.Code.Replace(" ", string.Empty, StringComparison.Ordinal);
         var valid = await _userManager.VerifyTwoFactorTokenAsync(
@@ -51,10 +47,7 @@ public sealed class VerifyEnrollTwoFactorCommandHandler
                 "The authenticator code is invalid.",
                 errors: null,
                 System.Net.HttpStatusCode.BadRequest)
-            {
-                MessageKey = "Identity.AuthenticatorCodeInvalid",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.AuthenticatorCodeInvalid");
         }
 
         await _userManager.SetTwoFactorEnabledAsync(user, true);

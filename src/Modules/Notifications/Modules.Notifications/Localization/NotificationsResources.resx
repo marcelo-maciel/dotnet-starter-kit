@@ -115,4 +115,7 @@
   <data name="Notifications.Billing.InvoiceIssued.Action" xml:space="preserve">
     <value>You can view and download this invoice from your dashboard.</value>
   </data>
+  <data name="Notifications.NotificationNotFound" xml:space="preserve">
+    <value>Notification not found.</value>
+  </data>
 </root>

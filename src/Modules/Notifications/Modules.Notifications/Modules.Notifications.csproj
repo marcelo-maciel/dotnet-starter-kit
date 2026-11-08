@@ -3,7 +3,9 @@
 	<PropertyGroup>
 		<RootNamespace>FSH.Modules.Notifications</RootNamespace>
 		<AssemblyName>FSH.Modules.Notifications</AssemblyName>
-		<NoWarn>$(NoWarn);CA1031;CA1711;CA1812;CA1859;CA1002;CA2227;S3267;S2094</NoWarn>
+		<!-- S2094: NotificationsResources is an intentional empty localizer marker (see Localization/NotificationsResources.cs). -->
+		<!-- S1135: the i18n email-bodies TODO is a tracked follow-up, not an unfinished task in this PR. -->
+		<NoWarn>$(NoWarn);CA1031;CA1711;CA1812;CA1859;CA1002;CA2227;S3267;S2094;S1135</NoWarn>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -16,6 +18,7 @@
 		<ProjectReference Include="..\..\..\BuildingBlocks\Eventing\Eventing.csproj" />
 		<ProjectReference Include="..\..\..\BuildingBlocks\Mailing\Mailing.csproj" />
 		<ProjectReference Include="..\Modules.Notifications.Contracts\Modules.Notifications.Contracts.csproj" />
+		<ProjectReference Include="..\..\Chat\Modules.Chat.Contracts\Modules.Chat.Contracts.csproj" />
 		<ProjectReference Include="..\..\Multitenancy\Modules.Multitenancy.Contracts\Modules.Multitenancy.Contracts.csproj" />
 		<ProjectReference Include="..\..\Billing\Modules.Billing.Contracts\Modules.Billing.Contracts.csproj" />
 	</ItemGroup>
