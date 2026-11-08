@@ -1,41 +1,22 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fingerprint, ShieldCheck, UserRound } from "lucide-react";
-import { toast } from "sonner";
-import { getMyProfile, setProfileImage } from "@/api/users";
+import { useQuery } from "@tanstack/react-query";
+import { Fingerprint, ShieldCheck } from "lucide-react";
+import { getMyProfile } from "@/api/users";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ErrorBand, LoadingRow, SettingsSection, SettingsField } from "@/components/list";
-import { ImageInput } from "@/components/file/image-input";
-import { ApiRequestError, describeError } from "@/lib/api-client";
+import { ApiRequestError } from "@/lib/api-client";
 
 /**
  * ProfileSettings — read-only view of identity fields (server doesn't expose
- * an /update-me endpoint for these yet) plus avatar upload via the presigned
- * ImageInput flow. Username, email, and name are intentionally not editable
+ * an /update-me endpoint for these yet). Username, email, and name are intentionally not editable
  * from here — they require admin involvement, which is correct for a
  * multi-tenant operator console.
  *
- * Avatar fix: uses ImageInput + presigned upload (durable URL via Files module)
- * instead of the old base64 data: URL approach that hit the 2048-char limit.
+ * No avatar upload: the PAF never shows the profile photo, and the URL an upload stores points at R2's S3 API
+ * endpoint, which has no anonymous read (decided 08/11/2026). The topbar falls back to the initials.
  */
 export function ProfileSettings() {
-  const queryClient = useQueryClient();
   const profile = useQuery({ queryKey: ["identity", "profile"], queryFn: getMyProfile });
-
-  const imageMutation = useMutation({
-    mutationFn: (url: string | null) => setProfileImage(url),
-    onSuccess: () => {
-      toast.success("Profile image updated");
-      void queryClient.invalidateQueries({ queryKey: ["identity", "profile"] });
-    },
-    onError: (err: unknown) => {
-      const message =
-        err instanceof ApiRequestError
-          ? describeError(err)
-          : "Failed to update profile image";
-      toast.error(message);
-    },
-  });
 
   if (profile.isLoading) return <LoadingRow label="Loading profile" />;
   if (profile.isError) {
@@ -59,21 +40,6 @@ export function ProfileSettings() {
 
   return (
     <div className="space-y-5 fsh-enter">
-      {/* Avatar — presigned upload via ImageInput, no base64 data: URLs */}
-      <SettingsSection
-        title="Avatar"
-        icon={UserRound}
-        description="Shown in the topbar and on your activity. Square crops work best — JPG, PNG, or WebP."
-      >
-        <ImageInput
-          value={user.imageUrl ?? ""}
-          onChange={(next) => imageMutation.mutate(next.length > 0 ? next : null)}
-          ownerType="User"
-          ownerId={user.id ?? null}
-          shape="circle"
-        />
-      </SettingsSection>
-
       {/* Identity — read-only; admin must update these server-side */}
       <SettingsSection
         title="Identity"
