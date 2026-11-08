@@ -44,6 +44,30 @@ public sealed class S3StorageKeyLayoutTests
         url.ShouldContain("/public/uploads/probe/");
     }
 
+    [Theory]
+    [InlineData("https://account.r2.cloudflarestorage.com", true)]
+    [InlineData("http://localhost:9000", false)]
+    public async Task UploadAsync_Should_SendAnUnsignedPayloadThatCloudflareR2Accepts_OnlyOverHttps(string serviceUrl, bool payloadUnsigned)
+    {
+        // Arrange — R2 answers 501 to the SDK's default streaming upload with a checksum trailer; the local S3
+        // accepts it, so only the request shape can guard this outside a real R2 bucket. Over plain HTTP the SDK
+        // refuses an unsigned payload, so the signed default must stay there.
+        var s3 = Substitute.For<IAmazonS3>();
+        s3.Config.ServiceURL.Returns(serviceUrl);
+        using var provider = BuildProvider(s3);
+        var storage = provider.GetRequiredService<IStorageService>();
+
+        // Act
+        await storage.UploadAsync<Probe>(
+            new FileUploadRequest { FileName = "logo.png", ContentType = "image/png", Data = [1, 2, 3] },
+            FileType.Image);
+
+        // Assert
+        await s3.Received(1).PutObjectAsync(
+            Arg.Is<PutObjectRequest>(r => r.DisablePayloadSigning == payloadUnsigned && r.DisableDefaultChecksumValidation == true),
+            Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task CopyAsync_Should_IssueAServerSideCopyWithinTheBucket()
     {
