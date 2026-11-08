@@ -203,7 +203,9 @@ public sealed class TenantThemeTests : IAsyncLifetime
     {
         // Arrange — the operator's branding card sends the logo inside the theme; the API itself puts it in the
         // bucket (S3StorageService.UploadAsync), unlike the presigned browser uploads. The stack's S3 speaks plain
-        // HTTP, so this also pins that the unsigned single-payload upload R2 needs works off HTTPS.
+        // HTTP, so this covers the signed upload kept off HTTPS (an unconditional unsigned payload would answer
+        // 500 here). The unsigned shape R2 gets over HTTPS is pinned only by S3StorageKeyLayoutTests; R2 itself is
+        // checked after deploy with the homologação probe.
         using var client = await _auth.CreateAuthenticatedClientAsync(
             _tenantAAdminEmail, TestConstants.DefaultPassword, _tenantA);
         byte[] logo = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4, 5, 6, 7, 8];

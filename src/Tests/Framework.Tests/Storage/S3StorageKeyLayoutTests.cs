@@ -47,7 +47,8 @@ public sealed class S3StorageKeyLayoutTests
     [Theory]
     [InlineData("https://account.r2.cloudflarestorage.com", true)]
     [InlineData("http://localhost:9000", false)]
-    public async Task UploadAsync_Should_SendAnUnsignedPayloadThatCloudflareR2Accepts_OnlyOverHttps(string serviceUrl, bool payloadUnsigned)
+    [InlineData(null, true)] // AWS by region only: no ServiceURL, the SDK's endpoint is HTTPS
+    public async Task UploadAsync_Should_SendAnUnsignedPayloadThatCloudflareR2Accepts_OnlyOverHttps(string? serviceUrl, bool payloadUnsigned)
     {
         // Arrange — R2 answers 501 to the SDK's default streaming upload with a checksum trailer; the local S3
         // accepts it, so only the request shape can guard this outside a real R2 bucket. Over plain HTTP the SDK
