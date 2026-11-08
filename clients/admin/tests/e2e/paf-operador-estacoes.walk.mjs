@@ -105,7 +105,7 @@ try {
   await page.locator("#email").fill(ROOT_EMAIL);
   await page.locator("#password").fill(SENHA);
   const login = page.waitForResponse((r) => r.url().endsWith("/token/issue"));
-  await page.getByRole("button", { name: /sign in/i }).click();
+  await page.getByRole("button", { name: /^entrar$/i }).click();
   check("operador entra", (await login).status() === 200);
   await page.waitForURL((u) => !u.pathname.startsWith("/login"));
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # CI run of one part of the walk matrix (paf.yml job "walk"): every walk the part holds (walks-da-parte.sh) on ONE
-# stack (walk-pilha.sh): containers, the dotnet build and the dashboard servers once, then per walk a fresh seed-demo
+# stack (walk-pilha.sh): containers, the dotnet build and the web servers once, then per walk a fresh seed-demo
 # database and its own API process. A failing walk does not stop the next one, so one run shows every FAIL of the
 # part. Exit 0 only when every walk of the part exited 0.
 #
 # Usage: PAF_SENHA_DEMO=<secret> deploy/paf/walk-ci.sh <parte>
-# Needs: docker, dotnet SDK, node 22, `npm ci` done in clients/dashboard, Google Chrome (the walks launch channel
+# Needs: docker, dotnet SDK, node 22, `npm ci` done in clients/dashboard and clients/admin, Google Chrome (the walks launch channel
 # "chrome"). Leaves nothing running on EXIT.
 set -euo pipefail
 
@@ -18,12 +18,20 @@ printf '%s\n' "$WALKS"
 
 com_dev=0
 com_build=0
+com_admin=0
 while read -r walk; do
-  if pilha_precisa_build_web "$walk"; then com_build=1; else com_dev=1; fi
+  cliente="$(pilha_cliente_do_walk "tests/e2e/$walk")"
+  if [ "$cliente" = "$PILHA_ADMIN" ]; then
+    com_admin=1
+  elif pilha_precisa_build_web "$walk"; then
+    com_build=1
+  else
+    com_dev=1
+  fi
 done <<<"$WALKS"
 
 trap pilha_limpar EXIT
-pilha_subir "$com_dev" "$com_build"
+pilha_subir "$com_dev" "$com_build" "$com_admin"
 
 resultados=()
 falhas=0
