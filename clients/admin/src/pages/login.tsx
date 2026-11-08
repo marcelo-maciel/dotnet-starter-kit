@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
@@ -42,6 +43,7 @@ const DemoAccountsDialog = import.meta.env.DEV
 type LocationState = { from?: { pathname: string } };
 
 export function LoginPage() {
+  const { t } = useTranslation("auth");
   const { isAuthenticated, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -59,9 +61,9 @@ export function LoginPage() {
   // Surface why the previous session ended (read-and-clear, one-shot).
   useEffect(() => {
     if (consumeSignedOutReason() === "inactivity") {
-      setNotice("Sua sessão foi encerrada por inatividade.");
+      setNotice(t("login.inactivityNotice"));
     }
-  }, []);
+  }, [t]);
 
   if (isAuthenticated) {
     return <Navigate to={from} replace />;
@@ -79,7 +81,7 @@ export function LoginPage() {
           ? describeError(err)
           : err instanceof Error
             ? err.message
-            : "Não foi possível entrar";
+            : t("login.errorFallback");
       setError(message);
     } finally {
       setSubmitting(false);
@@ -137,7 +139,7 @@ export function LoginPage() {
             </div>
             <div className="mt-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.7)]">
               <span aria-hidden className="h-px w-6 bg-[var(--color-border)]" />
-              <span>Operador</span>
+              <span>{t("tagline.platformAdmin")}</span>
               <span aria-hidden className="h-px w-6 bg-[var(--color-border)]" />
             </div>
           </div>
@@ -147,10 +149,10 @@ export function LoginPage() {
             <div className="px-6 py-7 sm:px-8 sm:py-9">
               <div className="mb-6 sm:mb-8">
                 <h1 className="mb-1.5 font-display text-[22px] font-semibold tracking-tight text-[var(--color-foreground)]">
-                  Bem-vindo de volta
+                  {t("login.title")}
                 </h1>
                 <p className="text-[13px] text-[var(--color-muted-foreground)]">
-                  Entre com sua conta de operador
+                  {t("login.subtitle")}
                 </p>
               </div>
 
@@ -176,14 +178,14 @@ export function LoginPage() {
                     htmlFor="tenant"
                     className="block text-[11.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]"
                   >
-                    Empresa
+                    {t("login.tenant")}
                   </Label>
                   <Input
                     id="tenant"
                     value={tenant}
                     onChange={(e) => setTenant(e.target.value)}
                     autoComplete="organization"
-                    placeholder="root"
+                    placeholder={t("login.tenantPlaceholder")}
                     required
                     aria-invalid={error ? true : undefined}
                     className="h-11 text-[14px]"
@@ -196,7 +198,7 @@ export function LoginPage() {
                     htmlFor="email"
                     className="block text-[11.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]"
                   >
-                    E-mail
+                    {t("login.email")}
                   </Label>
                   <Input
                     id="email"
@@ -204,7 +206,7 @@ export function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     autoComplete="email"
-                    placeholder="operator@root.example"
+                    placeholder={t("login.emailPlaceholder")}
                     required
                     aria-invalid={error ? true : undefined}
                     className="h-11 text-[14px]"
@@ -218,13 +220,13 @@ export function LoginPage() {
                       htmlFor="password"
                       className="text-[11.5px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]"
                     >
-                      Senha
+                      {t("login.password")}
                     </Label>
                     <Link
                       to="/forgot-password"
                       className="text-[11px] font-medium text-[var(--color-muted-foreground)] underline-offset-4 transition-colors hover:text-[var(--color-primary)] hover:underline"
                     >
-                      Esqueceu?
+                      {t("login.forgot")}
                     </Link>
                   </div>
                   <div className="relative">
@@ -234,7 +236,7 @@ export function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       autoComplete="current-password"
-                      placeholder="Sua senha"
+                      placeholder={t("login.passwordPlaceholder")}
                       required
                       aria-invalid={error ? true : undefined}
                       className="h-11 pr-11 text-[14px]"
@@ -242,7 +244,7 @@ export function LoginPage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
-                      aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                      aria-label={showPassword ? t("login.hidePassword") : t("login.showPassword")}
                       className="absolute right-3.5 top-1/2 grid h-6 w-6 -translate-y-1/2 cursor-pointer place-items-center rounded text-[var(--color-muted-foreground)] transition-colors hover:text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
                     >
                       {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
@@ -275,11 +277,11 @@ export function LoginPage() {
                     {submitting ? (
                       <>
                         <Loader2 className="size-4 animate-spin" />
-                        <span>Entrando…</span>
+                        <span>{t("login.submitting")}</span>
                       </>
                     ) : (
                       <>
-                        <span>Entrar</span>
+                        <span>{t("login.submit")}</span>
                         <ArrowRight className="size-[14px] opacity-60 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-100" />
                       </>
                     )}
@@ -296,7 +298,7 @@ export function LoginPage() {
                     className="flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--color-primary)]/25 bg-transparent text-[12.5px] font-medium text-[var(--color-primary)]/70 transition-all duration-150 hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-primary)]/[0.04] hover:text-[var(--color-primary)]"
                   >
                     <Sparkles className="size-[13px]" />
-                    <span>Entrar com uma conta de demonstração</span>
+                    <span>{t("login.demoButton")}</span>
                   </button>
                 </div>
               )}
@@ -305,10 +307,10 @@ export function LoginPage() {
 
           <div className="mt-6 flex items-center justify-center gap-1.5 text-[11px] text-[var(--color-muted-foreground)]">
             <ShieldCheck className="size-3" />
-            <span>Conexão criptografada · sessão protegida</span>
+            <span>{t("encrypted")}</span>
           </div>
           <p className="mt-4 text-center text-[10px] font-medium uppercase tracking-wider text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.5)]">
-            Passo a Frente · Operador
+            {t("login.footer")}
           </p>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
   Check,
   ChevronsUpDown,
@@ -146,6 +147,9 @@ function SimpleMenuItem({
 export function Topbar() {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
+  // useTranslation subscribes this component to `languageChanged`, so the
+  // menu labels and the active-locale check re-render the instant we switch.
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -158,7 +162,7 @@ export function Topbar() {
     staleTime: 60_000,
   });
   const avatarUrl = profile.data?.imageUrl ?? null;
-  const displayName = user?.name ?? user?.email ?? "Unknown";
+  const displayName = user?.name ?? user?.email ?? t("shell.unknownUser");
 
   const onConfirmSignOut = () => {
     setConfirmOpen(false);
@@ -185,7 +189,7 @@ export function Topbar() {
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            aria-label="Open profile menu"
+            aria-label={t("shell.openProfileMenu")}
             className={cn(
               "group flex cursor-pointer items-center gap-2.5 rounded-lg py-1 pl-1 pr-2 outline-none",
               "transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out-cubic)]",
@@ -248,18 +252,18 @@ export function Topbar() {
 
           {/* Theme */}
           <DropdownMenuLabel className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">
-            Theme
+            {t("theme.title")}
           </DropdownMenuLabel>
           <div className="px-1 pb-1">
             <ThemeMenuItem
               icon={Sun}
-              label="Light"
+              label={t("theme.light")}
               active={theme === "light"}
               onSelect={() => setTheme("light")}
             />
             <ThemeMenuItem
               icon={Moon}
-              label="Dark"
+              label={t("theme.dark")}
               active={theme === "dark"}
               onSelect={() => setTheme("dark")}
             />
@@ -269,17 +273,17 @@ export function Topbar() {
 
           {/* Account quick actions */}
           <DropdownMenuLabel className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">
-            Account
+            {t("account.title")}
           </DropdownMenuLabel>
           <div className="px-1 pb-1">
             <SimpleMenuItem
               icon={UserRound}
-              label="Profile"
+              label={t("account.profile")}
               onSelect={() => navigate("/settings/profile")}
             />
             <SimpleMenuItem
               icon={SettingsIcon}
-              label="Settings"
+              label={t("account.settings")}
               onSelect={() => navigate("/settings")}
             />
           </div>
@@ -294,7 +298,7 @@ export function Topbar() {
               className="!my-0 cursor-pointer rounded-md !px-2.5 !py-1.5"
             >
               <LogOut className="size-3.5" />
-              <span className="text-[12.5px] font-medium">Sign out</span>
+              <span className="text-[12.5px] font-medium">{t("actions.signOut")}</span>
             </DropdownMenuItem>
           </div>
         </DropdownMenuContent>
@@ -304,11 +308,8 @@ export function Topbar() {
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Sign out of Passo a Frente?</DialogTitle>
-            <DialogDescription>
-              You'll need to sign in again to access this admin. Any unsaved
-              work in this session will be lost.
-            </DialogDescription>
+            <DialogTitle>{t("signOut.title")}</DialogTitle>
+            <DialogDescription>{t("signOut.description")}</DialogDescription>
           </DialogHeader>
           <DialogBody>
             <div className="flex items-center gap-3 rounded-md border border-[var(--color-border)] bg-[var(--color-muted)] px-3 py-2.5">
@@ -336,7 +337,7 @@ export function Topbar() {
               size="sm"
               onClick={() => setConfirmOpen(false)}
             >
-              Cancel
+              {t("actions.cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -345,7 +346,7 @@ export function Topbar() {
               autoFocus
             >
               <LogOut className="mr-1.5 h-3.5 w-3.5" />
-              Sign out
+              {t("actions.signOut")}
             </Button>
           </DialogFooter>
         </DialogContent>

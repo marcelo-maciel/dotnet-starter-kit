@@ -1,0 +1,17 @@
+{
+  "overview": "Visão geral",
+  "tenants": "Clientes",
+  "identity": "Identidade",
+  "users": "Usuários",
+  "roles": "Perfis",
+  "impersonation": "Acessar como cliente",
+  "operations": "Operações",
+  "billing": "Faturamento",
+  "webhooks": "Webhooks",
+  "audits": "Auditoria",
+  "health": "Saúde",
+  "settings": "Configurações",
+  "paf": "PAF",
+  "pafUnits": "Unidades e contratos",
+  "pafStations": "Estações"
+}

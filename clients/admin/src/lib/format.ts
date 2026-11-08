@@ -1,6 +1,71 @@
+import i18n from "@/i18n";
+
 /** Every instant reads in Brasília, whatever the browser's zone: the product and its operators are in
  *  Brazil, and the API sends UTC. Without it an operator abroad, or a UTC test box, sees other hours. */
 export const SAO_PAULO = "America/Sao_Paulo";
+
+/**
+ * Locale-aware formatting helpers built on the platform `Intl` APIs. The active
+ * UI locale (`i18n.resolvedLanguage`, the language the text is in) is the default so formatted numbers, currency and
+ * dates track the language switcher without every call site threading a locale.
+ * Pass an explicit `locale` to override (e.g. rendering a fixed-locale export).
+ */
+
+// Active UI locale, guarded for the window before i18n has initialized.
+const resolveLocale = (locale?: string): string => locale ?? i18n.resolvedLanguage ?? "en-US";
+
+export function formatNumber(value: number, locale?: string): string {
+  return new Intl.NumberFormat(resolveLocale(locale)).format(value);
+}
+
+export function formatCurrency(amount: number, currency: string, locale?: string): string {
+  try {
+    return new Intl.NumberFormat(resolveLocale(locale), {
+      style: "currency",
+      currency,
+    }).format(amount);
+  } catch {
+    // Intl throws RangeError on an unknown/malformed ISO 4217 code — degrade to a
+    // readable amount + raw code rather than crashing the render.
+    return `${amount.toFixed(2)} ${currency}`;
+  }
+}
+
+/** Date and time under the active UI locale. `toLocaleString()` with no argument uses the
+ *  browser's locale instead, which puts 5/23/2026 next to Portuguese labels. */
+export function formatDateTime(iso?: string | null, locale?: string): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? iso
+    : new Intl.DateTimeFormat(resolveLocale(locale), {
+        timeZone: SAO_PAULO,
+        dateStyle: "short",
+        timeStyle: "medium",
+      }).format(date);
+}
+
+/** Time of day under the active UI locale. */
+export function formatTime(iso?: string | null, locale?: string): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? iso
+    : new Intl.DateTimeFormat(resolveLocale(locale), { timeZone: SAO_PAULO, timeStyle: "medium" }).format(date);
+}
+
+export function formatDate(iso?: string | null, locale?: string): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? iso
+    : new Intl.DateTimeFormat(resolveLocale(locale), {
+        timeZone: SAO_PAULO,
+        month: "short",
+        day: "2-digit",
+        year: "numeric",
+      }).format(date);
+}
 
 // en-CA with h23 gives zero-padded numeric parts; "h23" and not `hour12: false`, which Chrome renders
 // as "24:05" just after midnight.

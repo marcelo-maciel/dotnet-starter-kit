@@ -11,7 +11,9 @@ test("decodeJwt reads a UTF-8 payload, accents intact", async ({ page }) => {
   await page.goto("/login");
 
   const name = await page.evaluate(async (jwt) => {
-    const mod = (await import("/src/auth/jwt.ts")) as typeof import("../../src/auth/jwt");
+    // A path the Vite dev server resolves in the page, not one tsc can: a variable keeps it out of the type check.
+    const modulo = "/src/auth/jwt.ts";
+    const mod = (await import(/* @vite-ignore */ modulo)) as typeof import("../../src/auth/jwt");
     return mod.decodeJwt(jwt)?.name;
   }, token);
 

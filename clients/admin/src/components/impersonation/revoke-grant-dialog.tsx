@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { formatDateTime } from "@/lib/format";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ShieldOff } from "lucide-react";
 import { toast } from "sonner";
@@ -19,7 +21,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ApiRequestError, describeError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
-import { SAO_PAULO } from "@/lib/format";
 
 type Props = {
   grant: ImpersonationGrantDto | null;
@@ -35,6 +36,7 @@ type Props = {
  * operator knows exactly what they're killing.
  */
 export function RevokeGrantDialog({ grant, onOpenChange, onRevoked }: Props) {
+  const { t } = useTranslation("impersonation");
   const queryClient = useQueryClient();
   const [reason, setReason] = useState("");
   const open = grant !== null;
@@ -47,8 +49,10 @@ export function RevokeGrantDialog({ grant, onOpenChange, onRevoked }: Props) {
   const mutation = useMutation<ImpersonationGrantDto, Error, void>({
     mutationFn: () => revokeImpersonationGrant(grant!.id, reason.trim() || undefined),
     onSuccess: (updated) => {
-      toast.success("Impersonation revoked", {
-        description: `Token for ${updated.impersonatedUserName ?? updated.impersonatedUserId} will be rejected on the next request.`,
+      toast.success(t("revokeDialog.toast.revoked"), {
+        description: t("revokeDialog.toast.revokedDesc", {
+          name: updated.impersonatedUserName ?? updated.impersonatedUserId,
+        }),
       });
       queryClient.invalidateQueries({ queryKey: ["impersonation-grants"] });
       onRevoked?.(updated);
@@ -59,7 +63,7 @@ export function RevokeGrantDialog({ grant, onOpenChange, onRevoked }: Props) {
         err instanceof ApiRequestError
           ? describeError(err)
           : err.message;
-      toast.error("Revoke failed", { description: detail });
+      toast.error(t("revokeDialog.toast.revokeFailed"), { description: detail });
     },
   });
 
@@ -74,11 +78,10 @@ export function RevokeGrantDialog({ grant, onOpenChange, onRevoked }: Props) {
             >
               <ShieldOff className="h-4 w-4" />
             </span>
-            <DialogTitle>Revoke impersonation grant</DialogTitle>
+            <DialogTitle>{t("revokeDialog.title")}</DialogTitle>
           </div>
           <DialogDescription>
-            The issued token will be rejected on the next authenticated request (within ~1
-            second of cache TTL). The session in the dashboard tab is killed without warning.
+            {t("revokeDialog.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -90,13 +93,13 @@ export function RevokeGrantDialog({ grant, onOpenChange, onRevoked }: Props) {
               htmlFor="revoke-reason"
               className="meta text-[var(--color-muted-foreground)]"
             >
-              Reason (optional)
+              {t("revokeDialog.reasonLabel")}
             </label>
             <textarea
               id="revoke-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="e.g. Operator left for lunch; ending session"
+              placeholder={t("revokeDialog.reasonPlaceholder")}
               rows={3}
               maxLength={500}
               className={cn(
@@ -107,14 +110,14 @@ export function RevokeGrantDialog({ grant, onOpenChange, onRevoked }: Props) {
               )}
             />
             <p className="text-[11px] text-[var(--color-muted-foreground)]">
-              Recorded on the grant and in the security audit trail.
+              {t("revokeDialog.reasonHelp")}
             </p>
           </div>
         </DialogBody>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
-            Cancel
+            {t("revokeDialog.cancel")}
           </Button>
           <Button
             variant="destructive"
@@ -122,7 +125,7 @@ export function RevokeGrantDialog({ grant, onOpenChange, onRevoked }: Props) {
             disabled={mutation.isPending}
           >
             <ShieldOff className="mr-1 h-3.5 w-3.5" />
-            {mutation.isPending ? "Revoking…" : "Revoke now"}
+            {mutation.isPending ? t("revokeDialog.revoking") : t("revokeDialog.revokeNow")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -131,9 +134,10 @@ export function RevokeGrantDialog({ grant, onOpenChange, onRevoked }: Props) {
 }
 
 function GrantSummary({ grant }: { grant: ImpersonationGrantDto }) {
+  const { t } = useTranslation("impersonation");
   return (
     <div className="space-y-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-3">
-      <Row label="Impersonating">
+      <Row label={t("revokeDialog.summary.impersonating")}>
         <span className="font-medium">
           {grant.impersonatedUserName ?? grant.impersonatedUserId}
         </span>{" "}
@@ -141,17 +145,17 @@ function GrantSummary({ grant }: { grant: ImpersonationGrantDto }) {
           {grant.impersonatedTenantId}
         </Badge>
       </Row>
-      <Row label="Started by">
+      <Row label={t("revokeDialog.summary.startedBy")}>
         <span>{grant.actorUserName ?? grant.actorUserId}</span>{" "}
         <Badge variant="muted" className="ml-1 font-mono uppercase tracking-[0.14em]">
           {grant.actorTenantId}
         </Badge>
       </Row>
-      <Row label="Reason">
+      <Row label={t("revokeDialog.summary.reason")}>
         <span className="text-[var(--color-muted-foreground)]">{grant.reason || "—"}</span>
       </Row>
-      <Row label="Expires">
-        <code className="code-chip">{new Date(grant.expiresAtUtc).toLocaleString(undefined, { timeZone: SAO_PAULO })}</code>
+      <Row label={t("revokeDialog.summary.expires")}>
+        <code className="code-chip">{formatDateTime(grant.expiresAtUtc)}</code>
       </Row>
     </div>
   );

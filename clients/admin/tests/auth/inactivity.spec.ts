@@ -2,6 +2,10 @@ import { expect, test } from "@playwright/test";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 import { installAdminShellMocks, ADMIN_PERMS } from "../helpers/shell-mocks";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // Drive the inactivity feature with tiny durations injected via /config.json:
 // idle 2s → a 3s warning countdown → auto sign-out. The guard mounts in the
 // authenticated AppShell, so any protected page exercises it.
@@ -35,27 +39,27 @@ test.describe("inactivity auto-logout", () => {
     await page.goto("/settings/security");
     // The warning only appears if we're authenticated AND went idle — no
     // interaction after load, so the idle timer elapses.
-    await expect(page.getByRole("dialog").getByText("Still there?")).toBeVisible({
+    await expect(page.getByRole("dialog").getByText("Ainda aí?")).toBeVisible({
       timeout: 9_000,
     });
-    await expect(page.getByRole("button", { name: "I'm here" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Estou aqui" })).toBeVisible();
   });
 
-  test("'I'm here' dismisses the warning and keeps the session", async ({ page }) => {
+  test("'Estou aqui' dismisses the warning and keeps the session", async ({ page }) => {
     await page.goto("/settings/security");
-    const stay = page.getByRole("button", { name: "I'm here" });
+    const stay = page.getByRole("button", { name: "Estou aqui" });
     await expect(stay).toBeVisible({ timeout: 9_000 });
 
     await stay.click();
 
-    await expect(page.getByText("Still there?")).toBeHidden();
+    await expect(page.getByText("Ainda aí?")).toBeHidden();
     await expect(page).not.toHaveURL(/\/login$/);
   });
 
   test("signs out to /login with a notice when the countdown elapses", async ({ page }) => {
     await page.goto("/settings/security");
     // Let the warning appear, then wait it out without interacting.
-    await expect(page.getByRole("button", { name: "I'm here" })).toBeVisible({ timeout: 9_000 });
+    await expect(page.getByRole("button", { name: "Estou aqui" })).toBeVisible({ timeout: 9_000 });
 
     await expect(page).toHaveURL(/\/login$/, { timeout: WARNING_MS + 6_000 });
     await expect(page.getByText(/encerrada por inatividade/i)).toBeVisible();
