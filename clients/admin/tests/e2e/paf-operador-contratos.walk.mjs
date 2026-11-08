@@ -58,7 +58,7 @@ async function entrar(page, tenant, email) {
   await page.locator("#email").fill(email);
   await page.locator("#password").fill(SENHA);
   const resposta = page.waitForResponse((r) => r.url().endsWith("/token/issue"), { timeout: TIMEOUT });
-  await page.getByRole("button", { name: /sign in/i }).click();
+  await page.getByRole("button", { name: /^entrar$/i }).click();
   return resposta;
 }
 
@@ -97,10 +97,19 @@ try {
   check("tenant criado pelo admin", true, tenantId);
 
   // 2. The PAF reaches the tenant (outbox, then the Hangfire job): the initial unidade is born with the default
-  // contract, so the client's admin gets in with nothing recorded by hand.
+  // contract, so the client's admin gets in with nothing recorded by hand. A login only counts once the initial unidade
+  // exists: before the PAF reaches the tenant the kit login stands (GenerateTokenLicenseBehavior), so a 200 then would
+  // prove nothing about the contract; after it, a 403 means the admin's association to the unidade is still pending.
+  const tokenOperador = (await emitirToken("root", ROOT_EMAIL)).token;
   const entrada = await esperar(
     "entrada com o contrato padrão",
     async () => {
+      const r = await fetch(`${API}/api/v1/paf/operador/unidades`, {
+        headers: { tenant: tenantId, Authorization: `Bearer ${tokenOperador}` },
+        signal: AbortSignal.timeout(TIMEOUT),
+      });
+      const unidades = r.status === 200 ? await r.json() : [];
+      if (!unidades.some((u) => u.inicial && u.contratos.length > 0)) return { ok: false, unidades: r.status };
       const t = await emitirToken(tenantId, adminEmail);
       return { ok: t.status === 200, ...t, token: undefined };
     },
