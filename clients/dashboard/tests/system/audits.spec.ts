@@ -51,6 +51,8 @@ async function mockSummary(page: import("@playwright/test").Page) {
 test.beforeEach(async ({ page }) => {
   await seedAuthedSession(page, TEST_USER);
   await installShellMocks(page);
+  // The route refuses the screen without the permission its menu entry carries.
+  await mockJsonResponse(page, "**/api/v1/identity/permissions", ["Permissions.AuditTrails.View"]);
 });
 
 test.describe("system/audits", () => {
