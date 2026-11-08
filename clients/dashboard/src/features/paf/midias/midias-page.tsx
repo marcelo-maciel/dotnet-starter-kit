@@ -326,7 +326,7 @@ function NovaMidia(props: {
             ref={seletor}
             type="file"
             accept={ACEITOS_NO_SELETOR}
-            className="block w-full text-sm"
+            className="block w-full min-w-0 text-base md:text-sm"
             onChange={(e) => void escolher(e.target.files?.[0])}
           />
         </div>
@@ -382,7 +382,7 @@ function TrocaDeArquivo(props: {
         type="file"
         accept={ACEITOS_NO_SELETOR}
         disabled={props.ocupado}
-        className="block w-full text-sm"
+        className="block w-full min-w-0 text-base md:text-sm"
         onChange={(e) => {
           void escolher(e.target.files?.[0]);
           e.target.value = "";
