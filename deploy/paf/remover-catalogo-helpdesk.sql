@@ -38,7 +38,7 @@ WHERE "MigrationId" IN (
   '20260517105416_TicketsTenantIsolation'
 );
 
--- RolePermissionSyncer leaves claims of permissions no longer registered in place, so they are removed here.
+-- RolePermissionSyncer drops unregistered permission claims only from the Basic and Admin roles; every other role keeps them, so they are removed here.
 DELETE FROM identity."RoleClaims"
 WHERE "ClaimType" = 'permission'
   AND ("ClaimValue" LIKE 'Permissions.Catalog.%' OR "ClaimValue" LIKE 'Permissions.Tickets.%');

@@ -49,7 +49,7 @@ Resíduo deliberado: o objeto do passo 1 fica 30 dias no prefixo bloqueado (algu
 
 ## Requisito registrado para CSP futura
 
-Nenhuma CSP entra no SPA do dashboard sem `https://<account-id>.r2.cloudflarestorage.com` em `media-src` e `img-src`, porque o painel e a tela de cadastro buscam a mídia por URL assinada nesse domínio, e URL assinada não funciona em domínio próprio. Hoje a CSP do kit vale só para a API (`SecurityHeadersMiddleware`) e o nginx do dashboard não põe CSP (riscos do plano da fatia 2).
+Nenhuma CSP entra no SPA do dashboard sem `https://<account-id>.r2.cloudflarestorage.com` em `media-src` e `img-src`, porque o painel e a tela de cadastro buscam a mídia por URL assinada nesse domínio, e URL assinada não funciona em domínio próprio. Hoje o nginx do dashboard publica a CSP em modo Report-Only (`clients/dashboard/docker/csp.conf.template`), já com `https://*.r2.cloudflarestorage.com` em `img-src`, `media-src`, `connect-src` e `frame-src`; o requisito continua valendo para quando ela passar a bloquear.
 
 ## Evidências
 
