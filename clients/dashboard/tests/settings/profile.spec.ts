@@ -350,42 +350,14 @@ test.describe("settings/profile — wired to PUT /identity/profile", () => {
     expect(putReq.headers()["if-match"]).toBe('"stamp-1"');
   });
 
-  // Setting the image is a second write to the same row, so Identity rotates the concurrency stamp.
-  // Without adopting the new version the next save carries the pre-image tag, gets a 412, and the
-  // user is told someone else edited their profile — on a profile only they touched.
-  test("a save after changing the avatar carries the tag the image write produced", async ({ page }) => {
-    let currentStamp = 1;
-    const sentIfMatch: string[] = [];
-
-    await page.route("**/api/v1/identity/profile/image", async (route) => {
-      currentStamp += 1;
-      await route.fulfill({ status: 200, headers: { "Content-Type": "application/json" }, body: '""' });
-    });
-
-    await page.route("**/api/v1/identity/profile", async (route) => {
-      const request = route.request();
-      if (request.method() === "PUT") {
-        sentIfMatch.push(request.headers()["if-match"] ?? "");
-        await route.fulfill({ status: 200, headers: { "Content-Type": "application/json" }, body: '""' });
-        return;
-      }
-      await route.fulfill({
-        status: 200,
-        headers: { ...ETAG_CORS_HEADERS, ETag: `"stamp-${currentStamp}"` },
-        body: JSON.stringify({ ...PROFILE, imageUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" }),
-      });
-    });
-
+  // No photo section: the PAF never shows the profile photo, and the URL an upload stores points at R2's S3 API
+  // endpoint, which has no anonymous read (decided 08/11/2026).
+  test("has no photo section nor upload affordance", async ({ page }) => {
     await page.goto("/settings/profile");
     await expect(page.getByLabel("Nome", { exact: true })).toHaveValue("Alice");
 
-    await page.getByRole("button", { name: /^remover$/i }).click();
-    await expect(page.getByText(/foto do perfil atualizada/i)).toBeVisible();
-
-    await page.getByLabel("Nome", { exact: true }).fill("Alicia");
-    await page.getByRole("button", { name: /salvar alterações/i }).click();
-
-    await expect.poll(() => sentIfMatch).toEqual(['"stamp-2"']);
+    await expect(page.getByRole("heading", { name: /foto/i })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /escolher imagem|trocar imagem|^remover$/i })).toHaveCount(0);
   });
 
   // Without the profile read there is no ETag and no unedited-field values, so a save would either

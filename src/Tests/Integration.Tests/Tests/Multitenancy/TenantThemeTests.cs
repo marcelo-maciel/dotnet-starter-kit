@@ -1,7 +1,9 @@
 #pragma warning disable S1144 // Unused private members — populated by JSON deserialization
 #pragma warning disable S3459 // Unassigned members — populated by JSON deserialization
 using System.Text.Json;
+using Amazon.S3;
 using Integration.Tests.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Integration.Tests.Tests.Multitenancy;
 
@@ -195,6 +197,37 @@ public sealed class TenantThemeTests : IAsyncLifetime
     #endregion
 
     #region AuthZ
+
+    [Fact]
+    public async Task UpdateTheme_Should_StoreTheUploadedLogoBytes_When_TheLogoGoesThroughTheServer()
+    {
+        // Arrange — the operator's branding card sends the logo inside the theme; the API itself puts it in the
+        // bucket (S3StorageService.UploadAsync), unlike the presigned browser uploads. The stack's S3 speaks plain
+        // HTTP, so this covers the signed upload kept off HTTPS (an unconditional unsigned payload would answer
+        // 500 here). The unsigned shape R2 gets over HTTPS is pinned only by S3StorageKeyLayoutTests; R2 itself is
+        // checked after deploy with the homologação probe.
+        using var client = await _auth.CreateAuthenticatedClientAsync(
+            _tenantAAdminEmail, TestConstants.DefaultPassword, _tenantA);
+        byte[] logo = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4, 5, 6, 7, 8];
+        var payload = JsonSerializer.SerializeToNode(ValidTheme(), Json)!.AsObject();
+        payload["brandAssets"] = JsonSerializer.SerializeToNode(
+            new { logo = new { fileName = "logo.png", contentType = "image/png", data = logo.Select(b => (int)b).ToArray() } }, Json);
+
+        // Act
+        var update = await client.PutAsJsonAsync(ThemePath, payload);
+
+        // Assert
+        await ShouldHaveStatusAsync(update, HttpStatusCode.NoContent);
+        var theme = await client.GetFromJsonAsync<TenantThemeDto>(ThemePath, Json);
+        var logoUrl = theme?.BrandAssets.LogoUrl;
+        logoUrl.ShouldNotBeNullOrWhiteSpace();
+        var key = logoUrl[logoUrl.IndexOf("public/", StringComparison.Ordinal)..];
+        using var stored = await _factory.Services.GetRequiredService<IAmazonS3>()
+            .GetObjectAsync(FshWebApplicationFactory.S3Bucket, key);
+        using var bytes = new MemoryStream();
+        await stored.ResponseStream.CopyToAsync(bytes);
+        bytes.ToArray().ShouldBe(logo);
+    }
 
     [Fact]
     public async Task GetTheme_Should_Return401_When_NotAuthenticated()
@@ -436,7 +469,13 @@ public sealed class TenantThemeTests : IAsyncLifetime
         public PaletteDto DarkPalette { get; init; } = new();
         public TypographyDto Typography { get; init; } = new();
         public LayoutDto Layout { get; init; } = new();
+        public BrandAssetsDto BrandAssets { get; init; } = new();
         public bool IsDefault { get; init; }
+    }
+
+    private sealed record BrandAssetsDto
+    {
+        public string? LogoUrl { get; init; }
     }
 
     private sealed record PaletteDto

@@ -1,16 +1,15 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Camera, Fingerprint, UserCircle2 } from "lucide-react";
+import { Fingerprint, UserCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/use-auth";
-import { getMyProfileWithETag, setProfileImage, updateMyProfile } from "@/api/identity";
+import { getMyProfileWithETag, updateMyProfile } from "@/api/identity";
 import type { UserDto } from "@/api/identity";
 import { ApiRequestError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ImageInput } from "@/components/file/image-input";
 import { SettingsSection } from "@/pages/settings/settings-layout";
 
 const PROFILE_KEY = ["identity", "me"] as const;
@@ -163,25 +162,6 @@ export function ProfileSettings() {
   // read lands there is nothing to save against. Disabled rather than silently doing nothing.
   const canSave = profileQuery.isSuccess;
 
-  const imageMutation = useMutation({
-    mutationFn: (url: string | null) => setProfileImage(url),
-    onSuccess: async () => {
-      toast.success(t("profile.imageUpdated"));
-      // The avatar URL is one of the fields the profile version hashes, so setting the image moves
-      // the tag and the one this form is holding is spent. Adopting the new version (which
-      // also refreshes the cache, so the topbar avatar still updates) keeps the next save from
-      // answering 412 and telling the user someone else edited their profile.
-      await adoptCurrentVersion();
-    },
-    onError: (e: unknown) => {
-      const message =
-        e instanceof ApiRequestError
-          ? (e.problem?.detail ?? e.problem?.title ?? e.message)
-          : t("profile.imageUpdateError");
-      toast.error(message);
-    },
-  });
-
   return (
     <form onSubmit={onSubmit} className="space-y-5 fsh-enter">
       {profileQuery.isError && (
@@ -192,20 +172,8 @@ export function ProfileSettings() {
           <span>{t("profile.loadError")}</span>
         </div>
       )}
-      <SettingsSection
-        title={t("profile.photo.title")}
-        icon={Camera}
-        description={t("profile.photo.description")}
-      >
-        <ImageInput
-          value={profile?.imageUrl ?? ""}
-          onChange={(next) => imageMutation.mutate(next.length > 0 ? next : null)}
-          ownerType="User"
-          ownerId={profile?.id ?? null}
-          shape="circle"
-        />
-      </SettingsSection>
-
+      {/* No photo section: the PAF never shows the profile photo, and the URL an upload stores points at R2's S3 API
+          endpoint, which has no anonymous read (decided 08/11/2026). The topbar falls back to the initials. */}
       <SettingsSection
         title={t("profile.identity.title")}
         icon={UserCircle2}

@@ -191,9 +191,10 @@ jobs:
       - name: Invariantes de ambiente
         run: bash deploy/paf/verificar-ambiente.test.sh
 
-  # Every clients/dashboard/tests/e2e/paf-*.walk.mjs, split into parallel jobs by deploy/paf/walks-ci.txt (one stack per
-  # job, a fresh seed-demo database per walk). The part "demais" takes every walk the file does not list, so a new
-  # walk always runs somewhere; scripts-ci.test.sh fails when this list and the file's parts diverge.
+  # Every paf-*.walk.mjs of clients/dashboard/tests/e2e and clients/admin/tests/e2e, split into parallel jobs by
+  # deploy/paf/walks-ci.txt (one stack per job, a fresh seed-demo database per walk). The part "demais" takes every walk
+  # the file does not list, so a new walk always runs somewhere; scripts-ci.test.sh fails when this list and the file's
+  # parts diverge.
   walk:
     name: Walk no Chrome (${{ matrix.parte }})
     if: github.event_name != 'workflow_dispatch'
@@ -202,7 +203,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        parte: [1, 2, demais]
+        parte: [1, 2, admin, demais]
     env:
       PAF_SENHA_DEMO: ${{ secrets.PAF_SENHA_DEMO }}
       PARTE: ${{ matrix.parte }}
@@ -226,10 +227,17 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: clients/dashboard/package-lock.json
+          cache-dependency-path: |
+            clients/dashboard/package-lock.json
+            clients/admin/package-lock.json
 
       - name: npm ci
         working-directory: clients/dashboard
+        run: npm ci
+
+      # Every part, not only "admin": an admin walk missing from walks-ci.txt lands in "demais".
+      - name: npm ci (admin)
+        working-directory: clients/admin
         run: npm ci
 
       # The walk launches channel "chrome": the runner image's Google Chrome, never a downloaded Chromium.
