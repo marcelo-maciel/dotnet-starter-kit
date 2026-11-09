@@ -31,7 +31,10 @@ internal sealed class UserPermissionService(
     private static readonly HybridCacheEntryOptions EntryOptions = new()
     {
         Expiration = TimeSpan.FromHours(1),
-        LocalCacheExpiration = TimeSpan.FromMinutes(2),
+        // An invalidation clears the in-process tier only on the instance that handled the write: with 2 min, a
+        // revoked permission kept authorizing on the other API instance for 120 s (homologação, 09/11/2026).
+        // ponytail: short local tier bounds the staleness; a Valkey pub/sub backplane would evict it everywhere.
+        LocalCacheExpiration = TimeSpan.FromSeconds(5),
         Flags = HybridCacheEntryFlags.DisableCompression,
     };
 
