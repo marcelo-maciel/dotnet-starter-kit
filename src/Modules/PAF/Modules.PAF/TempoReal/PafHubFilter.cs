@@ -33,7 +33,20 @@ public sealed partial class PafHubFilter(ILogger<PafHubFilter> logger) : IHubFil
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(next);
-        var tenant = await ConferirAsync(context.Context, context.ServiceProvider).ConfigureAwait(false);
+        AppTenantInfo tenant;
+        try
+        {
+            tenant = await ConferirAsync(context.Context, context.ServiceProvider).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (context.Context.ConnectionAborted.IsCancellationRequested)
+        {
+            // The client left mid-connect (closed tab, navigation): nothing is left to check or set up, and a
+            // cancellation let out of OnConnectedAsync is logged by SignalR as an error. PafHub.OnConnectedAsync takes
+            // the same exit for the same reason.
+            LogSaiuNaAbertura(logger, context.Context.ConnectionId);
+            return;
+        }
+
         // Set here, not inside ConferirAsync: an AsyncLocal set in an awaited method does not flow back to its caller.
         InstalarTenant(context.ServiceProvider, tenant);
         await next(context).ConfigureAwait(false);
@@ -182,6 +195,10 @@ public sealed partial class PafHubFilter(ILogger<PafHubFilter> logger) : IHubFil
     [LoggerMessage(EventId = 9006, Level = LogLevel.Information,
         Message = "PafHub recusou a conexao {ConnectionId}: licenca da sessao recusada na reocupacao")]
     private static partial void LogLicencaRecusada(ILogger logger, string connectionId);
+
+    [LoggerMessage(EventId = 9005, Level = LogLevel.Debug,
+        Message = "PafHub: o cliente saiu durante a abertura da conexao {ConnectionId}")]
+    private static partial void LogSaiuNaAbertura(ILogger logger, string connectionId);
 
     [LoggerMessage(EventId = 9003, Level = LogLevel.Information,
         Message = "PafHub recusou a conexao {ConnectionId} ({Tipo}): credencial revogada, sessao encerrada ou principal invalido")]
