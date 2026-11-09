@@ -9,7 +9,8 @@
 # Exit 0 only when every step passed; each step's exit code is printed. Removes the throwaway project on exit.
 #
 # Usage: deploy/paf/restaurar-backup.sh <arquivo.env> <chave sem extensão|ultima>
-# Needs: docker compose v2; the backup and migrator images named in the env file.
+# Needs: docker compose v2; the backup and migrator images named in the env file (the migrator from
+# <ambiente>.imagens.env when deploy.sh has written it).
 set -uo pipefail
 
 if [ "$#" -ne 2 ]; then
@@ -34,8 +35,20 @@ export PAF_AMBIENTE_RESTAURADO="$AMBIENTE"
 PAF_RESTAURACAO_SENHA="$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')"
 export PAF_RESTAURACAO_SENHA
 
+# deploy.sh records the images actually running in <ambiente>.imagens.env; the PAF_IMAGEM_* of the environment file
+# are the first deploy's and go stale. The later --env-file wins, so the migrator that judges pending migrations is
+# the running release. Without the file (an environment deploy.sh never ran on), the environment file's images.
+ARQUIVOS_ENV=(--env-file "$ARQUIVO_AMBIENTE")
+IMAGENS="${ARQUIVO_AMBIENTE%.env}.imagens.env"
+ORIGEM_IMAGENS="$ARQUIVO_AMBIENTE"
+if [ -f "$IMAGENS" ]; then
+  ARQUIVOS_ENV+=(--env-file "$IMAGENS")
+  ORIGEM_IMAGENS="$IMAGENS"
+fi
+echo "migrator: $(valor "$ORIGEM_IMAGENS" PAF_IMAGEM_MIGRATOR) (de $ORIGEM_IMAGENS)"
+
 # timeout cannot run a shell function, so the compose command line is an array.
-DC=(docker compose --project-directory "$AQUI" -f "$AQUI/pg-backup/restauracao.yml" --env-file "$ARQUIVO_AMBIENTE" -p "$PROJETO")
+DC=(docker compose --project-directory "$AQUI" -f "$AQUI/pg-backup/restauracao.yml" "${ARQUIVOS_ENV[@]}" -p "$PROJETO")
 
 limpar() {
   "${DC[@]}" down -v --remove-orphans >/dev/null 2>&1
