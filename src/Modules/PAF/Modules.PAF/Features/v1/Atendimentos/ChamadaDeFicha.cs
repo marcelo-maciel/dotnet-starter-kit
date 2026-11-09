@@ -50,7 +50,7 @@ internal static partial class ChamadaDeFicha
                     FROM paf."Prioridades" pr
                     JOIN paf."EstacaoPrioridades" ep
                       ON ep."EstacaoId" = {estacaoId} AND ep."PrioridadeId" = pr."Id"
-                   WHERE pr."Id" = a."PrioridadeId"
+                   WHERE pr."TenantId" = {tenantId} AND pr."Id" = a."PrioridadeId"
                   OFFSET 0) p
              WHERE a."TenantId" = {tenantId} AND a."UnidadeId" = {unidadeId}
                AND a."Estado" = 'Aguardando'
