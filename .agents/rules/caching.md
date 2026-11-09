@@ -26,5 +26,5 @@ var perms = await cache.GetOrCreateAsync(
 
 ## Gotchas
 
-- **No L1 backplane.** `RemoveByTagAsync` on one node does **not** evict L1 on peer nodes — cross-node staleness is bounded only by the 2-min local expiration. Don't rely on instant cross-node invalidation; keep local expiration short for hot, mutable data.
+- **No L1 backplane.** `RemoveAsync`/`RemoveByTagAsync` on one node does **not** evict L1 on peer nodes — cross-node staleness is bounded only by the local expiration (2 min by default). Don't rely on instant cross-node invalidation; keep local expiration short for hot, mutable data. Permissions (`UserPermissionService`), impersonation grant status and tenant themes use 5 s: with 2 min, a revoked permission kept authorizing on the other API instance for 120 s.
 - Don't reach for `IDistributedCache` directly except where the framework already does so deliberately (idempotency probe-read) — prefer `HybridCache`.
