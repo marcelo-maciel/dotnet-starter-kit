@@ -247,7 +247,10 @@ internal sealed class ImpersonationGrantService(
         // 5-min TTL suffices: sessions are 60 min max and the entry is re-primed on every revoke/end.
         // After expiry the jti is meaningless anyway (JwtBearer rejects on lifetime).
         Expiration = TimeSpan.FromMinutes(5),
-        LocalCacheExpiration = TimeSpan.FromMinutes(1),
+        // A revoke re-primes the in-process tier only on the instance that handled it; with a longer tier the other
+        // instances kept honoring the revoked grant until it expired.
+        // ponytail: short local tier bounds the staleness; a Valkey pub/sub backplane would evict it everywhere.
+        LocalCacheExpiration = TimeSpan.FromSeconds(5),
         Flags = HybridCacheEntryFlags.DisableCompression,
     };
 
