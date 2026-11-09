@@ -94,8 +94,11 @@ docker run -d --name "$PG" --network "$REDE" -e TZ=America/Sao_Paulo -e POSTGRES
   -e POSTGRES_PASSWORD="$SENHA_PG" -v "$(host_path "$PAF/../docker/postgres-init"):/docker-entrypoint-initdb.d:ro" \
   postgres:18-alpine -c timezone=America/Sao_Paulo >/dev/null || abortar "postgres"
 # Published on loopback: the restore project lives on its own network and reaches the "R2" the way it reaches R2.
+# MinIO's own images left Docker Hub and quay.io in September 2026; Chainguard's build (with mc and sh) is pinned by
+# digest because its free tier only publishes :latest.
 docker run -d --name "$S3" --network "$REDE" -p 127.0.0.1::9000 -e MINIO_ROOT_USER="$S3_USUARIO" \
-  -e MINIO_ROOT_PASSWORD="$S3_SENHA" quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z server /data >/dev/null \
+  -e MINIO_ROOT_PASSWORD="$S3_SENHA" \
+  cgr.dev/chainguard/minio@sha256:616286de6ef3a1892876b126e745e152d8e03add6357203f8a1f854bdd1dce76 server /data >/dev/null \
   || abortar "minio"
 docker run -d --name "$GANCHO" --network "$REDE" -p 127.0.0.1::8080 alpine:3.20 sh -c \
   'mkdir -p /alertas; while true; do printf "HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n" | nc -l -p 8080 >>/alertas/log; done' \
