@@ -25,7 +25,7 @@ public sealed class PafConsumoLicencaTests(FshWebApplicationFactory factory) : I
     private readonly PafTenantCliente _tenant = new(factory, "paf-cl");
     private ConnectionMultiplexer _multiplexer = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await Task.WhenAll(_valkey.StartAsync(), _tenant.InicializarAsync());
         var opcoes = ConfigurationOptions.Parse(_valkey.GetConnectionString());
@@ -34,7 +34,7 @@ public sealed class PafConsumoLicencaTests(FshWebApplicationFactory factory) : I
         (await Conjunto(comValkey: true).MarcarReconstruidoAsync(CancellationToken.None)).ShouldBeTrue();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _multiplexer.DisposeAsync();
         await _valkey.DisposeAsync();

@@ -43,8 +43,9 @@ export type AuthContextValue = {
   permissionsHydrated: boolean;
   /** Truthy iff the current access token carries act_sub (impersonation mode). */
   impersonation: ImpersonationInfo | null;
-  /** PAF (O2): e-mail and password only; the server answers which company the session belongs to. */
-  login: (input: { email: string; password: string }) => Promise<void>;
+  /** PAF (O2): e-mail and password only; the server answers which company the session belongs to. The code is the
+   *  second step of a 2FA sign-in. */
+  login: (input: { email: string; password: string; twoFactorCode?: string }) => Promise<void>;
   logout: () => void;
   /** Clears the local session with no call to the server: for when the server already ended it (SessaoInvalidada). */
   logoutLocal: () => void;
@@ -164,10 +165,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Hydrate (or re-hydrate) the permission list from the server whenever the
   // signed-in subject changes — covers cold-start, login, and impersonation
   // swaps. Permissions live server-side per role, not in the JWT.
+  // Signed out → nothing to hydrate. Adjusted during render (not in the
+  // effect below) so there's no extra commit with a stale `false`.
+  if (!user && !permissionsHydrated) {
+    setPermissionsHydrated(true);
+  }
+
   useEffect(() => {
     if (!user) {
       lastHydratedSubject.current = null;
-      setPermissionsHydrated(true);
       return;
     }
     if (lastHydratedSubject.current === user.id && permissionsHydrated) {
@@ -226,7 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(
-    async (input: { email: string; password: string }) => {
+    async (input: { email: string; password: string; twoFactorCode?: string }) => {
       // Stale permissions from a previous user must not leak into the new
       // session — clear before issuing the token so the hydration effect
       // re-fetches from scratch.

@@ -74,10 +74,10 @@ export function FilePreviewDialog({ fileAssetId, initial, onClose, onDeleted }: 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   // Reset the inline confirm state every time the dialog closes so the next file
-  // opens cleanly in its non-armed state.
-  useEffect(() => {
-    if (!open) setConfirmingDelete(false);
-  }, [open]);
+  // opens cleanly in its non-armed state. Adjusted during render, not in an effect.
+  if (!open && confirmingDelete) {
+    setConfirmingDelete(false);
+  }
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteFile(fileAssetId!),
@@ -359,8 +359,8 @@ function TextPreview({ url }: { url: string }) {
       try {
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const t = await res.text();
-        if (!cancelled) setText(t.slice(0, 64 * 1024)); // cap at 64 KiB to keep the modal snappy
+        const body = await res.text();
+        if (!cancelled) setText(body.slice(0, 64 * 1024)); // cap at 64 KiB to keep the modal snappy
       } catch (e) {
         if (!cancelled) setErr(e instanceof Error ? e.message : t("preview.fetchFailed"));
       }
@@ -368,7 +368,7 @@ function TextPreview({ url }: { url: string }) {
     return () => {
       cancelled = true;
     };
-  }, [url]);
+  }, [url, t]);
 
   if (err) {
     return <ErrorBand message={t("preview.textError", { err })} />;

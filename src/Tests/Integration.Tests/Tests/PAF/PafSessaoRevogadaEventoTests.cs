@@ -17,7 +17,7 @@ public sealed class PafSessaoRevogadaEventoTests(FshWebApplicationFactory factor
     private const string Sessoes = $"{TestConstants.IdentityBasePath}/sessions";
     private readonly PafTenantCliente _tenant = new(factory, "paf-evrev");
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _tenant.InicializarAsync();
         // A user without a unit logs in only before the PAF reaches the tenant (C03, L23): this tenant goes back to
@@ -25,7 +25,7 @@ public sealed class PafSessaoRevogadaEventoTests(FshWebApplicationFactory factor
         await _tenant.ExecutarAsync($"""UPDATE paf."Unidades" SET "Inicial" = false WHERE "TenantId" = {_tenant.TenantId}""");
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task RevogarUmaSessao_GravaUmaLinhaComSessaoTenantESemDadoPessoal()

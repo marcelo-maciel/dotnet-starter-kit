@@ -27,6 +27,8 @@
   "badge.chat": "Chat",
   "badge.ariaUnread_one": "Chat, {{count, number}} unread message",
   "badge.ariaUnread_other": "Chat, {{count, number}} unread messages",
+  "badge.ariaUnread_zero": "Chat, {{count, number}} unread messages",
   "badge.titleUnread_one": "{{count, number}} unread chat message",
-  "badge.titleUnread_other": "{{count, number}} unread chat messages"
+  "badge.titleUnread_other": "{{count, number}} unread chat messages",
+  "badge.titleUnread_zero": "{{count, number}} unread chat messages"
 }

@@ -12,6 +12,7 @@
   "dependencies": "Dependencies",
   "checksTotal_one": "{{count, number}} check · total",
   "checksTotal_other": "{{count, number}} checks · total",
+  "checksTotal_zero": "{{count, number}} checks · total",
   "hero.Healthy.headline": "All systems operational",
   "hero.Healthy.subline": "Every dependency is responding within tolerance.",
   "hero.Degraded.headline": "Partial degradation",

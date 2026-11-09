@@ -5,7 +5,6 @@ using FSH.Modules.PAF.Contracts.v1.Painel;
 using FSH.Modules.PAF.Contracts.v1.TempoReal;
 using Integration.Tests.Infrastructure;
 using Microsoft.AspNetCore.SignalR.Client;
-using Xunit.Abstractions;
 
 namespace Integration.Tests.Tests.PAF;
 
@@ -23,13 +22,13 @@ public sealed class PafOperacaoTempoRealTests(FshWebApplicationFactory factory, 
     private readonly List<HubConnection> _conexoes = [];
     private PafOperacao _op = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _tenant.InicializarAsync();
         _op = new PafOperacao(factory, _tenant);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         foreach (var conexao in _conexoes)
         {

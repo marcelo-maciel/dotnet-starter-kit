@@ -27,7 +27,7 @@ public sealed class PafConferenciaTenantTests : IAsyncLifetime
         _auth = new AuthHelper(factory);
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var unico = Guid.NewGuid().ToString("N")[..8];
         _tenantA = $"pafct-a-{unico}";
@@ -44,7 +44,7 @@ public sealed class PafConferenciaTenantTests : IAsyncLifetime
         _ = await TokenComRetentativaAsync(_adminA, _tenantA);
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task TokenDoTenantA_ComCabecalhoDoTenantB_RecusadoNaRotaDoKit()

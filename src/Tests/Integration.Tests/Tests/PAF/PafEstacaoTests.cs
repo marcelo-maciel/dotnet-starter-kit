@@ -31,9 +31,9 @@ public sealed class PafEstacaoTests : IAsyncLifetime
         _auth = new AuthHelper(factory);
     }
 
-    public Task InitializeAsync() => _banco.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_banco.InicializarAsync());
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task Resgate_EmiteUmaCredencialPorPapel_GuardaSoHashes_ESegundoResgateFalha()

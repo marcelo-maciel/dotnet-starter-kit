@@ -24,9 +24,9 @@ public sealed class PafReocupacaoLicencaTests(FshWebApplicationFactory factory) 
     private readonly PafTenantCliente _tenant = new(factory, "paf-ro");
     private readonly List<HubConnection> _conexoes = [];
 
-    public Task InitializeAsync() => _tenant.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_tenant.InicializarAsync());
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         foreach (var conexao in _conexoes)
         {

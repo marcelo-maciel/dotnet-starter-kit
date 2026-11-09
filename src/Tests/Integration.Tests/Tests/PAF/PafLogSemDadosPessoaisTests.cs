@@ -38,7 +38,7 @@ public sealed partial class PafLogSemDadosPessoaisTests(PafHostValkey host) : IA
     private HttpClient _admin = default!;
     private HubConnection? _conexao;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         using var root = await ClienteRootAsync();
         var adminEmail = $"admin-{_tenantId}@paf.test";
@@ -61,7 +61,7 @@ public sealed partial class PafLogSemDadosPessoaisTests(PafHostValkey host) : IA
         _tenant.ShouldNotBeNull();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_conexao is not null)
         {

@@ -15,9 +15,9 @@ public sealed class PafSessaoLicencaTests(FshWebApplicationFactory factory) : IA
     private const string Perfil = $"{TestConstants.IdentityBasePath}/profile";
     private readonly PafTenantCliente _tenant = new(factory, "paf-lic");
 
-    public Task InitializeAsync() => _tenant.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_tenant.InicializarAsync());
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     // First test of ADR 0008: if the closed behavior were not applied by Mediator, this login would succeed.
     [Fact]

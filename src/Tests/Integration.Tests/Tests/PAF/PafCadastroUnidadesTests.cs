@@ -20,9 +20,9 @@ public sealed class PafCadastroUnidadesTests(FshWebApplicationFactory factory) :
 
     private readonly PafTenantCliente _tenant = new(factory, "paf-cun");
 
-    public Task InitializeAsync() => _tenant.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_tenant.InicializarAsync());
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task Empresa_CriaUnidade_QueApareceNaListaSemEditarOEscopo_SemContrato()

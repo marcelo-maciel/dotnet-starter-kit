@@ -16,7 +16,7 @@ RUN npm run build && node scripts/check-csp-hash.mjs
 FROM nginx:1.31.8-alpine3.24 AS runtime
 WORKDIR /usr/share/nginx/html
 
-# nginx:alpine needs `envsubst` from gettext (it ships busybox without it).
+# nginx alpine images need `envsubst` from gettext (it ships busybox without it).
 RUN apk add --no-cache gettext
 
 # Replace the default nginx site
@@ -32,7 +32,7 @@ COPY docker/csp.conf.template /etc/fsh/csp.conf.template
 COPY docker/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
-# Non-root: nginx:alpine includes the `nginx` user (uid 101).
+# Non-root: the nginx alpine image includes the `nginx` user (uid 101).
 # We do NOT switch to it here because the upstream image's master process
 # needs root to bind :80; nginx will fork workers as the `nginx` user on
 # its own per its default config.

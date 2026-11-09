@@ -27,13 +27,13 @@ public sealed class PafParametrosGeraisTests(FshWebApplicationFactory factory) :
     private readonly PafTenantCliente _tenant = new(factory, "paf-ger");
     private PafOperacao _op = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _tenant.InicializarAsync();
         _op = new PafOperacao(factory, _tenant);
     }
 
-    public Task DisposeAsync() => _op.DrenarCaixaDeSaidaAsync();
+    public ValueTask DisposeAsync() => new(_op.DrenarCaixaDeSaidaAsync());
 
     // ─── mensagem ao chamar e voz ────────────────────────────────────
 

@@ -20,7 +20,7 @@ namespace PAF.Latencia.Tests;
 /// single-instance measurement connect) and instance B (where a second connection of each painel sits, for the
 /// reference hop through the backplane), and the D20 volume connected over real WebSockets.
 /// </summary>
-public sealed class AmbienteLatencia : IAsyncLifetime, IAsyncDisposable
+public sealed class AmbienteLatencia : IAsyncLifetime
 {
     /// <summary>Fichas emitted and aged per unidade before any call (D20: 600 a day per unidade; enough for every phase).</summary>
     public const int FichasPorUnidade = 30;
@@ -56,7 +56,7 @@ public sealed class AmbienteLatencia : IAsyncLifetime, IAsyncDisposable
 
     internal RetransmissorComAtraso Retransmissor => _retransmissor;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await Task.WhenAll(_postgres.StartAsync(), _valkey.StartAsync());
         _retransmissor = new RetransmissorComAtraso(_valkey.Hostname, _valkey.GetMappedPublicPort(6379));
@@ -91,11 +91,10 @@ public sealed class AmbienteLatencia : IAsyncLifetime, IAsyncDisposable
         }
     }
 
-    Task IAsyncLifetime.DisposeAsync() => LiberarAsync();
-
+    // xUnit v3 disposes the fixture through IAsyncDisposable (IAsyncLifetime extends it). A second call finds
+    // everything released.
     async ValueTask IAsyncDisposable.DisposeAsync() => await LiberarAsync();
 
-    // xunit may reach the fixture through both interfaces: the second call finds everything released.
     private async Task LiberarAsync()
     {
         if (Interlocked.Exchange(ref _liberado, 1) == 1)

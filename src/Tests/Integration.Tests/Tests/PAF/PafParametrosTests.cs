@@ -26,9 +26,9 @@ public sealed class PafParametrosTests(FshWebApplicationFactory factory) : IAsyn
 
     private readonly PafTenantCliente _tenant = new(factory, "paf-par");
 
-    public Task InitializeAsync() => _tenant.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_tenant.InicializarAsync());
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task SemLinha_TodasAsChavesVemDeFabrica_ComOsPadroesDoRf06()

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -63,8 +63,9 @@ function initialsOf(name?: string | null): string {
 /** Square rose-tinted user tile (dos pattern) — shows the profile photo when set,
  *  falling back to initials when there's no image or it fails to load. */
 function SquareUserAvatar({ src, name }: { src?: string | null; name?: string | null }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [src]);
+  // Keyed by the src that failed, so a new src resets it without an effect.
+  const [failedSrc, setFailedSrc] = useState<string | null | undefined>(null);
+  const failed = Boolean(src) && failedSrc === src;
   const showImage = Boolean(src) && !failed;
   return (
     <span
@@ -79,7 +80,7 @@ function SquareUserAvatar({ src, name }: { src?: string | null; name?: string | 
         <img
           src={src ?? undefined}
           alt=""
-          onError={() => setFailed(true)}
+          onError={() => setFailedSrc(src)}
           className="size-full object-cover"
         />
       ) : (

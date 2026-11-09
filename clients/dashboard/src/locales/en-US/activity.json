@@ -10,6 +10,7 @@
   "status.reconnecting": "reconnecting",
   "shown_one": "{{count, number}} event shown",
   "shown_other": "{{count, number}} events shown",
+  "shown_zero": "{{count, number}} events shown",
   "totalCount": "{{total}} total",
   "empty.listeningTitle": "Listening for activity",
   "empty.noEventsTitle": "No events yet",

@@ -3,6 +3,8 @@ set -e
 
 : "${FSH_API_URL:?FSH_API_URL is required (e.g. https://api.example.com)}"
 : "${FSH_DEFAULT_TENANT:=root}"
+# Matches the bundle's own fallback, so an unset variable and an absent config.json agree.
+: "${FSH_DEFAULT_LANGUAGE:=en-US}"
 
 # The inactivity timings are bare JSON numbers in the template, so each needs a value and it
 # must be a positive integer. The defaults mirror DEFAULT_INACTIVITY_* in src/env.ts.
@@ -16,7 +18,7 @@ require_positive_ms() {
 require_positive_ms FSH_INACTIVITY_IDLE_MS "$FSH_INACTIVITY_IDLE_MS"
 require_positive_ms FSH_INACTIVITY_WARNING_MS "$FSH_INACTIVITY_WARNING_MS"
 
-export FSH_API_URL FSH_DEFAULT_TENANT FSH_INACTIVITY_IDLE_MS FSH_INACTIVITY_WARNING_MS
+export FSH_API_URL FSH_DEFAULT_TENANT FSH_INACTIVITY_IDLE_MS FSH_INACTIVITY_WARNING_MS FSH_DEFAULT_LANGUAGE
 
 # FSH_API_URL lands verbatim in the CSP: a value with a path would become a path source that blocks /api/v1
 # once the policy is enforced, and a ';' would inject directives. Accept a bare origin only, else refuse to start.

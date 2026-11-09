@@ -74,14 +74,16 @@ export const AuditTag = {
 } as const;
 export type AuditTag = (typeof AuditTag)[keyof typeof AuditTag];
 
+// `name` is the AuditTag member: the lookup key of the page's tag labels (TAG_KEY_BY_NAME in pages/audits.tsx), not
+// the text shown.
 export const AUDIT_TAG_LABELS: Array<{ flag: number; name: string }> = [
-  { flag: AuditTag.PiiMasked, name: "PII mascarado" },
-  { flag: AuditTag.OutOfQuota, name: "Cota excedida" },
-  { flag: AuditTag.Sampled, name: "Amostrado" },
-  { flag: AuditTag.RetainedLong, name: "Retido" },
-  { flag: AuditTag.HealthCheck, name: "Verificação de saúde" },
-  { flag: AuditTag.Authentication, name: "Autenticação" },
-  { flag: AuditTag.Authorization, name: "Autorização" },
+  { flag: AuditTag.PiiMasked, name: "PiiMasked" },
+  { flag: AuditTag.OutOfQuota, name: "OutOfQuota" },
+  { flag: AuditTag.Sampled, name: "Sampled" },
+  { flag: AuditTag.RetainedLong, name: "RetainedLong" },
+  { flag: AuditTag.HealthCheck, name: "HealthCheck" },
+  { flag: AuditTag.Authentication, name: "Authentication" },
+  { flag: AuditTag.Authorization, name: "Authorization" },
 ];
 
 export function decodeTags(mask: number): string[] {

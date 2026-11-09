@@ -10,6 +10,7 @@
   "status.reconnecting": "reconectando",
   "shown_one": "{{count}} evento na tela",
   "shown_other": "{{count}} eventos na tela",
+  "shown_zero": "{{count}} eventos na tela",
   "totalCount": "{{total}} no total",
   "empty.listeningTitle": "Aguardando atividade",
   "empty.noEventsTitle": "Nenhum evento ainda",

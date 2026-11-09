@@ -86,13 +86,13 @@ const SEVERITY_KEY: Record<AuditSeverity, ParseKeys<"audits">> = {
   Critical: "severity.critical",
 };
 const TAG_KEY_BY_NAME: Record<string, ParseKeys<"audits">> = {
-  "PII masked": "tag.piiMasked",
-  "Quota exceeded": "tag.quotaExceeded",
+  PiiMasked: "tag.piiMasked",
+  OutOfQuota: "tag.quotaExceeded",
   Sampled: "tag.sampled",
-  Retained: "tag.retained",
-  "Health check": "tag.healthCheck",
-  Auth: "tag.auth",
-  Authz: "tag.authz",
+  RetainedLong: "tag.retained",
+  HealthCheck: "tag.healthCheck",
+  Authentication: "tag.auth",
+  Authorization: "tag.authz",
 };
 
 // ────────────────────────────────────────────────────────────────────────
@@ -139,12 +139,15 @@ function severityColorVar(severity: AuditSeverity): string {
         : "var(--color-muted-foreground)";
 }
 
-function eventTypeIcon(eventType: AuditEventType): React.ComponentType<React.SVGProps<SVGSVGElement>> {
-  if (eventType === AuditEventType.Security) return Shield;
-  if (eventType === AuditEventType.Exception) return CircleAlert;
-  if (eventType === AuditEventType.EntityChange) return Database;
-  if (eventType === AuditEventType.Activity) return Activity;
-  return Hash;
+type EventTypeIconProps = { eventType: AuditEventType } & Omit<React.SVGProps<SVGSVGElement>, "ref">;
+
+// Module-level so the chosen glyph never becomes a component created during render.
+function EventTypeIcon({ eventType, ...props }: EventTypeIconProps) {
+  if (eventType === AuditEventType.Security) return <Shield {...props} />;
+  if (eventType === AuditEventType.Exception) return <CircleAlert {...props} />;
+  if (eventType === AuditEventType.EntityChange) return <Database {...props} />;
+  if (eventType === AuditEventType.Activity) return <Activity {...props} />;
+  return <Hash {...props} />;
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -475,7 +478,6 @@ function AuditMobileCard({
 }) {
   const { t } = useTranslation("audits");
   const ts = fmtIsoDense(row.occurredAtUtc);
-  const Icon = eventTypeIcon(row.eventType);
   const tone = severityTone(row.severity);
   const toneColor = severityColorVar(row.severity);
   const actor = row.userName ?? (row.userId ? `${row.userId.slice(0, 8)}…` : t("actor.system"));
@@ -506,7 +508,7 @@ function AuditMobileCard({
               </EntityStatusBadge>
             </div>
             <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[var(--color-muted-foreground)]">
-              <Icon className="size-3" style={{ color: toneColor }} aria-hidden />
+              <EventTypeIcon eventType={row.eventType} className="size-3" style={{ color: toneColor }} aria-hidden />
               <span>{t(EVENT_TYPE_KEY[row.eventType])}</span>
             </div>
           </div>
@@ -540,7 +542,6 @@ function AuditDesktopRow({
 }) {
   const { t } = useTranslation("audits");
   const ts = fmtIsoDense(row.occurredAtUtc);
-  const Icon = eventTypeIcon(row.eventType);
   const tone = severityTone(row.severity);
   const toneColor = severityColorVar(row.severity);
   const actor = row.userName ?? (row.userId ? `${row.userId.slice(0, 8)}…` : t("actor.system"));
@@ -566,7 +567,7 @@ function AuditDesktopRow({
       {/* Event — the plain-English summary is the hero; the raw source sits
           beneath it, muted, for anyone who wants the exact endpoint. */}
       <div className="flex min-w-0 items-start gap-2.5">
-        <Icon className="mt-[3px] size-4 shrink-0" style={{ color: toneColor }} aria-hidden />
+        <EventTypeIcon eventType={row.eventType} className="mt-[3px] size-4 shrink-0" style={{ color: toneColor }} aria-hidden />
         <div className="min-w-0">
           <div className="truncate text-[13px] font-medium leading-snug tracking-tight text-[var(--color-foreground)] first-letter:uppercase">
             {auditPredicate(row)}
@@ -1108,7 +1109,6 @@ function DrawerHeader({ detail, loading }: { detail?: AuditDetailDto; loading: b
     );
   }
 
-  const Icon = eventTypeIcon(detail.eventType);
   const tone = severityTone(detail.severity);
   const toneColor = severityColorVar(detail.severity);
   const ts = fmtIsoDense(detail.occurredAtUtc);
@@ -1134,7 +1134,7 @@ function DrawerHeader({ detail, loading }: { detail?: AuditDetailDto; loading: b
               boxShadow: `inset 0 0 0 1px oklch(from ${toneColor} l c h / 0.25)`,
             }}
           >
-            <Icon className="h-3.5 w-3.5" />
+            <EventTypeIcon eventType={detail.eventType} className="h-3.5 w-3.5" />
           </span>
           <Badge variant={tone === "danger" ? "danger" : tone === "warning" ? "warning" : tone === "info" ? "info" : "default"}>
             {t(SEVERITY_KEY[detail.severity])}
@@ -1385,7 +1385,6 @@ function RelatedEventsSection({
           {sorted.map((row) => {
             const isCurrent = row.id === currentId;
             const tone = severityColorVar(row.severity);
-            const RowIcon = eventTypeIcon(row.eventType);
             const deltaSec = Math.round((Date.parse(row.occurredAtUtc) - currentMs) / 1000);
             const deltaLabel =
               isCurrent
@@ -1417,7 +1416,7 @@ function RelatedEventsSection({
                       : "hover:bg-[var(--color-accent)] cursor-pointer",
                   )}
                 >
-                  <RowIcon className="h-3.5 w-3.5 shrink-0" style={{ color: tone }} aria-hidden />
+                  <EventTypeIcon eventType={row.eventType} className="h-3.5 w-3.5 shrink-0" style={{ color: tone }} aria-hidden />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline gap-2">
                       <span className={cn("truncate text-[12px] font-medium tracking-tight", isCurrent && "text-[var(--color-primary)]")}>

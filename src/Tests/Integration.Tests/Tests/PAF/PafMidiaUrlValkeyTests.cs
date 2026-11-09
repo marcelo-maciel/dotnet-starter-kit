@@ -27,10 +27,10 @@ public sealed class PafMidiaUrlValkeyTests(PafHostValkey host) : IAsyncLifetime
 
     private bool _valkeyPausado;
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
     // A failed assertion must not leave the shared Valkey paused for the next test of the collection.
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_valkeyPausado)
         {

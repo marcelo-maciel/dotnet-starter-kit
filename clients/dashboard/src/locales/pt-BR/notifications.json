@@ -27,6 +27,8 @@
   "badge.chat": "Chat",
   "badge.ariaUnread_one": "Chat, {{count, number}} mensagem não lida",
   "badge.ariaUnread_other": "Chat, {{count, number}} mensagens não lidas",
+  "badge.ariaUnread_zero": "Chat, {{count, number}} mensagens não lidas",
   "badge.titleUnread_one": "{{count, number}} mensagem de chat não lida",
-  "badge.titleUnread_other": "{{count, number}} mensagens de chat não lidas"
+  "badge.titleUnread_other": "{{count, number}} mensagens de chat não lidas",
+  "badge.titleUnread_zero": "{{count, number}} mensagens de chat não lidas"
 }

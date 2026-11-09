@@ -31,6 +31,7 @@
   "detail.trailingInactive": "INACTIVE",
   "detail.subscribed_one": "Subscribed to {{count, number}} event.",
   "detail.subscribed_other": "Subscribed to {{count, number}} events.",
+  "detail.subscribed_zero": "Subscribed to {{count, number}} events.",
   "detail.loading": "Loading subscription…",
   "detail.back": "Subscriptions",
   "detail.loadError": "Failed to load subscription.",

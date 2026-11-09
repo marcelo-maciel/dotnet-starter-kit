@@ -50,7 +50,7 @@ public sealed partial class PafHostLimiteTaxa : WebApplicationFactory<Program>, 
     /// <summary>O IP fixo do Caddy de produção (<c>PAF_IP_CADDY</c> do arquivo de ambiente), o único proxy confiável.</summary>
     public string ProxyConfiavel => _configuracaoDeProducao["TrustedProxyOptions:KnownProxies:0"];
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _postgres.StartAsync();
 
@@ -79,7 +79,7 @@ public sealed partial class PafHostLimiteTaxa : WebApplicationFactory<Program>, 
         await ProvisionarRaizAsync();
     }
 
-    public new async Task DisposeAsync()
+    public override async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
         await _postgres.DisposeAsync();

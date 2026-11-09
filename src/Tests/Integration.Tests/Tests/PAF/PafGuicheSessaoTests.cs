@@ -14,9 +14,9 @@ public sealed class PafGuicheSessaoTests(FshWebApplicationFactory factory) : IAs
     private const string RotaLogout = "/api/v1/paf/sessao/logout";
     private readonly PafTenantCliente _tenant = new(factory, "paf-gui");
 
-    public Task InitializeAsync() => _tenant.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_tenant.InicializarAsync());
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task Guiche_SegundaSessaoNoMesmoGuiche_RecusadaInformandoQuemEsta()

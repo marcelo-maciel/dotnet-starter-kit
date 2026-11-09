@@ -46,7 +46,7 @@ public sealed class PafHostValkey : WebApplicationFactory<Program>, IAsyncLifeti
 
     private readonly RedisContainer _valkey = new RedisBuilder("valkey/valkey:9.1.0-alpine").Build();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await Task.WhenAll(_postgres.StartAsync(), _valkey.StartAsync());
 
@@ -71,7 +71,7 @@ public sealed class PafHostValkey : WebApplicationFactory<Program>, IAsyncLifeti
         (await Services.GetRequiredService<ReconstrucaoLicencas>().ReconstruirAsync(CancellationToken.None)).ShouldBeTrue();
     }
 
-    public new async Task DisposeAsync()
+    public override async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
         await _postgres.DisposeAsync();

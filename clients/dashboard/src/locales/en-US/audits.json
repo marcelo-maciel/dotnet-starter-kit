@@ -24,6 +24,7 @@
   "page.searchPlaceholder": "Search payload, source, user…",
   "page.count_one": "{{count, number}} event found",
   "page.count_other": "{{count, number}} events found",
+  "page.count_zero": "{{count, number}} events found",
   "page.loadError": "Failed to load audits",
   "empty.title": "No audits in this window",
   "empty.body": "Try widening the time range or relaxing the filters. Activity events arrive as soon as the platform handles a request.",

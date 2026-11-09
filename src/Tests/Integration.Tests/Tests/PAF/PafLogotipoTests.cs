@@ -32,9 +32,9 @@ public sealed class PafLogotipoTests(FshWebApplicationFactory factory) : IAsyncL
 
     private readonly PafTenantCliente _tenant = new(factory, "paf-logo");
 
-    public Task InitializeAsync() => _tenant.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_tenant.InicializarAsync());
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task SemLinha_TotemPainelEFicha_ComOLogotipoDoSistema()

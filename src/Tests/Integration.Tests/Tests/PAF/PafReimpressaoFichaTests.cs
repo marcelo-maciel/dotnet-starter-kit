@@ -20,13 +20,13 @@ public sealed class PafReimpressaoFichaTests(FshWebApplicationFactory factory) :
     private readonly PafTenantCliente _tenant = new(factory, "paf-reimp");
     private PafOperacao _op = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _tenant.InicializarAsync();
         _op = new PafOperacao(factory, _tenant);
     }
 
-    public Task DisposeAsync() => _op.DrenarCaixaDeSaidaAsync();
+    public ValueTask DisposeAsync() => new(_op.DrenarCaixaDeSaidaAsync());
 
     [Fact]
     public async Task Reimprimir_MesmaSenhaFilaEIdentificadorPublico_SemFichaNova_MesmoDepoisDeEncaminhada()

@@ -12,6 +12,7 @@
   "dependencies": "Dependências",
   "checksTotal_one": "{{count}} verificações · total",
   "checksTotal_other": "{{count}} verificações · total",
+  "checksTotal_zero": "{{count}} verificações · total",
   "hero.Healthy.headline": "Todos os sistemas funcionando",
   "hero.Healthy.subline": "Todas as dependências estão respondendo dentro do esperado.",
   "hero.Degraded.headline": "Degradação parcial",

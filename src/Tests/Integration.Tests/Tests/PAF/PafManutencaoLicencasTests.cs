@@ -30,7 +30,7 @@ public sealed class PafManutencaoLicencasTests(FshWebApplicationFactory factory)
     private readonly PafTenantCliente _outro = new(factory, "paf-ml2");
     private ConnectionMultiplexer _multiplexer = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await Task.WhenAll(_valkey.StartAsync(), _tenant.InicializarAsync(), _outro.InicializarAsync());
         var opcoes = ConfigurationOptions.Parse(_valkey.GetConnectionString());
@@ -38,7 +38,7 @@ public sealed class PafManutencaoLicencasTests(FshWebApplicationFactory factory)
         _multiplexer = await ConnectionMultiplexer.ConnectAsync(opcoes);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _multiplexer.DisposeAsync();
         await _valkey.DisposeAsync();

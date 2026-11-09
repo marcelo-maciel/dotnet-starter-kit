@@ -7,6 +7,7 @@ import { ProtectedRoute } from "@/auth/protected-route";
 import { RouteError } from "@/components/route-error";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/cn";
+import { loadNamespaces, type LazyNamespace } from "@/i18n";
 import { PafTempoRealProvider } from "@/features/paf/tempo-real/paf-tempo-real-provider";
 import { InicioPaf } from "@/features/paf/navegacao/inicio-paf";
 
@@ -20,14 +21,20 @@ import { InicioPaf } from "@/features/paf/navegacao/inicio-paf";
 // `lazyNamed` wraps a dynamic import that exports a *named* component
 // (we don't use default exports anywhere in this codebase). Returns a
 // shape compatible with React.lazy.
+//
+// `namespaces` lists the route-only translation catalogs the page (and the
+// components it imports) use. They load in parallel with the page chunk, so
+// the page never renders before its text is there. The shell's namespaces
+// (common, auth, notifications) are always loaded and are not listed.
 // ─────────────────────────────────────────────────────────────────────────
 
 function lazyNamed<T extends Record<string, unknown>, K extends keyof T>(
   importer: () => Promise<T>,
   name: K,
+  namespaces: readonly LazyNamespace[] = [],
 ) {
   return lazy(async () => {
-    const mod = await importer();
+    const [mod] = await Promise.all([importer(), loadNamespaces(namespaces)]);
     return { default: mod[name] as ComponentType<unknown> };
   });
 }
@@ -45,8 +52,8 @@ const ConfirmEmailPage = lazyNamed(
   () => import("@/pages/auth/confirm-email"),
   "ConfirmEmailPage",
 );
-const OverviewPage = lazyNamed(() => import("@/pages/overview"), "OverviewPage");
-const ActivityPage = lazyNamed(() => import("@/pages/activity"), "ActivityPage");
+const OverviewPage = lazyNamed(() => import("@/pages/overview"), "OverviewPage", ["overview"]);
+const ActivityPage = lazyNamed(() => import("@/pages/activity"), "ActivityPage", ["activity", "audits"]);
 const NotFoundPage = lazyNamed(() => import("@/pages/not-found"), "NotFoundPage");
 const TenantDeactivatedPage = lazyNamed(
   () => import("@/pages/tenant-deactivated"),
@@ -56,20 +63,14 @@ const ImpersonationEndedPage = lazyNamed(
   () => import("@/pages/impersonation-ended"),
   "ImpersonationEndedPage",
 );
-const SettingsLayout = lazyNamed(
-  () => import("@/pages/settings/settings-layout"),
-  "SettingsLayout",
-);
-const ProfileSettings = lazyNamed(() => import("@/pages/settings/profile"), "ProfileSettings");
-const SecuritySettings = lazyNamed(() => import("@/pages/settings/security"), "SecuritySettings");
-const AppearanceSettings = lazyNamed(
-  () => import("@/pages/settings/appearance"),
-  "AppearanceSettings",
-);
-const HealthPage = lazyNamed(() => import("@/pages/health"), "HealthPage");
-const AuditsPage = lazyNamed(() => import("@/pages/audits"), "AuditsPage");
-const SessionsPage = lazyNamed(() => import("@/pages/system/sessions"), "SessionsPage");
-// PAF (ADR 0008, module registration: PAF screens in the dashboard routes).
+const SettingsLayout = lazyNamed(() => import("@/pages/settings/settings-layout"), "SettingsLayout", ["settings"]);
+const ProfileSettings = lazyNamed(() => import("@/pages/settings/profile"), "ProfileSettings", ["settings", "files"]);
+const SecuritySettings = lazyNamed(() => import("@/pages/settings/security"), "SecuritySettings", ["settings"]);
+const AppearanceSettings = lazyNamed(() => import("@/pages/settings/appearance"), "AppearanceSettings", ["settings"]);
+const HealthPage = lazyNamed(() => import("@/pages/health"), "HealthPage", ["health"]);
+const AuditsPage = lazyNamed(() => import("@/pages/audits"), "AuditsPage", ["audits"]);
+const SessionsPage = lazyNamed(() => import("@/pages/system/sessions"), "SessionsPage", ["system"]);
+// PAF (ADR 0008, module registration: PAF screens in the dashboard routes). They are fixed PT-BR (no catalog).
 const PafResgateVinculoPage = lazyNamed(
   () => import("@/features/paf/estacao/resgate-vinculo-page"),
   "ResgateVinculoPage",

@@ -6,12 +6,15 @@
   "revokeAllFailed": "Falha ao revogar todas",
   "revokedOther_one": "{{count, number}} outra sessão revogada",
   "revokedOther_other": "{{count, number}} outras sessões revogadas",
+  "revokedOther_zero": "{{count, number}} outras sessões revogadas",
   "revokedCount_one": "{{count, number}} sessão revogada",
   "revokedCount_other": "{{count, number}} sessões revogadas",
+  "revokedCount_zero": "{{count, number}} sessões revogadas",
   "active.title": "Sessões ativas",
   "active.description": "Todo navegador ou dispositivo conectado à sua conta neste momento. Revogar uma sessão desconecta aquele dispositivo em cerca de 10 segundos.",
   "otherActiveWarn_one": "{{count, number}} outra sessão está ativa. Desconecte todas de uma vez se suspeitar de comprometimento da conta.",
   "otherActiveWarn_other": "{{count, number}} outras sessões estão ativas. Desconecte todas de uma vez se suspeitar de comprometimento da conta.",
+  "otherActiveWarn_zero": "{{count, number}} outras sessões estão ativas. Desconecte todas de uma vez se suspeitar de comprometimento da conta.",
   "signingOut": "Desconectando…",
   "signOutEverywhere": "Sair de todos os outros",
   "noneFound": "Nenhuma sessão ativa encontrada. (Incluindo esta? Isso seria um bug — atualize a página.)",
@@ -37,6 +40,7 @@
   "card.noneOnRecord": "Nenhuma sessão registrada para este usuário.",
   "card.activeCount_one": "{{count, number}} sessão ativa",
   "card.activeCount_other": "{{count, number}} sessões ativas",
+  "card.activeCount_zero": "{{count, number}} sessões ativas",
   "card.revokeAll": "Revogar todas as sessões",
   "card.loadingLabel": "Carregando"
 }

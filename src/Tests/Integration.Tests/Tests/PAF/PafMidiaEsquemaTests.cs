@@ -16,9 +16,9 @@ public sealed class PafMidiaEsquemaTests(FshWebApplicationFactory factory) : IAs
 {
     private readonly PafBanco _banco = new(factory);
 
-    public Task InitializeAsync() => _banco.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_banco.InicializarAsync());
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task EnvioMidia_DuasInsercoesConcorrentesDaMesmaChave_UmaFalhaNaRestricao()

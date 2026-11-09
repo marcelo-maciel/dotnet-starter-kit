@@ -31,6 +31,7 @@
   "detail.trailingInactive": "INATIVA",
   "detail.subscribed_one": "Inscrita em {{count, number}} evento.",
   "detail.subscribed_other": "Inscrita em {{count, number}} eventos.",
+  "detail.subscribed_zero": "Inscrita em {{count, number}} eventos.",
   "detail.loading": "Carregando assinatura…",
   "detail.back": "Assinaturas",
   "detail.loadError": "Falha ao carregar a assinatura.",

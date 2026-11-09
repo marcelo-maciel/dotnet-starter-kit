@@ -33,13 +33,13 @@ public sealed class PafConcessaoTerminadaGuicheTests(FshWebApplicationFactory fa
     private readonly List<IDisposable> _descartaveis = [];
     private PafOperacao _op = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _tenant.InicializarAsync();
         _op = new PafOperacao(factory, _tenant);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         foreach (var descartavel in _descartaveis)
         {

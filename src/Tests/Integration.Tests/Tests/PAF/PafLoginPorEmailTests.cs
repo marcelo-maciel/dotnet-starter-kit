@@ -29,9 +29,9 @@ public sealed class PafLoginPorEmailTests(FshWebApplicationFactory factory) : IA
     private const string AgenteDeTeste = "PafTeste/1.0";
     private readonly PafTenantCliente _tenant = new(factory, "paf-mail-login");
 
-    public Task InitializeAsync() => _tenant.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_tenant.InicializarAsync());
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task Login_EmailComCaixaEEspacos_EntraNaEmpresaDoEmailComSessaoETenantNoToken()

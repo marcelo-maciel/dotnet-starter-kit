@@ -21,9 +21,9 @@ public sealed class PafOperadorUnidadesTests(FshWebApplicationFactory factory) :
     private readonly PafApi _api = new(factory);
     private readonly PafTenantCliente _tenantB = new(factory, "paf-c08");
 
-    public Task InitializeAsync() => _tenantB.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_tenantB.InicializarAsync());
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task RaizComTenantB_ListaSoAsUnidadesDeB_InicialPrimeiro_ComTodosOsContratos()

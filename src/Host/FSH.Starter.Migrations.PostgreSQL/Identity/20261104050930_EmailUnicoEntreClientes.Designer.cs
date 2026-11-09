@@ -90,7 +90,9 @@ namespace FSH.Starter.Migrations.PostgreSQL.Identity
 
                     b.HasKey("Id");
 
-                    b.HasIndex("RoleId");
+                    b.HasIndex("RoleId", "ClaimType", "ClaimValue")
+                        .IsUnique()
+                        .HasDatabaseName("IX_RoleClaims_RoleId_ClaimType_ClaimValue");
 
                     b.ToTable("RoleClaims", "identity");
 
