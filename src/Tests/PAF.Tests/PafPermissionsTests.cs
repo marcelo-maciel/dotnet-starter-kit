@@ -1,4 +1,5 @@
 using System.Reflection;
+using FSH.Framework.Shared.Constants;
 using FSH.Modules.PAF.Contracts.Authorization;
 using FSH.Modules.PAF.Provisionamento;
 
@@ -72,6 +73,14 @@ public sealed class PafPermissionsTests
         PapeisPadrao.PermissoesAdministrador.ShouldContain(PafPermissions.Estatisticas.ViewPorAtendente);
         PapeisPadrao.PermissoesAtendente.ShouldNotContain(PafPermissions.Estatisticas.ViewPorAtendente);
         PafPermissions.All.Single(p => p.Name == PafPermissions.Estatisticas.ViewPorAtendente).IsRoot.ShouldBeFalse();
+    }
+
+    // D5 (09/11/2026): Hangfire.View guards nothing (the /jobs dashboard is behind its own Basic auth), so it stays
+    // off the Basic role every tenant user holds; only the Admin role keeps it.
+    [Fact]
+    public void BasicasDaPlataforma_Should_BeOnlyDashboardView()
+    {
+        SystemPermissions.All.Where(p => p.IsBasic).Select(p => p.Name).ShouldBe([SystemPermissions.Dashboard.View]);
     }
 
     [Fact]

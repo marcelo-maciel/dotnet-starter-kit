@@ -102,8 +102,10 @@ services:
       FSH_API_URL: ${PAF_API_URL:?PAF_API_URL is required}
       FSH_DEFAULT_TENANT: ${PAF_TENANT_PADRAO:?PAF_TENANT_PADRAO is required}
       PAF_INATIVIDADE_MS: ${PAF_INATIVIDADE_MS:?PAF_INATIVIDADE_MS is required}
-    # D04: the inactivity timeout per environment comes from a PAF template mounted over the kit's, so the kit
-    # image and its entrypoint (envsubst into /config.json) stay untouched.
+    # D04: the inactivity timeout per environment comes from a PAF template mounted over the image's
+    # /etc/fsh/config.json.template, which the entrypoint renders with envsubst into /config.json.
+    # ponytail: the image's own template now reads FSH_INACTIVITY_IDLE_MS; passing that variable would retire this
+    # mount and deploy/paf/dashboard/config.json.template.
     volumes:
       - ./dashboard/config.json.template:/etc/fsh/config.json.template:ro
     ports:
