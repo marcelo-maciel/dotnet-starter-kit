@@ -11,8 +11,11 @@ namespace Integration.Tests.Tests.PAF;
 /// Cliente que sai no meio da abertura da conexão ao PafHub (aba fechada, navegação): a conferência da sessão é
 /// cancelada pelo <c>ConnectionAborted</c>, e o filtro encerra sem exceção e sem seguir para o hub. Uma exceção que
 /// sai de <c>OnConnectedAsync</c> o SignalR registra como erro ("Error when dispatching OnConnectedAsync"), o que
-/// em produção virava ruído a cada aba fechada durante o handshake. O controle, com a conexão viva, prova que o
-/// mesmo usuário passa pelo filtro, então o silêncio do primeiro caso vem do cancelamento e não de uma recusa.
+/// em produção virava ruído a cada aba fechada durante o handshake. Sem a exceção, o SignalR chama
+/// <c>OnDisconnectedAsync</c> (que ele pula quando a abertura lança), e o filtro também não segue para o hub ali: a
+/// credencial não foi conferida até o fim, e o hub gravaria a queda de uma estação. O controle, com a conexão viva,
+/// prova que o mesmo usuário passa pelo filtro nos dois eventos, então o silêncio do primeiro caso vem do
+/// cancelamento e não de uma recusa.
 /// </summary>
 [Collection(FshCollectionDefinition.Name)]
 public sealed class PafHubFilterConexaoAbortadaTests(FshWebApplicationFactory factory) : IAsyncLifetime
@@ -30,21 +33,23 @@ public sealed class PafHubFilterConexaoAbortadaTests(FshWebApplicationFactory fa
         using var abortada = new CancellationTokenSource();
         await abortada.CancelAsync();
 
-        var (seguiu, erro) = await ConectarNoFiltroAsync(Principal(token), abortada.Token);
+        var resultado = await ConectarEDesconectarNoFiltroAsync(Principal(token), abortada.Token);
 
-        erro.ShouldBeNull();
-        seguiu.ShouldBeFalse("a conexão já caiu: não há grupo nem registro a montar");
+        resultado.Erro.ShouldBeNull();
+        resultado.SeguiuNaAbertura.ShouldBeFalse("a conexão já caiu: não há grupo nem registro a montar");
+        resultado.SeguiuNaQueda.ShouldBeFalse("credencial não conferida: o hub não registra queda");
     }
 
     [Fact]
-    public async Task ConexaoViva_FiltroSegueParaOHub()
+    public async Task ConexaoViva_FiltroSegueParaOHubNaAberturaENaQueda()
     {
         var token = await TokenDeAtendenteAsync();
 
-        var (seguiu, erro) = await ConectarNoFiltroAsync(Principal(token), CancellationToken.None);
+        var resultado = await ConectarEDesconectarNoFiltroAsync(Principal(token), CancellationToken.None);
 
-        erro.ShouldBeNull();
-        seguiu.ShouldBeTrue();
+        resultado.Erro.ShouldBeNull();
+        resultado.SeguiuNaAbertura.ShouldBeTrue();
+        resultado.SeguiuNaQueda.ShouldBeTrue();
     }
 
     private async Task<string> TokenDeAtendenteAsync()
@@ -55,27 +60,35 @@ public sealed class PafHubFilterConexaoAbortadaTests(FshWebApplicationFactory fa
     }
 
     // Called directly, as in PafReocupacaoLicencaTests: a real client cannot time its exit to land inside the check.
-    private async Task<(bool Seguiu, Exception? Erro)> ConectarNoFiltroAsync(ClaimsPrincipal principal, CancellationToken conexaoAbortada)
+    // Both events on the same caller context, as SignalR does for one connection.
+    private async Task<(bool SeguiuNaAbertura, bool SeguiuNaQueda, Exception? Erro)> ConectarEDesconectarNoFiltroAsync(
+        ClaimsPrincipal principal, CancellationToken conexaoAbortada)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var servicos = scope.ServiceProvider;
         var contexto = new ContextoDeTeste(principal, conexaoAbortada);
         using var hub = new PafHub(servicos.GetRequiredService<ConexoesPaf>(), servicos, NullLogger<PafHub>.Instance);
-        var seguiu = false;
+        var filtro = servicos.GetRequiredService<PafHubFilter>();
+        var vida = new HubLifetimeContext(contexto, servicos, hub);
+        var seguiuNaAbertura = false;
+        var seguiuNaQueda = false;
         try
         {
-            await servicos.GetRequiredService<PafHubFilter>().OnConnectedAsync(
-                new HubLifetimeContext(contexto, servicos, hub),
-                _ =>
-                {
-                    seguiu = true;
-                    return Task.CompletedTask;
-                });
-            return (seguiu, null);
+            await filtro.OnConnectedAsync(vida, _ =>
+            {
+                seguiuNaAbertura = true;
+                return Task.CompletedTask;
+            });
+            await filtro.OnDisconnectedAsync(vida, null, (_, _) =>
+            {
+                seguiuNaQueda = true;
+                return Task.CompletedTask;
+            });
+            return (seguiuNaAbertura, seguiuNaQueda, null);
         }
         catch (Exception ex) when (ex is OperationCanceledException or HubException)
         {
-            return (seguiu, ex);
+            return (seguiuNaAbertura, seguiuNaQueda, ex);
         }
     }
 

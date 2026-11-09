@@ -29,6 +29,9 @@ public sealed partial class PafHubFilter(ILogger<PafHubFilter> logger) : IHubFil
     // Grant check (HybridCache, then Valkey or PostgreSQL) on every hub call.
     private static readonly TimeSpan LimiteConcessao = TimeSpan.FromSeconds(5);
 
+    // Context.Items key of a connection whose client left before the check finished.
+    private const string AbandonadaNaAbertura = "paf:abandonada-na-abertura";
+
     public async Task OnConnectedAsync(HubLifetimeContext context, Func<HubLifetimeContext, Task> next)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -40,9 +43,11 @@ public sealed partial class PafHubFilter(ILogger<PafHubFilter> logger) : IHubFil
         }
         catch (OperationCanceledException) when (context.Context.ConnectionAborted.IsCancellationRequested)
         {
-            // The client left mid-connect (closed tab, navigation): nothing is left to check or set up, and a
-            // cancellation let out of OnConnectedAsync is logged by SignalR as an error. PafHub.OnConnectedAsync takes
-            // the same exit for the same reason.
+            // The client left mid-connect (closed tab, navigation): a cancellation let out of OnConnectedAsync is
+            // logged by SignalR as an error. Returning instead makes SignalR run OnDisconnectedAsync, which it skips
+            // when OnConnectedAsync throws; the mark keeps PafHub.OnDisconnectedAsync from acting on a credential
+            // that was never fully checked (a station would get a drop recorded).
+            context.Context.Items[AbandonadaNaAbertura] = true;
             LogSaiuNaAbertura(logger, context.Context.ConnectionId);
             return;
         }
@@ -50,6 +55,13 @@ public sealed partial class PafHubFilter(ILogger<PafHubFilter> logger) : IHubFil
         // Set here, not inside ConferirAsync: an AsyncLocal set in an awaited method does not flow back to its caller.
         InstalarTenant(context.ServiceProvider, tenant);
         await next(context).ConfigureAwait(false);
+    }
+
+    public Task OnDisconnectedAsync(HubLifetimeContext context, Exception? exception, Func<HubLifetimeContext, Exception?, Task> next)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(next);
+        return context.Context.Items.ContainsKey(AbandonadaNaAbertura) ? Task.CompletedTask : next(context, exception);
     }
 
     public async ValueTask<object?> InvokeMethodAsync(
