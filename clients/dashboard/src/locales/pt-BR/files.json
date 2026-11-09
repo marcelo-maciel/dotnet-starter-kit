@@ -125,7 +125,7 @@
   "pim.close": "Fechar",
   "pim.detachTitle": "Desanexar esta imagem?",
   "pim.detachBody": "A imagem é removida deste produto. ",
-  "pim.detachCoverNote": "Ela é a capa atual — outra imagem será promovida automaticamente.",
+  "pim.detachCoverNote": "Ela é a capa atual; outra imagem será promovida automaticamente.",
   "pim.cancel": "Cancelar",
   "pim.removing": "Removendo…",
   "pim.remove": "Remover"

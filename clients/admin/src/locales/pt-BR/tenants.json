@@ -88,7 +88,7 @@
   "adjust.toast.failedFallback": "Não foi possível ajustar a validade.",
   "create.validation.id": "Letras minúsculas, dígitos, hífens. 3–64 caracteres. Sem hífen no início/fim.",
   "create.validation.min2": "No mínimo 2 caracteres.",
-  "create.validation.email": "Digite um email válido.",
+  "create.validation.email": "Digite um e-mail válido.",
   "create.validation.min8": "No mínimo 8 caracteres.",
   "create.validation.max128": "No máximo 128 caracteres.",
   "create.validation.required": "Obrigatório.",

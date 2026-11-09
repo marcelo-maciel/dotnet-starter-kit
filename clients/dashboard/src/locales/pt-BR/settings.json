@@ -74,7 +74,7 @@
   "appearance.motion.toggle": "Desligar transições e animações decorativas.",
   "appearance.motion.ariaLabel": "Reduzir animações",
   "appearance.custom.ariaLabel": "Destaque personalizado",
-  "appearance.custom.title": "Destaque personalizado — clique para editar",
+  "appearance.custom.title": "Destaque personalizado (clique para editar)",
   "appearance.custom.label": "Personalizado",
   "appearance.custom.spec": "h {{hue}}° · c {{chroma}}%",
   "appearance.custom.dialogTitle": "Escolha a cor da sua marca",

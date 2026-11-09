@@ -115,7 +115,7 @@
   "invoiceDetail.void.title": "Anular",
   "invoiceDetail.void.description": "Cancela a partir de Rascunho ou Emitida. Irreversível.",
   "invoiceDetail.void.reason": "Motivo",
-  "invoiceDetail.void.reasonHint": "Opcional — anexado às observações.",
+  "invoiceDetail.void.reasonHint": "Opcional, anexado às observações.",
   "invoiceDetail.void.reasonPlaceholder": "duplicada · contestada · …",
   "invoiceDetail.void.submit": "Anular fatura",
   "invoiceDetail.void.submitting": "Anulando…",
