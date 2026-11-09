@@ -46,6 +46,7 @@ export function App() {
  */
 function FshToaster() {
   const { theme } = useTheme();
+  const { t } = useTranslation("common");
   return (
     <Toaster
       position="top-right"
@@ -54,6 +55,7 @@ function FshToaster() {
       gap={10}
       expand
       visibleToasts={4}
+      containerAriaLabel={t("shell.notifications")}
       icons={{
         success: <CheckCircle2 className="fsh-toast-glyph" strokeWidth={2.25} />,
         error: <AlertCircle className="fsh-toast-glyph" strokeWidth={2.25} />,
