@@ -35,15 +35,23 @@ internal static partial class ChamadaDeFicha
     /// other atendimento of the ficha in progress. Aliases a, f, ef, p are what <see cref="OrdemDaChamada"/> and the
     /// SELECT lists read. The date test is a lower bound (">= today", same as "= today" because ElegivelDesde only
     /// takes now()) so DataElegibilidade stays a range condition on IX_Atendimentos_Candidatos with the parameter on or off.
+    /// The prioridade is a LATERAL lookup per candidate, fenced by OFFSET 0 so the planner cannot flatten it back into a
+    /// join: as a join it let the planner reach the atendimentos through IX_Atendimentos_PrioridadeId (a merge join, or a
+    /// bitmap AND), which walks every row of the unidade's dominant prioridade, a year of history on a busy unidade
+    /// (PostgreSQL 18, PafIndiceCandidatosTests, 09/11/2026).
     /// </summary>
     public static FormattableString Elegiveis(string tenantId, Guid unidadeId, Guid estacaoId, bool somenteDataAtual) => $"""
               FROM paf."Atendimentos" a
               JOIN paf."Fichas" f ON f."Id" = a."FichaId"
               JOIN paf."EstacaoFilas" ef
                 ON ef."EstacaoId" = {estacaoId} AND ef."Papel" = 'Guiche' AND ef."FilaId" = a."FilaId"
-              JOIN paf."EstacaoPrioridades" ep
-                ON ep."EstacaoId" = {estacaoId} AND ep."PrioridadeId" = a."PrioridadeId"
-              JOIN paf."Prioridades" p ON p."Id" = a."PrioridadeId"
+              CROSS JOIN LATERAL (
+                  SELECT pr."Valor"
+                    FROM paf."Prioridades" pr
+                    JOIN paf."EstacaoPrioridades" ep
+                      ON ep."EstacaoId" = {estacaoId} AND ep."PrioridadeId" = pr."Id"
+                   WHERE pr."Id" = a."PrioridadeId"
+                  OFFSET 0) p
              WHERE a."TenantId" = {tenantId} AND a."UnidadeId" = {unidadeId}
                AND a."Estado" = 'Aguardando'
                AND a."DataElegibilidade" >= CASE WHEN {somenteDataAtual}
