@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { mockJsonResponse, mockProblemDetails } from "../helpers/api-mocks";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // LoginPage is the PUBLIC root-operator sign-in. We deliberately do NOT seed
 // an authed session here — a seeded session makes <LoginPage> redirect away
 // (Navigate to "/") and the form never renders.

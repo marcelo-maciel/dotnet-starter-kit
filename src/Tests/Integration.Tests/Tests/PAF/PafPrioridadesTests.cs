@@ -19,13 +19,13 @@ public sealed class PafPrioridadesTests(FshWebApplicationFactory factory) : IAsy
     private readonly PafTenantCliente _tenant = new(factory, "paf-pri");
     private PafOperacao _op = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _tenant.InicializarAsync();
         _op = new PafOperacao(factory, _tenant);
     }
 
-    public Task DisposeAsync() => _op.DrenarCaixaDeSaidaAsync();
+    public ValueTask DisposeAsync() => new(_op.DrenarCaixaDeSaidaAsync());
 
     [Theory]
     [InlineData("""{"nome":"","valor":1}""")]

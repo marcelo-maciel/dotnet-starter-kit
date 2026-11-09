@@ -34,7 +34,7 @@ public sealed class PafMigracaoLicencaTests(FshWebApplicationFactory factory) : 
     private readonly List<HubConnection> _conexoes = [];
     private ConnectionMultiplexer _multiplexer = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await Task.WhenAll(_valkey.StartAsync(), _tenant.InicializarAsync());
         var opcoes = ConfigurationOptions.Parse(_valkey.GetConnectionString());
@@ -42,7 +42,7 @@ public sealed class PafMigracaoLicencaTests(FshWebApplicationFactory factory) : 
         _multiplexer = await ConnectionMultiplexer.ConnectAsync(opcoes);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         foreach (var conexao in _conexoes)
         {

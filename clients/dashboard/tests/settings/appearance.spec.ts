@@ -2,6 +2,10 @@ import { expect, test } from "@playwright/test";
 import { installShellMocks } from "../helpers/shell-mocks";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // Appearance is entirely client-side — the ThemeProvider toggles the
 // `dark` class on <html> and persists choices to localStorage. No API
 // is hit beyond the shell defaults, so installShellMocks is enough.

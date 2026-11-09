@@ -15,9 +15,9 @@ export function decodeJwt(token: string | null | undefined): JwtClaims | null {
   try {
     const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
     const padded = payload + "=".repeat((4 - (payload.length % 4)) % 4);
-    // atob yields one char per byte (Latin-1); the server signs UTF-8, so "João" would read as "JoÃ£o".
-    const bytes = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
-    const json = new TextDecoder().decode(bytes);
+    // atob yields one char per byte; the payload is UTF-8, so decode the bytes
+    // or "Comitê" renders as "ComitÃª".
+    const json = new TextDecoder().decode(Uint8Array.from(atob(padded), (c) => c.charCodeAt(0)));
     return JSON.parse(json) as JwtClaims;
   } catch {
     return null;

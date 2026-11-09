@@ -378,7 +378,8 @@ test.describe("tenant detail — adjust validity in Brasília", () => {
     const dialog = await openDialog(page, "2026-05-01T03:00:00Z");
 
     await expect(dialog.getByLabel(/^Valid until/)).toHaveValue("2026-05-01");
-    await expect(dialog.getByText(/5\/1\/2026/)).toBeVisible();
+    // lib/format formatDate (#1383) in the suites' en-US: "May 01, 2026".
+    await expect(dialog.getByText(/May 01, 2026/)).toBeVisible();
 
     await dialog.getByLabel(/^Valid until/).fill("2026-09-15");
     const adjustReq = page.waitForRequest(
@@ -395,7 +396,7 @@ test.describe("tenant detail — adjust validity in Brasília", () => {
     await dialog.getByRole("button", { name: "Adjust validity", exact: true }).click();
 
     expect(JSON.parse((await adjustReq).postData() ?? "{}").validUpto).toBe("2026-09-15T03:00:00.000Z");
-    await expect(page.getByText(/9\/15\/2026/).first()).toBeVisible();
+    await expect(page.getByText(/Sep 15, 2026/).first()).toBeVisible();
   });
 
   test("an instant before 03:00 UTC prefills the Brasília day, not the UTC or browser one", async ({ page }) => {
@@ -403,6 +404,6 @@ test.describe("tenant detail — adjust validity in Brasília", () => {
     const dialog = await openDialog(page, "2026-05-01T01:30:00Z");
 
     await expect(dialog.getByLabel(/^Valid until/)).toHaveValue("2026-04-30");
-    await expect(dialog.getByText(/4\/30\/2026/)).toBeVisible();
+    await expect(dialog.getByText(/Apr 30, 2026/)).toBeVisible();
   });
 });

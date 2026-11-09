@@ -25,9 +25,9 @@ public sealed class PafProgramacoesMidiaTests(FshWebApplicationFactory factory) 
     private readonly PafApi _api = new(factory);
     private readonly PafBanco _banco = new(factory);
 
-    public Task InitializeAsync() => _banco.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_banco.InicializarAsync());
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task CriarEditar_TemposCalculados_HoraFinalAcompanhaAEdicaoDaDuracaoDaMidia()
@@ -345,13 +345,13 @@ public sealed class PafProgramacoesMidiaTenantTests(FshWebApplicationFactory fac
     private readonly PafTenantCliente _tenant = new(factory, "paf-m05");
     private readonly PafBanco _banco = new(factory);
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _tenant.InicializarAsync();
         await _banco.InicializarAsync();
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task SoComView_403NasEscritas_ProgramacaoEMidiaDoTenantRaiz404E400()

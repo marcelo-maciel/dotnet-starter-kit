@@ -51,7 +51,7 @@ public sealed class ImpersonationTests : IAsyncLifetime
         _auth = new AuthHelper(factory);
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var uniqueId = Guid.NewGuid().ToString("N")[..8];
         _tenantId = $"imptest-{uniqueId}";
@@ -71,7 +71,7 @@ public sealed class ImpersonationTests : IAsyncLifetime
         _rootAdminUserId = ReadSubject(rootToken.AccessToken);
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     // ─── StartImpersonation ─────────────────────────────────────────────
 

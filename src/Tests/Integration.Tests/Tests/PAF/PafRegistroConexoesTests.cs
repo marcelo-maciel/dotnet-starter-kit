@@ -36,7 +36,7 @@ public sealed class PafRegistroConexoesTests(FshWebApplicationFactory factory) :
     private ConnectionMultiplexer _multiplexer = default!;
     private PafOperacao _op = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await Task.WhenAll(_valkey.StartAsync(), _tenant.InicializarAsync());
         var opcoes = ConfigurationOptions.Parse(_valkey.GetConnectionString());
@@ -46,7 +46,7 @@ public sealed class PafRegistroConexoesTests(FshWebApplicationFactory factory) :
         _op = new PafOperacao(factory, _tenant);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         foreach (var hub in _hubs)
         {

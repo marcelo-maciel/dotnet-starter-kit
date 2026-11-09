@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using FSH.Modules.PAF.Contracts.v1.Atendimentos;
 using StackExchange.Redis;
-using Xunit.Abstractions;
 
 namespace PAF.Latencia.Tests;
 

@@ -85,14 +85,15 @@ try {
   await page.waitForURL((u) => !u.pathname.startsWith("/login"));
   const nomeCliente = `c08walk${Date.now().toString(36)}`;
   await page.goto(`${WEB}/tenants`);
-  await page.getByRole("button", { name: /new tenant/i }).click();
+  // The admin reads pt-BR since the i18n merge (D1): the kit's tenant wording is the pt-BR catalog's.
+  await page.getByRole("button", { name: /nova organização/i }).click();
   // The identifier is derived from the display name (read-only field); read what the dialog will send.
   await page.locator("#ct-name").fill(nomeCliente);
   const tenantId = await page.locator("#ct-id").inputValue();
   const adminEmail = `admin@${tenantId}.test`;
   await page.locator("#ct-adminEmail").fill(adminEmail);
   await page.locator("#ct-adminPassword").fill(SENHA);
-  await page.getByRole("button", { name: "Create tenant" }).click();
+  await page.getByRole("button", { name: "Criar organização" }).click();
   await page.waitForURL(`**/tenants/${tenantId}`, { timeout: 60_000 });
   check("tenant criado pelo admin", true, tenantId);
 

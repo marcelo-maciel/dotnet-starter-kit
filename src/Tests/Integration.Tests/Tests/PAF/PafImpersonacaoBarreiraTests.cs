@@ -35,9 +35,9 @@ public sealed class PafImpersonacaoBarreiraTests(FshWebApplicationFactory factor
 
     private readonly PafTenantCliente _tenant = new(factory, "paf-imp");
 
-    public Task InitializeAsync() => _tenant.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_tenant.InicializarAsync());
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task TokenDoAdminDoCliente_Impersonando_RecusadoNasRotasDoPaf_SemGravar_EAceitoNoKit()

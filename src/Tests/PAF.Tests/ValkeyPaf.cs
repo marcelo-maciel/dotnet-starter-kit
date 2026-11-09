@@ -15,13 +15,13 @@ public sealed class ValkeyPaf : IAsyncLifetime
 
     public IConnectionMultiplexer Multiplexer { get; private set; } = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _container.StartAsync();
         Multiplexer = await NovoMultiplexerAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await Multiplexer.DisposeAsync();
         await _container.DisposeAsync();

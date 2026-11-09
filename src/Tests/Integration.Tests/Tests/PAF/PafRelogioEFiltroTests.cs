@@ -20,9 +20,9 @@ public sealed class PafRelogioEFiltroTests : IAsyncLifetime
         _banco = new PafBanco(factory);
     }
 
-    public Task InitializeAsync() => _banco.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_banco.InicializarAsync());
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     // 02:00Z is still 23:00 of the previous day in São Paulo (UTC-3, no DST since 2019): a UTC cut
     // would give 2026-01-01, so these cases tell the two zones apart on every run.

@@ -6,12 +6,16 @@ import {
   Settings,
   Wifi,
 } from "lucide-react";
+import type { ParseKeys } from "i18next";
 // PAF (ADR 0008, menu entry amended 17/10/2026).
 import { secaoMenuPaf } from "@/features/paf/navegacao/menu-paf";
 
-export type NavSpec = {
+/** A kit entry names a `common` catalog key, resolved at render time; a PAF entry (menu-paf.ts) carries its PT-BR
+ *  label as is. */
+export type NavLabel = { labelKey: ParseKeys<"common">; label?: never } | { label: string; labelKey?: never };
+
+export type NavSpec = NavLabel & {
   to: string;
-  label: string;
   icon: React.ComponentType<{ className?: string }>;
   /**
    * Permission required to see this item. Items without a `perm` are visible to
@@ -29,9 +33,8 @@ export type NavSpec = {
   anyPerm?: readonly string[];
 };
 
-export type NavSection = {
+export type NavSection = ({ captionKey: ParseKeys<"common">; caption?: never } | { caption: string; captionKey?: never }) & {
   id: string;
-  caption: string;
   /** Section-level icon used as a fallback when the sidebar is
    *  collapsed and the section is rendered as a stack of item icons. */
   icon: React.ComponentType<{ className?: string }>;
@@ -45,11 +48,11 @@ export const topNavTop: NavSpec[] = [
   // the PAF product (31/10/2026), nor the kit's Users, Roles and Groups screens (02/11/2026: the client manages its
   // users on /paf/usuarios); Chat, Catalog and Helpdesk left the code (04/11/2026). Out of the menu, and their routes
   // redirect home.
-  { to: "/overview", label: "Visão geral", icon: LayoutDashboard },
+  { to: "/overview", labelKey: "nav.overview", icon: LayoutDashboard },
 ];
 
 export const topNavBottom: NavSpec[] = [
-  { to: "/settings", label: "Minha conta", icon: Settings },
+  { to: "/settings", labelKey: "nav.settings", icon: Settings },
 ];
 
 // Section accordion. Single-select — only one section open at a time.
@@ -57,22 +60,22 @@ export const sections: NavSection[] = [
   secaoMenuPaf,
   {
     id: "operations",
-    caption: "Operações",
+    captionKey: "nav.section.operations",
     icon: Activity,
     items: [
       // Live activity is SSE-backed; the stream is auth-only (no permission), so no gate.
-      { to: "/activity", label: "Atividade ao vivo", icon: Activity },
+      { to: "/activity", labelKey: "nav.liveActivity", icon: Activity },
     ],
   },
   {
     id: "system",
-    caption: "Sistema",
+    captionKey: "nav.section.system",
     icon: HeartPulse,
     items: [
       // Health hits the anonymous /health/ready probe — visible to everyone.
-      { to: "/system/health", label: "Saúde", icon: HeartPulse },
-      { to: "/system/audits", label: "Trilha de auditoria", icon: ScrollText, perm: "Permissions.AuditTrails.View" },
-      { to: "/system/sessions", label: "Sessões", icon: Wifi, perm: "Permissions.Sessions.ViewAll" },
+      { to: "/system/health", labelKey: "nav.health", icon: HeartPulse },
+      { to: "/system/audits", labelKey: "nav.audits", icon: ScrollText, perm: "Permissions.AuditTrails.View" },
+      { to: "/system/sessions", labelKey: "nav.sessions", icon: Wifi, perm: "Permissions.Sessions.ViewAll" },
     ],
   },
 ];

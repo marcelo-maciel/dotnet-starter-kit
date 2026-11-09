@@ -35,9 +35,9 @@ public sealed class PafSessaoRevogacaoTests(FshWebApplicationFactory factory) : 
     private const string Perfil = $"{TestConstants.IdentityBasePath}/profile";
     private readonly PafTenantCliente _tenant = new(factory, "paf-rev");
 
-    public Task InitializeAsync() => _tenant.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_tenant.InicializarAsync());
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task RetirarUnidadeCorrenteDoEscopo_RevogaASessaoNoMesmoAto()

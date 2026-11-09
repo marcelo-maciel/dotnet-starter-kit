@@ -16,7 +16,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Testcontainers.PostgreSql;
-using Xunit.Abstractions;
+using Xunit.Sdk;
 
 namespace PAF.Kestrel.Tests;
 
@@ -59,7 +59,7 @@ public sealed class PafKestrelFactory : WebApplicationFactory<Program>, IAsyncLi
     /// <summary>Base address of the Kestrel listener (http://127.0.0.1:port).</summary>
     public Uri Endereco { get; private set; } = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _postgres.StartAsync();
         StartServer();
@@ -69,7 +69,7 @@ public sealed class PafKestrelFactory : WebApplicationFactory<Program>, IAsyncLi
         await ProvisionarTenantRaizAsync();
     }
 
-    public new async Task DisposeAsync()
+    public override async ValueTask DisposeAsync()
     {
         using (new DiagnosticoParada(Services, _conexoes, _diagnostico))
         {

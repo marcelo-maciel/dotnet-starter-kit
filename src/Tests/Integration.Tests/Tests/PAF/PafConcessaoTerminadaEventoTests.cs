@@ -25,14 +25,14 @@ public sealed class PafConcessaoTerminadaEventoTests(FshWebApplicationFactory fa
 
     private AppTenantInfo? _root;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         using var scope = factory.Services.CreateScope();
         _root = await scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>().GetAsync(TestConstants.RootTenantId);
         _root.ShouldNotBeNull();
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task Revogacao_GravaUmEvento_ComOsDadosDaConcessaoEOMotivo()

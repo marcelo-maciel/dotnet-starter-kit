@@ -7,6 +7,7 @@ using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Contracts.v1.Impersonation;
 using FSH.Modules.Identity.Data;
 using FSH.Modules.Identity.Domain;
+using FSH.Modules.Identity.Localization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Hybrid;
 
@@ -93,7 +94,7 @@ internal sealed class ImpersonationGrantService(
                 reason: reason),
             ImpersonationGrantStatus.Revoked,
             ct).ConfigureAwait(false);
-        if (grant is null) throw new NotFoundException("impersonation grant not found");
+        if (grant is null) throw new NotFoundException("impersonation grant not found").Localized<IdentityResources>("Identity.ImpersonationGrantNotFound");
 
         // An already-terminal grant is returned as is (idempotent). Otherwise the revocation marker is
         // written BEFORE returning so a racing request doesn't slip through with a cached Active marker.

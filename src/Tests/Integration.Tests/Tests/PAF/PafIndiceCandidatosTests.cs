@@ -25,13 +25,13 @@ public sealed class PafIndiceCandidatosTests(FshWebApplicationFactory factory) :
     private readonly PafTenantCliente _tenant = new(factory, "paf-idx");
     private PafOperacao _op = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _tenant.InicializarAsync();
         _op = new PafOperacao(factory, _tenant);
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public void Modelo_DeclaraOIndiceParcialDosCandidatos()

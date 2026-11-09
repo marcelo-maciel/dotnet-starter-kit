@@ -2,6 +2,10 @@ import { expect, test } from "@playwright/test";
 import { mockJsonResponse } from "../helpers/api-mocks";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 const PROFILE = {
   id: TEST_USER.sub,
   userName: "alice",
@@ -77,8 +81,9 @@ test.describe("settings/profile — wired to PUT /identity/profile", () => {
       firstName: "Alicia",
       lastName: "Nguyen-Ortiz",
       phoneNumber: "+1 (555) 000-1234",
-      email: TEST_USER.email,
     });
+    // The profile PUT can't change the e-mail address, so the body must not pretend it can.
+    expect(body).not.toHaveProperty("email");
   });
 
   test("clearing the phone sends an empty string so the server removes it", async ({ page }) => {

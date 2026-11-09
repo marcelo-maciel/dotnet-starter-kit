@@ -15,10 +15,10 @@ public sealed class ConjuntoLicencasTests(ValkeyPaf valkey) : IAsyncLifetime
     private static readonly TimeSpan Prazo = TimeSpan.FromMinutes(10);
     private readonly string _tenant = $"t-{Guid.NewGuid():N}";
 
-    public async Task InitializeAsync() =>
+    public async ValueTask InitializeAsync() =>
         (await Conjunto(Prazo).MarcarReconstruidoAsync(CancellationToken.None)).ShouldBeTrue();
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     private ConjuntoLicencas Conjunto(TimeSpan prazo) => new([valkey.Multiplexer], prazo, NullLogger<ConjuntoLicencas>.Instance);
 

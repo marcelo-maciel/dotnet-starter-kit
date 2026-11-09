@@ -29,13 +29,13 @@ public sealed class PafEmailUnicoEntreClientesTests(FshWebApplicationFactory fac
     private readonly PafTenantCliente _empresaA = new(factory, "paf-mail-a");
     private readonly PafTenantCliente _empresaB = new(factory, "paf-mail-b");
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _empresaA.InicializarAsync();
         await _empresaB.InicializarAsync();
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task CadastroDoPafEDoKit_EmailDeOutraEmpresa_RecusadosSemNomearAEmpresa()

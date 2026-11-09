@@ -16,7 +16,6 @@ using Integration.Tests.Infrastructure;
 using Integration.Tests.Tests.Sessions;
 using Mediator;
 using Microsoft.AspNetCore.Identity;
-using Xunit.Abstractions;
 
 namespace Integration.Tests.Tests.PAF;
 
@@ -70,7 +69,7 @@ public sealed class PafLimiteTaxaTests(PafHostLimiteTaxa host, ITestOutputHelper
     private AppTenantInfo _tenant = default!;
     private HttpClient _admin = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         using var root = await ClienteRootAsync();
         var adminEmail = $"admin-{_tenantId}@paf.test";
@@ -93,10 +92,10 @@ public sealed class PafLimiteTaxaTests(PafHostLimiteTaxa host, ITestOutputHelper
         _tenant.ShouldNotBeNull();
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _admin?.Dispose();
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

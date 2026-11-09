@@ -20,7 +20,6 @@ using Mediator;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Caching.Hybrid;
 using StackExchange.Redis;
-using Xunit.Abstractions;
 
 namespace Integration.Tests.Tests.PAF;
 
@@ -50,7 +49,7 @@ public sealed class PafModoDegradadoTests(PafHostValkey host, ITestOutputHelper 
     private bool _valkeyPausado;
     private bool _postgresPausado;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         using var root = await ClienteRootAsync();
         var adminEmail = $"admin-{_tenantId}@paf.test";
@@ -74,7 +73,7 @@ public sealed class PafModoDegradadoTests(PafHostValkey host, ITestOutputHelper 
     }
 
     // A failed assertion must not leave the shared containers paused for the next test.
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_valkeyPausado)
         {

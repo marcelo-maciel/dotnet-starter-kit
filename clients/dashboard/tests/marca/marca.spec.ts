@@ -2,6 +2,10 @@ import { expect, test, type Page } from "@playwright/test";
 import { installShellMocks } from "../helpers/shell-mocks";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // PAF brand: #0067F0 at the 600 stop (light) and the 500 stop (dark). The ramp is
 // authored in OKLCH, so the expected sRGB is what the browser itself resolves.
 const PAF_BLUE_600 = [2, 103, 240];

@@ -30,9 +30,9 @@ public sealed class PafLimpezaMidiaTests(FshWebApplicationFactory factory) : IAs
     private readonly PafTenantCliente _outro = new(factory, "paf-lm2");
     private readonly List<string> _chaves = [];
 
-    public Task InitializeAsync() => Task.WhenAll(_tenant.InicializarAsync(), _outro.InicializarAsync());
+    public ValueTask InitializeAsync() => new(Task.WhenAll(_tenant.InicializarAsync(), _outro.InicializarAsync()));
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         using var prazo = new CancellationTokenSource(Prazo);
         var s3 = factory.Services.GetRequiredService<IAmazonS3>();

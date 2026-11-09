@@ -19,6 +19,7 @@ import {
 import {
   ESTADO_INICIAL_PAINEL,
   reduzirPainel,
+  type Anuncio,
   type AtendimentoAtualizadoEvento,
   type SenhaChamadaEvento,
 } from "@/features/paf/painel/painel-estado";
@@ -72,7 +73,8 @@ export function PainelPage() {
   const [aparencia, setAparencia] = useState<AparenciaPainel>(APARENCIA_PAINEL_PADRAO);
   const [urlFundo, setUrlFundo] = useState<string | null>(null);
   const [agora, setAgora] = useState(() => new Date());
-  const [faseAlternancia, setFaseAlternancia] = useState(0);
+  // The alternation phase belongs to one highlight: a new highlight reads phase 0 without an effect resetting it.
+  const [alternancia, setAlternancia] = useState<{ de: Anuncio | null; fase: number }>({ de: null, fase: 0 });
   // A ref, not state: the config may arrive mid-highlight and must not restart the current announcement.
   const tempoExibicaoMsRef = useRef(TEMPO_EXIBICAO_PADRAO_S * 1_000);
   // C20: state for the text under the senha, ref for the speech, which is composed once when a highlight starts.
@@ -157,9 +159,13 @@ export function PainelPage() {
   const mostrarDataHora = aparencia.mostrarDataHora;
   useEffect(() => {
     if (!mostrarDataHora) return;
-    setAgora(new Date());
+    // The first tick right away (the clock may have been off for a while), then once a second.
+    const primeiro = window.setTimeout(() => setAgora(new Date()), 0);
     const timer = window.setInterval(() => setAgora(new Date()), RELOGIO_MS);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearTimeout(primeiro);
+      window.clearInterval(timer);
+    };
   }, [mostrarDataHora]);
 
   // One announcement at a time: the next one leaves the queue only when the highlight ends.
@@ -189,10 +195,13 @@ export function PainelPage() {
 
   // The legacy attention cue: the highlighted call alternates its text color, only when the cadastro set the colors.
   const alternar = destaque !== null && aparencia.cores !== null;
+  const faseAlternancia = alternancia.de === destaque ? alternancia.fase : 0;
   useEffect(() => {
-    setFaseAlternancia(0);
     if (!alternar) return;
-    const timer = window.setInterval(() => setFaseAlternancia((f) => f + 1), INTERVALO_ALTERNANCIA_MS);
+    const timer = window.setInterval(
+      () => setAlternancia((a) => ({ de: destaque, fase: a.de === destaque ? a.fase + 1 : 1 })),
+      INTERVALO_ALTERNANCIA_MS,
+    );
     return () => window.clearInterval(timer);
   }, [alternar, destaque]);
 

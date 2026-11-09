@@ -25,9 +25,9 @@ public sealed class PafSenhaUsuarioTests(FshWebApplicationFactory factory) : IAs
     private const string SenhaNova = "Nova@5678!";
     private readonly PafTenantCliente _tenant = new(factory, "paf-senha");
 
-    public Task InitializeAsync() => _tenant.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_tenant.InicializarAsync());
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task AdminDoTenant_DefineSenha_NovaEntraAntigaRecusadaESessoesEConexoesCaem()

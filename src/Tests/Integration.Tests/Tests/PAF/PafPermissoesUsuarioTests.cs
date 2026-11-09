@@ -22,9 +22,9 @@ public sealed class PafPermissoesUsuarioTests(FshWebApplicationFactory factory) 
     private const string FichasDoDia = "/fichas/atendimentos";
     private readonly PafTenantCliente _tenant = new(factory, "paf-perm");
 
-    public Task InitializeAsync() => _tenant.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_tenant.InicializarAsync());
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task MarcarSoParaX_XPassaEYComOMesmoPapelPadraoLeva403_DesmarcarVoltaA403NaProximaRequisicao()

@@ -289,9 +289,9 @@ public sealed class PafMidiaCadastroTenantTests(FshWebApplicationFactory factory
 {
     private readonly PafTenantCliente _tenant = new(factory, "paf-m03");
 
-    public Task InitializeAsync() => _tenant.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_tenant.InicializarAsync());
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task SoComView_403NasEscritas_EMidiaDeOutroTenant404()

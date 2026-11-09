@@ -25,13 +25,13 @@ public sealed class PafEstadoSessaoValkeyTests(FshWebApplicationFactory factory)
     private readonly PafTenantCliente _tenant = new(factory, "paf-vk");
     private ConnectionMultiplexer _multiplexer = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await Task.WhenAll(_valkey.StartAsync(), _tenant.InicializarAsync());
         _multiplexer = await ConnectionMultiplexer.ConnectAsync(_valkey.GetConnectionString());
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _multiplexer.DisposeAsync();
         await _valkey.DisposeAsync();

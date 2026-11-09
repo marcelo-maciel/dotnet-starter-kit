@@ -115,4 +115,7 @@
   <data name="Notifications.Billing.InvoiceIssued.Action" xml:space="preserve">
     <value>Você pode ver e baixar esta fatura no seu painel.</value>
   </data>
+  <data name="Notifications.NotificationNotFound" xml:space="preserve">
+    <value>Notificação não encontrada.</value>
+  </data>
 </root>

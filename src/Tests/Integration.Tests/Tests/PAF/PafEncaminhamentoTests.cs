@@ -5,7 +5,6 @@ using FSH.Modules.PAF.Contracts.v1.Atendimentos;
 using FSH.Modules.PAF.Domain;
 using FSH.Modules.PAF.Features.v1.Atendimentos.EncaminharAtendimento;
 using Integration.Tests.Infrastructure;
-using Xunit.Abstractions;
 
 namespace Integration.Tests.Tests.PAF;
 
@@ -23,13 +22,13 @@ public sealed class PafEncaminhamentoTests(FshWebApplicationFactory factory, ITe
     private readonly PafTenantCliente _tenant = new(factory, "paf-enc");
     private PafOperacao _op = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _tenant.InicializarAsync();
         _op = new PafOperacao(factory, _tenant);
     }
 
-    public Task DisposeAsync() => _op.DrenarCaixaDeSaidaAsync();
+    public ValueTask DisposeAsync() => new(_op.DrenarCaixaDeSaidaAsync());
 
     // ─── destinos ────────────────────────────────────────────────────
 

@@ -43,9 +43,9 @@ public sealed class PafHubTests : IAsyncLifetime
         _banco = new PafBanco(factory);
     }
 
-    public Task InitializeAsync() => _banco.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_banco.InicializarAsync());
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         foreach (var conexao in _conexoes)
         {

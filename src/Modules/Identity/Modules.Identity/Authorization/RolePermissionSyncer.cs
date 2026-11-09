@@ -9,13 +9,17 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace FSH.Modules.Identity.Authorization;
 
 /// <summary>
-/// Adds missing permission claims to the built-in roles (<see cref="RoleConstants.Admin"/>,
-/// <see cref="RoleConstants.Basic"/>) for the current Finbuckle tenant context. Idempotent —
-/// only inserts claims that don't already exist, so it can run on every startup safely.
+/// Reconciles the permission claims of the built-in roles (<see cref="RoleConstants.Admin"/>,
+/// <see cref="RoleConstants.Basic"/>) with the permission catalog for the current Finbuckle tenant
+/// context: adds the missing ones and removes the ones the catalog no longer grants. Authoritative
+/// because those roles are locked against manual edits, so no operator change can be lost.
+/// Idempotent, so it can run on every startup safely. Removal can be turned off with
+/// <see cref="PermissionSyncOptions.RemoveRevoked"/>.
 /// </summary>
 public sealed class RolePermissionSyncer(
     IdentityDbContext context,
@@ -23,6 +27,7 @@ public sealed class RolePermissionSyncer(
     IMultiTenantContextAccessor<AppTenantInfo> tenantAccessor,
     HybridCache cache,
     TimeProvider timeProvider,
+    IOptions<PermissionSyncOptions> options,
     ILogger<RolePermissionSyncer> logger)
 {
     public async Task SyncAsync(CancellationToken cancellationToken)
@@ -31,29 +36,30 @@ public sealed class RolePermissionSyncer(
         bool isRoot = tenantId == MultitenancyConstants.Root.Id;
 
         // A root-only permission can also be basic (the root tenant's users get it by default); a client's Basic role
-        // must not, or the removal below would take it off again on every startup.
+        // must not, or the authoritative sync would grant it there.
         var basicPermissions = isRoot
             ? PermissionConstants.Basic
             : [.. PermissionConstants.Basic.Where(p => !p.IsRoot)];
-        int basicAdded = await SyncRoleAsync(RoleConstants.Basic, basicPermissions, cancellationToken).ConfigureAwait(false);
+        int basicChanged = await SyncRoleAsync(RoleConstants.Basic, basicPermissions, cancellationToken).ConfigureAwait(false);
 
         // Admin gets all non-root permissions; the root tenant's Admin additionally gets Root permissions.
         var adminPermissions = isRoot
             ? PermissionConstants.Admin.Concat(PermissionConstants.Root).Distinct().ToList()
             : PermissionConstants.Admin.ToList();
-        int adminAdded = await SyncRoleAsync(RoleConstants.Admin, adminPermissions, cancellationToken).ConfigureAwait(false);
+        int adminChanged = await SyncRoleAsync(RoleConstants.Admin, adminPermissions, cancellationToken).ConfigureAwait(false);
+        // The two syncs above only reconcile the built-in roles; a client's custom roles (Gerente, Atendente...) can
+        // still hold a permission that became root-only after they were granted it.
         int rootOnlyRemoved = isRoot ? 0 : await RemoveRootOnlyClaimsAsync(cancellationToken).ConfigureAwait(false);
-        int noLongerBasicRemoved = isRoot ? 0 : await RemoveNoLongerBasicClaimsAsync(basicPermissions, cancellationToken).ConfigureAwait(false);
 
         // If we wrote anything, drop the per-user permission cache so already-logged-in
-        // sessions see the new perms on their next request rather than waiting for TTL.
-        if (basicAdded + adminAdded + rootOnlyRemoved + noLongerBasicRemoved > 0)
+        // sessions see the change on their next request rather than waiting for TTL.
+        if (basicChanged + adminChanged + rootOnlyRemoved > 0)
         {
             await cache.RemoveByTagAsync(CacheKeys.Tags.Permissions, cancellationToken).ConfigureAwait(false);
         }
     }
 
-    private async Task<int> SyncRoleAsync(string roleName, IReadOnlyList<FshPermission> targetPermissions, CancellationToken cancellationToken)
+    internal async Task<int> SyncRoleAsync(string roleName, IReadOnlyList<FshPermission> targetPermissions, CancellationToken cancellationToken)
     {
         var role = await roleManager.Roles
             .SingleOrDefaultAsync(r => r.Name == roleName, cancellationToken)
@@ -66,10 +72,10 @@ public sealed class RolePermissionSyncer(
 
         var existing = await context.RoleClaims
             .Where(rc => rc.RoleId == role.Id && rc.ClaimType == ClaimConstants.Permission)
-            .Select(rc => rc.ClaimValue!)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
-        var existingSet = existing.ToHashSet(StringComparer.Ordinal);
+        var existingSet = existing.Select(rc => rc.ClaimValue).ToHashSet(StringComparer.Ordinal);
+        var targetSet = targetPermissions.Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
 
         var toAdd = targetPermissions
             .Where(p => !existingSet.Contains(p.Name))
@@ -83,15 +89,45 @@ public sealed class RolePermissionSyncer(
             })
             .ToList();
 
-        if (toAdd.Count == 0)
+        var toRemove = SelectRevokedClaims(roleName, existing, targetSet);
+
+        if (toAdd.Count == 0 && toRemove.Count == 0)
         {
             return 0;
         }
 
+        context.RoleClaims.RemoveRange(toRemove);
         await context.RoleClaims.AddRangeAsync(toAdd, cancellationToken).ConfigureAwait(false);
-        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        switch (await TrySaveAsync(cancellationToken).ConfigureAwait(false))
+        {
+            case SaveOutcome.LostDeleteRace:
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation(
+                        "Permission sync for '{Role}' in tenant '{Tenant}' lost a race with another instance; its changes are already applied",
+                        roleName,
+                        tenantAccessor.MultiTenantContext.TenantInfo?.Id);
+                }
 
-        if (logger.IsEnabled(LogLevel.Information))
+                return 0;
+            case SaveOutcome.AlreadyInserted:
+                logger.LogRoleClaimsAlreadyInserted(roleName, tenantAccessor.MultiTenantContext.TenantInfo?.Id);
+                return 0;
+        }
+
+        if (toRemove.Count > 0 && logger.IsEnabled(LogLevel.Warning))
+        {
+            foreach (var claim in toRemove)
+            {
+                logger.LogWarning(
+                    "Removed permission claim '{Permission}' from '{Role}' for tenant '{Tenant}': the permission catalog no longer grants it",
+                    claim.ClaimValue,
+                    roleName,
+                    tenantAccessor.MultiTenantContext.TenantInfo?.Id);
+            }
+        }
+
+        if (toAdd.Count > 0 && logger.IsEnabled(LogLevel.Information))
         {
             logger.LogInformation(
                 "Synced {Count} new permission claim(s) to '{Role}' for tenant '{Tenant}'",
@@ -100,12 +136,73 @@ public sealed class RolePermissionSyncer(
                 tenantAccessor.MultiTenantContext.TenantInfo?.Id);
         }
 
-        return toAdd.Count;
+        return toAdd.Count + toRemove.Count;
+    }
+
+    private enum SaveOutcome
+    {
+        Saved,
+        LostDeleteRace,
+        AlreadyInserted,
     }
 
     /// <summary>
-    /// A permission that became root-only stays on the roles of tenants seeded before the change, because
-    /// adding is all the sync above does. This takes it off every role of a non-root tenant.
+    /// Saves the pending claim changes. Another instance starting at the same time can get there first:
+    /// it deleted the same rows (a delete matched 0 rows) or inserted the same grant (the unique index on
+    /// role claims rejected ours). Its write already reached the same end state, so neither is an error.
+    /// </summary>
+    private async Task<SaveOutcome> TrySaveAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return SaveOutcome.Saved;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Drop the failed entries, or the next role's save in this scope would retry them.
+            context.ChangeTracker.Clear();
+            return SaveOutcome.LostDeleteRace;
+        }
+        catch (DbUpdateException ex) when (RoleClaimUniqueness.IsDuplicateRoleClaim(ex))
+        {
+            context.ChangeTracker.Clear();
+            return SaveOutcome.AlreadyInserted;
+        }
+    }
+
+    private List<FshRoleClaim> SelectRevokedClaims(string roleName, List<FshRoleClaim> existing, HashSet<string> targetSet)
+    {
+        if (!options.Value.RemoveRevoked)
+        {
+            return [];
+        }
+
+        // An empty target means the catalog is missing, not that the role should hold nothing.
+        if (targetSet.Count == 0)
+        {
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning(
+                    "Skipped permission removal for '{Role}' in tenant '{Tenant}': the permission catalog grants it nothing",
+                    roleName,
+                    tenantAccessor.MultiTenantContext.TenantInfo?.Id);
+            }
+
+            return [];
+        }
+
+        // A null value grants nothing, so it is as stale as a retired permission.
+        return existing
+            .Where(rc => rc.ClaimValue is null || !targetSet.Contains(rc.ClaimValue))
+            .ToList();
+    }
+
+    /// <summary>
+    /// A permission that became root-only stays on the custom roles of tenants seeded before the change: the sync
+    /// above reconciles only the built-in roles. This takes it off every role of a non-root tenant whatever
+    /// <see cref="PermissionSyncOptions.RemoveRevoked"/> says, because a client holding a root-only permission is a
+    /// tenant-isolation breach, not catalog drift.
     /// </summary>
     private async Task<int> RemoveRootOnlyClaimsAsync(CancellationToken cancellationToken)
     {
@@ -124,48 +221,16 @@ public sealed class RolePermissionSyncer(
         }
 
         context.RoleClaims.RemoveRange(stale);
-        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        // Deletes only: losing the race to another instance's delete is the one way this save can be beaten.
+        if (await TrySaveAsync(cancellationToken).ConfigureAwait(false) != SaveOutcome.Saved)
+        {
+            return 0;
+        }
 
         if (logger.IsEnabled(LogLevel.Information))
         {
             logger.LogInformation(
                 "Removed {Count} root-only permission claim(s) from tenant '{Tenant}'",
-                stale.Count,
-                tenantAccessor.MultiTenantContext.TenantInfo?.Id);
-        }
-
-        return stale.Count;
-    }
-
-    /// <summary>
-    /// A permission that stopped being basic (AuditTrails.View, 03/11/2026) stays on the Basic role of tenants seeded
-    /// before the change, for the same reason. A client's roles are root-only administration since 02/11/2026, so its
-    /// Basic role holds exactly what the sync gives it: a registered permission outside the basic set is taken off.
-    /// Claims that are not registered permissions are left alone.
-    /// </summary>
-    private async Task<int> RemoveNoLongerBasicClaimsAsync(IReadOnlyList<FshPermission> basicPermissions, CancellationToken cancellationToken)
-    {
-        var basic = basicPermissions.Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
-        var notBasic = PermissionConstants.All.Select(p => p.Name).Where(name => !basic.Contains(name)).ToList();
-        var basicRoleIds = roleManager.Roles.Where(r => r.Name == RoleConstants.Basic).Select(r => r.Id);
-        var stale = await context.RoleClaims
-            .Where(rc => basicRoleIds.Contains(rc.RoleId)
-                && rc.ClaimType == ClaimConstants.Permission
-                && notBasic.Contains(rc.ClaimValue!))
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
-        if (stale.Count == 0)
-        {
-            return 0;
-        }
-
-        context.RoleClaims.RemoveRange(stale);
-        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-        if (logger.IsEnabled(LogLevel.Information))
-        {
-            logger.LogInformation(
-                "Removed {Count} no-longer-basic permission claim(s) from the Basic role of tenant '{Tenant}'",
                 stale.Count,
                 tenantAccessor.MultiTenantContext.TenantInfo?.Id);
         }

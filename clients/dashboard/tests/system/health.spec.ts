@@ -3,6 +3,10 @@ import { mockJsonResponse } from "../helpers/api-mocks";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 import { installShellMocks } from "../helpers/shell-mocks";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // The readiness probe lives at the ORIGIN (no /api/v1 prefix) and is
 // fetched anonymously by src/api/health.ts → `${env.apiBase}/health/ready`.
 // In the test config apiBase is "" (see public/config.json), so the call

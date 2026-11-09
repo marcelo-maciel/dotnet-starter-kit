@@ -39,7 +39,7 @@ public sealed class PafMonitoramentoEstacoesTests(FshWebApplicationFactory facto
     private readonly List<HubConnection> _hubs = [];
     private ConnectionMultiplexer _multiplexer = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await Task.WhenAll(_valkey.StartAsync(), _tenantA.InicializarAsync(), _tenantB.InicializarAsync());
         var opcoes = ConfigurationOptions.Parse(_valkey.GetConnectionString());
@@ -47,7 +47,7 @@ public sealed class PafMonitoramentoEstacoesTests(FshWebApplicationFactory facto
         _multiplexer = await ConnectionMultiplexer.ConnectAsync(opcoes);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         foreach (var hub in _hubs)
         {

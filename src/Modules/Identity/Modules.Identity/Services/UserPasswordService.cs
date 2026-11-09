@@ -81,11 +81,7 @@ internal sealed class UserPasswordService(
         var user = await userManager.FindByEmailAsync(email);
         if (user == null)
         {
-            throw new NotFoundException("user not found")
-            {
-                MessageKey = "Identity.UserNotFound",
-                ResourceSource = typeof(IdentityResources),
-            };
+            throw new NotFoundException("user not found").Localized<IdentityResources>("Identity.UserNotFound");
         }
 
         token = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(token));
@@ -95,10 +91,7 @@ internal sealed class UserPasswordService(
         {
             var errors = result.Errors.Select(e => e.Description).ToList();
             throw new CustomException("error resetting password", errors)
-            {
-                MessageKey = "Identity.ErrorResettingPassword",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.ErrorResettingPassword");
         }
 
         // Raise domain event for password reset
@@ -111,11 +104,7 @@ internal sealed class UserPasswordService(
     {
         var user = await userManager.FindByIdAsync(userId);
 
-        _ = user ?? throw new NotFoundException("user not found")
-        {
-            MessageKey = "Identity.UserNotFound",
-            ResourceSource = typeof(IdentityResources),
-        };
+        _ = user ?? throw new NotFoundException("user not found").Localized<IdentityResources>("Identity.UserNotFound");
 
         var result = await userManager.ChangePasswordAsync(user, password, newPassword);
 
@@ -123,10 +112,7 @@ internal sealed class UserPasswordService(
         {
             var errors = result.Errors.Select(e => e.Description).ToList();
             throw new CustomException("failed to change password", errors)
-            {
-                MessageKey = "Identity.FailedToChangePassword",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.FailedToChangePassword");
         }
 
         // Raise domain event for password change
@@ -146,10 +132,7 @@ internal sealed class UserPasswordService(
         EnsureValidTenant();
 
         var user = await userManager.FindByIdAsync(userId) ?? throw new NotFoundException("user not found")
-            {
-                MessageKey = "Identity.UserNotFound",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.UserNotFound");
 
         // A user who never changed his password has an empty history, so the current one is checked on its own.
         if (await userManager.CheckPasswordAsync(user, newPassword)
@@ -159,9 +142,7 @@ internal sealed class UserPasswordService(
                 "password reused",
                 [sharedLocalizer["Validation.PasswordRecentlyUsed"]],
                 HttpStatusCode.BadRequest)
-            {
-                MessageKey = "Validation.PasswordRecentlyUsed",
-            };
+                .Localized("Validation.PasswordRecentlyUsed");
         }
 
         // Reset (not Remove + Add) so the policy validators run and the hash is replaced in a single write.
@@ -170,10 +151,7 @@ internal sealed class UserPasswordService(
         if (!result.Succeeded)
         {
             throw new CustomException("error setting password", result.Errors.Select(e => e.Description), HttpStatusCode.BadRequest)
-            {
-                MessageKey = "Identity.ErrorSettingPassword",
-                ResourceSource = typeof(IdentityResources),
-            };
+                .Localized<IdentityResources>("Identity.ErrorSettingPassword");
         }
 
         var tenantId = multiTenantContextAccessor?.MultiTenantContext?.TenantInfo?.Id;
@@ -187,10 +165,7 @@ internal sealed class UserPasswordService(
     {
         if (string.IsNullOrWhiteSpace(multiTenantContextAccessor?.MultiTenantContext?.TenantInfo?.Id))
         {
-            throw new UnauthorizedException("invalid tenant")
-            {
-                MessageKey = "Error.InvalidTenant",
-            };
+            throw new UnauthorizedException("invalid tenant").Localized("Error.InvalidTenant");
         }
     }
 }

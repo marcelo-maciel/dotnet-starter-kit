@@ -21,9 +21,9 @@ public sealed class PafAtoImpersonacaoTests(FshWebApplicationFactory factory) : 
 
     private readonly PafTenantCliente _tenant = new(factory, "paf-ato");
 
-    public Task InitializeAsync() => _tenant.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_tenant.InicializarAsync());
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task Codefi_Impersonando_CriaFilaEEditaEstacao_UmAtoPorEscritaComOperadorEConcessao()

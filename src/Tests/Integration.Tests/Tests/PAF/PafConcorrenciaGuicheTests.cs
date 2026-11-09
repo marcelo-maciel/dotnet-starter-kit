@@ -31,13 +31,13 @@ public sealed partial class PafConcorrenciaGuicheTests(FshWebApplicationFactory 
     private readonly List<HttpClient> _clientes = [];
     private PafOperacao _op = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _tenant.InicializarAsync();
         _op = new PafOperacao(factory, _tenant);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         foreach (var conexao in _conexoes)
         {

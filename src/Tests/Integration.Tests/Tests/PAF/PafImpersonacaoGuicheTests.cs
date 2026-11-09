@@ -32,13 +32,13 @@ public sealed class PafImpersonacaoGuicheTests(FshWebApplicationFactory factory)
     private readonly List<HubConnection> _conexoes = [];
     private readonly List<IDisposable> _caixas = [];
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _tenant.InicializarAsync();
         _op = new PafOperacao(factory, _tenant);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         foreach (var caixa in _caixas)
         {

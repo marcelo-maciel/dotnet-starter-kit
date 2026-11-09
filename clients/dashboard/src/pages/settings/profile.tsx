@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Fingerprint, UserCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/use-auth";
@@ -14,6 +15,7 @@ import { SettingsSection } from "@/pages/settings/settings-layout";
 const PROFILE_KEY = ["identity", "me"] as const;
 
 export function ProfileSettings() {
+  const { t } = useTranslation("settings");
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -25,12 +27,15 @@ export function ProfileSettings() {
   const profile = profileQuery.data?.profile;
   const loading = profileQuery.isLoading;
 
-  // The version this form is editing against, captured when the form is seeded. Deliberately a
-  // ref and not `profileQuery.data`: a background refetch would otherwise move it to a version
-  // the user never saw, and the save would carry an If-Match that matches whatever someone else
-  // just wrote — silently overwriting it, which is exactly what the ETag exists to prevent. It
+  // The version this form is editing against, captured when the form is seeded. Deliberately its
+  // own state and not `profileQuery.data`: a background refetch would otherwise move it to a
+  // version the user never saw, and the save would carry an If-Match that matches whatever someone
+  // else just wrote — silently overwriting it, which is exactly what the ETag exists to prevent. It
   // moves only on a deliberate step: a successful save, or the user being told about a conflict.
-  const editingVersionRef = useRef<{ profile: UserDto; etag: string | null } | null>(null);
+  const [editingVersion, setEditingVersion] = useState<{
+    profile: UserDto;
+    etag: string | null;
+  } | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
@@ -38,22 +43,43 @@ export function ProfileSettings() {
   // Seed the form from the fetched profile exactly once. The JWT-derived
   // `user` provides an immediate non-empty paint; the authoritative profile
   // then seeds and locks. Seeding once means a later background refetch
-  // can't clobber edits the user has already made.
-  const seededRef = useRef(false);
-  useEffect(() => {
-    if (seededRef.current) return;
-    if (profileQuery.data) {
-      const { profile: seeded } = profileQuery.data;
-      setFirstName(seeded.firstName ?? "");
-      setLastName(seeded.lastName ?? "");
-      setPhone(seeded.phoneNumber ?? "");
-      editingVersionRef.current = profileQuery.data;
-      seededRef.current = true;
-    } else if (user && loading) {
-      setFirstName(user.name?.split(" ")[0] ?? "");
-      setLastName(user.name?.split(" ").slice(1).join(" ") ?? "");
+  // can't clobber edits the user has already made. Both steps adjust state
+  // during render (guarded so each fires once per input change) rather than
+  // in an effect.
+  const [seeded, setSeeded] = useState(false);
+  const [prefilledFrom, setPrefilledFrom] = useState<typeof user | null>(null);
+  if (!seeded && profileQuery.data) {
+    const { profile: seededProfile } = profileQuery.data;
+    setFirstName(seededProfile.firstName ?? "");
+    setLastName(seededProfile.lastName ?? "");
+    setPhone(seededProfile.phoneNumber ?? "");
+    setEditingVersion(profileQuery.data);
+    setSeeded(true);
+  } else if (!seeded && user && loading && prefilledFrom !== user) {
+    setPrefilledFrom(user);
+    setFirstName(user.name?.split(" ")[0] ?? "");
+    setLastName(user.name?.split(" ").slice(1).join(" ") ?? "");
+  }
+
+  // A clean form has nothing to lose, so it follows a refetch: both the version it edits against
+  // and the values on screen move together, which keeps the user looking at what the tag says.
+  // Without this, a write the form did not make (the topbar language switch rotates the stamp too)
+  // strands it on a spent tag, and the next save 412s against the user's own change. A dirty form
+  // keeps its version, so a genuine concurrent edit still surfaces as a conflict. Adjusted during
+  // render; adopting `next` makes `next === editingVersion`, so it settles in one pass.
+  const nextVersion = profileQuery.data;
+  if (seeded && editingVersion && nextVersion && nextVersion !== editingVersion) {
+    const clean =
+      (editingVersion.profile.firstName ?? "") === firstName &&
+      (editingVersion.profile.lastName ?? "") === lastName &&
+      (editingVersion.profile.phoneNumber ?? "") === phone;
+    if (clean) {
+      setEditingVersion(nextVersion);
+      setFirstName(nextVersion.profile.firstName ?? "");
+      setLastName(nextVersion.profile.lastName ?? "");
+      setPhone(nextVersion.profile.phoneNumber ?? "");
     }
-  }, [profileQuery.data, user, loading]);
+  }
 
   // Re-reads the profile and adopts it as the version the form edits against, so the next save
   // carries a tag the server will accept.
@@ -65,14 +91,14 @@ export function ProfileSettings() {
       // and the cached copy carries the very tag the server just rejected.
       staleTime: 0,
     });
-    editingVersionRef.current = fresh;
+    setEditingVersion(fresh);
     return fresh;
   };
 
   const saveMutation = useMutation({
     mutationFn: updateMyProfile,
     onSuccess: async () => {
-      toast.success("Perfil salvo");
+      toast.success(t("profile.toastSaved"));
       // The save moved the profile on, so the tag the form holds is spent: adopt the new one or
       // a second save in the same sitting would 412 against the user's own write. Awaited rather
       // than fire-and-forget: isPending has to stay true until the new tag is in hand, or the
@@ -88,24 +114,21 @@ export function ProfileSettings() {
       // edits on screen, adopt the current version, and let them decide whether to save again.
       if (err instanceof ApiRequestError && err.status === 412) {
         await adoptCurrentVersion();
-        toast.warning("Perfil alterado em outro lugar", {
-          description:
-            "Alguém atualizou este perfil enquanto você editava. Revise suas alterações e salve de novo para aplicá-las.",
-        });
+        toast.warning(t("profile.conflict"), { description: t("profile.conflictDetail") });
         return;
       }
 
       const message =
         err instanceof ApiRequestError
           ? err.problem?.detail ?? err.problem?.title ?? err.message
-          : "Falha ao salvar o perfil";
-      toast.error("Falha ao salvar", { description: message });
+          : t("profile.saveError");
+      toast.error(t("profile.toastSaveFail"), { description: message });
     },
   });
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const editing = editingVersionRef.current;
+    const editing = editingVersion;
     if (!editing) return;
     // Everything the save needs travels through mutate(), never through state the callbacks
     // close over: the values that go out must be the ones on screen when the button was pressed.
@@ -117,6 +140,8 @@ export function ProfileSettings() {
       // "" (not null) when the field was emptied: updateMyProfile reads null as "keep the stored
       // value", so null here made a phone number impossible to remove.
       phoneNumber: phone.trim(),
+      // null keeps the stored language: the PAF has no language choice to save.
+      locale: null,
     });
   };
 
@@ -144,18 +169,15 @@ export function ProfileSettings() {
           role="alert"
           className="flex items-start gap-2 rounded-lg border border-[oklch(from_var(--color-destructive)_l_c_h_/_0.30)] bg-[oklch(from_var(--color-destructive)_l_c_h_/_0.06)] px-3 py-2 text-[13px] text-[var(--color-destructive)]"
         >
-          <span>
-            Não foi possível carregar seu perfil. Os dados mostrados vêm da sua sessão; salvar fica
-            desligado até o perfil carregar, porque o salvamento precisa levar a versão lida.
-          </span>
+          <span>{t("profile.loadError")}</span>
         </div>
       )}
       {/* No photo section: the PAF never shows the profile photo, and the URL an upload stores points at R2's S3 API
           endpoint, which has no anonymous read (decided 08/11/2026). The topbar falls back to the initials. */}
       <SettingsSection
-        title="Identificação"
+        title={t("profile.identity.title")}
         icon={UserCircle2}
-        description="Seu nome e seus dados de contato, visíveis em todo o sistema."
+        description={t("profile.identity.description")}
         footer={
           <div className="flex items-center justify-end gap-2">
             <Button
@@ -165,16 +187,16 @@ export function ProfileSettings() {
               disabled={saving || !dirty || !canSave}
               size="sm"
             >
-              Desfazer
+              {t("profile.reset")}
             </Button>
             <Button type="submit" disabled={saving || !dirty || !canSave} size="sm">
-              {saving ? "Salvando…" : "Salvar alterações"}
+              {saving ? t("profile.saving") : t("profile.save")}
             </Button>
           </div>
         }
       >
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field id="first-name" label="Nome">
+          <Field id="first-name" label={t("profile.field.firstName")}>
             <Input
               id="first-name"
               value={firstName}
@@ -184,7 +206,7 @@ export function ProfileSettings() {
               className="h-10 text-[13px]"
             />
           </Field>
-          <Field id="last-name" label="Sobrenome">
+          <Field id="last-name" label={t("profile.field.lastName")}>
             <Input
               id="last-name"
               value={lastName}
@@ -194,7 +216,7 @@ export function ProfileSettings() {
               className="h-10 text-[13px]"
             />
           </Field>
-          <Field id="email" label="E-mail">
+          <Field id="email" label={t("profile.field.email")}>
             <Input
               id="email"
               type="email"
@@ -204,17 +226,17 @@ export function ProfileSettings() {
               className="h-10 cursor-not-allowed bg-[var(--color-muted)] text-[13px]"
             />
             <p className="mt-1 text-[11px] text-[var(--color-muted-foreground)]">
-              Fale com o administrador da empresa para trocar o e-mail de entrada.
+              {t("profile.emailHint")}
             </p>
           </Field>
-          <Field id="phone" label="Telefone">
+          <Field id="phone" label={t("profile.field.phone")}>
             <Input
               id="phone"
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               autoComplete="tel"
-              placeholder="+1 (555) 123-4567"
+              placeholder={t("profile.phonePlaceholder")}
               disabled={loading}
               className="h-10 text-[13px]"
             />
@@ -223,9 +245,9 @@ export function ProfileSettings() {
       </SettingsSection>
 
       <SettingsSection
-        title="Identificador da conta"
+        title={t("profile.subject.title")}
         icon={Fingerprint}
-        description="O ID único desta conta dentro do sistema. Somente leitura."
+        description={t("profile.subject.description")}
       >
         <code className="block w-full overflow-x-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] px-3 py-2 font-mono text-xs">
           {profile?.id ?? user?.id ?? "—"}

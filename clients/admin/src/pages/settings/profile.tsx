@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Fingerprint, ShieldCheck } from "lucide-react";
 import { getMyProfile } from "@/api/users";
 import { Input } from "@/components/ui/input";
@@ -16,16 +17,17 @@ import { ApiRequestError } from "@/lib/api-client";
  * endpoint, which has no anonymous read (decided 08/11/2026). The topbar falls back to the initials.
  */
 export function ProfileSettings() {
+  const { t } = useTranslation("settings");
   const profile = useQuery({ queryKey: ["identity", "profile"], queryFn: getMyProfile });
 
-  if (profile.isLoading) return <LoadingRow label="Loading profile" />;
+  if (profile.isLoading) return <LoadingRow label={t("profile.loading")} />;
   if (profile.isError) {
     return (
       <ErrorBand
         message={
           profile.error instanceof ApiRequestError
             ? (profile.error.problem?.detail ?? profile.error.message)
-            : "Failed to load profile."
+            : t("profile.loadError")
         }
       />
     );
@@ -36,18 +38,18 @@ export function ProfileSettings() {
     [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
     user.userName ||
     user.email ||
-    "Account";
+    t("profile.fallbackName");
 
   return (
     <div className="space-y-5 fsh-enter">
       {/* Identity — read-only; admin must update these server-side */}
       <SettingsSection
-        title="Identity"
+        title={t("profile.identity.title")}
         icon={Fingerprint}
-        description="Your account details. These are managed by an administrator — contact one if changes are needed."
+        description={t("profile.identity.description")}
       >
         <div className="grid gap-5 sm:grid-cols-2">
-          <SettingsField id="profile-username" label="Username">
+          <SettingsField id="profile-username" label={t("profile.field.username")}>
             <Input
               id="profile-username"
               value={user.userName ?? ""}
@@ -55,7 +57,7 @@ export function ProfileSettings() {
               className="font-mono bg-[var(--color-muted)] cursor-not-allowed"
             />
           </SettingsField>
-          <SettingsField id="profile-display" label="Display name">
+          <SettingsField id="profile-display" label={t("profile.field.displayName")}>
             <Input
               id="profile-display"
               value={displayName}
@@ -63,7 +65,7 @@ export function ProfileSettings() {
               className="bg-[var(--color-muted)] cursor-not-allowed"
             />
           </SettingsField>
-          <SettingsField id="profile-email" label="Email">
+          <SettingsField id="profile-email" label={t("profile.field.email")}>
             <Input
               id="profile-email"
               type="email"
@@ -73,11 +75,11 @@ export function ProfileSettings() {
             />
             {user.emailConfirmed !== undefined && (
               <p className="mt-1 text-[11px] text-[var(--color-muted-foreground)]">
-                {user.emailConfirmed ? "Address verified" : "Not yet verified"}
+                {user.emailConfirmed ? t("profile.addressVerified") : t("profile.addressNotVerified")}
               </p>
             )}
           </SettingsField>
-          <SettingsField id="profile-phone" label="Phone">
+          <SettingsField id="profile-phone" label={t("profile.field.phone")}>
             <Input
               id="profile-phone"
               value={user.phoneNumber ?? "—"}
@@ -90,28 +92,28 @@ export function ProfileSettings() {
 
       {/* Status badges */}
       <SettingsSection
-        title="Account status"
+        title={t("profile.status.title")}
         icon={ShieldCheck}
-        description="Runtime flags on this account. Contact an operator to change them."
+        description={t("profile.status.description")}
       >
         <div className="flex flex-wrap items-center gap-2">
           <Badge
             variant={user.isActive ? "success" : "muted"}
             className="font-mono uppercase tracking-[0.14em]"
           >
-            {user.isActive ? "Active" : "Disabled"}
+            {user.isActive ? t("profile.badge.active") : t("profile.badge.disabled")}
           </Badge>
           <Badge
             variant={user.emailConfirmed ? "info" : "warning"}
             className="font-mono uppercase tracking-[0.14em]"
           >
-            {user.emailConfirmed ? "Email confirmed" : "Email pending"}
+            {user.emailConfirmed ? t("profile.badge.emailConfirmed") : t("profile.badge.emailPending")}
           </Badge>
           <Badge
             variant={user.twoFactorEnabled ? "success" : "outline"}
             className="font-mono uppercase tracking-[0.14em]"
           >
-            {user.twoFactorEnabled ? "2FA enabled" : "2FA off"}
+            {user.twoFactorEnabled ? t("profile.badge.twoFaEnabled") : t("profile.badge.twoFaOff")}
           </Badge>
         </div>
       </SettingsSection>

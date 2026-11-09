@@ -1,5 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // Regression: a stale, EXPIRED access token left in localStorage (e.g. from a
 // session days ago, or before a DB reseed) must NOT make the app treat you as
 // signed in. The auth provider attempts ONE silent refresh at boot:

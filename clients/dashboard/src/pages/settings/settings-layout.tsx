@@ -1,4 +1,6 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
+import type { ParseKeys } from "i18next";
+import { useTranslation } from "react-i18next";
 import {
   ChevronRight,
   Palette,
@@ -13,8 +15,8 @@ import { cn } from "@/lib/cn";
 
 type Tab = {
   to: string;
-  label: string;
-  hint: string;
+  labelKey: ParseKeys<"settings">;
+  hintKey: ParseKeys<"settings">;
   icon: LucideIcon;
   /**
    * Permission required to see this tab. Tabs without a `perm` are visible to
@@ -26,9 +28,9 @@ type Tab = {
 };
 
 const TABS: Tab[] = [
-  { to: "/settings/profile", label: "Perfil", hint: "Seus dados na empresa", icon: UserRound },
-  { to: "/settings/security", label: "Segurança", hint: "Senha e sessões ativas", icon: Shield },
-  { to: "/settings/appearance", label: "Aparência", hint: "Tema e preferências visuais", icon: Palette },
+  { to: "/settings/profile", labelKey: "tab.profile.label", hintKey: "tab.profile.hint", icon: UserRound },
+  { to: "/settings/security", labelKey: "tab.security.label", hintKey: "tab.security.hint", icon: Shield },
+  { to: "/settings/appearance", labelKey: "tab.appearance.label", hintKey: "tab.appearance.hint", icon: Palette },
   // Marca, Notificações and Chaves de API are not part of the PAF product (02/11/2026); their routes redirect home.
 ];
 
@@ -41,14 +43,16 @@ const pad2 = (n: number) => n.toString().padStart(2, "0");
  * masthead at the top of the content, sections rendered as warm-paper cards.
  */
 export function SettingsLayout() {
+  const { t } = useTranslation("settings");
   const location = useLocation();
   const { user } = useAuth();
   const perms = user?.permissions ?? [];
-  // Drop tabs the user can't reach, same gate the sidebar uses.
-  const tabs = TABS.filter((t) => !t.perm || perms.includes(t.perm));
+  // Drop tabs the user can't reach, same gate the sidebar uses. `branding`
+  // hides for users without Tenants.UpdateTheme.
+  const tabs = TABS.filter((tab) => !tab.perm || perms.includes(tab.perm));
   const activeIndex = Math.max(
     0,
-    tabs.findIndex((t) => location.pathname.startsWith(t.to)),
+    tabs.findIndex((tab) => location.pathname.startsWith(tab.to)),
   );
   const active = tabs[activeIndex] ?? tabs[0];
 
@@ -61,7 +65,7 @@ export function SettingsLayout() {
         icon={SettingsIcon}
         title={
           <span className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-            <span>Minha conta</span>
+            <span>{t("title")}</span>
             <span
               aria-hidden
               className="text-[oklch(from_var(--color-border-strong)_l_c_h_/_0.7)]"
@@ -69,20 +73,20 @@ export function SettingsLayout() {
               ·
             </span>
             <span className="font-display text-[20px] font-semibold tracking-tight text-[var(--color-foreground)]">
-              {active.label}
+              {t(active.labelKey)}
             </span>
           </span>
         }
-        description={active.hint}
+        description={t(active.hintKey)}
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[260px_1fr] lg:gap-10">
         {/* ─── Editorial left nav ─── */}
-        <nav aria-label="Seções de Minha conta">
+        <nav aria-label={t("sectionsNav")}>
           {/* Desktop: vertical numbered list */}
           <div className="sticky top-6 hidden lg:block">
             <p className="mb-4 pl-5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.6)]">
-              Seções
+              {t("sections")}
             </p>
             <ul className="relative space-y-px">
               {/* Faint vertical rail tying the numbers together */}
@@ -90,12 +94,12 @@ export function SettingsLayout() {
                 aria-hidden
                 className="absolute left-[14px] top-1 bottom-1 w-px bg-[oklch(from_var(--color-border)_l_c_h_/_0.6)]"
               />
-              {tabs.map((t, i) => {
+              {tabs.map((tab, i) => {
                 const num = pad2(i + 1);
                 return (
-                  <li key={t.to}>
+                  <li key={tab.to}>
                     <NavLink
-                      to={t.to}
+                      to={tab.to}
                       end
                       className={({ isActive }) =>
                         cn(
@@ -133,10 +137,10 @@ export function SettingsLayout() {
                                   : "text-[var(--color-muted-foreground)] group-hover:text-[var(--color-foreground)]",
                               )}
                             >
-                              {t.label}
+                              {t(tab.labelKey)}
                             </span>
                             <span className="mt-0.5 block truncate text-[11px] text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.6)]">
-                              {t.hint}
+                              {t(tab.hintKey)}
                             </span>
                           </span>
                           <ChevronRight
@@ -160,7 +164,7 @@ export function SettingsLayout() {
           {/* Mobile: horizontal scroll tabs */}
           <div className="-mx-2 overflow-x-auto pb-1 lg:hidden">
             <div className="flex gap-1 px-2">
-              {tabs.map(({ to, label, icon: Icon }) => (
+              {tabs.map(({ to, labelKey, icon: Icon }) => (
                 <NavLink
                   key={to}
                   to={to}
@@ -177,7 +181,7 @@ export function SettingsLayout() {
                   }
                 >
                   <Icon className="size-3.5" aria-hidden />
-                  {label}
+                  {t(labelKey)}
                 </NavLink>
               ))}
             </div>

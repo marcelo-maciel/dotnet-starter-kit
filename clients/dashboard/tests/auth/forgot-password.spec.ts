@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { captureRequest, mockJsonResponse, mockProblemDetails } from "../helpers/api-mocks";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // PAF (O3): the form asks for the e-mail only; the server finds the company and the emailed link carries it.
 const FORGOT_BY_EMAIL = "**/api/v1/identity/forgot-password-by-email";
 

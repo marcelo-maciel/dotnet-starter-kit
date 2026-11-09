@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   ChevronDown,
   PanelLeftClose,
@@ -44,6 +45,7 @@ function useCollapsedSidebar() {
 }
 
 export function Sidebar() {
+  const { t } = useTranslation("common");
   const { collapsed, toggle } = useCollapsedSidebar();
   const location = useLocation();
 
@@ -57,23 +59,19 @@ export function Sidebar() {
   // On every route change, re-sync the expanded section to the route's
   // owning section. This re-opens the right section when the user
   // navigates via the command palette, browser back/forward, or any
-  // link outside the sidebar.
-  useEffect(() => {
-    const next = findSectionForPath(location.pathname);
-    if (next !== null) {
-      setOpenSection(next);
-    }
-    // If the route is a top-level page (Overview / Settings), close the
-    // accordion entirely so no section is highlighted.
-    else {
-      setOpenSection(null);
-    }
-  }, [location.pathname]);
+  // link outside the sidebar. A top-level page (Overview / Settings)
+  // resolves to null, closing the accordion entirely. Adjusted during
+  // render (react.dev "adjusting state when a prop changes").
+  const [prevPathname, setPrevPathname] = useState(location.pathname);
+  if (prevPathname !== location.pathname) {
+    setPrevPathname(location.pathname);
+    setOpenSection(findSectionForPath(location.pathname));
+  }
 
   return (
     <aside
       data-collapsed={collapsed || undefined}
-      aria-label="Navegação principal"
+      aria-label={t("nav.primary")}
       className={cn(
         "hidden shrink-0 flex-col border-r border-[var(--color-border)]",
         "bg-[oklch(from_var(--color-card)_l_c_h_/_0.85)] backdrop-blur-xl backdrop-saturate-150 md:flex",
@@ -102,7 +100,7 @@ export function Sidebar() {
                 Passo a <span className="text-[var(--color-primary)]">Frente</span>
               </span>
               <span className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.7)]">
-                Atendimento
+                {t("brand.dashboard")}
               </span>
             </div>
           )}
@@ -112,9 +110,9 @@ export function Sidebar() {
           <button
             type="button"
             onClick={toggle}
-            aria-label="Recolher menu"
+            aria-label={t("sidebar.collapse")}
             aria-expanded={!collapsed}
-            title="Recolher menu"
+            title={t("sidebar.collapse")}
             className={cn(
               "grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-md",
               "text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)] hover:text-[var(--color-foreground)]",
@@ -144,9 +142,9 @@ export function Sidebar() {
           <button
             type="button"
             onClick={toggle}
-            aria-label="Expandir menu"
+            aria-label={t("sidebar.expand")}
             aria-expanded={false}
-            title="Expandir menu"
+            title={t("sidebar.expand")}
             className={cn(
               "grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-md",
               "text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)] hover:text-[var(--color-foreground)]",
@@ -285,6 +283,7 @@ function AccordionSection({
   onToggle: () => void;
   onNavigate?: () => void;
 }) {
+  const { t } = useTranslation("common");
   const SectionIcon = section.icon;
   return (
     <div
@@ -324,7 +323,7 @@ function AccordionSection({
         )}
       >
         <SectionIcon className="h-4 w-4 shrink-0" aria-hidden />
-        <span className="flex-1 truncate">{section.caption}</span>
+        <span className="flex-1 truncate">{section.captionKey ? t(section.captionKey) : section.caption}</span>
         <ChevronDown
           aria-hidden
           className={cn(
@@ -393,15 +392,17 @@ function NavItemLink({
    *  itself once the user navigates somewhere. */
   onNavigate?: () => void;
 }) {
+  const { t } = useTranslation("common");
   const Icon = item.icon;
+  const label = item.labelKey ? t(item.labelKey) : item.label;
   return (
     <NavLink
       to={item.to}
       end={item.to === "/"}
-      title={collapsed ? item.label : undefined}
+      title={collapsed ? label : undefined}
       // When collapsed the text label is hidden, so the icon-only link needs
       // an explicit accessible name (title alone is the weakest AT signal).
-      aria-label={collapsed ? item.label : undefined}
+      aria-label={collapsed ? label : undefined}
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
@@ -430,7 +431,7 @@ function NavItemLink({
           <Icon className="h-4 w-4 shrink-0" />
 
           {!collapsed && (
-            <span className="whitespace-nowrap">{item.label}</span>
+            <span className="whitespace-nowrap">{label}</span>
           )}
 
           {/* Tooltip in collapsed mode — surfaces on hover OR keyboard
@@ -448,7 +449,7 @@ function NavItemLink({
                 "group-hover/nav:opacity-100 group-focus-visible/nav:opacity-100",
               )}
             >
-              {item.label}
+              {label}
             </span>
           )}
         </>

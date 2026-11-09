@@ -5,18 +5,18 @@ import { PermissoesOperadorPaf } from "./api-operador";
 /** PAF section of the admin menu (ADR 0008, menu item): listed by one line in the kit's `nav-items.ts`. */
 export const secaoOperadorPaf: NavSection = {
   id: "paf",
-  caption: "PAF",
+  caption: "paf",
   icon: Building,
   items: [
     {
       to: "/paf/unidades",
-      label: "Unidades e contratos",
+      label: "pafUnits",
       icon: Building,
       perms: [PermissoesOperadorPaf.UnidadesOperar],
     },
     {
       to: "/paf/estacoes",
-      label: "Estações",
+      label: "pafStations",
       icon: MonitorSmartphone,
       perms: [PermissoesOperadorPaf.UnidadesOperar],
     },

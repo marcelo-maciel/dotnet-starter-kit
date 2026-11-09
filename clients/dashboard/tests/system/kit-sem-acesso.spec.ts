@@ -3,6 +3,10 @@ import { mockJsonResponse } from "../helpers/api-mocks";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 import { installShellMocks } from "../helpers/shell-mocks";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // A kit screen the menu hides by permission used to mount when opened by URL, call the API, take a 403 and leave an
 // error in the console (homologação walk: atendente on /system/audits and /system/sessions). The route now shows the
 // notice and mounts nothing.

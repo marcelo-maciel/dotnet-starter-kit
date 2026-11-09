@@ -24,9 +24,9 @@ public sealed class PafUsuariosTests(FshWebApplicationFactory factory) : IAsyncL
     private const string Senha = "Test@1234!";
     private readonly PafTenantCliente _tenant = new(factory, "paf-usr");
 
-    public Task InitializeAsync() => _tenant.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_tenant.InicializarAsync());
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task AdminDaFilial_NaoVeNemEditaDesativaOuCopiaORegional()

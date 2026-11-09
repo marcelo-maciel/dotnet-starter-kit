@@ -3,6 +3,10 @@ import { mockJsonResponse } from "../helpers/api-mocks";
 import { installShellMocks } from "../helpers/shell-mocks";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // Notificações is not part of the PAF product (02/11/2026): the page was a roadmap stub. The route redirects home like
 // the other kit screens left out; the bell was hidden from the topbar (no backend code creates notifications since the Chat module was removed).
 const GUICHE = "Permissions.PAF.Guiches.Selecionar";

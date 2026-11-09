@@ -3,6 +3,10 @@ import { mockJsonResponse } from "../helpers/api-mocks";
 import { installShellMocks, paged } from "../helpers/shell-mocks";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test.describe("overview (/overview)", () => {
   test.beforeEach(async ({ page }) => {
     await seedAuthedSession(page, TEST_USER);
@@ -57,7 +61,7 @@ test.describe("overview (/overview)", () => {
     expect(errors).toEqual([]);
   });
 
-  // GET /audits requires AuditTrails.View; installShellMocks grants no permissions.
+  // GET /audits requires AuditTrails.View; installShellMocks does not grant it.
   test("recent audits: without Audit trail access, no /audits call and a no-access state", async ({ page }) => {
     let auditCalls = 0;
     page.on("request", (req) => {

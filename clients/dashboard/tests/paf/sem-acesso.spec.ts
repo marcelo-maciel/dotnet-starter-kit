@@ -3,6 +3,10 @@ import { mockJsonResponse } from "../helpers/api-mocks";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 import { installShellMocks } from "../helpers/shell-mocks";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // A PAF screen opened by URL without its permission used to mount, call the API, take a 403 and leave an error in
 // the console (homologação: atendente on /paf/fichas-do-dia). The PAF layout now shows the notice and mounts nothing.
 const TELAS_DO_MENU = [

@@ -2,6 +2,10 @@ import { expect, test } from "@playwright/test";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 import { installShellMocks } from "../helpers/shell-mocks";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 // Drive the inactivity feature with tiny durations injected via /config.json:
 // idle 2s → a 3s warning countdown → auto sign-out. The guard mounts in the
 // authenticated AppShell, so any protected page exercises it.

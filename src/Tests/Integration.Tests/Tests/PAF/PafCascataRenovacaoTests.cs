@@ -20,9 +20,9 @@ public sealed class PafCascataRenovacaoTests(FshWebApplicationFactory factory) :
     private const string Perfil = $"{TestConstants.IdentityBasePath}/profile";
     private readonly PafTenantCliente _tenant = new(factory, "paf-cr");
 
-    public Task InitializeAsync() => _tenant.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_tenant.InicializarAsync());
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task Login_PrincipalCheia_AbreNaSegundaDoEscopo()

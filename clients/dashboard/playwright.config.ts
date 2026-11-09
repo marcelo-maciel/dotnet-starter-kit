@@ -32,6 +32,12 @@ export default defineConfig({
 
   use: {
     baseURL: "http://localhost:5174",
+    // The app pins pt-BR (src/i18n.ts); the suites assert the en-US catalogs, the one language every key is
+    // guaranteed in, through the only override the app reads. Specs about what the PAF user actually sees clear it.
+    storageState: {
+      cookies: [],
+      origins: [{ origin: "http://localhost:5174", localStorage: [{ name: "fsh.dashboard.lng", value: "en-US" }] }],
+    },
     trace: "on-first-retry",
     // Disable animations + reduce flake from CSS keyframes / transitions
     // (we have a lot — parallax orbs, fsh-enter staggers, btn-shimmer).
@@ -39,6 +45,13 @@ export default defineConfig({
     actionTimeout: 10_000,
     navigationTimeout: 15_000,
   },
+
+  // Assertions get the same budget as actions. Left at the 5s default they were
+  // the tightest deadline in the suite — every test ends in a toBeVisible, and
+  // under CPU contention (a second suite running, a loaded dev server) the first
+  // paint of a lazy route lands past 5s while staying well inside the action and
+  // navigation budgets. That asymmetry, not the specs, is what made runs flaky.
+  expect: { timeout: 10_000 },
 
   projects: [
     {

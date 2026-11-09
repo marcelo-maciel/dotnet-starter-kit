@@ -17,9 +17,9 @@ public sealed class PafRestricoesTests : IAsyncLifetime
 
     public PafRestricoesTests(FshWebApplicationFactory factory) => _banco = new PafBanco(factory);
 
-    public Task InitializeAsync() => _banco.InicializarAsync();
+    public ValueTask InitializeAsync() => new(_banco.InicializarAsync());
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task Numeracao_DuasEmissoesConcorrentesComOMesmoNumero_SoUmaConfirma()
