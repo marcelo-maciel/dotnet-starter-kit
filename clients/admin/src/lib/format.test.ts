@@ -1,5 +1,6 @@
 /// <reference types="node" />
-// Run: node --test src/lib/format.test.ts (Node 22 strips the types, D21).
+// Run: node --import ./src/features/paf/resolver-alias.mjs --test src/lib/format.test.ts (Node 22 strips the types, D21;
+// the hook resolves the "@/" imports format.ts reaches through the kit's i18n).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
