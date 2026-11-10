@@ -34,7 +34,7 @@ public sealed class StorageFlowTests
         RandomNumberGenerator.Fill(bytes);
         var id = await UploadAndFinalizeAsync(client, "roundtrip.pdf", "application/pdf", bytes);
 
-        // Act — mint a presigned GET and fetch the bytes straight from MinIO.
+        // Act — mint a presigned GET and fetch the bytes straight from RustFS.
         using var urlResp = await client.GetAsync($"{FilesBasePath}/{id}/url");
         urlResp.StatusCode.ShouldBe(HttpStatusCode.OK);
         var download = await urlResp.DeserializeAsync<PresignedDownloadResponse>();
@@ -64,7 +64,7 @@ public sealed class StorageFlowTests
 
         var disposition = getResp.Content.Headers.ContentDisposition;
         disposition.ShouldNotBeNull();
-        disposition!.DispositionType.ShouldBe("attachment");
+        disposition.DispositionType.ShouldBe("attachment");
         // The original filename is echoed back so the browser surfaces it instead of the storage key.
         disposition.FileName!.Trim('"').ShouldBe("report-final.pdf");
     }
@@ -85,7 +85,7 @@ public sealed class StorageFlowTests
 
         var disposition = getResp.Content.Headers.ContentDisposition;
         disposition.ShouldNotBeNull();
-        disposition!.DispositionType.ShouldBe("inline");
+        disposition.DispositionType.ShouldBe("inline");
     }
 
     #endregion

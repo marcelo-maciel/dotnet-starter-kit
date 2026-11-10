@@ -1,7 +1,9 @@
 #pragma warning disable S1144 // Unused private members — populated by JSON deserialization
 #pragma warning disable S3459 // Unassigned members — populated by JSON deserialization
 using System.Text.Json;
+using Amazon.S3;
 using Integration.Tests.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Integration.Tests.Tests.Multitenancy;
 
@@ -40,7 +42,7 @@ public sealed class TenantThemeTests : IAsyncLifetime
         _auth = new AuthHelper(factory);
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var unique = Guid.NewGuid().ToString("N")[..8];
         _tenantA = $"theme-a-{unique}";
@@ -51,8 +53,8 @@ public sealed class TenantThemeTests : IAsyncLifetime
         using var rootClient = await _auth.CreateRootAdminClientAsync();
         await CreateTenantAsync(rootClient, _tenantA, _tenantAAdminEmail);
         await CreateTenantAsync(rootClient, _tenantB, _tenantBAdminEmail);
-        await WaitForProvisioningAsync(rootClient, _tenantA);
-        await WaitForProvisioningAsync(rootClient, _tenantB);
+        await TenantProvisioningWait.WaitForProvisioningAsync(rootClient, _tenantA);
+        await TenantProvisioningWait.WaitForProvisioningAsync(rootClient, _tenantB);
 
         // Ensure both tenant admins are queryable (token issuance is the strongest
         // cross-check that identity seeding finished — see TenantHeaderOverrideTests).
@@ -60,7 +62,7 @@ public sealed class TenantThemeTests : IAsyncLifetime
         _ = await GetTokenWithRetryAsync(_tenantBAdminEmail, TestConstants.DefaultPassword, _tenantB);
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     #region Happy Path
 
@@ -197,6 +199,37 @@ public sealed class TenantThemeTests : IAsyncLifetime
     #region AuthZ
 
     [Fact]
+    public async Task UpdateTheme_Should_StoreTheUploadedLogoBytes_When_TheLogoGoesThroughTheServer()
+    {
+        // Arrange — the operator's branding card sends the logo inside the theme; the API itself puts it in the
+        // bucket (S3StorageService.UploadAsync), unlike the presigned browser uploads. The stack's S3 speaks plain
+        // HTTP, so this covers the signed upload kept off HTTPS (an unconditional unsigned payload would answer
+        // 500 here). The unsigned shape R2 gets over HTTPS is pinned only by S3StorageKeyLayoutTests; R2 itself is
+        // checked after deploy with the homologação probe.
+        using var client = await _auth.CreateAuthenticatedClientAsync(
+            _tenantAAdminEmail, TestConstants.DefaultPassword, _tenantA);
+        byte[] logo = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4, 5, 6, 7, 8];
+        var payload = JsonSerializer.SerializeToNode(ValidTheme(), Json)!.AsObject();
+        payload["brandAssets"] = JsonSerializer.SerializeToNode(
+            new { logo = new { fileName = "logo.png", contentType = "image/png", data = logo.Select(b => (int)b).ToArray() } }, Json);
+
+        // Act
+        var update = await client.PutAsJsonAsync(ThemePath, payload);
+
+        // Assert
+        await ShouldHaveStatusAsync(update, HttpStatusCode.NoContent);
+        var theme = await client.GetFromJsonAsync<TenantThemeDto>(ThemePath, Json);
+        var logoUrl = theme?.BrandAssets.LogoUrl;
+        logoUrl.ShouldNotBeNullOrWhiteSpace();
+        var key = logoUrl[logoUrl.IndexOf("public/", StringComparison.Ordinal)..];
+        using var stored = await _factory.Services.GetRequiredService<IAmazonS3>()
+            .GetObjectAsync(FshWebApplicationFactory.S3Bucket, key);
+        using var bytes = new MemoryStream();
+        await stored.ResponseStream.CopyToAsync(bytes);
+        bytes.ToArray().ShouldBe(logo);
+    }
+
+    [Fact]
     public async Task GetTheme_Should_Return401_When_NotAuthenticated()
     {
         // Arrange
@@ -241,7 +274,7 @@ public sealed class TenantThemeTests : IAsyncLifetime
             clientA.DefaultRequestHeaders.Authorization = new("Bearer", rootToken.AccessToken);
             clientA.DefaultRequestHeaders.Add("tenant", _tenantA);
             var update = await clientA.PutAsJsonAsync(ThemePath, ValidTheme(primary: marker));
-            update.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+            await ShouldHaveStatusAsync(update, HttpStatusCode.NoContent);
         }
 
         // Act — root operator now scopes to tenant B and reads its theme.
@@ -251,7 +284,7 @@ public sealed class TenantThemeTests : IAsyncLifetime
         var responseB = await clientB.GetAsync(ThemePath);
 
         // Assert — tenant B must NOT see tenant A's customization.
-        responseB.StatusCode.ShouldBe(HttpStatusCode.OK);
+        await ShouldHaveStatusAsync(responseB, HttpStatusCode.OK);
         var themeB = await responseB.Content.ReadFromJsonAsync<TenantThemeDto>(Json);
         themeB.ShouldNotBeNull();
         themeB.LightPalette.Primary.ShouldNotBe(marker);
@@ -274,15 +307,19 @@ public sealed class TenantThemeTests : IAsyncLifetime
         var tokenB = await GetTokenWithRetryAsync(_tenantBAdminEmail, TestConstants.DefaultPassword, _tenantB);
         using var clientB = _factory.CreateClient();
         clientB.DefaultRequestHeaders.Authorization = new("Bearer", tokenB.AccessToken);
-        clientB.DefaultRequestHeaders.Add("tenant", _tenantA); // spoof attempt — must be ignored
+        clientB.DefaultRequestHeaders.Add("tenant", _tenantA); // spoof attempt — must be refused
 
         // Act
         var response = await clientB.GetAsync(ThemePath);
 
-        // Assert — the override is gated to root, so B stays in B and sees defaults,
-        // never tenant A's marker color.
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var theme = await response.Content.ReadFromJsonAsync<TenantThemeDto>(Json);
+        // Assert — the PAF tenant check (ADR 0008) refuses the mismatched header instead of ignoring it.
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        // Without the header B stays in B and sees defaults, never tenant A's marker color.
+        clientB.DefaultRequestHeaders.Remove("tenant");
+        var own = await clientB.GetAsync(ThemePath);
+        own.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var theme = await own.Content.ReadFromJsonAsync<TenantThemeDto>(Json);
         theme.ShouldNotBeNull();
         theme.LightPalette.Primary.ShouldNotBe(marker);
         theme.LightPalette.Primary.ShouldBe("#2563EB");
@@ -307,8 +344,8 @@ public sealed class TenantThemeTests : IAsyncLifetime
             clientB.DefaultRequestHeaders.Authorization = new("Bearer", tokenB.AccessToken);
             clientB.DefaultRequestHeaders.Add("tenant", _tenantA); // spoof attempt
             var attack = await clientB.PutAsJsonAsync(ThemePath, ValidTheme(primary: "#000000"));
-            // The write is accepted but applies to tenant B (where B is pinned), not A.
-            attack.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+            // The PAF tenant check (ADR 0008) refuses the mismatched header before the write.
+            attack.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
 
         // Act — re-read tenant A's theme as A's own admin.
@@ -375,6 +412,23 @@ public sealed class TenantThemeTests : IAsyncLifetime
         };
     }
 
+    // The root-operator path here has been seen returning 401 intermittently on a loaded machine, and a
+    // bare status assertion says nothing about why: JwtBearer puts the validation failure reason in the
+    // ProblemDetails body (OnChallenge, Development only), so carry the body into the failure message.
+    // Cause still unidentified; this exists so the next occurrence is diagnosable instead of a mystery.
+    private static async Task ShouldHaveStatusAsync(HttpResponseMessage response, HttpStatusCode expected)
+    {
+        if (response.StatusCode == expected)
+        {
+            return;
+        }
+
+        var body = await response.Content.ReadAsStringAsync();
+        response.StatusCode.ShouldBe(
+            expected,
+            $"{response.RequestMessage?.Method} {response.RequestMessage?.RequestUri} returned body: {body}");
+    }
+
     private async Task<TokenResult> GetTokenWithRetryAsync(string email, string password, string tenant, int maxRetries = 30)
     {
         Exception? last = null;
@@ -408,28 +462,6 @@ public sealed class TenantThemeTests : IAsyncLifetime
         response.StatusCode.ShouldBe(HttpStatusCode.Created, $"Create tenant failed: {body}");
     }
 
-    private static async Task WaitForProvisioningAsync(HttpClient client, string tenantId, int maxRetries = 60)
-    {
-        for (var i = 0; i < maxRetries; i++)
-        {
-            var statusResponse = await client.GetAsync($"{TestConstants.TenantsBasePath}/{tenantId}/provisioning");
-            if (statusResponse.IsSuccessStatusCode)
-            {
-                var content = await statusResponse.Content.ReadAsStringAsync();
-                if (content.Contains("Completed", StringComparison.OrdinalIgnoreCase))
-                {
-                    return;
-                }
-                if (content.Contains("Failed", StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new InvalidOperationException($"Tenant {tenantId} provisioning failed: {content}");
-                }
-            }
-            await Task.Delay(1000);
-        }
-        throw new TimeoutException($"Tenant {tenantId} did not finish provisioning.");
-    }
-
     // Local copy of the theme response shape — only the fields these tests assert on.
     private sealed record TenantThemeDto
     {
@@ -437,7 +469,13 @@ public sealed class TenantThemeTests : IAsyncLifetime
         public PaletteDto DarkPalette { get; init; } = new();
         public TypographyDto Typography { get; init; } = new();
         public LayoutDto Layout { get; init; } = new();
+        public BrandAssetsDto BrandAssets { get; init; } = new();
         public bool IsDefault { get; init; }
+    }
+
+    private sealed record BrandAssetsDto
+    {
+        public string? LogoUrl { get; init; }
     }
 
     private sealed record PaletteDto

@@ -18,34 +18,34 @@ export const DEFAULT_PROFILE = {
   imageUrl: null,
 } as const;
 
+/** Basic-role grants behind the shell's own queries. */
+export const SHELL_PERMISSIONS = [
+  "Permissions.Notifications.Inbox.View",
+  "Permissions.Chat.Channels.View",
+  "Permissions.Billing.View",
+];
+
 /**
  * Mock every API call the authenticated AppShell fires on load so any
  * protected page can be visited in isolation without hanging on the
- * topbar's notification/chat badges or the SSE/realtime providers.
+ * SSE provider.
  *
  * ORDERING: Playwright matches the MOST RECENTLY registered route first.
  * We register broad globs first and the more-specific ones last. Callers
  * register their page-specific mocks AFTER calling this, so those win over
- * these defaults (e.g. a chat spec can return real channels).
+ * these defaults (e.g. a spec can return real rows).
  */
 export async function installShellMocks(page: Page): Promise<void> {
-  // Long-lived realtime transports — abort so they neither keep the network
-  // busy nor spew reconnect noise. The shell simply shows an "offline" dot.
+  // Long-lived transports — abort so they neither keep the network busy nor spew reconnect noise.
   await page.route("**/api/v1/sse/**", (r: Route) => r.abort());
   await page.route("**/negotiate**", (r: Route) => r.abort());
-  await page.route("**/api/v1/realtime/**", (r: Route) => r.abort());
 
-  // Notifications — register the list glob first, then the more specific
-  // unread-count (so the count request resolves to a number, not []).
-  await mockJsonResponse(page, "**/api/v1/notifications**", []);
-  await mockJsonResponse(page, "**/api/v1/notifications/unread-count**", 0);
-
-  // Topbar chat unread badge.
-  await mockJsonResponse(page, "**/api/v1/chat/channels**", []);
-
-  // Defensive: profile + permissions (harmless if a page re-reads them).
+  // Profile + permissions. The default grants match the Basic role and are
+  // the ones the shell's own queries need (topbar badges, overview usage);
+  // without them those queries never fire. Permission-gated specs re-mock
+  // this route with the exact grants they need.
   await mockJsonResponse(page, "**/api/v1/identity/profile", DEFAULT_PROFILE);
-  await mockJsonResponse(page, "**/api/v1/identity/permissions", []);
+  await mockJsonResponse(page, "**/api/v1/identity/permissions", SHELL_PERMISSIONS);
 
   // Tenant status drives the global expiry/grace banner mounted in the
   // AppShell. Default to a healthy, far-future tenant so the banner stays

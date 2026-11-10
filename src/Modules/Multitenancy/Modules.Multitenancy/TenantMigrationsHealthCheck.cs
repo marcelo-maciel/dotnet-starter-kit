@@ -5,6 +5,7 @@ using FSH.Modules.Multitenancy.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Logging;
 
 namespace FSH.Modules.Multitenancy;
 
@@ -18,10 +19,12 @@ namespace FSH.Modules.Multitenancy;
 public sealed class TenantMigrationsHealthCheck : IHealthCheck
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<TenantMigrationsHealthCheck> _logger;
 
-    public TenantMigrationsHealthCheck(IServiceScopeFactory scopeFactory)
+    public TenantMigrationsHealthCheck(IServiceScopeFactory scopeFactory, ILogger<TenantMigrationsHealthCheck> logger)
     {
         _scopeFactory = scopeFactory;
+        _logger = logger;
     }
 
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
@@ -31,9 +34,8 @@ public sealed class TenantMigrationsHealthCheck : IHealthCheck
         var tenantStore = scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
         var tenants = await tenantStore.GetAllAsync().ConfigureAwait(false);
 
-        var details = new Dictionary<string, object>();
-        var tenantsWithPending = new List<string>();
-        var tenantsWithError = new List<string>();
+        int withPending = 0;
+        int withError = 0;
 
         foreach (var tenant in tenants)
         {
@@ -51,57 +53,38 @@ public sealed class TenantMigrationsHealthCheck : IHealthCheck
                     .ConfigureAwait(false))
                     .ToArray();
 
-                bool hasPending = pendingMigrations.Length > 0;
-                if (hasPending)
+                if (pendingMigrations.Length > 0)
                 {
-                    tenantsWithPending.Add(tenant.Id!);
+                    withPending++;
+                    _logger.LogWarning("Tenant {TenantId} has {PendingCount} pending migration(s): {PendingMigrations}",
+                        tenant.Id, pendingMigrations.Length, string.Join(", ", pendingMigrations));
                 }
-
-                details[tenant.Id!] = new
-                {
-                    tenant.Name,
-                    tenant.IsActive,
-                    tenant.ValidUpto,
-                    HasPendingMigrations = hasPending,
-                    PendingMigrations = pendingMigrations
-                };
             }
-            // Health checks must report errors, not throw — capture per-tenant failures as
-            // detail entries so the readiness payload tells the operator which tenant is broken.
+            // Health checks must report errors, not throw. Which tenant failed, and why, goes to the server log only.
             catch (Exception ex)
             {
-                tenantsWithError.Add(tenant.Id!);
-                details[tenant.Id!] = new
-                {
-                    tenant.Name,
-                    tenant.IsActive,
-                    tenant.ValidUpto,
-                    Error = ex.Message
-                };
+                withError++;
+                _logger.LogError(ex, "Migration probe failed for tenant {TenantId}", tenant.Id);
             }
         }
 
-        if (tenantsWithError.Count > 0 || tenantsWithPending.Count > 0)
+        // /health/ready is anonymous: the payload carries failure counts only, never a tenant's id, name, state,
+        // validity or exception text, nor how many tenants exist, so a stranger can neither list the clients, learn
+        // when one expires, nor size the customer base.
+        var details = new Dictionary<string, object>
         {
-            var description = BuildUnhealthyDescription(tenantsWithPending, tenantsWithError);
-            return HealthCheckResult.Unhealthy(description, data: details);
+            ["TenantsWithPendingMigrations"] = withPending,
+            ["TenantsWithError"] = withError
+        };
+
+        if (withError > 0 || withPending > 0)
+        {
+            return HealthCheckResult.Unhealthy(
+                $"Tenant schema is not at head: {withPending} tenant(s) with pending migrations, {withError} with probe error. " +
+                "Run FSH.Starter.DbMigrator to apply pending migrations; the server log names the tenants.",
+                data: details);
         }
 
         return HealthCheckResult.Healthy("All tenants are at the head migration.", details);
-    }
-
-    private static string BuildUnhealthyDescription(List<string> pending, List<string> errored)
-    {
-        var parts = new List<string>(2);
-        if (pending.Count > 0)
-        {
-            parts.Add($"pending migrations for tenant(s): {string.Join(", ", pending)}");
-        }
-        if (errored.Count > 0)
-        {
-            parts.Add($"error probing tenant(s): {string.Join(", ", errored)}");
-        }
-        return "Tenant schema is not at head — " + string.Join("; ", parts) +
-               ". Run FSH.Starter.DbMigrator to apply pending migrations.";
     }
 }

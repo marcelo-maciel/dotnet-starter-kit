@@ -1,5 +1,6 @@
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Core.Exceptions;
+using FSH.Framework.Persistence;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Framework.Shared.Persistence;
 using FSH.Modules.Billing.Contracts.Dtos;
@@ -20,7 +21,7 @@ public sealed class GetMyInvoicesQueryHandler(
         ArgumentNullException.ThrowIfNull(query);
 
         var tenantId = tenantAccessor.MultiTenantContext?.TenantInfo?.Id
-            ?? throw new UnauthorizedException("Tenant context is required.");
+            ?? throw new UnauthorizedException("Tenant context is required.").Localized("Error.TenantContextRequired");
 
         var q = dbContext.Invoices.AsNoTracking()
             .Include(i => i.LineItems)
@@ -41,7 +42,7 @@ public sealed class GetMyInvoicesQueryHandler(
         var total = await q.LongCountAsync(cancellationToken).ConfigureAwait(false);
         var invoices = await q
             .OrderByDescending(i => i.CreatedAtUtc)
-            .Skip((query.PageNumber - 1) * query.PageSize)
+            .Skip(PaginationExtensions.GetOffset(query.PageNumber, query.PageSize))
             .Take(query.PageSize)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
 

@@ -3,12 +3,13 @@ using FSH.Framework.Core.Domain;
 using FSH.Framework.Core.Exceptions;
 using FSH.Modules.Files.Contracts.v1.DTOs;
 using FSH.Modules.Files.Domain.Events;
+using FSH.Modules.Files.Localization;
 
 namespace FSH.Modules.Files.Domain;
 
 /// <summary>
 /// A file asset tracked by the Files module. Owns a presigned upload lifecycle (PendingUpload →
-/// Available | Quarantined) plus soft-delete semantics consistent with Catalog/Tickets entities.
+/// Available | Quarantined) plus soft-delete semantics consistent with the other soft-deletable entities.
 /// Tenant scoping is implicit (one DB/schema per tenant via the framework's BaseDbContext); we do
 /// not carry a TenantId column here.
 /// </summary>
@@ -87,7 +88,8 @@ public sealed class FileAsset : AggregateRoot<Guid>, ISoftDeletable
             throw new CustomException(
                 $"Cannot finalize file in status {Status}.",
                 errors: null,
-                HttpStatusCode.Conflict);
+                HttpStatusCode.Conflict)
+                .Localized<FilesResources>("Files.CannotFinalizeInStatus", Status);
         }
         if (actualSize <= 0)
         {
@@ -126,10 +128,23 @@ public sealed class FileAsset : AggregateRoot<Guid>, ISoftDeletable
             throw new CustomException(
                 $"Cannot change visibility while file is in status {Status}.",
                 errors: null,
-                HttpStatusCode.Conflict);
+                HttpStatusCode.Conflict)
+                .Localized<FilesResources>("Files.CannotChangeVisibilityInStatus", Status);
         }
         if (Visibility == next) return;
         Visibility = next;
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Point the asset at the key its object was copied to. The caller owns the object move itself
+    /// (copy → save this → delete the old object); see <c>FileStorageRelocator</c>.
+    /// </summary>
+    public void RelocateStorage(string newStorageKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(newStorageKey);
+        if (string.Equals(StorageKey, newStorageKey, StringComparison.Ordinal)) return;
+        StorageKey = newStorageKey;
         UpdatedAtUtc = DateTime.UtcNow;
     }
 }

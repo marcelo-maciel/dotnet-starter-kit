@@ -43,7 +43,7 @@ public sealed class Search{Entities}QueryHandler({X}DbContext dbContext)
         q = ApplySort(q, query.SortBy, query.SortDir);
 
         long total = await q.LongCountAsync(cancellationToken).ConfigureAwait(false);
-        var items = await q.Skip((page - 1) * size).Take(size)
+        var items = await q.Skip(PaginationExtensions.GetOffset(page, size)).Take(size) // overflow-safe offset
             .ToListAsync(cancellationToken).ConfigureAwait(false);
 
         return new PagedResponse<{Entity}Dto>
@@ -82,7 +82,8 @@ public sealed class Get{Entity}QueryHandler({X}DbContext dbContext)
         ArgumentNullException.ThrowIfNull(query);
         var entity = await dbContext.{Entities}.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == query.Id, cancellationToken).ConfigureAwait(false)
-            ?? throw new NotFoundException($"{Entity} {query.Id} not found");
+            ?? throw new NotFoundException($"{Entity} {query.Id} not found")
+                .Localized<{X}Resources>("{X}.{Entity}NotFound", query.Id);   // key in {X}Resources.resx
         return entity.ToDto();
     }
 }

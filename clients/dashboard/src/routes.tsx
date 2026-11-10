@@ -1,29 +1,40 @@
 import { lazy, Suspense, type ComponentType } from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/layout/app-shell";
+import { GuardaTelaDoKit } from "@/components/layout/guarda-tela-do-kit";
 import { ProtectedRoute } from "@/auth/protected-route";
 import { RouteError } from "@/components/route-error";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/cn";
+import { loadNamespaces, type LazyNamespace } from "@/i18n";
+import { PafTempoRealProvider } from "@/features/paf/tempo-real/paf-tempo-real-provider";
+import { InicioPaf } from "@/features/paf/navegacao/inicio-paf";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Lazy route boundaries
 //
 // Each route is split into its own bundle so first paint after login only
-// loads the chunk for the landing page (Overview). Catalog, Settings,
+// loads the chunk for the landing page (Overview). Settings,
 // Login, Activity, etc. fetch on demand.
 //
 // `lazyNamed` wraps a dynamic import that exports a *named* component
 // (we don't use default exports anywhere in this codebase). Returns a
 // shape compatible with React.lazy.
+//
+// `namespaces` lists the route-only translation catalogs the page (and the
+// components it imports) use. They load in parallel with the page chunk, so
+// the page never renders before its text is there. The shell's namespaces
+// (common, auth, notifications) are always loaded and are not listed.
 // ─────────────────────────────────────────────────────────────────────────
 
 function lazyNamed<T extends Record<string, unknown>, K extends keyof T>(
   importer: () => Promise<T>,
   name: K,
+  namespaces: readonly LazyNamespace[] = [],
 ) {
   return lazy(async () => {
-    const mod = await importer();
+    const [mod] = await Promise.all([importer(), loadNamespaces(namespaces)]);
     return { default: mod[name] as ComponentType<unknown> };
   });
 }
@@ -41,25 +52,8 @@ const ConfirmEmailPage = lazyNamed(
   () => import("@/pages/auth/confirm-email"),
   "ConfirmEmailPage",
 );
-const OverviewPage = lazyNamed(() => import("@/pages/overview"), "OverviewPage");
-const ActivityPage = lazyNamed(() => import("@/pages/activity"), "ActivityPage");
-const InvoicesPage = lazyNamed(() => import("@/pages/invoices"), "InvoicesPage");
-const InvoiceDetailPage = lazyNamed(
-  () => import("@/pages/invoice-detail"),
-  "InvoiceDetailPage",
-);
-const SubscriptionPage = lazyNamed(
-  () => import("@/pages/subscription"),
-  "SubscriptionPage",
-);
-const WalletPage = lazyNamed(() => import("@/pages/wallet"), "WalletPage");
-const BrandsPage = lazyNamed(() => import("@/pages/catalog/brands"), "BrandsPage");
-const CategoriesPage = lazyNamed(() => import("@/pages/catalog/categories"), "CategoriesPage");
-const ProductsPage = lazyNamed(() => import("@/pages/catalog/products"), "ProductsPage");
-const ProductDetailPage = lazyNamed(
-  () => import("@/pages/catalog/product-detail"),
-  "ProductDetailPage",
-);
+const OverviewPage = lazyNamed(() => import("@/pages/overview"), "OverviewPage", ["overview"]);
+const ActivityPage = lazyNamed(() => import("@/pages/activity"), "ActivityPage", ["activity", "audits"]);
 const NotFoundPage = lazyNamed(() => import("@/pages/not-found"), "NotFoundPage");
 const TenantDeactivatedPage = lazyNamed(
   () => import("@/pages/tenant-deactivated"),
@@ -69,51 +63,38 @@ const ImpersonationEndedPage = lazyNamed(
   () => import("@/pages/impersonation-ended"),
   "ImpersonationEndedPage",
 );
-const SettingsLayout = lazyNamed(
-  () => import("@/pages/settings/settings-layout"),
-  "SettingsLayout",
+const SettingsLayout = lazyNamed(() => import("@/pages/settings/settings-layout"), "SettingsLayout", ["settings"]);
+const ProfileSettings = lazyNamed(() => import("@/pages/settings/profile"), "ProfileSettings", ["settings", "files"]);
+const SecuritySettings = lazyNamed(() => import("@/pages/settings/security"), "SecuritySettings", ["settings"]);
+const AppearanceSettings = lazyNamed(() => import("@/pages/settings/appearance"), "AppearanceSettings", ["settings"]);
+const HealthPage = lazyNamed(() => import("@/pages/health"), "HealthPage", ["health"]);
+const AuditsPage = lazyNamed(() => import("@/pages/audits"), "AuditsPage", ["audits"]);
+const SessionsPage = lazyNamed(() => import("@/pages/system/sessions"), "SessionsPage", ["system"]);
+// PAF (ADR 0008, module registration: PAF screens in the dashboard routes). They are fixed PT-BR (no catalog).
+const PafResgateVinculoPage = lazyNamed(
+  () => import("@/features/paf/estacao/resgate-vinculo-page"),
+  "ResgateVinculoPage",
 );
-const ProfileSettings = lazyNamed(() => import("@/pages/settings/profile"), "ProfileSettings");
-const SecuritySettings = lazyNamed(() => import("@/pages/settings/security"), "SecuritySettings");
-const BrandingSettings = lazyNamed(
-  () => import("@/pages/settings/branding"),
-  "BrandingSettings",
+const PafTotemPage = lazyNamed(() => import("@/features/paf/totem/totem-page"), "TotemPage");
+const PafPainelPage = lazyNamed(() => import("@/features/paf/painel/painel-page"), "PainelPage");
+const PafGuichePage = lazyNamed(() => import("@/features/paf/guiche/guiche-page"), "GuichePage");
+const PafLayout = lazyNamed(() => import("@/features/paf/layout/paf-layout"), "PafLayout");
+const PafUnidadesPage = lazyNamed(() => import("@/features/paf/unidades/unidades-page"), "UnidadesPage");
+const PafEstacoesPage = lazyNamed(() => import("@/features/paf/estacoes/estacoes-page"), "EstacoesPage");
+const PafFilasPage = lazyNamed(() => import("@/features/paf/filas/filas-page"), "FilasPage");
+const PafFichasDoDiaPage = lazyNamed(() => import("@/features/paf/fichas-do-dia/fichas-do-dia-page"), "FichasDoDiaPage");
+const PafFichasEmAtendimentoPage = lazyNamed(
+  () => import("@/features/paf/fichas-em-atendimento/fichas-em-atendimento-page"),
+  "FichasEmAtendimentoPage",
 );
-const AppearanceSettings = lazyNamed(
-  () => import("@/pages/settings/appearance"),
-  "AppearanceSettings",
-);
-const NotificationsSettings = lazyNamed(
-  () => import("@/pages/settings/notifications"),
-  "NotificationsSettings",
-);
-const ApiKeysSettings = lazyNamed(() => import("@/pages/settings/api-keys"), "ApiKeysSettings");
-const HealthPage = lazyNamed(() => import("@/pages/health"), "HealthPage");
-const AuditsPage = lazyNamed(() => import("@/pages/audits"), "AuditsPage");
-const TicketsPage = lazyNamed(() => import("@/pages/tickets/tickets"), "TicketsPage");
-const TicketDetailPage = lazyNamed(
-  () => import("@/pages/tickets/ticket-detail"),
-  "TicketDetailPage",
-);
-const TrashPage = lazyNamed(() => import("@/pages/system/trash"), "TrashPage");
-const SessionsPage = lazyNamed(() => import("@/pages/system/sessions"), "SessionsPage");
-const UsersPage = lazyNamed(() => import("@/pages/identity/users"), "UsersPage");
-const UserDetailPage = lazyNamed(
-  () => import("@/pages/identity/user-detail"),
-  "UserDetailPage",
-);
-const RolesPage = lazyNamed(() => import("@/pages/identity/roles"), "RolesPage");
-const RoleDetailPage = lazyNamed(
-  () => import("@/pages/identity/role-detail"),
-  "RoleDetailPage",
-);
-const GroupsPage = lazyNamed(() => import("@/pages/identity/groups"), "GroupsPage");
-const GroupDetailPage = lazyNamed(
-  () => import("@/pages/identity/group-detail"),
-  "GroupDetailPage",
-);
-const MyFilesPage = lazyNamed(() => import("@/pages/files/my-files"), "MyFilesPage");
-const ChatPage = lazyNamed(() => import("@/pages/chat/chat-page"), "ChatPage");
+const PafConsultarFichaPage = lazyNamed(() => import("@/features/paf/consultar-ficha/consultar-ficha-page"), "ConsultarFichaPage");
+const PafFichaDeEsperaPage = lazyNamed(() => import("@/features/paf/ficha-de-espera/ficha-de-espera-page"), "FichaDeEsperaPage");
+const PafParametrosPage = lazyNamed(() => import("@/features/paf/parametros/parametros-page"), "ParametrosPage");
+const PafUsuariosPage = lazyNamed(() => import("@/features/paf/usuarios/usuarios-page"), "UsuariosPage");
+const PafPrioridadesPage = lazyNamed(() => import("@/features/paf/prioridades/prioridades-page"), "PrioridadesPage");
+const PafEstatisticaPage = lazyNamed(() => import("@/features/paf/estatistica/estatistica-page"), "EstatisticaPage");
+const PafMidiasPage = lazyNamed(() => import("@/features/paf/midias/midias-page"), "MidiasPage");
+const PafProgramacoesPage = lazyNamed(() => import("@/features/paf/programacoes/programacoes-page"), "ProgramacoesPage");
 
 /**
  * RouteFallback — what shows while a lazy chunk is downloading. Mirrors
@@ -122,9 +103,10 @@ const ChatPage = lazyNamed(() => import("@/pages/chat/chat-page"), "ChatPage");
  * `.skeleton` shimmer so it feels like part of the same surface family.
  */
 function RouteFallback() {
+  const { t } = useTranslation("common");
   return (
     <div className={cn("space-y-6 fsh-enter")} role="status" aria-busy="true">
-      <span className="sr-only">Loading…</span>
+      <span className="sr-only">{t("list.loading")}</span>
       <div className="space-y-2">
         <Skeleton className="h-3 w-24" />
         <Skeleton className="h-8 w-64" />
@@ -149,6 +131,29 @@ function RouteFallback() {
 function withSuspense(node: React.ReactNode) {
   return <Suspense fallback={<RouteFallback />}>{node}</Suspense>;
 }
+
+// Kit screens the PAF does not ship (product decision of 31/10/2026; the Users, Roles and Groups administration on
+// 02/11/2026, replaced by /paf/usuarios): the URL only redirects, so an old bookmark lands on the PAF home and never on
+// a dead page. Chat, Catalog and Helpdesk pages were deleted with their modules on 04/11/2026 (ADR 0009 do PAF);
+// their redirects stay for the same bookmarks.
+const TELAS_DO_KIT_FORA_DO_PRODUTO = [
+  "subscription",
+  "wallet",
+  "invoices",
+  "invoices/:id",
+  "files",
+  "chat",
+  "chat/:channelId",
+  "tickets",
+  "tickets/:ticketId",
+  "catalog/*",
+  // The kit's trash screen, unrouted since it only listed the removed modules and Files.
+  "system/trash",
+  // The kit's own older paths for Billing and Trash, which no screen serves, so they would 404.
+  "billing/*",
+  "trash",
+  "identity/*",
+];
 
 export const router = createBrowserRouter([
   {
@@ -190,43 +195,64 @@ export const router = createBrowserRouter([
     element: withSuspense(<ImpersonationEndedPage />),
     errorElement: <RouteError />,
   },
+  // PAF stations (totem, painel) run on the station credential, outside the user's route guard and
+  // inactivity sign-out: the panel on the wall must not go dark because nobody touched it.
+  {
+    path: "/paf/estacao/vinculo",
+    element: withSuspense(<PafResgateVinculoPage />),
+    errorElement: <RouteError />,
+  },
+  {
+    path: "/paf/totem",
+    element: withSuspense(<PafTotemPage />),
+    errorElement: <RouteError />,
+  },
+  {
+    path: "/paf/painel",
+    element: withSuspense(<PafPainelPage />),
+    errorElement: <RouteError />,
+  },
   {
     element: <ProtectedRoute />,
     errorElement: <RouteError />,
     children: [
       {
-        element: <AppShell />,
+        // PAF (ADR 0008, amended 17/10/2026): one PafHub connection on every screen keeps the licence alive.
+        element: (
+          <PafTempoRealProvider>
+            <AppShell />
+          </PafTempoRealProvider>
+        ),
         errorElement: <RouteError />,
         children: [
-          { index: true, element: withSuspense(<OverviewPage />) },
-          { path: "activity", element: withSuspense(<ActivityPage />) },
-          { path: "subscription", element: withSuspense(<SubscriptionPage />) },
-          { path: "wallet", element: withSuspense(<WalletPage />) },
-          { path: "invoices", element: withSuspense(<InvoicesPage />) },
-          { path: "invoices/:id", element: withSuspense(<InvoiceDetailPage />) },
-          { path: "system/health", element: withSuspense(<HealthPage />) },
-          { path: "system/audits", element: withSuspense(<AuditsPage />) },
-          { path: "system/trash", element: withSuspense(<TrashPage />) },
-          { path: "system/sessions", element: withSuspense(<SessionsPage />) },
-          { path: "files", element: withSuspense(<MyFilesPage />) },
-          { path: "chat", element: withSuspense(<ChatPage />) },
-          { path: "chat/:channelId", element: withSuspense(<ChatPage />) },
-          { path: "tickets", element: withSuspense(<TicketsPage />) },
-          { path: "tickets/:ticketId", element: withSuspense(<TicketDetailPage />) },
-          { path: "identity", element: <Navigate to="/identity/users" replace /> },
-          { path: "identity/users", element: withSuspense(<UsersPage />) },
-          { path: "identity/users/:userId", element: withSuspense(<UserDetailPage />) },
-          { path: "identity/roles", element: withSuspense(<RolesPage />) },
-          { path: "identity/roles/:roleId", element: withSuspense(<RoleDetailPage />) },
-          { path: "identity/groups", element: withSuspense(<GroupsPage />) },
-          { path: "identity/groups/:groupId", element: withSuspense(<GroupDetailPage />) },
-          { path: "catalog", element: <Navigate to="/catalog/brands" replace /> },
-          { path: "catalog/brands", element: withSuspense(<BrandsPage />) },
-          { path: "catalog/categories", element: withSuspense(<CategoriesPage />) },
-          { path: "catalog/products", element: withSuspense(<ProductsPage />) },
+          // The dashboard opens on the PAF; the kit overview moves to /overview.
+          { index: true, element: <InicioPaf /> },
+          { path: "overview", element: <GuardaTelaDoKit>{withSuspense(<OverviewPage />)}</GuardaTelaDoKit> },
+          { path: "activity", element: <GuardaTelaDoKit>{withSuspense(<ActivityPage />)}</GuardaTelaDoKit> },
+          ...TELAS_DO_KIT_FORA_DO_PRODUTO.map((path) => ({ path, element: <Navigate to="/" replace /> })),
+          { path: "system/health", element: <GuardaTelaDoKit>{withSuspense(<HealthPage />)}</GuardaTelaDoKit> },
+          { path: "system/audits", element: <GuardaTelaDoKit>{withSuspense(<AuditsPage />)}</GuardaTelaDoKit> },
+          { path: "system/sessions", element: <GuardaTelaDoKit>{withSuspense(<SessionsPage />)}</GuardaTelaDoKit> },
           {
-            path: "catalog/products/:productId",
-            element: withSuspense(<ProductDetailPage />),
+            // PAF screens of the signed-in user: current-unit selector on top (RF08). Later screens add children.
+            path: "paf",
+            element: withSuspense(<PafLayout />),
+            children: [
+              { path: "guiche", element: withSuspense(<PafGuichePage />) },
+              { path: "unidades", element: withSuspense(<PafUnidadesPage />) },
+              { path: "estacoes", element: withSuspense(<PafEstacoesPage />) },
+              { path: "filas", element: withSuspense(<PafFilasPage />) },
+              { path: "fichas-do-dia", element: withSuspense(<PafFichasDoDiaPage />) },
+              { path: "fichas-em-atendimento", element: withSuspense(<PafFichasEmAtendimentoPage />) },
+              { path: "consultar-ficha", element: withSuspense(<PafConsultarFichaPage />) },
+              { path: "ficha-de-espera", element: withSuspense(<PafFichaDeEsperaPage />) },
+              { path: "parametros", element: withSuspense(<PafParametrosPage />) },
+              { path: "usuarios", element: withSuspense(<PafUsuariosPage />) },
+              { path: "prioridades", element: withSuspense(<PafPrioridadesPage />) },
+              { path: "estatistica", element: withSuspense(<PafEstatisticaPage />) },
+              { path: "midias", element: withSuspense(<PafMidiasPage />) },
+              { path: "programacoes", element: withSuspense(<PafProgramacoesPage />) },
+            ],
           },
           {
             path: "settings",
@@ -236,9 +262,11 @@ export const router = createBrowserRouter([
               { path: "profile", element: withSuspense(<ProfileSettings />) },
               { path: "security", element: withSuspense(<SecuritySettings />) },
               { path: "appearance", element: withSuspense(<AppearanceSettings />) },
-              { path: "branding", element: withSuspense(<BrandingSettings />) },
-              { path: "notifications", element: withSuspense(<NotificationsSettings />) },
-              { path: "api-keys", element: withSuspense(<ApiKeysSettings />) },
+              // Marca, Notificações and Chaves de API are not part of the PAF product (02/11/2026): the pages stay in
+              // the tree (Notificações was deleted with the bell), the URL redirects home like the other kit screens left out.
+              { path: "branding", element: <Navigate to="/" replace /> },
+              { path: "notifications", element: <Navigate to="/" replace /> },
+              { path: "api-keys", element: <Navigate to="/" replace /> },
             ],
           },
         ],

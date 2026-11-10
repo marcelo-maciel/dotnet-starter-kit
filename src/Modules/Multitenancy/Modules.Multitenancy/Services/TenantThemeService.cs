@@ -10,6 +10,7 @@ using FSH.Modules.Multitenancy.Contracts;
 using FSH.Modules.Multitenancy.Contracts.Dtos;
 using FSH.Modules.Multitenancy.Data;
 using FSH.Modules.Multitenancy.Domain;
+using FSH.Modules.Multitenancy.Localization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
@@ -21,7 +22,10 @@ public sealed class TenantThemeService : ITenantThemeService
     private static readonly HybridCacheEntryOptions ThemeEntryOptions = new()
     {
         Expiration = TimeSpan.FromHours(1),
-        LocalCacheExpiration = TimeSpan.FromMinutes(2),
+        // A theme save clears the in-process tier only on the instance that handled it; the others served the old
+        // theme for the whole tier lifetime (two API instances, 09/11/2026).
+        // ponytail: short local tier bounds the staleness; a Valkey pub/sub backplane would evict it everywhere.
+        LocalCacheExpiration = TimeSpan.FromSeconds(5),
     };
 
     private static readonly string[] DefaultThemeTags = [CacheKeys.Tags.Themes];
@@ -220,7 +224,8 @@ public sealed class TenantThemeService : ITenantThemeService
         var currentTenantId = _tenantAccessor.MultiTenantContext?.TenantInfo?.Id;
         if (currentTenantId != MultitenancyConstants.Root.Id)
         {
-            throw new ForbiddenException("Only the root tenant can set the default theme");
+            throw new ForbiddenException("Only the root tenant can set the default theme")
+                .Localized<MultitenancyResources>("Multitenancy.OnlyRootCanSetDefaultTheme");
         }
 
         // Clear existing default
@@ -240,7 +245,8 @@ public sealed class TenantThemeService : ITenantThemeService
 
         if (entity is null)
         {
-            throw new NotFoundException($"Theme for tenant {tenantId} not found");
+            throw new NotFoundException($"Theme for tenant {tenantId} not found")
+                .Localized<MultitenancyResources>("Multitenancy.TenantThemeNotFound", tenantId);
         }
 
         entity.IsDefault = true;

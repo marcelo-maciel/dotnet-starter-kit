@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using FSH.Framework.Web.Idempotency;
 using FSH.Modules.Identity;
 using FSH.Modules.Multitenancy.Contracts.Dtos;
 
@@ -30,7 +29,6 @@ public sealed class CachedTypeContractTests
                 typeof(BrandAssetsDto),
                 typeof(TypographyDto),
                 typeof(LayoutDto),
-                typeof(CachedIdempotentResponse),
             };
 
             // Reach into the Identity runtime assembly for the internal PermissionSet type.
@@ -65,7 +63,7 @@ public sealed class CachedTypeContractTests
 
         attr.ShouldNotBeNull(
             $"{type.FullName} is stored in HybridCache and must have [ImmutableObject(true)] so the runtime can return the same reference across L1 hits instead of re-deserializing.");
-        attr!.Immutable.ShouldBeTrue(
+        attr.Immutable.ShouldBeTrue(
             $"{type.FullName} has [ImmutableObject(false)] — change to [ImmutableObject(true)] or stop caching it.");
     }
 }

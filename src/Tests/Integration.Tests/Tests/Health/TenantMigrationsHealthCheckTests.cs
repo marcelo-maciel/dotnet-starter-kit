@@ -4,6 +4,7 @@ using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Multitenancy;
 using FSH.Modules.Multitenancy.Data;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Logging;
 using Testcontainers.PostgreSql;
 
 namespace Integration.Tests.Tests.Health;
@@ -19,7 +20,7 @@ namespace Integration.Tests.Tests.Health;
 /// </summary>
 public sealed class TenantMigrationsHealthCheckTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17-alpine")
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18-alpine")
         .WithDatabase("fsh_migrations_check")
         .WithUsername("postgres")
         .WithPassword("integration_test_pwd")
@@ -27,15 +28,15 @@ public sealed class TenantMigrationsHealthCheckTests : IAsyncLifetime
         .WithCleanUp(true)
         .Build();
 
-    public Task InitializeAsync() => _postgres.StartAsync();
+    public async ValueTask InitializeAsync() => await _postgres.StartAsync();
 
-    public Task DisposeAsync() => _postgres.DisposeAsync().AsTask();
+    public ValueTask DisposeAsync() => _postgres.DisposeAsync();
 
     [Fact]
     public async Task CheckHealthAsync_Should_TransitionFromUnhealthyToHealthy_AsMigrationsApply()
     {
         await using var provider = BuildServiceProvider();
-        var check = new TenantMigrationsHealthCheck(provider.GetRequiredService<IServiceScopeFactory>());
+        var check = new TenantMigrationsHealthCheck(provider.GetRequiredService<IServiceScopeFactory>(), provider.GetRequiredService<ILogger<TenantMigrationsHealthCheck>>());
         var context = new HealthCheckContext
         {
             Registration = new HealthCheckRegistration("db:tenants-migrations", check, HealthStatus.Unhealthy, tags: null)
@@ -46,7 +47,7 @@ public sealed class TenantMigrationsHealthCheckTests : IAsyncLifetime
         var beforeResult = await check.CheckHealthAsync(context, CancellationToken.None);
         beforeResult.Status.ShouldBe(HealthStatus.Unhealthy);
         beforeResult.Description.ShouldNotBeNull();
-        beforeResult.Description!.ShouldContain("FSH.Starter.DbMigrator");
+        beforeResult.Description.ShouldContain("FSH.Starter.DbMigrator");
 
         // ── Apply migrations (what DbMigrator does in production) ────────
         using (var scope = provider.CreateScope())
@@ -58,6 +59,8 @@ public sealed class TenantMigrationsHealthCheckTests : IAsyncLifetime
         // ── After migrations ─────────────────────────────────────────────
         var afterResult = await check.CheckHealthAsync(context, CancellationToken.None);
         afterResult.Status.ShouldBe(HealthStatus.Healthy);
+        afterResult.Data.Keys.OrderBy(k => k, StringComparer.Ordinal).ShouldBe(["TenantsWithError", "TenantsWithPendingMigrations"]);
+        afterResult.Data["TenantsWithPendingMigrations"].ShouldBe(0);
     }
 
     [Fact]
@@ -67,7 +70,7 @@ public sealed class TenantMigrationsHealthCheckTests : IAsyncLifetime
         // unreachable tenant DB. The per-tenant try/catch must convert that to an
         // Unhealthy aggregate result, not propagate the exception.
         await using var provider = BuildServiceProvider(badConnectionString: true);
-        var check = new TenantMigrationsHealthCheck(provider.GetRequiredService<IServiceScopeFactory>());
+        var check = new TenantMigrationsHealthCheck(provider.GetRequiredService<IServiceScopeFactory>(), provider.GetRequiredService<ILogger<TenantMigrationsHealthCheck>>());
         var context = new HealthCheckContext
         {
             Registration = new HealthCheckRegistration("db:tenants-migrations", check, HealthStatus.Unhealthy, tags: null)
@@ -76,7 +79,15 @@ public sealed class TenantMigrationsHealthCheckTests : IAsyncLifetime
         var result = await check.CheckHealthAsync(context, CancellationToken.None);
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description.ShouldNotBeNull();
-        result.Description!.ShouldContain("error probing tenant", Case.Insensitive);
+        result.Description.ShouldContain("1 with probe error", Case.Insensitive);
+        result.Data["TenantsWithError"].ShouldBe(1);
+
+        // Neither the tenant nor the exception text may reach the anonymous payload.
+        var published = result.Description + string.Join(";", result.Data.Select(d => $"{d.Key}={d.Value}"));
+        published.ShouldNotContain(MultitenancyConstants.Root.Id, Case.Insensitive);
+        published.ShouldNotContain(MultitenancyConstants.Root.Name, Case.Insensitive);
+        published.ShouldNotContain("127.0.0.1");
+        published.ShouldNotContain("refused", Case.Insensitive);
     }
 
     private ServiceProvider BuildServiceProvider(bool badConnectionString = false)

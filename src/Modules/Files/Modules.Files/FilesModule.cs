@@ -1,5 +1,7 @@
 using Asp.Versioning;
 using FluentValidation;
+using FSH.Framework.Eventing;
+using FSH.Framework.Jobs.Services;
 using FSH.Framework.Persistence;
 using FSH.Framework.Shared.Constants;
 using FSH.Framework.Web.Modules;
@@ -33,10 +35,9 @@ namespace FSH.Modules.Files;
 
 /// <summary>
 /// Files module: presigned-URL file lifecycle (upload, finalize, serve, delete) shared across the
-/// kit's owning features (Catalog product images, Ticket attachments, My Files, avatars, tenant
-/// logos). Module order 350 places it between Auditing (300) and Webhooks (400); owning modules
-/// (Catalog=600, Tickets=700) load later and register their <see cref="IFileAccessPolicy"/>
-/// implementations during their own ConfigureServices.
+/// kit's owning features (My Files, avatars, tenant logos). Module order 350 places it between
+/// Auditing (300) and Webhooks (400); an owning module with its own rules loads later and registers
+/// its <see cref="IFileAccessPolicy"/> implementation during its own ConfigureServices.
 /// </summary>
 public sealed class FilesModule : IModule
 {
@@ -51,6 +52,10 @@ public sealed class FilesModule : IModule
         builder.Services.AddScoped<IDbInitializer, FilesDbInitializer>();
 
         builder.Services.AddScoped<FileAccessPolicyRegistry>();
+        builder.Services.AddScoped<FileStorageRelocator>();
+        builder.Services.AddTransient<MigrateLegacyPublicFileKeysJob>();
+        // DeleteSupersededObjectHandler: durable removal of objects left behind by a storage move.
+        builder.Services.AddIntegrationEventHandlers(typeof(FilesModule).Assembly);
         builder.Services.AddSingleton<IFileScanner, NoOpFileScanner>();
         builder.Services.AddValidatorsFromAssembly(typeof(FilesModule).Assembly);
 
@@ -78,8 +83,7 @@ public sealed class FilesModule : IModule
             .WithApiVersionSet(versionSet)
             .RequireAuthorization();
 
-        // Literal routes first so they win over the /{id:guid} catch-all (matches the Catalog
-        // pattern for /trash etc.).
+        // Literal routes first so they win over the /{id:guid} catch-all (/trash etc.).
         group.MapRequestUploadUrlEndpoint();         // POST  /upload-url
         group.MapListMyFilesEndpoint();              // GET   /mine
         group.MapListSharedFilesEndpoint();          // GET   /shared
@@ -108,6 +112,16 @@ public sealed class FilesModule : IModule
                 j => j.RunAsync(CancellationToken.None),
                 "30 3 * * *", // daily 03:30 UTC
                 new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
+        }
+
+        // One-shot upgrade step (#1410): public files uploaded before visibility lived in the key are
+        // moved under public/, which is all bucket policies let anonymous readers see. Enqueued on every
+        // start: it is idempotent, reads a partial index that is empty once nothing is left to move, and
+        // per-file row locks make overlapping runs (several instances, retries) safe.
+        using (var scope = endpoints.ServiceProvider.CreateScope())
+        {
+            scope.ServiceProvider.GetService<IJobService>()?
+                .Enqueue<MigrateLegacyPublicFileKeysJob>(j => j.RunAsync(CancellationToken.None));
         }
     }
 }

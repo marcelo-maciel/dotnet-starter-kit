@@ -29,7 +29,7 @@ A child entity reached **only** through a parent's navigation collection needs `
 
 ## Migrations
 
-All migrations live in **one** project, `src/Host/FSH.Starter.Migrations.PostgreSQL`, organized **per-module by folder** (`Identity/`, `Catalog/`, `Chat/`, …), each with its own `{Module}DbContextModelSnapshot`.
+All migrations live in **one** project, `src/Host/FSH.Starter.Migrations.PostgreSQL`, organized **per-module by folder** (`Identity/`, `Billing/`, `Files/`, …), each with its own `{Module}DbContextModelSnapshot`.
 
 ```bash
 dotnet ef migrations add {Name} \

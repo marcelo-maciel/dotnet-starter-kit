@@ -1,4 +1,6 @@
+using FSH.Framework.Shared.Identity.Authorization;
 using FSH.Modules.Billing.Contracts;
+using FSH.Modules.Billing.Contracts.Authorization;
 using FSH.Modules.Billing.Contracts.v1.Invoices;
 using Mediator;
 using Microsoft.AspNetCore.Builder;
@@ -21,6 +23,7 @@ public static class GetMyInvoicesEndpoint
                         pageNumber <= 0 ? 1 : pageNumber,
                         pageSize <= 0 ? 20 : Math.Min(pageSize, 100)), ct))
             .WithName("GetMyInvoices")
-            .WithSummary("List invoices for the current tenant");
+            .WithSummary("List invoices for the current tenant")
+            .RequirePermission(BillingPermissions.View);
     }
 }

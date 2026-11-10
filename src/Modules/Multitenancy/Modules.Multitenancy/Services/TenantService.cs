@@ -9,6 +9,7 @@ using FSH.Modules.Multitenancy.Contracts.Dtos;
 using FSH.Modules.Multitenancy.Contracts.v1.GetTenants;
 using FSH.Modules.Multitenancy.Data;
 using FSH.Modules.Multitenancy.Features.v1.GetTenants;
+using FSH.Modules.Multitenancy.Localization;
 using FSH.Modules.Multitenancy.Provisioning;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -56,7 +57,8 @@ public sealed class TenantService : ITenantService
 
         if (tenant.IsActive)
         {
-            throw new CustomException($"tenant {id} is already activated");
+            throw new CustomException($"tenant {id} is already activated")
+                .Localized<MultitenancyResources>("Multitenancy.TenantAlreadyActivated", id);
         }
 
         await _provisioningService.EnsureCanActivateAsync(id, cancellationToken).ConfigureAwait(false);
@@ -84,7 +86,7 @@ public sealed class TenantService : ITenantService
             Plan = planKey,
             // Set ValidUpto directly to the plan term: SetValidity() forbids moving the date backward, and
             // the ctor seeds now+1mo, so it would reject a term computed from an earlier 'now'.
-            ValidUpto = DateTime.SpecifyKind(validUpto, DateTimeKind.Utc),
+            ValidUpto = UtcInstant.From(validUpto),
         };
         await _tenantStore.AddAsync(tenant).ConfigureAwait(false);
         await RefreshTenantCacheAsync(tenant).ConfigureAwait(false);
@@ -123,18 +125,21 @@ public sealed class TenantService : ITenantService
         var tenant = await GetTenantInfoAsync(id, cancellationToken).ConfigureAwait(false);
         if (!tenant.IsActive)
         {
-            throw new CustomException($"tenant {id} is already deactivated");
+            throw new CustomException($"tenant {id} is already deactivated")
+                .Localized<MultitenancyResources>("Multitenancy.TenantAlreadyDeactivated", id);
         }
 
         int tenantCount = (await _tenantStore.GetAllAsync().ConfigureAwait(false)).Count(t => t.IsActive);
         if (tenantCount <= 1)
         {
-            throw new CustomException("At least one active tenant is required.");
+            throw new CustomException("At least one active tenant is required.")
+                .Localized<MultitenancyResources>("Multitenancy.AtLeastOneActiveTenantRequired");
         }
 
         if (tenant.Id.Equals(MultitenancyConstants.Root.Id, StringComparison.OrdinalIgnoreCase))
         {
-            throw new CustomException("The root tenant cannot be deactivated.");
+            throw new CustomException("The root tenant cannot be deactivated.")
+                .Localized<MultitenancyResources>("Multitenancy.RootTenantCannotBeDeactivated");
         }
 
         tenant.Deactivate();
@@ -184,12 +189,12 @@ public sealed class TenantService : ITenantService
 
         return new TenantStatusDto
         {
-            Id = tenant.Id!,
+            Id = tenant.Id,
             Name = tenant.Name!,
             IsActive = tenant.IsActive,
             ValidUpto = tenant.ValidUpto,
             HasConnectionString = !string.IsNullOrWhiteSpace(tenant.ConnectionString),
-            AdminEmail = tenant.AdminEmail!,
+            AdminEmail = tenant.AdminEmail,
             Issuer = tenant.Issuer,
             Plan = tenant.Plan,
             ExpiryState = expiryState,
@@ -228,7 +233,7 @@ public sealed class TenantService : ITenantService
 
         // Set directly rather than via SetValidity: this operator override is allowed to move the date
         // backward (e.g. immediate expiry / correcting a mistake), which SetValidity forbids.
-        var normalized = DateTime.SpecifyKind(validUpto, DateTimeKind.Utc);
+        var normalized = UtcInstant.From(validUpto);
         var previous = tenant.ValidUpto;
         tenant.ValidUpto = normalized;
 
@@ -247,7 +252,8 @@ public sealed class TenantService : ITenantService
 
     private async Task<AppTenantInfo> GetTenantInfoAsync(string id, CancellationToken cancellationToken = default) =>
         await _tenantStore.GetAsync(id).ConfigureAwait(false)
-            ?? throw new NotFoundException($"{typeof(AppTenantInfo).Name} {id} Not Found.");
+            ?? throw new NotFoundException($"{typeof(AppTenantInfo).Name} {id} Not Found.")
+                .Localized<MultitenancyResources>("Multitenancy.TenantNotFound", id);
 
     // Finbuckle resolves via the distributed-cache store first (60-min TTL) while the injected store only
     // writes EF, so push the new state into the cache store too — otherwise flips lag until cache expiry.

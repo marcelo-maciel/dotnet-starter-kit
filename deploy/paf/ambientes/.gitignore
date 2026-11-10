@@ -1,0 +1,5 @@
+# Real environment files carry secrets: only the .exemplo files are versioned.
+*.env
+# Written by deploy.sh on the host (O06): lock, previous tag and the images now running.
+*.deploy.lock
+*.tag-anterior

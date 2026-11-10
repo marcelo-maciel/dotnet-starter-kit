@@ -26,7 +26,7 @@ public sealed class TopupRequest : AggregateRoot<Guid>
         {
             Id = Guid.CreateVersion7(),
             TenantId = tenantId,
-            Amount = new Money(amount, string.IsNullOrWhiteSpace(currency) ? "USD" : currency),
+            Amount = new Money(amount, string.IsNullOrWhiteSpace(currency) ? "BRL" : currency),
             Note = note,
             RequestedBy = requestedBy,
             Status = TopupRequestStatus.Pending,

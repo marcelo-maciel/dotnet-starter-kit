@@ -2,19 +2,19 @@ import { Suspense } from "react";
 import { RouterProvider } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
+import { useTranslation } from "react-i18next";
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, Loader2 } from "lucide-react";
 import { queryClient } from "@/lib/query-client";
 import { AuthProvider } from "@/auth/auth-context";
-import { RealtimeProvider } from "@/realtime/realtime-context";
 import { ThemeProvider, useTheme } from "@/components/theme/theme-provider";
 import { router } from "@/routes";
 
 export function App() {
+  const { t } = useTranslation("common");
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <RealtimeProvider>
             {/* Top-level boundary so the public lazy routes (login, password
                 reset, confirm-email) have a Suspense ancestor on cold chunk
                 fetch — the protected routes also have AppShell's own. */}
@@ -22,14 +22,13 @@ export function App() {
               fallback={
                 <div
                   role="status"
-                  aria-label="Loading"
+                  aria-label={t("loading.label")}
                   className="grid min-h-dvh place-items-center bg-[var(--color-background)]"
                 />
               }
             >
               <RouterProvider router={router} />
             </Suspense>
-          </RealtimeProvider>
           <FshToaster />
         </AuthProvider>
       </QueryClientProvider>
@@ -47,6 +46,7 @@ export function App() {
  */
 function FshToaster() {
   const { theme } = useTheme();
+  const { t } = useTranslation("common");
   return (
     <Toaster
       position="top-right"
@@ -55,6 +55,7 @@ function FshToaster() {
       gap={10}
       expand
       visibleToasts={4}
+      containerAriaLabel={t("shell.notifications")}
       icons={{
         success: <CheckCircle2 className="fsh-toast-glyph" strokeWidth={2.25} />,
         error: <AlertCircle className="fsh-toast-glyph" strokeWidth={2.25} />,

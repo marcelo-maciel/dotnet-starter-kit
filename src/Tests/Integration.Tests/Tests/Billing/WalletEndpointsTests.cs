@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using FSH.Framework.Shared.Persistence;
 using FSH.Modules.Billing.Contracts;
+using FSH.Modules.Billing.Contracts.Authorization;
 using FSH.Modules.Billing.Contracts.Dtos;
 using Integration.Tests.Infrastructure;
 using Integration.Tests.Infrastructure.Extensions;
@@ -95,7 +96,7 @@ public sealed class WalletEndpointsTests
         wallet.ShouldNotBeNull();
         wallet.TenantId.ShouldBe(TestConstants.RootTenantId,
             "the wallet tenant must match the caller's tenant");
-        wallet.Currency.ShouldBe("USD");
+        wallet.Currency.ShouldBe("BRL");
         // Balance starts at 0 (no credits have been applied in this test run).
         wallet.Balance.ShouldBeGreaterThanOrEqualTo(0m,
             "wallet balance must be non-negative");
@@ -159,7 +160,7 @@ public sealed class WalletEndpointsTests
         var otherAdminEmail = $"wallet-admin-{uniqueId}@tenant.com";
 
         await CreateTenantAsync(rootClient, otherTenantId, otherAdminEmail);
-        await WaitForProvisioningAsync(rootClient, otherTenantId);
+        await TenantProvisioningWait.WaitForProvisioningAsync(rootClient, otherTenantId);
 
         using var otherClient = await CreateTenantAdminClientWithRetryAsync(
             otherAdminEmail, TestConstants.DefaultPassword, otherTenantId);
@@ -212,44 +213,10 @@ public sealed class WalletEndpointsTests
         response.StatusCode.ShouldBe(HttpStatusCode.Created, $"Create tenant failed: {body}");
     }
 
-    private static async Task WaitForProvisioningAsync(HttpClient client, string tenantId, int maxRetries = 60)
-    {
-        for (int i = 0; i < maxRetries; i++)
-        {
-            var statusResponse = await client.GetAsync(
-                $"{TestConstants.TenantsBasePath}/{tenantId}/provisioning");
-
-            if (statusResponse.IsSuccessStatusCode)
-            {
-                var content = await statusResponse.Content.ReadAsStringAsync();
-                if (content.Contains("Completed", StringComparison.OrdinalIgnoreCase))
-                {
-                    return;
-                }
-
-                if (content.Contains("Failed", StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new InvalidOperationException(
-                        $"Tenant {tenantId} provisioning failed: {content}");
-                }
-            }
-
-            await Task.Delay(1000);
-        }
-
-        var finalResponse = await client.GetAsync(
-            $"{TestConstants.TenantsBasePath}/{tenantId}/provisioning");
-        var finalContent = finalResponse.IsSuccessStatusCode
-            ? await finalResponse.Content.ReadAsStringAsync()
-            : $"HTTP {finalResponse.StatusCode}";
-
-        throw new TimeoutException(
-            $"Tenant {tenantId} provisioning did not complete within {maxRetries} seconds. Last status: {finalContent}");
-    }
-
     private async Task<HttpClient> CreateTenantAdminClientWithRetryAsync(
         string email, string password, string tenant, int maxRetries = 30)
     {
+        await HiddenModulePermissions.GrantToTenantAdminAsync(_factory, tenant, [BillingPermissions.View]);
         for (int i = 0; i < maxRetries; i++)
         {
             try

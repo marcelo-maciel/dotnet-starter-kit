@@ -111,10 +111,12 @@ test.describe("tenant branding card", () => {
     await expect(page.getByText(/light palette/i)).toBeVisible();
     await expect(page.getByText(/dark palette/i)).toBeVisible();
 
-    // Brand asset URL fields render.
-    await expect(page.getByLabel("Logo URL", { exact: true })).toBeVisible();
-    await expect(page.getByLabel("Logo URL (dark mode)")).toBeVisible();
-    await expect(page.getByLabel("Favicon URL")).toBeVisible();
+    // No brand asset fields: the PAF uses no logo or favicon, and an uploaded file's URL points at R2's S3 API
+    // endpoint, which has no anonymous read (decided 08/11/2026).
+    await expect(page.getByText("Brand assets", { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel("Logo URL", { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel("Logo URL (dark mode)")).toHaveCount(0);
+    await expect(page.getByLabel("Favicon URL")).toHaveCount(0);
   });
 
   test("Save button is disabled until the operator edits something", async ({ page }) => {
@@ -125,9 +127,8 @@ test.describe("tenant branding card", () => {
     await expect(save).toBeVisible({ timeout: 10_000 });
     await expect(save).toBeDisabled();
 
-    // Edit the logo URL via the visible textbox (avoids strict-mode
-    // collisions with the hidden color inputs).
-    await page.getByLabel("Logo URL", { exact: true }).fill("https://cdn.example.com/acme.svg");
+    // Edit a palette color (first match = the light palette; the dark one has the same label).
+    await page.getByLabel("Secondary color").first().fill("#112233");
     await expect(save).toBeEnabled();
     await expect(page.locator("text=/^unsaved$/i").first()).toBeVisible();
   });
@@ -136,9 +137,9 @@ test.describe("tenant branding card", () => {
     await mockJsonResponse(page, "**/api/v1/tenants/theme", THEME_DEFAULT);
 
     await page.goto(`/tenants/${TENANT_ID}`);
-    await expect(page.getByLabel("Logo URL", { exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("button", { name: /save branding/i })).toBeVisible({ timeout: 10_000 });
 
-    await page.getByLabel("Logo URL", { exact: true }).fill("https://cdn.example.com/acme.svg");
+    await page.getByLabel("Secondary color").first().fill("#112233");
 
     const reqPromise = page.waitForRequest(
       (r) =>
@@ -150,8 +151,9 @@ test.describe("tenant branding card", () => {
 
     expect(req.headers().tenant).toBe(TENANT_ID);
     const body = JSON.parse(req.postData() ?? "{}");
-    expect(body.brandAssets.logoUrl).toBe("https://cdn.example.com/acme.svg");
-    expect(body.lightPalette).toMatchObject({ primary: "#2563EB" });
+    expect(body.lightPalette).toMatchObject({ primary: "#2563EB", secondary: "#112233" });
+    // With no editor, the saved assets go back exactly as read.
+    expect(body.brandAssets).toEqual(THEME_DEFAULT.brandAssets);
   });
 
   test("Reset POSTs to /theme/reset and shows a confirmation toast", async ({ page }) => {

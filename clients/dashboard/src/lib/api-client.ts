@@ -1,4 +1,5 @@
 import { env } from "@/env";
+import i18n from "@/i18n";
 import { tokenStore } from "@/auth/token-store";
 import { decodeJwt } from "@/auth/jwt";
 
@@ -9,6 +10,10 @@ export type ApiError = {
   // FluentValidation errors arrive keyed by field (Record); CustomException
   // (e.g. Identity registration failures) sends a flat string[]. Handle both.
   errors?: Record<string, string[]> | string[];
+  // Stable, culture-independent error key (the server's MessageKey) — present
+  // whenever the thrown exception carried one. `detail` is localized prose, so
+  // branch on this, never on the text.
+  code?: string;
   // Dev-only extension surfaced on 401 by ConfigureJwtBearerOptions.
   reason?: string;
   // Allow any other ProblemDetails extensions through.
@@ -26,19 +31,22 @@ export class ApiRequestError extends Error {
   }
 }
 
+/** The deactivated-tenant guard's error key (MultitenancyModule). */
+const TENANT_DEACTIVATED_CODE = "Multitenancy.TenantDeactivated";
+
 /**
- * True when an error is the API's "tenant has been deactivated" 403. The
- * deactivated-tenant guard (MultitenancyModule) rejects *every* request once a
- * tenant is switched off, so this can surface from any query/mutation while a
- * user is mid-session. There is no machine-readable code on the ProblemDetails,
- * so we match the guard's detail text. A global query/mutation error hook uses
- * this to route the user to the dedicated `/tenant-deactivated` page rather than
- * leaving the dead 403 banner stuck under a half-loaded surface.
+ * True when an error is the API's deactivated-tenant 403. The guard
+ * (MultitenancyModule) rejects *every* request once a tenant is switched off, so
+ * this can surface from any query/mutation while a user is mid-session. We match
+ * the ProblemDetails `code` — the server's MessageKey — because `detail` is
+ * localized under the request's Accept-Language and matching prose would only
+ * work for English readers. A global query/mutation error hook uses this to
+ * route the user to the dedicated `/tenant-deactivated` page rather than leaving
+ * the dead 403 banner stuck under a half-loaded surface.
  */
 export function isTenantDeactivatedError(error: unknown): boolean {
   if (!(error instanceof ApiRequestError) || error.status !== 403) return false;
-  const detail = error.problem?.detail ?? error.message ?? "";
-  return detail.toLowerCase().includes("tenant has been deactivated");
+  return error.problem?.code === TENANT_DEACTIVATED_CODE;
 }
 
 /**
@@ -66,6 +74,8 @@ export function isImpersonationRevokedError(error: unknown): boolean {
 
 type RequestInitEx = RequestInit & {
   skipAuth?: boolean;
+  /** Send no `tenant` header: for the routes where the server finds the company from the e-mail (O2, O3). */
+  skipTenant?: boolean;
   /**
    * Per-request timeout in milliseconds. Browser fetch has no default timeout
    * so a permanently stalled request would hang React Query's promise forever.
@@ -73,6 +83,13 @@ type RequestInitEx = RequestInit & {
    * uploads) should override this explicitly.
    */
   timeoutMs?: number;
+  /**
+   * Called with the final response before its body is read, so a caller can pick up a
+   * response header `apiFetch` does not model — the `ETag` on `GET /identity/profile`,
+   * which a later `PUT` echoes back in `If-Match`. Runs for error responses too, and
+   * must not throw.
+   */
+  onResponse?: (response: Response) => void;
 };
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -83,7 +100,7 @@ function withTimeout(
   externalSignal?: AbortSignal | null,
 ): { init: RequestInit; cleanup: () => void } {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(new DOMException("Request timed out", "TimeoutError")), timeoutMs);
+  const timeoutId = window.setTimeout(() => controller.abort(new DOMException("A requisição demorou demais", "TimeoutError")), timeoutMs);
   const onExternalAbort = () => controller.abort(externalSignal?.reason);
   if (externalSignal) {
     if (externalSignal.aborted) {
@@ -103,11 +120,21 @@ function withTimeout(
 
 let refreshPromise: Promise<void> | null = null;
 
-export async function refreshAccessToken() {
+/// Single-flight: the token rotates on the server, so two refreshes racing means the
+/// loser presents a refresh token the server has already spent. Every caller — the
+/// 401 retry, the boot probe, the language switch — awaits the same in-flight call.
+export function refreshAccessToken(): Promise<void> {
+  refreshPromise ??= runRefresh().finally(() => {
+    refreshPromise = null;
+  });
+  return refreshPromise;
+}
+
+async function runRefresh() {
   const refreshToken = tokenStore.getRefreshToken();
   const accessToken = tokenStore.getAccessToken();
   if (!refreshToken || !accessToken) {
-    throw new ApiRequestError(401, "No refresh token");
+    throw new ApiRequestError(401, "Sessão sem renovação");
   }
 
   // Server's RefreshTokenCommand requires both `token` (the existing, possibly expired
@@ -127,8 +154,10 @@ export async function refreshAccessToken() {
   });
 
   if (!response.ok) {
-    tokenStore.clear();
-    throw new ApiRequestError(response.status, "Refresh failed");
+    // Only a refusal ends the session. A 5xx or a 429 says nothing about the refresh token: the tokens stay and
+    // the next request tries again (C3).
+    if (isRefreshRejectedStatus(response.status)) tokenStore.clear();
+    throw new ApiRequestError(response.status, "Falha ao renovar a sessão");
   }
 
   // Server's RefreshTokenCommandResponse returns `{ token, refreshToken, refreshTokenExpiryTime }` —
@@ -138,6 +167,18 @@ export async function refreshAccessToken() {
     refreshToken: string;
   };
   tokenStore.setTokens(tokens.token, tokens.refreshToken);
+}
+
+function isRefreshRejectedStatus(status: number): boolean {
+  return status === 401 || status === 403;
+}
+
+/**
+ * True when the server answered the refresh and refused the token (401/403). Anything else (5xx, 429, a
+ * network drop or timeout, which reject with a non-API error) leaves the session alone.
+ */
+export function isRefreshRejected(error: unknown): boolean {
+  return error instanceof ApiRequestError && isRefreshRejectedStatus(error.status);
 }
 
 async function parseError(response: Response): Promise<ApiError | undefined> {
@@ -156,7 +197,7 @@ export async function apiFetch<T = unknown>(
   path: string,
   init: RequestInitEx = {},
 ): Promise<T> {
-  const { skipAuth, headers, timeoutMs = DEFAULT_TIMEOUT_MS, signal, ...rest } = init;
+  const { skipAuth, skipTenant, headers, timeoutMs = DEFAULT_TIMEOUT_MS, signal, onResponse, ...rest } = init;
 
   const mergedHeaders = new Headers(headers);
   if (!mergedHeaders.has("Content-Type") && rest.body && typeof rest.body === "string") {
@@ -173,17 +214,24 @@ export async function apiFetch<T = unknown>(
       // session state and surface a clean 401 so the UI flips to /login
       // instead of repeatedly firing tokenless requests.
       tokenStore.clear();
-      throw new ApiRequestError(401, "Not signed in", {
+      throw new ApiRequestError(401, "Sessão não iniciada", {
         status: 401,
-        title: "Unauthorized",
-        detail: "Your session is no longer available. Please sign in again.",
+        title: "Não autorizado",
+        detail: "Sua sessão não está mais disponível. Entre de novo.",
       });
     }
   }
 
   const tenant = tokenStore.getTenant() ?? env.defaultTenant;
-  if (tenant && !mergedHeaders.has("tenant")) {
+  if (!skipTenant && tenant && !mergedHeaders.has("tenant")) {
     mergedHeaders.set("tenant", tenant);
+  }
+
+  // Tell the backend which culture to localize responses in. The active UI
+  // locale drives it; the backend resolution chain still falls through to its
+  // own default for anything unsupported.
+  if (!mergedHeaders.has("Accept-Language")) {
+    mergedHeaders.set("Accept-Language", i18n.resolvedLanguage || "en-US");
   }
 
   const url = path.startsWith("http") ? path : `${env.apiBase}${path}`;
@@ -200,13 +248,9 @@ export async function apiFetch<T = unknown>(
       refreshPromise = null;
     });
 
-    try {
-      await refreshPromise;
-    } catch (e) {
-      throw e instanceof ApiRequestError
-        ? e
-        : new ApiRequestError(401, "Session expired");
-    }
+    // A failed refresh rejects with its own error, which the caller sees as is: turning a network drop or a
+    // 503 into a 401 would read as "signed out" while the tokens are still there (C3).
+    await refreshPromise;
 
     const retryHeaders = new Headers(mergedHeaders);
     retryHeaders.set("Authorization", `Bearer ${tokenStore.getAccessToken() ?? ""}`);
@@ -217,6 +261,8 @@ export async function apiFetch<T = unknown>(
       retryTimer.cleanup();
     }
   }
+
+  onResponse?.(response);
 
   if (!response.ok) {
     const problem = await parseError(response);

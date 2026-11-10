@@ -14,11 +14,12 @@ The dashboard does **not** depend on react-hook-form or zod. Use controlled inpu
 
 The JWT carries **only role names**. `auth-context.tsx` fetches the effective permission list from `GET /api/v1/identity/permissions` (`getMyPermissions()` in `src/api/identity.ts`), caches it in `tokenStore` under `fsh.dashboard.permissions`, and exposes a `permissionsHydrated` flag so gated UI doesn't flash while the fetch is in flight (re-fetched on login/impersonation swaps; `refreshPermissions()` for role changes). Nav items are gated via `perm`/`anyPerm` in `src/components/layout/nav-data.ts`. `ProtectedRoute` is still **auth-only** (no per-route permission gating) — don't add `RouteGuard`-style gating here.
 
+A query that mounts outside its own nav-gated page (topbar badges, overview cards) must set `enabled: permissionsHydrated && user.permissions.includes(<the endpoint's RequirePermission>)` and hide or replace its UI without it; otherwise every poll is a 403 the API logs as an error. `refetch()` ignores `enabled`, so gate manual refetches too. Playwright: `installShellMocks` grants `SHELL_PERMISSIONS` (the Basic-role grants these queries need); specs testing the missing-permission path re-mock `/identity/permissions`.
+
 ## Routing & realtime/SSE
 
 - Every route element is wrapped in `withSuspense(node)` (per-route skeleton fallback). No per-route permission guards.
-- `RealtimeProvider` **and** `SseProvider` are mounted inside `AppShell` (authenticated routes only), under a `CommandPaletteProvider` (cmdk).
-- SignalR provider pre-wires ~11 chat/notification events.
+- `SseProvider` is mounted inside `AppShell` (authenticated routes only), under a `CommandPaletteProvider` (cmdk). There is no kit `RealtimeProvider`: the PAF screens open their own PafHub (`features/paf/paf-hub.ts`).
 - **SSE** (`src/sse/`, dashboard-only): two-step token — `POST /api/v1/sse/token`, then `GET /api/v1/sse/stream?token=<guid>` consumed via fetch streaming (`parseSseStream` async generator; EventSource can't send auth headers). **Two split contexts:** `useSseStatus()` (stable, for status dots) vs `useSseEvents()` (mutates per event) to avoid cascading re-renders; `useSse()` is the composite.
 
 ## Impersonation
@@ -27,7 +28,7 @@ The JWT carries **only role names**. `auth-context.tsx` fetches the effective pe
 
 ## Performance
 
-- `@tanstack/react-virtual` for long lists — use it for any large collection (chat history, big tables).
+- No list-virtualization library is installed; add one (e.g. `@tanstack/react-virtual`) when a collection needs it.
 - `cmdk` powers the command palette.
 
 ## Theme
@@ -38,5 +39,5 @@ The JWT carries **only role names**. `auth-context.tsx` fetches the effective pe
 
 - Hand-roll forms (no RHF/zod).
 - Wrap the route element in `withSuspense(<X/>)`; no permission guard.
-- If it consumes pushes: `useRealtimeEvent("EventName", handler)` (register the name in `realtime-context.tsx`) or `useSseEvents()` for SSE.
+- If it consumes pushes: `useSseEvents()` for SSE, or the PafHub (`features/paf/paf-hub.ts`) for PAF screens.
 - Use `react-virtual` for long lists; keep neutrals chroma 0.

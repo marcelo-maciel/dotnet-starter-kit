@@ -3,6 +3,10 @@ import { mockJsonResponse } from "../helpers/api-mocks";
 import { seedAuthedSession, TEST_USER } from "../helpers/auth-seed";
 import { installShellMocks, paged } from "../helpers/shell-mocks";
 
+// What the PAF user reads: the app's pinned pt-BR, without the suites' en-US override (playwright.config.ts), under
+// Playwright's en-US browser.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 type SessionRow = {
   id: string;
   userId?: string | null;
@@ -50,10 +54,12 @@ const SESSIONS = "**/api/v1/identity/sessions**";
 test.beforeEach(async ({ page }) => {
   await seedAuthedSession(page, TEST_USER);
   await installShellMocks(page);
+  // The route refuses the screen without the permission its menu entry carries.
+  await mockJsonResponse(page, "**/api/v1/identity/permissions", ["Permissions.Sessions.ViewAll"]);
 });
 
 test.describe("system/sessions", () => {
-  test("renders the 'Active sessions' heading + a session row (browser + IP)", async ({
+  test("renders the 'Sessões ativas' heading + a session row (browser + IP)", async ({
     page,
   }) => {
     await mockJsonResponse(
@@ -67,14 +73,14 @@ test.describe("system/sessions", () => {
     await page.goto("/system/sessions");
 
     await expect(
-      page.getByRole("heading", { name: "Active sessions", level: 1 }),
+      page.getByRole("heading", { name: "Sessões ativas", level: 1 }),
     ).toBeVisible();
 
     // Browser string is "Chrome 124"; rendered in both the hidden mobile
     // card and the visible desktop row → assert on the last occurrence.
     await expect(page.getByText("Chrome 124").last()).toBeVisible();
     await expect(page.getByText("203.0.113.7").last()).toBeVisible();
-    await expect(page.getByText(/1 session found/i)).toBeVisible();
+    await expect(page.getByText(/1 sessão encontrada/i)).toBeVisible();
   });
 
   test("flags the current session with a 'You' badge", async ({ page }) => {
@@ -88,7 +94,7 @@ test.describe("system/sessions", () => {
 
     await page.goto("/system/sessions");
 
-    await expect(page.getByText("You", { exact: true }).last()).toBeVisible();
+    await expect(page.getByText("Você", { exact: true }).last()).toBeVisible();
   });
 
   test("renders the empty state when there are no sessions", async ({ page }) => {
@@ -97,9 +103,9 @@ test.describe("system/sessions", () => {
     await page.goto("/system/sessions");
 
     await expect(
-      page.getByRole("heading", { name: /no active sessions/i }),
+      page.getByRole("heading", { name: /nenhuma sessão ativa/i }),
     ).toBeVisible();
-    await expect(page.getByText(/sessions appear when users sign in/i)).toBeVisible();
+    await expect(page.getByText(/as sessões aparecem quando os usuários entram/i)).toBeVisible();
   });
 
   test("toggling 'Include inactive' re-queries with includeInactive=true", async ({ page }) => {
@@ -111,7 +117,7 @@ test.describe("system/sessions", () => {
 
     await page.goto("/system/sessions");
     await expect(
-      page.getByRole("heading", { name: "Active sessions", level: 1 }),
+      page.getByRole("heading", { name: "Sessões ativas", level: 1 }),
     ).toBeVisible();
 
     const reqPromise = page.waitForRequest(
@@ -120,7 +126,7 @@ test.describe("system/sessions", () => {
         r.url().includes("includeInactive=true"),
       { timeout: 5_000 },
     );
-    await page.getByRole("button", { name: /include inactive/i }).click();
+    await page.getByRole("button", { name: /incluir inativas/i }).click();
     await reqPromise;
   });
 });

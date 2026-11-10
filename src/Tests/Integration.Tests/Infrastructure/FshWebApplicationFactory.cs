@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using System.Text;
 using FSH.Modules.Multitenancy.Data;
 using FSH.Framework.Web.Modules;
+using FSH.Modules.Auditing;
 using Hangfire;
 using Hangfire.InMemory;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -21,19 +22,26 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
-using Testcontainers.Minio;
+using DotNet.Testcontainers.Builders;
+using DotNet.Testcontainers.Containers;
 using Testcontainers.PostgreSql;
 
 namespace Integration.Tests.Infrastructure;
 
 public sealed class FshWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private const string MinioAccessKey = "minioadmin";
-    private const string MinioSecretKey = "minioadmin";
-    private const string MinioBucket = "fsh-integration-test-uploads";
+    internal const string S3AccessKey = "rustfsadmin";
+    internal const string S3SecretKey = "rustfsadmin";
+    internal const string S3Bucket = "fsh-integration-test-uploads";
+
+    /// <summary>The shared host's Hangfire storage; see <see cref="PrimaryHostStaticsRestorer"/>.</summary>
+    internal static JobStorage? PrimaryJobStorage { get; private set; }
+
+    /// <summary>The shared host's audit configurator; see <see cref="PrimaryHostStaticsRestorer"/>.</summary>
+    internal static AuditingConfigurator? PrimaryAuditingConfigurator { get; private set; }
 
     private static readonly SemaphoreSlim _migrationLock = new(1, 1);
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17-alpine")
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18-alpine")
         .WithDatabase("fsh_integration_tests")
         .WithUsername("postgres")
         .WithPassword("integration_test_pwd")
@@ -41,20 +49,26 @@ public sealed class FshWebApplicationFactory : WebApplicationFactory<Program>, I
         .WithCleanUp(true)
         .Build();
 
-    private readonly MinioContainer _minio = new MinioBuilder("minio/minio:latest")
-        .WithUsername(MinioAccessKey)
-        .WithPassword(MinioSecretKey)
+    // RustFS (S3-compatible) replaces MinIO, whose images were withdrawn from Docker Hub and quay.io.
+    private const int S3Port = 9000;
+    private readonly IContainer _s3 = new ContainerBuilder("rustfs/rustfs:1.0.4")
+        .WithPortBinding(S3Port, true)
+        .WithEnvironment("RUSTFS_ACCESS_KEY", S3AccessKey)
+        .WithEnvironment("RUSTFS_SECRET_KEY", S3SecretKey)
+        .WithWaitStrategy(Wait.ForUnixContainer().UntilHttpRequestIsSucceeded(r => r.ForPort(S3Port).ForPath("/health")))
         .WithAutoRemove(true)
         .WithCleanUp(true)
         .Build();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
-        await Task.WhenAll(_postgres.StartAsync(), _minio.StartAsync());
-        await CreateMinioBucketAsync();
+        await Task.WhenAll(_postgres.StartAsync(), _s3.StartAsync());
+        await CreateS3BucketAsync();
 
         // Force host creation via the Server property (no leaked HttpClient)
         _ = Server;
+        PrimaryJobStorage = Services.GetRequiredService<JobStorage>();
+        PrimaryAuditingConfigurator = Services.GetServices<IHostedService>().OfType<AuditingConfigurator>().Single();
 
         // Migrate + seed the root tenant. The semaphore stops test classes sharing the DB
         // from migrating simultaneously.
@@ -69,38 +83,63 @@ public sealed class FshWebApplicationFactory : WebApplicationFactory<Program>, I
         }
     }
 
-    public new async Task DisposeAsync()
+    public override async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
         await _postgres.DisposeAsync();
-        await _minio.DisposeAsync();
+        await _s3.DisposeAsync();
     }
 
-    /// <summary>The MinIO endpoint URL exposed to the host configuration; useful for tests that need to PUT bytes directly.</summary>
-    public string MinioServiceUrl => _minio.GetConnectionString();
+    /// <summary>
+    /// Removes tenants a test created from the shared tenant store. Use it for tenants that point at an
+    /// unreachable database: later tests that walk every tenant (the legacy public-key migration job, for
+    /// one) would otherwise count them as failures. Test order is not guaranteed, so clean up after yourself.
+    /// </summary>
+    public async Task RemoveTenantsAsync(IEnumerable<string> tenantIds)
+    {
+        ArgumentNullException.ThrowIfNull(tenantIds);
+        using var scope = Services.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<IMultiTenantStore<AppTenantInfo>>();
+        foreach (var tenantId in tenantIds)
+        {
+            await store.RemoveAsync(tenantId);
+        }
+    }
 
-    private async Task CreateMinioBucketAsync()
+    /// <summary>The S3 (RustFS) endpoint URL exposed to the host configuration; useful for tests that need to PUT bytes directly.</summary>
+    public string S3ServiceUrl => $"http://{_s3.Hostname}:{_s3.GetMappedPublicPort(S3Port)}";
+
+    private async Task CreateS3BucketAsync()
     {
         var config = new AmazonS3Config
         {
-            ServiceURL = _minio.GetConnectionString(),
+            ServiceURL = S3ServiceUrl,
             ForcePathStyle = true,
             UseHttp = true,
             AuthenticationRegion = "us-east-1"
         };
 
         using var client = new AmazonS3Client(
-            new Amazon.Runtime.BasicAWSCredentials(MinioAccessKey, MinioSecretKey),
+            new Amazon.Runtime.BasicAWSCredentials(S3AccessKey, S3SecretKey),
             config);
 
         try
         {
-            await client.PutBucketAsync(new PutBucketRequest { BucketName = MinioBucket });
+            await client.PutBucketAsync(new PutBucketRequest { BucketName = S3Bucket });
         }
         catch (AmazonS3Exception ex) when (ex.ErrorCode == "BucketAlreadyOwnedByYou" || ex.ErrorCode == "BucketAlreadyExists")
         {
             // Idempotent across factory re-creations.
         }
+    }
+
+    // Browsers always send an Origin header on the cross-origin auth POSTs (forgot-password, register).
+    // Simulate that globally so front-end-origin resolution matches the allow-list above.
+    protected override void ConfigureClient(HttpClient client)
+    {
+        ArgumentNullException.ThrowIfNull(client);
+        client.DefaultRequestHeaders.Add("Origin", "http://localhost");
+        base.ConfigureClient(client);
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -123,6 +162,12 @@ public sealed class FshWebApplicationFactory : WebApplicationFactory<Program>, I
                 ["JwtOptions:AccessTokenMinutes"] = "30",
                 ["JwtOptions:RefreshTokenDays"] = "7",
                 ["OriginOptions:OriginUrl"] = "http://localhost",
+                ["CorsOptions:AllowedOrigins:0"] = "http://localhost",
+                // Front-end origin resolution: allow the simulated browser Origin for self-service
+                // flows, and set the same as the default so operator-driven flows (register/resend)
+                // and the startup validation both resolve.
+                ["FrontendOptions:AllowedOrigins:0"] = "http://localhost",
+                ["FrontendOptions:DefaultOrigin"] = "http://localhost",
                 ["OpenTelemetryOptions:Enabled"] = "false",
                 ["EventingOptions:UseHostedServiceDispatcher"] = "false",
                 ["Serilog:MinimumLevel:Default"] = "Warning",
@@ -141,26 +186,50 @@ public sealed class FshWebApplicationFactory : WebApplicationFactory<Program>, I
                 ["Seed:DefaultAdminPassword"] = TestConstants.DefaultPassword,
                 ["SecurityHeadersOptions:Enabled"] = "false",
                 ["Storage:Provider"] = "s3",
-                ["Storage:S3:Bucket"] = MinioBucket,
-                ["Storage:S3:ServiceUrl"] = _minio.GetConnectionString(),
-                ["Storage:S3:AccessKey"] = MinioAccessKey,
-                ["Storage:S3:SecretKey"] = MinioSecretKey,
+                ["Storage:S3:Bucket"] = S3Bucket,
+                ["Storage:S3:ServiceUrl"] = S3ServiceUrl,
+                ["Storage:S3:AccessKey"] = S3AccessKey,
+                ["Storage:S3:SecretKey"] = S3SecretKey,
                 ["Storage:S3:ForcePathStyle"] = "true",
                 ["Storage:S3:PublicRead"] = "false",
                 ["Storage:S3:Region"] = "us-east-1",
+                // TestServer closes a WebSocket before the SignalR handshake, so the PAF hub tests here connect by
+                // long polling; production accepts only WebSockets (OpcoesTempoReal, PAF.Kestrel.Tests).
+                ["PAF:TempoReal:Transportes"] = "WebSockets, LongPolling",
             });
         });
 
         builder.ConfigureServices(services =>
         {
+            // Stamp the connection IP from a test header so forwarded-headers trust checks are testable.
+            services.AddSingleton<IStartupFilter, TestRemoteIpStartupFilter>();
+            services.AddSingleton<IStartupFilter, TestPermissionEndpointStartupFilter>();
+
+            // The production TrustedProxyOptions read happens eagerly, before the test config overlay
+            // applies (same quirk as storage below), so bind the trusted upstream here instead. Note what
+            // that leaves these tests covering: overwriting the flags, the forward limit and both trust
+            // lists wholesale replaces whatever the TrustedProxyOptions binding produced, so what runs
+            // against TestConstants.TrustedProxyIp is the real middleware and the real placement of
+            // UseForwardedHeaders, not the binding that feeds them in production. That binding is gated
+            // separately, by Framework.Tests/Web/TrustedProxyOptionsBindingTests.
+            services.PostConfigure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(forwarded =>
+            {
+                forwarded.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+                    | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+                forwarded.ForwardLimit = 1;
+                forwarded.KnownProxies.Clear();
+                forwarded.KnownIPNetworks.Clear();
+                forwarded.KnownProxies.Add(System.Net.IPAddress.Parse(TestConstants.TrustedProxyIp));
+            });
+
             // Remove hosted services that need unavailable infra or race migrations (RolePermissionSync,
             // Hangfire server + stale-lock cleanup, OutboxDispatcher); we register our own InMemory server below.
             var hostedServicesToRemove = services
                 .Where(d => d.ServiceType == typeof(IHostedService) &&
-                    (d.ImplementationType?.Name == "RolePermissionSyncHostedService" ||
-                     d.ImplementationType?.FullName?.Contains("Hangfire", StringComparison.Ordinal) == true ||
-                     d.ImplementationType?.Name == "HangfireStaleLockCleanupService" ||
-                     d.ImplementationType?.Name == "OutboxDispatcherHostedService"))
+                    HostedServiceDescriptors.ImplementationTypeOf(d) is { } tipo &&
+                    (tipo.Name == "RolePermissionSyncHostedService" ||
+                     (tipo.FullName ?? string.Empty).Contains("Hangfire", StringComparison.Ordinal) ||
+                     tipo.Name == "OutboxDispatcherHostedService"))
                 .ToList();
             foreach (var service in hostedServicesToRemove)
             {
@@ -168,6 +237,7 @@ public sealed class FshWebApplicationFactory : WebApplicationFactory<Program>, I
             }
 
             services.AddHangfire(config => config.UseInMemoryStorage());
+            services.AddHostedService<PrimaryHostStaticsRestorer>();
             services.AddHangfireServer(options =>
             {
                 options.SchedulePollingInterval = TimeSpan.FromSeconds(1);
@@ -191,7 +261,7 @@ public sealed class FshWebApplicationFactory : WebApplicationFactory<Program>, I
             services.AddExceptionHandler<DetailedTestExceptionHandler>();
 
             // AddHeroStorage reads `Storage:Provider` eagerly (before the test config overlay applies), so it
-            // wires LocalStorageService. Replace it here with the S3 stack pointed at the MinIO testcontainer.
+            // wires LocalStorageService. Replace it here with the S3 stack pointed at the RustFS testcontainer.
             RewireStorageForS3(services);
         });
     }
@@ -208,31 +278,37 @@ public sealed class FshWebApplicationFactory : WebApplicationFactory<Program>, I
 
         services.Configure<FSH.Framework.Storage.S3.S3StorageOptions>(opts =>
         {
-            opts.Bucket = MinioBucket;
-            opts.ServiceUrl = _minio.GetConnectionString();
-            opts.AccessKey = MinioAccessKey;
-            opts.SecretKey = MinioSecretKey;
+            opts.Bucket = S3Bucket;
+            opts.ServiceUrl = S3ServiceUrl;
+            opts.AccessKey = S3AccessKey;
+            opts.SecretKey = S3SecretKey;
             opts.ForcePathStyle = true;
             opts.PublicRead = false;
             opts.Region = "us-east-1";
         });
 
-        services.AddSingleton<IAmazonS3>(_ =>
-        {
-            var config = new AmazonS3Config
-            {
-                ServiceURL = _minio.GetConnectionString(),
-                ForcePathStyle = true,
-                UseHttp = true,
-                AuthenticationRegion = "us-east-1"
-            };
-            return new AmazonS3Client(
-                new Amazon.Runtime.BasicAWSCredentials(MinioAccessKey, MinioSecretKey),
-                config);
-        });
+        services.AddSingleton<IAmazonS3>(_ => CreateRustFsClient());
+        // S3StorageService presigns through a keyed client; tests reach RustFS on one address, so it matches.
+        services.AddKeyedSingleton<IAmazonS3>(
+            FSH.Framework.Storage.S3.S3StorageService.PresignClientKey,
+            (_, _) => CreateRustFsClient());
         services.AddTransient<FSH.Framework.Storage.S3.S3StorageService>();
         services.AddTransient<FSH.Framework.Storage.Services.IStorageService>(sp =>
             sp.GetRequiredService<FSH.Framework.Storage.S3.S3StorageService>());
+    }
+
+    private AmazonS3Client CreateRustFsClient()
+    {
+        var config = new AmazonS3Config
+        {
+            ServiceURL = S3ServiceUrl,
+            ForcePathStyle = true,
+            UseHttp = true,
+            AuthenticationRegion = "us-east-1"
+        };
+        return new AmazonS3Client(
+            new Amazon.Runtime.BasicAWSCredentials(S3AccessKey, S3SecretKey),
+            config);
     }
 
     protected override IHost CreateHost(IHostBuilder builder)

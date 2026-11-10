@@ -1,6 +1,8 @@
 using FSH.Framework.Core.Exceptions;
+using FSH.Framework.Persistence;
 using FSH.Modules.Files.Contracts.v1.Commands;
 using FSH.Modules.Files.Data;
+using FSH.Modules.Files.Localization;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,12 +15,13 @@ public sealed class RestoreFileCommandHandler(FilesDbContext db)
     {
         ArgumentNullException.ThrowIfNull(cmd);
 
-        // IgnoreQueryFilters because the SoftDelete filter would otherwise hide the row.
+        // Bypasses ONLY the soft-delete filter, which would otherwise hide the row; the tenant filter stays, so
+        // another tenant's file is not found.
         var f = await db.FileAssets
-            .IgnoreQueryFilters()
+            .IgnoreQueryFilters([QueryFilters.SoftDelete])
             .FirstOrDefaultAsync(x => x.Id == cmd.FileAssetId, cancellationToken)
             .ConfigureAwait(false)
-            ?? throw new NotFoundException("file not found");
+            ?? throw new NotFoundException("file not found").Localized<FilesResources>("Files.FileNotFound");
 
         if (!f.IsDeleted)
         {

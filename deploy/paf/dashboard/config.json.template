@@ -1,0 +1,7 @@
+{
+  "apiBase": "${FSH_API_URL}",
+  "defaultTenant": "${FSH_DEFAULT_TENANT}",
+  "demoMode": false,
+  "inactivityIdleMs": ${PAF_INATIVIDADE_MS},
+  "inactivityWarningMs": 60000
+}

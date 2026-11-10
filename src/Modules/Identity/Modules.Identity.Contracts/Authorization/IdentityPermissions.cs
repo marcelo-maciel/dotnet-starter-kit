@@ -76,23 +76,27 @@ public static class IdentityPermissions
 
     public static IReadOnlyList<FshPermission> All { get; } =
     [
-        new("View Users",          ActionConstants.View,   Users.Resource, IsBasic: true),
+        // Users, Roles and Groups are root only (02/11/2026): a client manages its users on /paf/usuarios, which keeps
+        // the unidade scope, revokes sessions on deactivation and cleans the PAF data; the kit screens and endpoints
+        // did none of that. Search, Export, UserRoles and RoleClaims gate no endpoint, so they stay as they were.
+        new("View Users",          ActionConstants.View,   Users.Resource, IsBasic: true, IsRoot: true),
         new("Search Users",        ActionConstants.Search, Users.Resource),
-        new("Create Users",        ActionConstants.Create, Users.Resource),
-        new("Update Users",        ActionConstants.Update, Users.Resource),
-        new("Delete Users",        ActionConstants.Delete, Users.Resource),
+        new("Create Users",        ActionConstants.Create, Users.Resource, IsRoot: true),
+        new("Update Users",        ActionConstants.Update, Users.Resource, IsRoot: true),
+        new("Delete Users",        ActionConstants.Delete, Users.Resource, IsRoot: true),
         new("Export Users",        ActionConstants.Export, Users.Resource),
-        new("Manage User Roles",   "ManageRoles",          Users.Resource),
-        new("Impersonate User",    "Impersonate",          Users.Resource),
-        new("Confirm User Email",  "ConfirmEmail",         Users.Resource),
+        new("Manage User Roles",   "ManageRoles",          Users.Resource, IsRoot: true),
+        // Root only: acting as a client's user is support done by the Codefi operator, never by the client's own admin.
+        new("Impersonate User",    "Impersonate",          Users.Resource, IsRoot: true),
+        new("Confirm User Email",  "ConfirmEmail",         Users.Resource, IsRoot: true),
 
         new("View User Roles",     ActionConstants.View,   UserRoles.Resource, IsBasic: true),
         new("Update User Roles",   ActionConstants.Update, UserRoles.Resource),
 
-        new("View Roles",          ActionConstants.View,   Roles.Resource, IsBasic: true),
-        new("Create Roles",        ActionConstants.Create, Roles.Resource),
-        new("Update Roles",        ActionConstants.Update, Roles.Resource),
-        new("Delete Roles",        ActionConstants.Delete, Roles.Resource),
+        new("View Roles",          ActionConstants.View,   Roles.Resource, IsBasic: true, IsRoot: true),
+        new("Create Roles",        ActionConstants.Create, Roles.Resource, IsRoot: true),
+        new("Update Roles",        ActionConstants.Update, Roles.Resource, IsRoot: true),
+        new("Delete Roles",        ActionConstants.Delete, Roles.Resource, IsRoot: true),
 
         new("View Role Claims",    ActionConstants.View,   RoleClaims.Resource, IsBasic: true),
         new("Update Role Claims",  ActionConstants.Update, RoleClaims.Resource),
@@ -102,11 +106,11 @@ public static class IdentityPermissions
         new("View All Sessions",   "ViewAll",               Sessions.Resource),
         new("Revoke Any Session",  "RevokeAll",             Sessions.Resource),
 
-        new("View Groups",         ActionConstants.View,   Groups.Resource, IsBasic: true),
-        new("Create Groups",       ActionConstants.Create, Groups.Resource),
-        new("Update Groups",       ActionConstants.Update, Groups.Resource),
-        new("Delete Groups",       ActionConstants.Delete, Groups.Resource),
-        new("Manage Group Members","ManageMembers",        Groups.Resource),
+        new("View Groups",         ActionConstants.View,   Groups.Resource, IsBasic: true, IsRoot: true),
+        new("Create Groups",       ActionConstants.Create, Groups.Resource, IsRoot: true),
+        new("Update Groups",       ActionConstants.Update, Groups.Resource, IsRoot: true),
+        new("Delete Groups",       ActionConstants.Delete, Groups.Resource, IsRoot: true),
+        new("Manage Group Members","ManageMembers",        Groups.Resource, IsRoot: true),
 
         new("View Impersonation Grants",   ActionConstants.View, Impersonation.Resource),
         new("Revoke Impersonation Grants", "Revoke",             Impersonation.Resource),

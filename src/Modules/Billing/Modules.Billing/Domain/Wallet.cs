@@ -25,7 +25,7 @@ public sealed class Wallet : AggregateRoot<Guid>
         {
             Id = Guid.CreateVersion7(),
             TenantId = tenantId,
-            Balance = Money.Zero(string.IsNullOrWhiteSpace(currency) ? "USD" : currency),
+            Balance = Money.Zero(string.IsNullOrWhiteSpace(currency) ? "BRL" : currency),
             Status = WalletStatus.Active,
             CreatedAtUtc = DateTime.UtcNow
         };

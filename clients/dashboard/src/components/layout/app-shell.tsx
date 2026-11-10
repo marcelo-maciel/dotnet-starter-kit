@@ -1,4 +1,5 @@
 import { Outlet } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
@@ -8,16 +9,14 @@ import {
   MobileNavRoot,
 } from "@/components/layout/mobile-nav";
 import { SseProvider } from "@/sse/sse-context";
-import { RealtimeProvider } from "@/realtime/realtime-context";
-import { ChatGlobalNotifier } from "@/components/notifications/chat-global-notifier";
 import { CommandPaletteRoot } from "@/components/command-palette/command-palette";
 import { InactivityGuard } from "@/components/auth/inactivity-guard";
 import { cn } from "@/lib/cn";
 
 export function AppShell() {
+  const { t } = useTranslation("common");
   return (
     <SseProvider>
-      <RealtimeProvider>
       <MobileNavProvider>
         {/* Skip-to-content link — first focusable element. Visually
             hidden until focused, then it lifts up as a brand chip so
@@ -32,7 +31,7 @@ export function AppShell() {
             "focus:ring-[var(--color-ring)] focus:ring-offset-2 focus:ring-offset-[var(--color-background)]",
           )}
         >
-          Skip to main content
+          {t("skipToContent")}
         </a>
 
         <div className="flex h-screen flex-col overflow-hidden bg-[var(--color-background)] text-[var(--color-foreground)]">
@@ -58,11 +57,6 @@ export function AppShell() {
             the Topbar. */}
         <MobileNavRoot />
       </MobileNavProvider>
-      {/* Background chat notifier — listens to ChatMessageCreated on the
-          shared SignalR connection and toasts when the user isn't currently
-          on that channel. Mounted inside the router subtree so the route
-          predicate (current /chat/:channelId) and navigate() both work. */}
-      <ChatGlobalNotifier />
 
       {/* Mounted inside the router subtree so useNavigate inside the
           palette resolves correctly. */}
@@ -70,7 +64,6 @@ export function AppShell() {
 
       {/* Inactivity auto-logout — warning modal + countdown, signed-in only. */}
       <InactivityGuard />
-      </RealtimeProvider>
     </SseProvider>
   );
 }

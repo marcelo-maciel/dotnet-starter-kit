@@ -10,6 +10,7 @@ using System.Text.Json;
 using Finbuckle.MultiTenant;
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Shared.Multitenancy;
+using FSH.Modules.Identity.Contracts.DTOs;
 using FSH.Modules.Identity.Domain;
 using Integration.Tests.Infrastructure;
 using Microsoft.AspNetCore.Identity;
@@ -50,7 +51,7 @@ public sealed class ImpersonationTests : IAsyncLifetime
         _auth = new AuthHelper(factory);
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var uniqueId = Guid.NewGuid().ToString("N")[..8];
         _tenantId = $"imptest-{uniqueId}";
@@ -58,10 +59,11 @@ public sealed class ImpersonationTests : IAsyncLifetime
 
         using var rootClient = await _auth.CreateRootAdminClientAsync();
         await CreateTenantAsync(rootClient, _tenantId, _tenantAdminEmail);
-        await WaitForProvisioningAsync(rootClient, _tenantId);
+        await TenantProvisioningWait.WaitForProvisioningAsync(rootClient, _tenantId);
 
         // Sign in as the seeded tenant admin to capture their userId from the JWT — the search
         // endpoint would couple these tests to the (currently buggy) cross-tenant search override.
+        await HiddenModulePermissions.GrantToTenantAdminAsync(_factory, _tenantId, HiddenModulePermissions.IdentityAdministration);
         var tenantToken = await GetTokenWithRetryAsync(_tenantAdminEmail, TestConstants.DefaultPassword, _tenantId);
         _tenantAdminUserId = ReadSubject(tenantToken.AccessToken);
 
@@ -69,7 +71,7 @@ public sealed class ImpersonationTests : IAsyncLifetime
         _rootAdminUserId = ReadSubject(rootToken.AccessToken);
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     // ─── StartImpersonation ─────────────────────────────────────────────
 
@@ -552,7 +554,7 @@ public sealed class ImpersonationTests : IAsyncLifetime
 
         using var rootClient = await _auth.CreateRootAdminClientAsync();
         await CreateTenantAsync(rootClient, otherTenantId, otherAdminEmail);
-        await WaitForProvisioningAsync(rootClient, otherTenantId);
+        await TenantProvisioningWait.WaitForProvisioningAsync(rootClient, otherTenantId);
         var otherToken = await GetTokenWithRetryAsync(otherAdminEmail, TestConstants.DefaultPassword, otherTenantId);
         var otherAdminUserId = ReadSubject(otherToken.AccessToken);
 
@@ -776,6 +778,35 @@ public sealed class ImpersonationTests : IAsyncLifetime
 
     #endregion
 
+    // ─── Current session marking ────────────────────────────────────────
+
+    #region Current session
+
+    [Fact]
+    public async Task Start_Should_IssueTokenWithoutSessionId_So_NoSessionIsMarkedCurrent()
+    {
+        // Arrange — the operator's own login token carries the id of the operator's session.
+        using var rootClient = await _auth.CreateRootAdminClientAsync();
+
+        // Act
+        var impersonationToken = await StartImpersonationAsync(rootClient, _tenantAdminUserId, _tenantId);
+
+        // Assert — the operator's session id must not travel into the impersonated identity.
+        var jwt = new JwtSecurityTokenHandler().ReadJwtToken(impersonationToken);
+        jwt.Claims.ShouldNotContain(c => c.Type == JwtRegisteredClaimNames.Sid);
+        jwt.Claims.ShouldNotContain(c => c.Type == System.Security.Claims.ClaimTypes.Sid);
+
+        using var impersonatedClient = ClientWithBearer(impersonationToken, _tenantId);
+        var response = await impersonatedClient.GetAsync($"{TestConstants.IdentityBasePath}/sessions/me");
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var sessions = await response.Content.ReadFromJsonAsync<List<UserSessionDto>>(Json);
+        sessions.ShouldNotBeNull();
+        sessions.ShouldNotBeEmpty();
+        sessions.ShouldAllBe(s => !s.IsCurrentSession);
+    }
+
+    #endregion
+
     // ─── helpers ────────────────────────────────────────────────────────
 
     private static async Task<string> StartImpersonationAsync(HttpClient asClient, string targetUserId, string targetTenantId)
@@ -849,8 +880,7 @@ public sealed class ImpersonationTests : IAsyncLifetime
         var userName = $"{prefix}{unique}";
         const string password = "Test@1234!";
 
-        // Endpoint is `/identity/register` (not `/identity/users/register`) —
-        // mirrors the existing seed pattern in ChatSendMessageTests.
+        // Endpoint is `/identity/register` (not `/identity/users/register`).
         using var response = await adminClient.PostAsJsonAsync(
             $"{TestConstants.IdentityBasePath}/register", new
             {
@@ -879,7 +909,7 @@ public sealed class ImpersonationTests : IAsyncLifetime
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<FshUser>>();
         var user = await userManager.FindByIdAsync(userId);
         user.ShouldNotBeNull();
-        if (!user!.EmailConfirmed)
+        if (!user.EmailConfirmed)
         {
             user.EmailConfirmed = true;
             (await userManager.UpdateAsync(user)).Succeeded.ShouldBeTrue();
@@ -903,28 +933,6 @@ public sealed class ImpersonationTests : IAsyncLifetime
             issuer = $"{tenantId}.issuer",
         });
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
-    }
-
-    private static async Task WaitForProvisioningAsync(HttpClient client, string tenantId, int maxRetries = 60)
-    {
-        for (var i = 0; i < maxRetries; i++)
-        {
-            var statusResponse = await client.GetAsync($"{TestConstants.TenantsBasePath}/{tenantId}/provisioning");
-            if (statusResponse.IsSuccessStatusCode)
-            {
-                var content = await statusResponse.Content.ReadAsStringAsync();
-                if (content.Contains("Completed", StringComparison.OrdinalIgnoreCase))
-                {
-                    return;
-                }
-                if (content.Contains("Failed", StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new InvalidOperationException($"Tenant {tenantId} provisioning failed: {content}");
-                }
-            }
-            await Task.Delay(1000);
-        }
-        throw new TimeoutException($"Tenant {tenantId} did not finish provisioning.");
     }
 
     // ─── shape mirrors ─────────────────────────────────────────────────

@@ -17,7 +17,7 @@ namespace FSH.Starter.Migrations.PostgreSQL.Identity
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.8")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -87,7 +87,9 @@ namespace FSH.Starter.Migrations.PostgreSQL.Identity
 
                     b.HasKey("Id");
 
-                    b.HasIndex("RoleId");
+                    b.HasIndex("RoleId", "ClaimType", "ClaimValue")
+                        .IsUnique()
+                        .HasDatabaseName("IX_RoleClaims_RoleId_ClaimType_ClaimValue");
 
                     b.ToTable("RoleClaims", "identity");
 
@@ -127,6 +129,10 @@ namespace FSH.Starter.Migrations.PostgreSQL.Identity
 
                     b.Property<DateTime>("LastPasswordChangeDate")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Locale")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
 
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");
@@ -183,6 +189,10 @@ namespace FSH.Starter.Migrations.PostgreSQL.Identity
                     b.HasIndex("NormalizedUserName", "TenantId")
                         .IsUnique()
                         .HasDatabaseName("UserNameIndex");
+
+                    b.HasIndex(new[] { "NormalizedEmail" }, "IX_Users_NormalizedEmail_Clientes")
+                        .IsUnique()
+                        .HasFilter("\"TenantId\" <> 'root'");
 
                     b.ToTable("Users", "identity");
 

@@ -1,0 +1,21 @@
+# Parts of the CI walk matrix (paf.yml job "walk", walk-ci.sh <parte>): "<parte> <walk>" per line. The part
+# "demais" is every paf-*.walk.mjs of clients/dashboard/tests/e2e and clients/admin/tests/e2e not listed here, so a
+# new walk always runs there.
+# Balanced on the local durations of 20/10/2026 (one stack per walk, Windows; seconds after each walk): rebalance from
+# the CI job times. The walks with long designed waits are apart (paf-navegacao's idle wait in 1, paf-midia-painel's
+# URL expiry and paf-logout-servidor in 2), and the three production-build walks share part 1's single `npm run build`.
+# The operator console walks (clients/admin, local durations of 08/11/2026) have their own part: with the admin
+# `npm run build` they would take "demais", where every new walk lands, to about part 1's time (CI of 08/11/2026:
+# 1 = 10 min, 2 = 8 min, demais = 7 min).
+1 paf-navegacao.walk.mjs           # 241
+1 paf-imagem-fundo.walk.mjs        # 72
+1 paf-parametros-gerais.walk.mjs   # 68
+1 paf-selecionar-ficha.walk.mjs    # 65
+1 paf-fichas-do-dia.walk.mjs       # 63
+2 paf-midia-painel.walk.mjs        # 217
+2 paf-aparencia-estacao.walk.mjs   # 123
+2 paf-primeira-fatia.walk.mjs      # 59
+2 paf-logout-servidor.walk.mjs     # 55
+2 paf-estatistica.walk.mjs         # 53
+admin paf-operador-contratos.walk.mjs  # 28
+admin paf-operador-estacoes.walk.mjs   # 20

@@ -33,10 +33,8 @@ public sealed class RefreshTokenRevocationTests
         var sessionsContent = await sessionsResponse.Content.ReadAsStringAsync();
         sessionsResponse.StatusCode.ShouldBe(HttpStatusCode.OK, $"Content: {sessionsContent}");
         var sessions = await sessionsResponse.Content.ReadFromJsonAsync<IEnumerable<UserSessionDto>>();
-        // Note: isCurrentSession is currently hardcoded to false in GetUserSessionsAsync
-        // so we take the first active session for this user.
-        var currentSession = sessions?.FirstOrDefault();
-        currentSession.ShouldNotBeNull();
+        sessions.ShouldNotBeNull();
+        var currentSession = sessions.Single(s => s.IsCurrentSession);
 
         // Act - Revoke current session
         var revokeResponse = await client.DeleteAsync($"{TestConstants.IdentityBasePath}/sessions/{currentSession.Id}");

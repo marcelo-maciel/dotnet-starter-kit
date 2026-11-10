@@ -38,7 +38,7 @@ public static class SystemPermissions
 
     public static IReadOnlyList<FshPermission> All { get; } =
     [
-        new("View Hangfire",  ActionConstants.View, Hangfire.Resource,  IsBasic: true),
+        new("View Hangfire",  ActionConstants.View, Hangfire.Resource),
         new("View Dashboard", ActionConstants.View, Dashboard.Resource, IsBasic: true),
 
         // Platform · cross-tenant — SuperAdmin only.

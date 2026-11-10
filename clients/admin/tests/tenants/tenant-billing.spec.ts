@@ -325,3 +325,85 @@ test.describe("plan dialog — billing interval", () => {
     await expect(dialog.getByLabel(/^Key/)).toBeDisabled();
   });
 });
+
+// The picked day means that day in Brasília: the dialog sends that day's 00:00 in Brasília and
+// prefills the Brasília day of the stored instant. The browser sits in Berlin so neither its zone
+// nor UTC can pass for Brasília. Ported from CanalCorreto bc79cd01.
+test.describe("tenant detail — adjust validity in Brasília", () => {
+  test.use({ timezoneId: "Europe/Berlin", locale: "en-US" });
+
+  async function openDialog(page: import("@playwright/test").Page, validUpto: string) {
+    await mockPlans(page);
+    await page.route("**/api/v1/tenants/acme-corp/status", (route) =>
+      route.fulfill({
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: "acme-corp", name: "Acme Corp", adminEmail: "admin@acme.example",
+          isActive: true, validUpto, issuer: "acme-corp.issuer",
+          plan: "pro", expiryState: "Active", graceEndsUtc: "2026-05-08T03:00:00Z",
+        }),
+      }),
+    );
+    await page.route("**/api/v1/tenants/*/provisioning", (route) =>
+      route.fulfill({ status: 404, headers: { "Content-Type": "application/json" }, body: "{}" }),
+    );
+    await page.route("**/api/v1/tenants/theme", (route) =>
+      route.fulfill({
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lightPalette: {}, darkPalette: {}, brandAssets: {},
+          typography: { fontFamily: "Inter", headingFontFamily: "Inter", fontSizeBase: 14, lineHeightBase: 1.5 },
+          layout: { borderRadius: "4px", defaultElevation: 1 },
+          isDefault: true,
+        }),
+      }),
+    );
+    await page.route("**/api/v1/identity/impersonation/grants**", (route) =>
+      route.fulfill({ status: 200, headers: { "Content-Type": "application/json" }, body: "[]" }),
+    );
+
+    await page.goto("/tenants/acme-corp");
+    const adjustButton = page.getByRole("main").getByRole("button", { name: /Adjust validity/ });
+    await expect(adjustButton).toBeVisible({ timeout: 10_000 });
+    await adjustButton.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "Adjust validity" })).toBeVisible();
+    return dialog;
+  }
+
+  test("a day picked as 1 May reads 1 May again and is sent as 00:00 in Brasília", async ({ page }) => {
+    // What the dialog itself sends for 1 May: 03:00 UTC.
+    const dialog = await openDialog(page, "2026-05-01T03:00:00Z");
+
+    await expect(dialog.getByLabel(/^Valid until/)).toHaveValue("2026-05-01");
+    // lib/format formatDate (#1383) in the suites' en-US: "May 01, 2026".
+    await expect(dialog.getByText(/May 01, 2026/)).toBeVisible();
+
+    await dialog.getByLabel(/^Valid until/).fill("2026-09-15");
+    const adjustReq = page.waitForRequest(
+      (r) => r.url().includes("/api/v1/tenants/acme-corp/adjust-validity") && r.method() === "POST",
+      { timeout: 5_000 },
+    );
+    await page.route("**/api/v1/tenants/acme-corp/adjust-validity", (route) =>
+      route.fulfill({
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantId: "acme-corp", validUpto: "2026-09-15T03:00:00Z" }),
+      }),
+    );
+    await dialog.getByRole("button", { name: "Adjust validity", exact: true }).click();
+
+    expect(JSON.parse((await adjustReq).postData() ?? "{}").validUpto).toBe("2026-09-15T03:00:00.000Z");
+    await expect(page.getByText(/Sep 15, 2026/).first()).toBeVisible();
+  });
+
+  test("an instant before 03:00 UTC prefills the Brasília day, not the UTC or browser one", async ({ page }) => {
+    // 01:30 UTC on 1 May: 30 April in Brasília, 1 May in UTC and in Berlin.
+    const dialog = await openDialog(page, "2026-05-01T01:30:00Z");
+
+    await expect(dialog.getByLabel(/^Valid until/)).toHaveValue("2026-04-30");
+    await expect(dialog.getByText(/Apr 30, 2026/)).toBeVisible();
+  });
+});

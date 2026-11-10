@@ -29,7 +29,7 @@ public sealed class AuditQueryTenantIsolationTests
         var otherAdminEmail = $"audit-key-admin-{uniqueId}@tenant.com";
 
         await CreateTenantAsync(rootClient, otherTenantId, otherAdminEmail);
-        await WaitForProvisioningAsync(rootClient, otherTenantId);
+        await TenantProvisioningWait.WaitForProvisioningAsync(rootClient, otherTenantId);
 
         using var otherClient = await CreateTenantAdminClientWithRetryAsync(
             otherAdminEmail, TestConstants.DefaultPassword, otherTenantId);
@@ -65,12 +65,16 @@ public sealed class AuditQueryTenantIsolationTests
     {
         // The other tenant authenticated (Security audit) and now hits an
         // audited endpoint; poll until a row scoped to its own tenant appears.
+        // EntityChange rows are excluded: provisioning writes a tenant's seed data as EntityChange
+        // rows without a correlation id, and there can be more than one page of them (how many
+        // depends on what earlier tests created), which would push the request row off page 1.
         return await AuditTestHelper.PollForAuditAsync(
             otherClient,
             a => a.TenantId == tenantId
                  && !string.IsNullOrEmpty(a.CorrelationId)
                  && !string.IsNullOrEmpty(a.TraceId),
-            attempts: 40);
+            attempts: 40,
+            extraQuery: "ExcludeEventType=EntityChange");
     }
 
     private async Task<HttpClient> CreateTenantAdminClientWithRetryAsync(
@@ -104,34 +108,5 @@ public sealed class AuditQueryTenantIsolationTests
         });
         var body = await response.Content.ReadAsStringAsync();
         response.StatusCode.ShouldBe(HttpStatusCode.Created, $"Create tenant failed: {body}");
-    }
-
-    private static async Task WaitForProvisioningAsync(HttpClient client, string tenantId, int maxRetries = 60)
-    {
-        for (int i = 0; i < maxRetries; i++)
-        {
-            var statusResponse = await client.GetAsync(
-                $"{TestConstants.TenantsBasePath}/{tenantId}/provisioning");
-
-            if (statusResponse.IsSuccessStatusCode)
-            {
-                var content = await statusResponse.Content.ReadAsStringAsync();
-                if (content.Contains("Completed", StringComparison.OrdinalIgnoreCase))
-                {
-                    return;
-                }
-
-                if (content.Contains("Failed", StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new InvalidOperationException(
-                        $"Tenant {tenantId} provisioning failed: {content}");
-                }
-            }
-
-            await Task.Delay(1000);
-        }
-
-        throw new TimeoutException(
-            $"Tenant {tenantId} provisioning did not complete within {maxRetries} seconds.");
     }
 }

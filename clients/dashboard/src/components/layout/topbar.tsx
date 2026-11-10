@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
   Check,
   ChevronsUpDown,
-  KeyRound,
   LogOut,
   Monitor,
   Moon,
@@ -15,8 +15,6 @@ import {
 } from "lucide-react";
 import { useCommandPalette } from "@/components/command-palette/command-palette";
 import { MobileNavTrigger } from "@/components/layout/mobile-nav";
-import { ChatUnreadBadge } from "@/components/notifications/chat-unread-badge";
-import { NotificationBell } from "@/components/notifications/notification-bell";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -36,7 +34,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar } from "@/components/ui/avatar";
-import { getMyProfile } from "@/api/identity";
+import { getMyProfileWithETag } from "@/api/identity";
+import { formatNumber } from "@/lib/list-helpers";
 import { useAuth } from "@/auth/use-auth";
 import { useSseStatus } from "@/sse/sse-context";
 import { useTheme } from "@/components/theme/theme-provider";
@@ -64,8 +63,9 @@ function initialsOf(name?: string | null): string {
 /** Square rose-tinted user tile (dos pattern) — shows the profile photo when set,
  *  falling back to initials when there's no image or it fails to load. */
 function SquareUserAvatar({ src, name }: { src?: string | null; name?: string | null }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [src]);
+  // Keyed by the src that failed, so a new src resets it without an effect.
+  const [failedSrc, setFailedSrc] = useState<string | null | undefined>(null);
+  const failed = Boolean(src) && failedSrc === src;
   const showImage = Boolean(src) && !failed;
   return (
     <span
@@ -80,7 +80,7 @@ function SquareUserAvatar({ src, name }: { src?: string | null; name?: string | 
         <img
           src={src ?? undefined}
           alt=""
-          onError={() => setFailed(true)}
+          onError={() => setFailedSrc(src)}
           className="size-full object-cover"
         />
       ) : (
@@ -148,14 +148,20 @@ function SimpleMenuItem({
 
 export function Topbar() {
   const { user, logout } = useAuth();
+  // useTranslation subscribes this component to `languageChanged`, so the menu
+  // labels and the active-locale check re-render the instant we switch.
+  const { t } = useTranslation();
   // Shared with the Profile settings page (same query key), so changing the
-  // photo there invalidates this and the topbar avatar updates live.
+  // photo there invalidates this and the topbar avatar updates live. That sharing is also why
+  // this reads through the ETag-carrying variant: one query key must hold one shape, and the
+  // settings page needs the tag to save against.
   const { data: profile } = useQuery({
     queryKey: ["identity", "me"],
-    queryFn: getMyProfile,
+    queryFn: getMyProfileWithETag,
     staleTime: 5 * 60 * 1000,
   });
-  const avatarUrl = profile?.imageUrl ?? null;
+  const avatarUrl = profile?.profile.imageUrl ?? null;
+
   const { status: sseStatus, eventCount } = useSseStatus();
   const { mode, setMode } = useTheme();
   const { setOpen: setPaletteOpen } = useCommandPalette();
@@ -171,19 +177,22 @@ export function Topbar() {
     if (sseStatus === "connected") {
       return {
         color: "var(--color-success)",
-        text: `Connected · ${new Intl.NumberFormat("en-US").format(eventCount)} events`,
+        text: t("presence.connected", {
+          count: eventCount,
+          formatted: formatNumber(eventCount),
+        }),
       };
     }
     if (sseStatus === "error") {
-      return { color: "var(--color-destructive)", text: "Stream offline" };
+      return { color: "var(--color-destructive)", text: t("presence.offline") };
     }
     if (sseStatus === "connecting") {
-      return { color: "var(--color-muted-foreground)", text: "Connecting…" };
+      return { color: "var(--color-muted-foreground)", text: t("presence.connecting") };
     }
     if (sseStatus === "reconnecting") {
-      return { color: "var(--color-warning)", text: "Reconnecting…" };
+      return { color: "var(--color-warning)", text: t("presence.reconnecting") };
     }
-    return { color: "var(--color-muted-foreground)", text: "Idle" };
+    return { color: "var(--color-muted-foreground)", text: t("presence.idle") };
   })();
 
   return (
@@ -207,7 +216,7 @@ export function Topbar() {
       <button
         type="button"
         onClick={() => setPaletteOpen(true)}
-        aria-label="Open command palette"
+        aria-label={t("commandPalette.open")}
         className={cn(
           "grid h-9 w-9 cursor-pointer place-items-center rounded-md md:hidden",
           "text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)] hover:text-[var(--color-foreground)]",
@@ -223,7 +232,7 @@ export function Topbar() {
       <button
         type="button"
         onClick={() => setPaletteOpen(true)}
-        title="Open command palette"
+        title={t("commandPalette.open")}
         className={cn(
           "hidden h-8 cursor-pointer items-center gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-muted)] px-2.5 text-xs",
           "text-[var(--color-muted-foreground)]",
@@ -233,18 +242,11 @@ export function Topbar() {
         )}
       >
         <Search className="h-3.5 w-3.5" />
-        <span>Search</span>
+        <span>{t("search")}</span>
         <kbd className="ml-2 rounded border border-[var(--color-border)] bg-[var(--color-card)] px-1.5 py-px font-mono text-[10px] font-medium tracking-tight">
           ⌘K
         </kbd>
       </button>
-
-      {/* Chat unread badge — sums unreadCount across the user's channels.
-          Brand-primary chip to distinguish from the destructive-red bell. */}
-      <ChatUnreadBadge />
-
-      {/* Notification bell — bell badge + dropdown inbox. */}
-      <NotificationBell />
 
       {/* `modal={false}` is required because we open the sign-out
           confirmation Dialog from a DropdownMenuItem. Default modal mode
@@ -260,7 +262,7 @@ export function Topbar() {
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            aria-label="Open profile menu"
+            aria-label={t("profileMenu.open")}
             className={cn(
               "group flex cursor-pointer items-center gap-2.5 rounded-lg py-1 pl-1 pr-2 outline-none",
               "transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out-cubic)]",
@@ -274,10 +276,10 @@ export function Topbar() {
             {/* Name + role caption — desktop only */}
             <div className="hidden min-w-0 text-left md:block">
               <p className="truncate text-[12px] font-medium leading-none text-[var(--color-foreground)]">
-                {user?.name ?? user?.email ?? "Unknown"}
+                {user?.name ?? user?.email ?? t("unknownUser")}
               </p>
               <p className="mt-1 truncate text-[10px] leading-none text-[var(--color-muted-foreground)]">
-                {user?.tenant ?? "—"}
+                {user?.tenant ?? "-"}
               </p>
             </div>
             <ChevronsUpDown
@@ -299,7 +301,7 @@ export function Topbar() {
           {/* User info header — name + email, plain warm-paper */}
           <div className="px-3 py-2.5">
             <p className="truncate text-[12px] font-semibold text-[var(--color-foreground)]">
-              {user?.name ?? user?.email ?? "Unknown"}
+              {user?.name ?? user?.email ?? t("unknownUser")}
             </p>
             {user?.email && user.name && (
               <p className="mt-0.5 truncate text-[10.5px] text-[var(--color-muted-foreground)]">
@@ -325,24 +327,23 @@ export function Topbar() {
 
           {/* Theme — three simple menu items with a check on the active one */}
           <DropdownMenuLabel className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">
-            Theme
+            {t("theme.title")}
           </DropdownMenuLabel>
           <div className="px-1 pb-1">
-            <ThemeMenuItem icon={Sun} label="Light" active={mode === "light"} onSelect={() => setMode("light")} />
-            <ThemeMenuItem icon={Moon} label="Dark" active={mode === "dark"} onSelect={() => setMode("dark")} />
-            <ThemeMenuItem icon={Monitor} label="System" active={mode === "system"} onSelect={() => setMode("system")} />
+            <ThemeMenuItem icon={Sun} label={t("theme.light")} active={mode === "light"} onSelect={() => setMode("light")} />
+            <ThemeMenuItem icon={Moon} label={t("theme.dark")} active={mode === "dark"} onSelect={() => setMode("dark")} />
+            <ThemeMenuItem icon={Monitor} label={t("theme.system")} active={mode === "system"} onSelect={() => setMode("system")} />
           </div>
 
           <DropdownMenuSeparator className="!my-0" />
 
           {/* Account quick actions */}
           <DropdownMenuLabel className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">
-            Account
+            {t("account.title")}
           </DropdownMenuLabel>
           <div className="px-1 pb-1">
-            <SimpleMenuItem icon={UserRound} label="Profile" onSelect={() => navigate("/settings/profile")} />
-            <SimpleMenuItem icon={SettingsIcon} label="Settings" onSelect={() => navigate("/settings")} />
-            <SimpleMenuItem icon={KeyRound} label="API keys" onSelect={() => navigate("/settings/api-keys")} />
+            <SimpleMenuItem icon={UserRound} label={t("account.profile")} onSelect={() => navigate("/settings/profile")} />
+            <SimpleMenuItem icon={SettingsIcon} label={t("account.settings")} onSelect={() => navigate("/settings")} />
           </div>
 
           <DropdownMenuSeparator className="!my-0" />
@@ -355,7 +356,7 @@ export function Topbar() {
               className="!my-0 cursor-pointer rounded-md !px-2.5 !py-1.5"
             >
               <LogOut className="size-3.5" />
-              <span className="text-[12.5px] font-medium">Sign out</span>
+              <span className="text-[12.5px] font-medium">{t("account.signOut")}</span>
             </DropdownMenuItem>
           </div>
         </DropdownMenuContent>
@@ -365,10 +366,9 @@ export function Topbar() {
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Sign out of fullstackhero?</DialogTitle>
+            <DialogTitle>{t("signOut.title")}</DialogTitle>
             <DialogDescription>
-              You'll need to sign in again to access this tenant. Any unsaved
-              work in this session will be lost.
+              {t("signOut.description")}
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
@@ -376,7 +376,7 @@ export function Topbar() {
               <Avatar name={user?.name ?? user?.email ?? "?"} src={avatarUrl} size="md" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium tracking-tight">
-                  {user?.name ?? user?.email ?? "Unknown"}
+                  {user?.name ?? user?.email ?? t("unknownUser")}
                 </div>
                 {user?.email && user.name && (
                   <div className="truncate text-xs text-[var(--color-muted-foreground)]">
@@ -385,7 +385,7 @@ export function Topbar() {
                 )}
               </div>
               <code className="rounded bg-[var(--color-muted)] px-1.5 py-0.5 font-mono text-[11px]">
-                {user?.tenant ?? "—"}
+                {user?.tenant ?? "-"}
               </code>
             </div>
           </DialogBody>
@@ -395,7 +395,7 @@ export function Topbar() {
               size="sm"
               onClick={() => setConfirmOpen(false)}
             >
-              Cancel
+              {t("signOut.cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -404,7 +404,7 @@ export function Topbar() {
               autoFocus
             >
               <LogOut className="mr-1.5 h-3.5 w-3.5" />
-              Sign out
+              {t("signOut.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

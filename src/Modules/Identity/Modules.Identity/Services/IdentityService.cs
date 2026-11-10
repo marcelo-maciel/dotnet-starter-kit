@@ -5,6 +5,7 @@ using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Data;
 using FSH.Modules.Identity.Domain;
+using FSH.Modules.Identity.Localization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -72,7 +73,8 @@ public sealed class IdentityService : IIdentityService
             throw new CustomException(
                 "two_factor_required: An authenticator code is required to complete sign-in.",
                 errors: null,
-                HttpStatusCode.Unauthorized);
+                HttpStatusCode.Unauthorized)
+                .Localized<IdentityResources>("Identity.TwoFactorRequired");
         }
 
         var valid = await _userManager.VerifyTwoFactorTokenAsync(
@@ -83,7 +85,8 @@ public sealed class IdentityService : IIdentityService
         if (!valid)
         {
             _logger.LogWarning("Invalid two-factor code for user {UserId}", user.Id);
-            throw new UnauthorizedException("two_factor_invalid: The authenticator code is invalid or expired.");
+            throw new UnauthorizedException("two_factor_invalid: The authenticator code is invalid or expired.")
+                .Localized<IdentityResources>("Identity.TwoFactorInvalid");
         }
     }
 
@@ -116,7 +119,7 @@ public sealed class IdentityService : IIdentityService
 
         if (updated == 0)
         {
-            throw new UnauthorizedException("user not found");
+            throw new UnauthorizedException("user not found").Localized<IdentityResources>("Identity.UserNotFound");
         }
 
         if (_logger.IsEnabled(LogLevel.Debug))
@@ -187,26 +190,27 @@ public sealed class IdentityService : IIdentityService
         var user = await _userManager.FindByEmailAsync(email.Trim().Normalize());
         if (user is null)
         {
-            // Generic 401 — never confirm or deny account existence from this path.
+            // Generic 401 — never confirm or deny account existence from this path; the decoy hash keeps the
+            // answer as slow as a wrong password's.
+            LoginGuards.VerifyDecoy(_userManager.PasswordHasher, password);
             throw new UnauthorizedException();
         }
 
-        // Lockout check runs BEFORE password check so an attacker can't tell a locked
-        // account from a wrong-password one on every request.
+        // PAF (M1): a locked account gets the wrong password's 401, not the kit's 423, which told anyone with
+        // the e-mail alone that the account exists and is locked. The password is not checked while locked
+        // (the decoy hash keeps the time) and no failure is counted.
         if (_userManager.SupportsUserLockout && await _userManager.IsLockedOutAsync(user))
         {
             _logger.LogWarning("Login attempted for locked account {UserId}", user.Id);
-            throw new CustomException(
-                "Account is temporarily locked due to too many failed login attempts. Try again later.",
-                errors: null,
-                HttpStatusCode.Locked);
+            LoginGuards.VerifyDecoy(_userManager.PasswordHasher, password);
+            throw new UnauthorizedException();
         }
 
         if (!await _userManager.CheckPasswordAsync(user, password))
         {
             if (_userManager.SupportsUserLockout)
             {
-                await _userManager.AccessFailedAsync(user);
+                await LoginGuards.RecordFailedAttemptAsync(_userManager, user, _logger);
                 if (await _userManager.IsLockedOutAsync(user))
                 {
                     _logger.LogWarning(
@@ -220,7 +224,7 @@ public sealed class IdentityService : IIdentityService
         // Successful authentication resets the failed-attempt counter.
         if (_userManager.SupportsUserLockout && await _userManager.GetAccessFailedCountAsync(user) > 0)
         {
-            await _userManager.ResetAccessFailedCountAsync(user);
+            await LoginGuards.ResetFailedAttemptsAsync(_userManager, user, _logger);
         }
 
         return user;
@@ -243,7 +247,8 @@ public sealed class IdentityService : IIdentityService
         if (user is null)
         {
             _logger.LogWarning("No user found with matching refresh token hash for tenant {TenantId}", tenantId);
-            throw new UnauthorizedException("refresh token is invalid or expired");
+            throw new UnauthorizedException("refresh token is invalid or expired")
+                .Localized<IdentityResources>("Identity.RefreshTokenInvalidOrExpired");
         }
 
         return user;
@@ -257,7 +262,8 @@ public sealed class IdentityService : IIdentityService
             _logger.LogWarning(
                 "Refresh token expired for user {UserId}. Expired at: {ExpiryTime}, Current time: {CurrentTime}",
                 user.Id, user.RefreshTokenExpiryTime, now);
-            throw new UnauthorizedException("refresh token is invalid or expired");
+            throw new UnauthorizedException("refresh token is invalid or expired")
+                .Localized<IdentityResources>("Identity.RefreshTokenInvalidOrExpired");
         }
     }
 
@@ -265,12 +271,14 @@ public sealed class IdentityService : IIdentityService
     {
         if (!user.IsActive)
         {
-            throw new UnauthorizedException("user is deactivated");
+            throw new UnauthorizedException("user is deactivated")
+                .Localized<IdentityResources>("Identity.UserDeactivated");
         }
 
         if (!user.EmailConfirmed)
         {
-            throw new UnauthorizedException("email not confirmed");
+            throw new UnauthorizedException("email not confirmed")
+                .Localized<IdentityResources>("Identity.EmailNotConfirmed");
         }
     }
 
@@ -283,14 +291,16 @@ public sealed class IdentityService : IIdentityService
 
         if (!tenant.IsActive)
         {
-            throw new UnauthorizedException($"tenant {tenant.Id} is deactivated");
+            throw new UnauthorizedException($"tenant {tenant.Id} is deactivated")
+                .Localized<IdentityResources>("Identity.TenantDeactivated", tenant.Id);
         }
 
         // Honor the billing grace period: a lapsed tenant can still authenticate until
         // ValidUpto + grace (matching the request-time guard in MultitenancyModule).
         if (_timeProvider.GetUtcNow().UtcDateTime > tenant.ValidUpto.AddDays(_gracePeriodDays))
         {
-            throw new UnauthorizedException($"tenant {tenant.Id} validity has expired");
+            throw new UnauthorizedException($"tenant {tenant.Id} validity has expired")
+                .Localized<IdentityResources>("Identity.TenantValidityExpired", tenant.Id);
         }
     }
 
@@ -301,11 +311,11 @@ public sealed class IdentityService : IIdentityService
         return claims;
     }
 
-    private static List<Claim> CreateBasicClaims(FshUser user, string tenantId)
+    internal static List<Claim> CreateBasicClaims(FshUser user, string tenantId)
     {
         var fullName = $"{user.FirstName} {user.LastName}".Trim();
-        return
-        [
+        var claims = new List<Claim>
+        {
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             // RFC 7519 short-form sub/name/email emitted alongside legacy ClaimTypes.* so JWT consumers read them per spec.
             // `name` is published explicitly because the default outbound map turns ClaimTypes.Name into `unique_name`, not `name`.
@@ -320,7 +330,17 @@ public sealed class IdentityService : IIdentityService
             new(ClaimTypes.Surname, user.LastName ?? string.Empty),
             new(ClaimConstants.Tenant, tenantId),
             new(ClaimConstants.ImageUrl, user.ImageUrl?.ToString() ?? string.Empty)
-        ];
+        };
+
+        // OIDC-standard `locale` claim, emitted ONLY when the user explicitly chose a language.
+        // A null/blank Locale emits no claim so the culture-resolution chain falls to Accept-Language
+        // rather than forcing the deployment default onto users who never picked one.
+        if (!string.IsNullOrWhiteSpace(user.Locale))
+        {
+            claims.Add(new Claim("locale", user.Locale));
+        }
+
+        return claims;
     }
 
     private async Task AddRoleClaimsAsync(List<Claim> claims, FshUser user, CancellationToken ct)

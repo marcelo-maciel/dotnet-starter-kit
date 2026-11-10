@@ -40,8 +40,8 @@ dotnet run --project src/Host/FSH.Starter.DbMigrator -- apply --seed
 # Just the seed step (assumes schema is already current).
 dotnet run --project src/Host/FSH.Starter.DbMigrator -- seed
 
-# Dev only — provision the demo tenants (acme, globex) with users,
-# custom roles, sample catalog, tickets, and chat. Hard-refuses outside
+# Dev only — provision the demo tenants (acme, globex) with their
+# subscriptions, users and custom roles. Hard-refuses outside
 # Development. Idempotent: safe to re-run.
 DOTNET_ENVIRONMENT=Development \
   dotnet run --project src/Host/FSH.Starter.DbMigrator -- seed-demo
@@ -142,9 +142,9 @@ schema OR data. The two convenient ways to run it locally are:
   ```
 
 `seed-demo` is the **only** way to get the demo tenants and their
-users / catalog / tickets / chat. Fresh tenants created via
+subscriptions / users. Fresh tenants created via
 `POST /api/v1/tenants` come up with just a tenant admin user — no
-catalogue, no demo content. This matches production behaviour.
+demo content. This matches production behaviour.
 
 ## API behavior when schema is behind
 

@@ -36,7 +36,8 @@ public sealed class UserRegisteredHandler(
             UserId: notification.UserId,
             Email: notification.Email,
             FirstName: notification.FirstName ?? string.Empty,
-            LastName: notification.LastName ?? string.Empty);
+            LastName: notification.LastName ?? string.Empty,
+            Locale: notification.Locale);
 
         await outbox.AddAsync(integrationEvent, cancellationToken).ConfigureAwait(false);
     }

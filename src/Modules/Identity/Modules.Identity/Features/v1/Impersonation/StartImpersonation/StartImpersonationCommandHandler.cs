@@ -6,6 +6,7 @@ using FSH.Modules.Auditing.Contracts;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Contracts.v1.Impersonation;
 using FSH.Modules.Identity.Contracts.v1.Impersonation.StartImpersonation;
+using FSH.Modules.Identity.Localization;
 using Mediator;
 using Microsoft.Extensions.Logging;
 using System.IdentityModel.Tokens.Jwt;
@@ -58,7 +59,7 @@ public sealed class StartImpersonationCommandHandler
 
         var actorUserId = _currentUser.GetUserId().ToString();
         var actorTenantId = _currentUser.GetTenant()
-            ?? throw new UnauthorizedException("missing tenant context");
+            ?? throw new UnauthorizedException("missing tenant context").Localized("Error.InvalidTenant");
         var actorUserName = _currentUser.Name;
 
         // Cross-tenant impersonation requires the actor to be in the root tenant. Tenant admins
@@ -66,7 +67,8 @@ public sealed class StartImpersonationCommandHandler
         if (!string.Equals(actorTenantId, MultitenancyConstants.Root.Id, StringComparison.Ordinal)
             && !string.Equals(actorTenantId, request.TargetTenantId, StringComparison.Ordinal))
         {
-            throw new ForbiddenException("cross-tenant impersonation is restricted to platform operators");
+            throw new ForbiddenException("cross-tenant impersonation is restricted to platform operators")
+                .Localized<IdentityResources>("Identity.CrossTenantImpersonationRestricted");
         }
 
         // Prevent self-impersonation (pointless, confuses the audit trail). Caller error → explicit 4xx,
@@ -74,7 +76,8 @@ public sealed class StartImpersonationCommandHandler
         if (string.Equals(actorUserId, request.TargetUserId, StringComparison.Ordinal)
             && string.Equals(actorTenantId, request.TargetTenantId, StringComparison.Ordinal))
         {
-            throw new CustomException("cannot impersonate yourself", errors: null, System.Net.HttpStatusCode.BadRequest);
+            throw new CustomException("cannot impersonate yourself", errors: null, System.Net.HttpStatusCode.BadRequest)
+                .Localized<IdentityResources>("Identity.CannotImpersonateYourself");
         }
 
         // Prevent nesting: if the caller is already impersonating, require end-impersonation first.
@@ -85,7 +88,8 @@ public sealed class StartImpersonationCommandHandler
             throw new CustomException(
                 "end current impersonation before starting a new one",
                 errors: null,
-                System.Net.HttpStatusCode.BadRequest);
+                System.Net.HttpStatusCode.BadRequest)
+                .Localized<IdentityResources>("Identity.EndImpersonationFirst");
         }
 
         var targetClaimsResult = await _identityService
@@ -93,7 +97,8 @@ public sealed class StartImpersonationCommandHandler
 
         if (targetClaimsResult is null)
         {
-            throw new NotFoundException("target user not found");
+            throw new NotFoundException("target user not found")
+                .Localized<IdentityResources>("Identity.TargetUserNotFound");
         }
 
         var (subject, claims) = targetClaimsResult.Value;
@@ -104,7 +109,9 @@ public sealed class StartImpersonationCommandHandler
         // ImpersonationGrant row and the issued JWT share the same jti.
         var jti = Guid.NewGuid().ToString("N");
         var impersonationClaims = claims
-            .Where(c => c.Type != JwtRegisteredClaimNames.Jti)
+            // Drop the target's locale: language is a presentation concern, so the operator reads in
+            // THEIR own language (falls through to Accept-Language), not the impersonated user's.
+            .Where(c => c.Type != JwtRegisteredClaimNames.Jti && c.Type != "locale")
             .Concat(
             [
                 new Claim(JwtRegisteredClaimNames.Jti, jti),

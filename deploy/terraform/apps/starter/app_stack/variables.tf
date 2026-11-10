@@ -196,14 +196,14 @@ variable "app_s3_versioning_enabled" {
 
 variable "app_s3_enable_public_read" {
   type        = bool
-  description = "Whether to enable public read on uploads prefix."
+  description = "Whether to allow anonymous S3 reads on app_s3_public_read_prefix (direct bucket URLs). Not needed when CloudFront serves the bucket."
   default     = false
 }
 
 variable "app_s3_public_read_prefix" {
   type        = string
-  description = "Prefix to allow public read (e.g., uploads/)."
-  default     = "uploads/"
+  description = "Key prefix that is publicly readable, directly (app_s3_enable_public_read) and through CloudFront. The API stores public files under public/ and private ones under private/."
+  default     = "public/"
 }
 
 variable "app_s3_enable_cloudfront" {
@@ -718,6 +718,12 @@ variable "frontend_default_tenant" {
   type        = string
   description = "Default tenant identifier baked into the SPA runtime config.json."
   default     = "root"
+}
+
+variable "frontend_default_language" {
+  type        = string
+  description = "Default UI language (BCP 47) baked into the SPA runtime config.json. The i18n fallback when the user has chosen nothing and the browser advertises no supported language."
+  default     = "en-US"
 }
 
 variable "dashboard_demo_mode" {

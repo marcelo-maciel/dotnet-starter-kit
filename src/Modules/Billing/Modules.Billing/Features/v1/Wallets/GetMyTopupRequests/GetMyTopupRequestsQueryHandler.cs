@@ -1,5 +1,6 @@
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Core.Exceptions;
+using FSH.Framework.Persistence;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Framework.Shared.Persistence;
 using FSH.Modules.Billing.Contracts.Dtos;
@@ -22,7 +23,7 @@ public sealed class GetMyTopupRequestsQueryHandler(
 
         // BillingDbContext is not tenant-filtered; resolve caller's own tenant and scope strictly to it.
         var tenantId = tenantAccessor.MultiTenantContext?.TenantInfo?.Id
-            ?? throw new UnauthorizedException("Tenant context is required.");
+            ?? throw new UnauthorizedException("Tenant context is required.").Localized("Error.TenantContextRequired");
 
         var q = dbContext.TopupRequests.AsNoTracking()
             .Where(r => r.TenantId == tenantId);
@@ -35,7 +36,7 @@ public sealed class GetMyTopupRequestsQueryHandler(
         var total = await q.LongCountAsync(cancellationToken).ConfigureAwait(false);
         var items = await q
             .OrderByDescending(r => r.CreatedAtUtc)
-            .Skip((query.PageNumber - 1) * query.PageSize)
+            .Skip(PaginationExtensions.GetOffset(query.PageNumber, query.PageSize))
             .Take(query.PageSize)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
 

@@ -17,7 +17,7 @@ src/Modules/{Name}/
 └── Modules.{Name}.Contracts/  ← public API: v1/ (commands/queries), Dtos/, Authorization/, Events/
 ```
 
-**Copy an existing module's two `.csproj` files** (e.g. `Modules.Catalog`) and rename — don't hand-write
+**Copy an existing module's two `.csproj` files** (e.g. `Modules.Webhooks`) and rename — don't hand-write
 project references. The runtime project references its Contracts project + the BuildingBlocks it needs;
 the Contracts project references `Mediator` + shared contracts.
 
@@ -63,11 +63,11 @@ public sealed class {Name}Module : IModule
 }
 ```
 
-`Order` controls load sequence (Auditing 300, Files 350, Webhooks 400, Billing 500, Catalog 600, Tickets 700, Notifications 750, Chat 800). If your module consumes another's events, load after it.
+`Order` controls load sequence (Auditing 300, Files 350, Webhooks 400, Billing 500, Notifications 750, PAF 900). If your module consumes another's events, load after it.
 
 ## Step 2 — Permissions (Contracts/Authorization)
 
-`{Name}Permissions` with nested resource classes and an `All` collection registered via `PermissionConstants.Register({Name}Permissions.All)`. Mirror the shape of `CatalogPermissions`.
+`{Name}Permissions` with nested resource classes and an `All` collection registered via `PermissionConstants.Register({Name}Permissions.All)`. Mirror the shape of `WebhooksPermissions`.
 
 ## Step 3 — DbContext (extends `BaseDbContext`)
 
@@ -94,6 +94,36 @@ public sealed class {Name}DbContext : BaseDbContext
     }
 }
 ```
+
+## Step 3b — Localization catalog (module-owned messages)
+
+Every client-visible message the module throws or validates lives in its own resx catalog, so the
+module ships localized from its first feature. Mirror `Modules.Tickets/Localization/`:
+
+```csharp
+// src/Modules/{Name}/Modules.{Name}/Localization/{Name}Resources.cs
+namespace FSH.Modules.{Name}.Localization;
+
+/// <summary>Marker type binding <c>IStringLocalizer&lt;{Name}Resources&gt;</c> to the {Name} resx catalog.</summary>
+public sealed class {Name}Resources;
+```
+
+- `Localization/{Name}Resources.resx` next to the marker: the neutral (English) catalog. Copy
+  `TicketsResources.resx` and delete its `<data>` entries. `Localization/{Name}Resources.pt-BR.resx`
+  is optional; a missing translation falls back to English.
+- The embedded resource must be named after the marker's full name
+  (`FSH.Modules.{Name}.Localization.{Name}Resources`). Because each resx sits next to a `.cs` file of the
+  same base name, the SDK names it after the class declared in that file
+  (`EmbeddedResourceUseDependentUponConvention`), so keep the marker's class name equal to its file
+  name; no `<EmbeddedResource>` item is needed.
+- Add `S2094` to the runtime csproj's `<NoWarn>` (the marker is an empty class on purpose).
+- No per-module registration: `AddHeroLocalization` in the host serves every catalog.
+
+Throws use `.Localized<{Name}Resources>("{Name}.Case", args)` and validators inject
+`IStringLocalizer<{Name}Resources>` (see **add-feature**). Once the module is referenced from
+`FSH.Starter.Api` (Step 4), `Architecture.Tests` picks the catalog up on its own: `CatalogParityTests`
+checks the pt-BR file against the neutral one and `LocalizedKeyReferenceTests` fails on any key the
+code uses that the catalog lacks, which also catches a wrong manifest name. Rules: `.agents/rules/localization.md`.
 
 ## Step 4 — Solution + project references
 
@@ -132,6 +162,7 @@ dotnet test src/FSH.Starter.slnx
 - [ ] `IModule`: `AddHeroDbContext<T>()`, `PermissionConstants.Register`, version-set group, eventing trio if needed
 - [ ] `{Name}DbContext : BaseDbContext`, 4-arg ctor, `base.OnModelCreating` last
 - [ ] `{Name}Permissions` in Contracts/Authorization
+- [ ] `Localization/{Name}Resources.cs` marker + `{Name}Resources.resx` (English; pt-BR optional), `S2094` in `<NoWarn>`
 - [ ] Migrations folder + initial migration (`--context {Name}DbContext`)
 - [ ] **Registered in all four places** (Api + DbMigrator × Mediator + moduleAssemblies)
 - [ ] Build + Architecture.Tests green

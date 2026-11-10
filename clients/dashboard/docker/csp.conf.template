@@ -1,0 +1,14 @@
+# Rendered by docker-entrypoint.sh into /etc/nginx/snippets/csp.conf on every start, with the environment's API
+# origin (FSH_API_URL) and its WebSocket form (FSH_API_WS_URL, for the SignalR hubs), so one image serves both
+# environments. Included by the location that serves index.html.
+#
+# Report-Only on purpose: nothing is blocked yet. Enforcing (renaming the header to Content-Security-Policy) waits
+# for a look at the browser console on the published site, where the Cloudflare edge may inject its own scripts.
+# - script-src: the sha256 is the inline theme script of index.html, which must run before React mounts;
+#   scripts/check-csp-hash.mjs fails the image build when that script changes and this hash does not.
+# - https://static.cloudflareinsights.com: the Cloudflare edge injects the Web Analytics beacon (automatic setup,
+#   kept by decision of 04/11/2026); its reports go to same-origin /cdn-cgi/rum, covered by 'self'.
+# - https://*.r2.cloudflarestorage.com: presigned media and file URLs (upload PUT, painel video and audio, PDF
+#   preview). The account id is the same in both environments, the wildcard avoids pinning it here.
+# - style-src 'unsafe-inline': Radix and sonner write style attributes and <style> elements at runtime.
+add_header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'sha256-adXyOYUHwkTEbBcgG22F1u0kqi9Efai+H+Rkz3udCHQ=' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: ${FSH_API_URL} https://*.r2.cloudflarestorage.com; media-src 'self' blob: ${FSH_API_URL} https://*.r2.cloudflarestorage.com; connect-src 'self' ${FSH_API_URL} ${FSH_API_WS_URL} https://*.r2.cloudflarestorage.com; frame-src 'self' blob: ${FSH_API_URL} https://*.r2.cloudflarestorage.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;

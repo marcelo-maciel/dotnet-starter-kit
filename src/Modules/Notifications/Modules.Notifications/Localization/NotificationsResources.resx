@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Notifications.Billing.DateFormat" xml:space="preserve">
+    <value>MMMM d, yyyy</value>
+  </data>
+  <data name="Notifications.Billing.AmountFormat" xml:space="preserve">
+    <value>0.00</value>
+  </data>
+  <data name="Notifications.Billing.Greeting" xml:space="preserve">
+    <value>Hi {0},</value>
+  </data>
+  <data name="Notifications.Billing.CurrentPlan" xml:space="preserve">
+    <value>current</value>
+  </data>
+  <data name="Notifications.Billing.Footer" xml:space="preserve">
+    <value>This is an automated message.</value>
+  </data>
+  <data name="Notifications.Billing.NearingExpiry.SubjectTomorrow" xml:space="preserve">
+    <value>Your subscription expires tomorrow</value>
+  </data>
+  <data name="Notifications.Billing.NearingExpiry.Subject" xml:space="preserve">
+    <value>Your subscription expires in {0} days</value>
+  </data>
+  <data name="Notifications.Billing.NearingExpiry.Status" xml:space="preserve">
+    <value>Your {0} subscription is valid until {1} ({2} day(s) remaining).</value>
+  </data>
+  <data name="Notifications.Billing.NearingExpiry.Action" xml:space="preserve">
+    <value>Please contact your account operator to renew and avoid any interruption to your service.</value>
+  </data>
+  <data name="Notifications.Billing.EnteredGrace.Subject" xml:space="preserve">
+    <value>Your subscription has lapsed — grace period active</value>
+  </data>
+  <data name="Notifications.Billing.EnteredGrace.Status" xml:space="preserve">
+    <value>Your {0} subscription expired on {1}. Your service continues during a grace period that ends on {2}.</value>
+  </data>
+  <data name="Notifications.Billing.EnteredGrace.Action" xml:space="preserve">
+    <value>Please renew before the grace period ends to keep your access uninterrupted.</value>
+  </data>
+  <data name="Notifications.Billing.Expired.Subject" xml:space="preserve">
+    <value>Your subscription has expired</value>
+  </data>
+  <data name="Notifications.Billing.Expired.Status" xml:space="preserve">
+    <value>Your {0} subscription expired on {1} and the grace period has ended, so access is now suspended.</value>
+  </data>
+  <data name="Notifications.Billing.Expired.Action" xml:space="preserve">
+    <value>Contact your account operator to renew and restore access.</value>
+  </data>
+  <data name="Notifications.Billing.InvoiceIssued.Subject" xml:space="preserve">
+    <value>Invoice {0} issued</value>
+  </data>
+  <data name="Notifications.Billing.InvoiceIssued.Status" xml:space="preserve">
+    <value>A new invoice {0} for {1} has been issued.</value>
+  </data>
+  <data name="Notifications.Billing.InvoiceIssued.Due" xml:space="preserve">
+    <value>Due by {0}.</value>
+  </data>
+  <data name="Notifications.Billing.InvoiceIssued.Action" xml:space="preserve">
+    <value>You can view and download this invoice from your dashboard.</value>
+  </data>
+  <data name="Notifications.NotificationNotFound" xml:space="preserve">
+    <value>Notification not found.</value>
+  </data>
+</root>

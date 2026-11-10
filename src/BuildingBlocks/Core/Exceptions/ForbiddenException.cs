@@ -12,6 +12,7 @@ public class ForbiddenException : CustomException
     public ForbiddenException()
         : base("Unauthorized access.", Array.Empty<string>(), HttpStatusCode.Forbidden)
     {
+        Localized("Error.ForbiddenAccess");
     }
 
     /// <summary>

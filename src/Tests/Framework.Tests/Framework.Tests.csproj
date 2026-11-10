@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
+		<OutputType>Exe</OutputType>
 		<RootNamespace>Framework.Tests</RootNamespace>
 		<AssemblyName>Framework.Tests</AssemblyName>
 		<IsPackable>false</IsPackable>
@@ -14,7 +15,7 @@
 		<PackageReference Include="Microsoft.NET.Test.Sdk" />
 		<PackageReference Include="NSubstitute" />
 		<PackageReference Include="Shouldly" />
-		<PackageReference Include="xunit" />
+		<PackageReference Include="xunit.v3.mtp-off" />
 		<PackageReference Include="xunit.runner.visualstudio" />
 		<PackageReference Include="coverlet.collector" />
 	</ItemGroup>
@@ -30,6 +31,15 @@
 		<ProjectReference Include="..\..\BuildingBlocks\Shared\Shared.csproj" />
 		<ProjectReference Include="..\..\BuildingBlocks\Storage\Storage.csproj" />
 		<ProjectReference Include="..\..\BuildingBlocks\Web\Web.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="..\..\Host\FSH.Starter.Api\appsettings.json"
+			  Link="HostConfiguration\appsettings.json"
+			  CopyToOutputDirectory="PreserveNewest" />
+		<None Include="..\..\Host\FSH.Starter.Api\appsettings.Production.json"
+			  Link="HostConfiguration\appsettings.Production.json"
+			  CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 
 </Project>

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using FSH.Framework.Core.Context;
 using FSH.Framework.Core.Exceptions;
+using FSH.Framework.Persistence;
 using FSH.Modules.Notifications.Contracts.v1.DTOs;
 using FSH.Modules.Notifications.Contracts.v1.Queries;
 using FSH.Modules.Notifications.Data;
@@ -19,7 +20,10 @@ public sealed class ListNotificationsQueryHandler(
     {
         ArgumentNullException.ThrowIfNull(q);
         var userId = currentUser.GetUserId();
-        if (userId == Guid.Empty) throw new UnauthorizedException("no current user");
+        if (userId == Guid.Empty)
+        {
+            throw new UnauthorizedException("no current user").Localized("Error.NoCurrentUser");
+        }
         var currentUserId = userId.ToString();
 
         int page = Math.Max(1, q.Page);
@@ -35,7 +39,7 @@ public sealed class ListNotificationsQueryHandler(
 
         var rows = await query
             .OrderByDescending(n => n.CreatedAtUtc)
-            .Skip((page - 1) * pageSize)
+            .Skip(PaginationExtensions.GetOffset(page, pageSize))
             .Take(pageSize)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);

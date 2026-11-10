@@ -19,7 +19,8 @@ export function EntityDetailBack({
   return (
     <Link
       to={to}
-      className="group mb-4 inline-flex items-center gap-1.5 text-[12px] text-[var(--color-muted-foreground)] transition-colors hover:text-[var(--color-foreground)]"
+      // py-3 makes a 42px tap target for a finger; -mt-3 and mb-1 cancel it, so the text stays where it was.
+      className="group -mt-3 mb-1 inline-flex items-center gap-1.5 py-3 text-[12px] text-[var(--color-muted-foreground)] transition-colors hover:text-[var(--color-foreground)]"
     >
       <ArrowLeft className="size-3 transition-transform group-hover:-translate-x-0.5" />
       {label}
@@ -146,8 +147,9 @@ export function EntityDetailAvatar({
 
   // Fall back to the icon/initials when the image is missing OR fails to load
   // (e.g. a seeded default-avatar URL that 404s) — never show a broken image.
-  const [imgFailed, setImgFailed] = React.useState(false);
-  React.useEffect(() => setImgFailed(false), [src]);
+  // The failure is keyed by the src that failed, so a new src resets it without an effect.
+  const [failedSrc, setFailedSrc] = React.useState<string | null | undefined>(null);
+  const imgFailed = Boolean(src) && failedSrc === src;
   const showImage = Boolean(src) && !imgFailed;
 
   return (
@@ -163,7 +165,7 @@ export function EntityDetailAvatar({
         <img
           src={src ?? undefined}
           alt=""
-          onError={() => setImgFailed(true)}
+          onError={() => setFailedSrc(src)}
           className="size-full object-cover"
         />
       ) : Icon ? (

@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <IsPublishable>false</IsPublishable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -15,7 +16,7 @@
     </PackageReference>
     <PackageReference Include="NetArchTest.Rules" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.v3.mtp-off" />
     <PackageReference Include="xunit.runner.visualstudio">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -36,8 +37,6 @@
     <ProjectReference Include="..\..\Modules\Multitenancy\Modules.Multitenancy.Contracts\Modules.Multitenancy.Contracts.csproj" />
     <ProjectReference Include="..\..\Modules\Files\Modules.Files\Modules.Files.csproj" />
     <ProjectReference Include="..\..\Modules\Files\Modules.Files.Contracts\Modules.Files.Contracts.csproj" />
-    <ProjectReference Include="..\..\Modules\Chat\Modules.Chat\Modules.Chat.csproj" />
-    <ProjectReference Include="..\..\Modules\Chat\Modules.Chat.Contracts\Modules.Chat.Contracts.csproj" />
     <ProjectReference Include="..\..\Host\FSH.Starter.Api\FSH.Starter.Api.csproj" />
     <ProjectReference Include="..\..\Host\FSH.Starter.Migrations.PostgreSQL\FSH.Starter.Migrations.PostgreSQL.csproj" />
   </ItemGroup>

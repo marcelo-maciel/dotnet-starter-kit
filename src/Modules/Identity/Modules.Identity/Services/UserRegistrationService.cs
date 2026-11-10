@@ -1,19 +1,21 @@
 using Finbuckle.MultiTenant.Abstractions;
 using FSH.Framework.Core.Common;
 using FSH.Framework.Core.Exceptions;
-using FSH.Framework.Eventing.Outbox;
 using FSH.Framework.Jobs.Services;
 using FSH.Framework.Mailing;
 using FSH.Framework.Mailing.Services;
 using FSH.Framework.Shared.Constants;
 using FSH.Framework.Shared.Multitenancy;
-using FSH.Modules.Identity.Contracts.Events;
 using FSH.Modules.Identity.Contracts.Services;
 using FSH.Modules.Identity.Data;
 using FSH.Modules.Identity.Domain;
+using FSH.Modules.Identity.Localization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Options;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Net;
@@ -28,8 +30,13 @@ internal sealed class UserRegistrationService(
     IJobService jobService,
     IMailService mailService,
     IMultiTenantContextAccessor<AppTenantInfo> multiTenantContextAccessor,
-    IOutboxStore outboxStore) : IUserRegistrationService
+    IOptions<RequestLocalizationOptions> localizationOptions,
+    IStringLocalizer<IdentityResources> localizer) : IUserRegistrationService
 {
+    // Every new account starts in the deployment's language (pt-BR in production), so the e-mails it gets
+    // and the panel it opens agree before the user ever picks one.
+    private CultureInfo DeploymentCulture => localizationOptions.Value.DefaultRequestCulture.UICulture;
+
     public async Task<string> GetOrCreateFromPrincipalAsync(ClaimsPrincipal principal, CancellationToken cancellationToken = default)
     {
         EnsureValidTenant();
@@ -45,7 +52,7 @@ internal sealed class UserRegistrationService(
 
         var user = await CreateUserFromPrincipalAsync(principal, email);
         await AssignDefaultRoleAndGroupsAsync(user, "ExternalAuth", cancellationToken);
-        await PublishUserRegisteredAsync(user, "Identity.ExternalAuth", cancellationToken);
+        await PublishUserRegisteredAsync(user, cancellationToken);
 
         return user.Id;
     }
@@ -66,7 +73,7 @@ internal sealed class UserRegistrationService(
         var user = await CreateUserWithPasswordAsync(firstName, lastName, email, userName, password, phoneNumber);
         await AssignDefaultRoleAndGroupsAsync(user, "System", cancellationToken);
         await SendConfirmationEmailAsync(user, origin, cancellationToken);
-        await PublishUserRegisteredAsync(user, "Identity", cancellationToken);
+        await PublishUserRegisteredAsync(user, cancellationToken);
 
         return user.Id;
     }
@@ -79,14 +86,18 @@ internal sealed class UserRegistrationService(
             .Where(u => u.Id == userId && !u.EmailConfirmed)
             .FirstOrDefaultAsync(cancellationToken);
 
-        _ = user ?? throw new CustomException("An error occurred while confirming E-Mail.");
+        _ = user ?? throw new CustomException("An error occurred while confirming E-Mail.")
+            .Localized<IdentityResources>("Identity.EmailConfirmationError");
 
         code = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(code));
         var result = await userManager.ConfirmEmailAsync(user, code);
 
         return result.Succeeded
-            ? string.Format(CultureInfo.InvariantCulture, "Account Confirmed for E-Mail {0}. You can now use the /api/tokens endpoint to generate JWT.", user.Email)
-            : throw new CustomException(string.Format(CultureInfo.InvariantCulture, "An error occurred while confirming {0}", user.Email));
+            // The success text is what the confirm-email page shows the user, so it localizes like the
+            // failure below; the old developer hint about /api/tokens is gone from the user's screen.
+            ? localizer["Identity.EmailConfirmed", user.Email!].Value
+            : throw new CustomException(string.Format(CultureInfo.InvariantCulture, "An error occurred while confirming {0}", user.Email))
+                .Localized<IdentityResources>("Identity.EmailConfirmationFailedFor", user.Email!);
     }
 
     public async Task AdminConfirmEmailAsync(string userId, CancellationToken cancellationToken = default)
@@ -96,7 +107,8 @@ internal sealed class UserRegistrationService(
         var user = await userManager.Users
             .Where(u => u.Id == userId)
             .FirstOrDefaultAsync(cancellationToken)
-            ?? throw new NotFoundException($"User {userId} was not found.");
+            ?? throw new NotFoundException($"User {userId} was not found.")
+                .Localized<IdentityResources>("Identity.UserNotFoundById", userId);
 
         // Idempotent: a second confirm is a no-op rather than an error.
         if (user.EmailConfirmed)
@@ -108,11 +120,13 @@ internal sealed class UserRegistrationService(
         var result = await userManager.UpdateAsync(user);
         if (!result.Succeeded)
         {
+            var errors = string.Join("; ", result.Errors.Select(e => e.Description));
             throw new CustomException(string.Format(
                 CultureInfo.InvariantCulture,
                 "An error occurred while confirming the email for {0}: {1}",
                 user.Email,
-                string.Join("; ", result.Errors.Select(e => e.Description))));
+                errors))
+                .Localized<IdentityResources>("Identity.EmailConfirmationFailedWithErrors", user.Email!, errors);
         }
     }
 
@@ -123,14 +137,16 @@ internal sealed class UserRegistrationService(
         var user = await userManager.Users
             .Where(u => u.Id == userId)
             .FirstOrDefaultAsync(cancellationToken)
-            ?? throw new NotFoundException($"User {userId} was not found.");
+            ?? throw new NotFoundException($"User {userId} was not found.")
+                .Localized<IdentityResources>("Identity.UserNotFoundById", userId);
 
         if (user.EmailConfirmed)
         {
             throw new CustomException(string.Format(
                 CultureInfo.InvariantCulture,
                 "The email for {0} is already confirmed.",
-                user.Email));
+                user.Email))
+                .Localized<IdentityResources>("Identity.EmailAlreadyConfirmed", user.Email!);
         }
 
         await SendConfirmationEmailAsync(user, origin, cancellationToken);
@@ -144,21 +160,23 @@ internal sealed class UserRegistrationService(
             .Where(u => u.Id == userId && !u.PhoneNumberConfirmed)
             .FirstOrDefaultAsync(cancellationToken);
 
-        _ = user ?? throw new CustomException("An error occurred while confirming phone number.");
+        _ = user ?? throw new CustomException("An error occurred while confirming phone number.")
+            .Localized<IdentityResources>("Identity.PhoneConfirmationError");
 
         code = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(code));
         var result = await userManager.ChangePhoneNumberAsync(user, user.PhoneNumber!, code);
 
         return result.Succeeded
             ? string.Format(CultureInfo.InvariantCulture, "Phone number {0} confirmed successfully.", user.PhoneNumber)
-            : throw new CustomException(string.Format(CultureInfo.InvariantCulture, "An error occurred while confirming phone number {0}", user.PhoneNumber));
+            : throw new CustomException(string.Format(CultureInfo.InvariantCulture, "An error occurred while confirming phone number {0}", user.PhoneNumber))
+                .Localized<IdentityResources>("Identity.PhoneConfirmationFailedFor", user.PhoneNumber!);
     }
 
     private void EnsureValidTenant()
     {
         if (string.IsNullOrWhiteSpace(multiTenantContextAccessor?.MultiTenantContext?.TenantInfo?.Id))
         {
-            throw new UnauthorizedException("invalid tenant");
+            throw new UnauthorizedException("invalid tenant").Localized("Error.InvalidTenant");
         }
     }
 
@@ -166,7 +184,8 @@ internal sealed class UserRegistrationService(
     {
         return principal.FindFirstValue(ClaimTypes.Email)
             ?? principal.FindFirstValue("email")
-            ?? throw new CustomException("Email claim is required for external authentication.");
+            ?? throw new CustomException("Email claim is required for external authentication.")
+                .Localized<IdentityResources>("Identity.EmailClaimRequired");
     }
 
     private async Task<FshUser> CreateUserFromPrincipalAsync(ClaimsPrincipal principal, string email)
@@ -183,7 +202,8 @@ internal sealed class UserRegistrationService(
             LastName = lastName,
             EmailConfirmed = true,
             PhoneNumberConfirmed = false,
-            IsActive = true
+            IsActive = true,
+            Locale = DeploymentCulture.Name,
         };
 
         var result = await userManager.CreateAsync(user);
@@ -193,7 +213,8 @@ internal sealed class UserRegistrationService(
             throw new CustomException(
                 "Failed to create user from external principal.",
                 errors,
-                HttpStatusCode.BadRequest);
+                HttpStatusCode.BadRequest)
+                .Localized<IdentityResources>("Identity.FailedToCreateUserFromPrincipal");
         }
 
         return user;
@@ -233,7 +254,8 @@ internal sealed class UserRegistrationService(
             throw new CustomException(
                 "Passwords do not match.",
                 errors: null,
-                HttpStatusCode.BadRequest);
+                HttpStatusCode.BadRequest)
+                .Localized<IdentityResources>("Identity.PasswordsDoNotMatch");
         }
     }
 
@@ -255,6 +277,7 @@ internal sealed class UserRegistrationService(
             IsActive = true,
             EmailConfirmed = false,
             PhoneNumberConfirmed = false,
+            Locale = DeploymentCulture.Name,
         };
 
         var result = await userManager.CreateAsync(user, password);
@@ -267,7 +290,8 @@ internal sealed class UserRegistrationService(
             throw new CustomException(
                 "Unable to register the user.",
                 errors,
-                HttpStatusCode.BadRequest);
+                HttpStatusCode.BadRequest)
+                .Localized<IdentityResources>("Identity.UnableToRegisterUser");
         }
 
         return user;
@@ -304,38 +328,29 @@ internal sealed class UserRegistrationService(
         }
 
         string emailVerificationUri = await GetEmailVerificationUriAsync(user, origin);
-        string emailBody = BuildConfirmationEmailHtml(user.FirstName ?? user.UserName ?? "User", emailVerificationUri);
+        var culture = IdentityEmails.CultureFor(user.Locale, DeploymentCulture);
+        var (subject, html, text) = IdentityEmails.ConfirmEmail(user.FirstName ?? user.UserName, emailVerificationUri, culture);
 
         var mailRequest = new MailRequest(
             new Collection<string> { user.Email },
-            "Confirm Your Email Address",
-            emailBody);
+            subject,
+            html,
+            textBody: text);
 
         jobService.Enqueue("email", () => mailService.SendAsync(mailRequest, cancellationToken));
     }
 
+    // The save dispatches UserRegisteredEvent, and UserRegisteredHandler turns it into the one
+    // UserRegisteredIntegrationEvent. Writing a second one here gave it a different id, so the inbox
+    // could not deduplicate it and every consumer (the welcome e-mail) ran twice.
     private async Task PublishUserRegisteredAsync(
         FshUser user,
-        string source,
         CancellationToken cancellationToken = default)
     {
         var tenantId = multiTenantContextAccessor.MultiTenantContext.TenantInfo?.Id;
         user.RecordRegistered(tenantId);
 
         await db.SaveChangesAsync(cancellationToken);
-
-        var integrationEvent = new UserRegisteredIntegrationEvent(
-            Id: Guid.NewGuid(),
-            OccurredOnUtc: TimeProvider.System.GetUtcNow().UtcDateTime,
-            TenantId: tenantId,
-            CorrelationId: Guid.NewGuid().ToString(),
-            Source: source,
-            UserId: user.Id,
-            Email: user.Email ?? string.Empty,
-            FirstName: user.FirstName ?? string.Empty,
-            LastName: user.LastName ?? string.Empty);
-
-        await outboxStore.AddAsync(integrationEvent, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<string> GetEmailVerificationUriAsync(FshUser user, string origin)
@@ -345,8 +360,10 @@ internal sealed class UserRegistrationService(
         string code = await userManager.GenerateEmailConfirmationTokenAsync(user);
         code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
 
-        const string route = "api/v1/identity/confirm-email";
-        var endpointUri = new Uri(string.Concat($"{origin}/", route));
+        // Point at the SPA confirm-email page on the front-end the user registered from, which in turn
+        // calls the API. The origin argument is the already-resolved front-end origin.
+        const string route = "confirm-email";
+        var endpointUri = new Uri(string.Concat($"{origin.TrimEnd('/')}/", route));
 
         string verificationUri = QueryHelpers.AddQueryString(endpointUri.ToString(), QueryStringKeys.UserId, user.Id);
         verificationUri = QueryHelpers.AddQueryString(verificationUri, QueryStringKeys.Code, code);
@@ -356,69 +373,5 @@ internal sealed class UserRegistrationService(
             multiTenantContextAccessor?.MultiTenantContext?.TenantInfo?.Id!);
 
         return verificationUri;
-    }
-
-    private static string BuildConfirmationEmailHtml(string userName, string confirmationUrl)
-    {
-        return $"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Confirm Your Email</title>
-            </head>
-            <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f8fafc;">
-                <table role="presentation" style="width: 100%; border-collapse: collapse;">
-                    <tr>
-                        <td align="center" style="padding: 40px 0;">
-                            <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-                                <tr>
-                                    <td style="padding: 40px 40px 30px 40px; text-align: center; background-color: #2563eb; border-radius: 8px 8px 0 0;">
-                                        <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">Confirm Your Email Address</h1>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td style="padding: 40px;">
-                                        <p style="margin: 0 0 20px 0; color: #334155; font-size: 16px; line-height: 1.6;">
-                                            Hi {System.Net.WebUtility.HtmlEncode(userName)},
-                                        </p>
-                                        <p style="margin: 0 0 20px 0; color: #334155; font-size: 16px; line-height: 1.6;">
-                                            Thank you for registering! Please confirm your email address by clicking the button below:
-                                        </p>
-                                        <table role="presentation" style="width: 100%; border-collapse: collapse;">
-                                            <tr>
-                                                <td align="center" style="padding: 30px 0;">
-                                                    <a href="{System.Net.WebUtility.HtmlEncode(confirmationUrl)}" style="display: inline-block; padding: 14px 32px; background-color: #2563eb; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; border-radius: 6px;">
-                                                        Confirm Email Address
-                                                    </a>
-                                                </td>
-                                            </tr>
-                                        </table>
-                                        <p style="margin: 0 0 20px 0; color: #64748b; font-size: 14px; line-height: 1.6;">
-                                            If the button doesn't work, copy and paste this link into your browser:
-                                        </p>
-                                        <p style="margin: 0 0 20px 0; color: #2563eb; font-size: 14px; line-height: 1.6; word-break: break-all;">
-                                            {System.Net.WebUtility.HtmlEncode(confirmationUrl)}
-                                        </p>
-                                        <p style="margin: 30px 0 0 0; color: #64748b; font-size: 14px; line-height: 1.6;">
-                                            If you didn't create an account, you can safely ignore this email.
-                                        </p>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td style="padding: 20px 40px; background-color: #f1f5f9; border-radius: 0 0 8px 8px; text-align: center;">
-                                        <p style="margin: 0; color: #94a3b8; font-size: 12px;">
-                                            This is an automated message. Please do not reply to this email.
-                                        </p>
-                                    </td>
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
-                </table>
-            </body>
-            </html>
-            """;
     }
 }

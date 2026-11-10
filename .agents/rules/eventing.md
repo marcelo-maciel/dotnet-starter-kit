@@ -21,7 +21,7 @@ Inject **`IOutboxWriter`** (`FSH.Framework.Eventing.Abstractions`) — the publi
 
 **Publishing is asynchronous.** The consumer runs on the next dispatch cycle, not inside the request. Don't write a caller — or a test — that assumes the side effect already happened. Integration tests drain explicitly via `OutboxDrain.DrainAsync`.
 
-**The one documented exception:** Chat `SendMessageCommandHandler` still publishes mentions on the bus, because the Notifications handler pushes over SignalR and a delayed mention badge reads as broken. Adding a second exception needs the same kind of reason, in a comment at the call site.
+**No exception today.** A direct bus publish needs a reason the outbox delay cannot meet (e.g. a user-visible push that reads as broken when late), written in a comment at the call site.
 
 ## One store, owned by the framework
 
@@ -47,6 +47,8 @@ Defaults in BuildingBlocks are single-database (`SingleDatabaseDrainTargetProvid
 
 `InMemoryEventBus` resolves handlers in a fresh DI scope and applies the **Inbox**: skips if `IInboxStore.HasProcessedAsync(eventId, handlerName)`, marks processed after success. Composite key `{Id, HandlerName}`; concurrent-insert race is swallowed. Don't hand-roll dedup.
 
+**Handlers are isolated from each other.** The bus runs every handler for an event even when an earlier one throws, then rethrows (the single exception, or an `AggregateException` for several) so the outbox retries. The inbox skips the handlers that already succeeded, so a retry re-runs only the failed ones, and a handler that keeps failing until the row dead-letters never cost the others their turn. Each handler also runs in its own DI scope, so a handler that throws cannot leave unsaved DbContext changes for the next one to persist.
+
 ## Wiring
 
 The **host** bootstraps eventing once (`FSH.Starter.Api/Program.cs` and `FSH.Starter.DbMigrator/Program.cs`, before `AddModules` so `EventingDbInitializer` migrates the `framework` schema first):
@@ -69,6 +71,6 @@ Bus = `EventingOptions.Provider`: `"RabbitMQ"` → `RabbitMqEventBus` (durable t
 
 - **Renaming/moving an integration event type breaks deserialization** — the outbox stores the assembly-qualified type name; `Type.GetType()` returns null → the message dead-letters. Keep event type names/namespaces stable, or migrate dead rows.
 - **Background handlers carry no HTTP/tenant context.** An open-generic or background handler that reads a tenant-filtered DbContext must restore Finbuckle context first via `IMultiTenantContextSetter` (see `WebhookFanoutHandler`, `modules/webhooks.md`).
-- In-memory bus runs handlers **synchronously in the publisher's scope** — keep handler work minimal; exceptions surface to the originating request (relevant for Notifications consuming Chat events). Via the outbox that scope is the dispatcher's, not the request's.
+- In-memory bus runs handlers **synchronously in the publisher's scope** — keep handler work minimal; exceptions surface to the originating request (relevant for Notifications consuming other modules' events). Via the outbox that scope is the dispatcher's, not the request's.
 - Set `UseHostedServiceDispatcher=false` to drive the outbox via Hangfire instead of the hosted service.
 - A background publisher must set the tenant context **before** `AddAsync` — otherwise, with per-tenant databases, the row lands in the wrong one (see `TenantExpiryScanJob`).

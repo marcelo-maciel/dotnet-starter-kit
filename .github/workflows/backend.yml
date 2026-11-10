@@ -10,8 +10,10 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+  # The PAF integrates on feat/paf-esqueleto long before main: paf.yml runs only the Paf* integration classes, so
+  # without this a PR there never runs the kit's integration suite, whose classes share the PAF's host and database.
   pull_request:
-    branches: [main]
+    branches: [main, feat/paf-esqueleto]
   workflow_dispatch:
     inputs:
       version:
@@ -41,8 +43,8 @@ jobs:
       # full pipeline. On PRs, run only when backend-relevant paths changed.
       backend: ${{ github.event_name != 'pull_request' || steps.filter.outputs.backend == 'true' }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
@@ -59,15 +61,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/Directory.Packages.props') }}
@@ -95,8 +97,12 @@ jobs:
           echo "::endgroup::"
 
       - name: Run unit tests with coverage
+        # Brasília, where the product runs: tests that build a Local DateTime (UtcInstantTests,
+        # TenantServiceValidityKindTests) only catch a UTC relabel off UTC, and skip on a UTC machine.
+        env:
+          TZ: America/Sao_Paulo
         run: |
-          for proj in Architecture Auditing Caching Generic Identity Multitenancy Billing Catalog Chat Files Framework Webhooks; do
+          for proj in Architecture Auditing Caching Generic Identity Multitenancy Billing Files Framework Notifications Webhooks; do
             echo "::group::${proj}.Tests"
             dotnet test "src/Tests/${proj}.Tests" -c Release --no-build \
               --collect:"XPlat Code Coverage" --settings coverage.runsettings \
@@ -125,18 +131,20 @@ jobs:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
+    # About 30 min when green; without a ceiling a hung host or container holds the runner for the 6 h default.
+    timeout-minutes: 60
     # Testcontainers requires Docker — ubuntu-latest has it pre-installed.
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/Directory.Packages.props') }}
@@ -182,7 +190,7 @@ jobs:
     # against an ephemeral Postgres, asserts exit 0.
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:18-alpine
         env:
           POSTGRES_PASSWORD: migrator_smoke_pwd
           POSTGRES_DB: fsh_migrator_smoke
@@ -196,15 +204,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/Directory.Packages.props') }}
@@ -240,10 +248,10 @@ jobs:
       MIN_LINE: '80'
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -288,15 +296,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/Directory.Packages.props') }}
@@ -336,15 +344,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/Directory.Packages.props') }}

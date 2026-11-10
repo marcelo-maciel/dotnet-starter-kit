@@ -1,0 +1,2 @@
+# Deploy files run on Linux and are copied into env files on any OS: always LF.
+* text eol=lf

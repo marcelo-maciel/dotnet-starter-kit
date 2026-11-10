@@ -17,12 +17,12 @@ namespace Integration.Tests.Tests.Caching;
 /// </summary>
 public sealed class HybridCacheRedisTests : IAsyncLifetime
 {
-    private readonly RedisContainer _redis = new RedisBuilder("valkey/valkey:9.1.0-alpine")
+    private readonly RedisContainer _redis = new RedisBuilder("valkey/valkey:9.1.3-alpine")
         .Build();
 
-    public Task InitializeAsync() => _redis.StartAsync();
+    public async ValueTask InitializeAsync() => await _redis.StartAsync();
 
-    public Task DisposeAsync() => _redis.DisposeAsync().AsTask();
+    public ValueTask DisposeAsync() => _redis.DisposeAsync();
 
     private (HybridCache cache, IDistributedCache distributedCache, ServiceProvider provider) CreateCache()
     {
@@ -81,7 +81,7 @@ public sealed class HybridCacheRedisTests : IAsyncLifetime
             // Read the underlying L2 directly to confirm bytes are present.
             var raw = await distributedCache.GetAsync("rt:set");
             raw.ShouldNotBeNull();
-            raw!.Length.ShouldBeGreaterThan(0);
+            raw.Length.ShouldBeGreaterThan(0);
         }
     }
 
@@ -89,7 +89,7 @@ public sealed class HybridCacheRedisTests : IAsyncLifetime
     public async Task RemoveByTagAsync_Should_Invalidate_Within_Same_Instance()
     {
         // HybridCache tag invalidation is per-instance (no L1 backplane); cross-node invalidation
-        // needs a custom pub/sub backplane — a known limitation documented in docs/caching.mdx.
+        // needs a custom pub/sub backplane — a known limitation documented in .agents/rules/caching.md.
         var (cache, _, provider) = CreateCache();
         await using (provider)
         {

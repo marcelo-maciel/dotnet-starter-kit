@@ -1,5 +1,5 @@
 -- Postgres init for fullstackhero
--- This file runs only on first boot (when /var/lib/postgresql/data is empty).
+-- This file runs only on first boot (when the data directory under /var/lib/postgresql is empty).
 -- The `fsh` database itself is created by POSTGRES_DB= in the compose env;
 -- we just add the extensions the framework relies on.
 
@@ -8,5 +8,5 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- pg_trgm is used by the full-text search GIN indexes (chat search).
+-- pg_trgm backs the audit trail GIN trigram indexes on Source and UserName (Auditing, HardenAuditIndexes).
 CREATE EXTENSION IF NOT EXISTS pg_trgm;

@@ -6,6 +6,7 @@ using FSH.Framework.Mailing.Services;
 using FSH.Framework.Shared.Multitenancy;
 using FSH.Modules.Identity.Domain;
 using FSH.Modules.Identity.Services;
+using Identity.Tests.Support;
 using Microsoft.AspNetCore.Identity;
 using NSubstitute;
 
@@ -48,7 +49,7 @@ public sealed class UserPasswordServiceTests
     }
 
     private UserPasswordService CreateSut() =>
-        new(_userManager, null!, _jobService, _mailService, _tenantAccessor, null!, null!);
+        new(_userManager, null!, _jobService, _mailService, _tenantAccessor, null!, null!, DeploymentCultureOptions.For("en-US"), SharedResourcesLocalizerFactory.Create());
 
     private MailRequest CaptureSentMail()
     {
@@ -71,8 +72,9 @@ public sealed class UserPasswordServiceTests
         // Act
         await sut.ForgotPasswordAsync(email, "https://appbase.codefi.com.br/", CancellationToken.None);
 
-        // Assert
-        var body = CaptureSentMail().Body!;
+        // Assert — the link is asserted on the text/plain alternative, which carries the URL verbatim.
+        // The HTML part necessarily escapes '&' as '&amp;' (see the anchor test below).
+        var body = CaptureSentMail().TextBody!;
         body.ShouldContain("https://appbase.codefi.com.br/reset-password?");
         body.ShouldNotContain("//reset-password");                       // defect 3: no double slash
         body.ShouldContain($"&tenant={TenantId}");                       // defect 4: tenant present
@@ -81,6 +83,51 @@ public sealed class UserPasswordServiceTests
         // only what is required, matching GetEmailVerificationUriAsync).
         body.ShouldContain("email=marcelo%2Breset");
         body.ShouldNotContain("email=marcelo+reset");                    // raw '+' must not leak
+    }
+
+    [Fact]
+    public async Task ForgotPasswordAsync_Should_SendTheLinkAsAnAnchor_Not_BareText()
+    {
+        // Arrange — the body travels as text/html (BodyBuilder.HtmlBody / SendGrid htmlContent), and most
+        // clients do not auto-link a bare URL inside an HTML part: it reaches the user as dead text.
+        const string email = "operator@codefi.com.br";
+        var user = new FshUser { Email = email, UserName = email };
+        _userManager.FindByEmailAsync(email).Returns(user);
+        _userManager.GeneratePasswordResetTokenAsync(user).Returns("raw-token");
+
+        var sut = CreateSut();
+
+        // Act
+        await sut.ForgotPasswordAsync(email, "https://adminbase.codefi.com.br", CancellationToken.None);
+
+        // Assert
+        var html = CaptureSentMail().Body!;
+        html.ShouldContain("<a href=\"https://adminbase.codefi.com.br/reset-password?");
+        // Inside HTML the query separator must be the entity, or the parser eats the following parameter.
+        html.ShouldContain("&amp;tenant=");
+        html.ShouldNotContain("&tenant=");
+    }
+
+    [Fact]
+    public async Task ForgotPasswordAsync_Should_SendATextAlternative_AlongsideTheHtml()
+    {
+        // Arrange — HTML-only mail leaves text-only clients with nothing and scores worse with spam filters.
+        const string email = "operator@codefi.com.br";
+        var user = new FshUser { Email = email, UserName = email };
+        _userManager.FindByEmailAsync(email).Returns(user);
+        _userManager.GeneratePasswordResetTokenAsync(user).Returns("raw-token");
+
+        var sut = CreateSut();
+
+        // Act
+        await sut.ForgotPasswordAsync(email, "https://adminbase.codefi.com.br", CancellationToken.None);
+
+        // Assert
+        var mail = CaptureSentMail();
+        mail.TextBody.ShouldNotBeNullOrWhiteSpace();
+        mail.TextBody.ShouldContain("https://adminbase.codefi.com.br/reset-password?");
+        mail.TextBody.ShouldNotContain("<a ");
+        mail.TextBody.ShouldNotContain("&amp;");
     }
 
     [Fact]
@@ -95,5 +142,30 @@ public sealed class UserPasswordServiceTests
 
         // Assert
         _jobService.DidNotReceive().Enqueue(Arg.Any<Expression<Func<Task>>>());
+    }
+
+    // The integration host swaps the exception handler, so the key the 500 body is translated from is pinned here.
+    [Theory]
+    [InlineData("en-US", "Failed to change password.")]
+    [InlineData("pt-BR", "Falha ao alterar a senha.")]
+    public async Task ChangePasswordAsync_Should_CarryTheCatalogKey_When_IdentityRefusesTheChange(string culture, string detail)
+    {
+        // Arrange
+        var user = new FshUser { Id = "u1", Email = "ana@codefi.com.br", UserName = "ana" };
+        _userManager.FindByIdAsync("u1").Returns(user);
+        _userManager.ChangePasswordAsync(user, "errada", "Nova456!")
+            .Returns(IdentityResult.Failed(new IdentityError { Code = "PasswordMismatch", Description = "Senha incorreta." }));
+        var sut = CreateSut();
+
+        // Act
+        var ex = await Should.ThrowAsync<FSH.Framework.Core.Exceptions.CustomException>(
+            () => sut.ChangePasswordAsync("errada", "Nova456!", "Nova456!", "u1", CancellationToken.None));
+
+        // Assert
+        ex.MessageKey.ShouldBe("Identity.FailedToChangePassword");
+        ex.ResourceSource.ShouldBe(typeof(FSH.Modules.Identity.Localization.IdentityResources));
+        ex.ErrorMessages.ShouldBe(["Senha incorreta."]);
+        using var scope = new UiCultureScope(culture);
+        IdentityResourcesLocalizerFactory.Create()[ex.MessageKey!].Value.ShouldBe(detail);
     }
 }

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using FSH.Framework.Core.Context;
 using FSH.Framework.Core.Exceptions;
+using FSH.Framework.Persistence;
 using FSH.Framework.Storage.Services;
 using FSH.Modules.Files.Contracts.v1.DTOs;
 using FSH.Modules.Files.Contracts.v1.Queries;
@@ -24,7 +25,7 @@ public sealed class ListMyFilesQueryHandler(
         var userId = currentUser.GetUserId().ToString();
         if (string.IsNullOrEmpty(userId) || userId == Guid.Empty.ToString())
         {
-            throw new UnauthorizedException("no current user");
+            throw new UnauthorizedException("no current user").Localized("Error.NoCurrentUser");
         }
 
         var page = Math.Max(1, q.Page);
@@ -33,7 +34,7 @@ public sealed class ListMyFilesQueryHandler(
         var rows = await db.FileAssets.AsNoTracking()
             .Where(f => f.CreatedByUserId == userId && f.Status == FileAssetStatus.Available)
             .OrderByDescending(f => f.CreatedAtUtc)
-            .Skip((page - 1) * pageSize)
+            .Skip(PaginationExtensions.GetOffset(page, pageSize))
             .Take(pageSize)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);

@@ -2,9 +2,11 @@ import { createContext, useCallback, useEffect, useMemo, useRef, useState, type 
 import { useQueryClient } from "@tanstack/react-query";
 import { tokenStore } from "@/auth/token-store";
 import { decodeJwt, isTokenExpired, type JwtClaims } from "@/auth/jwt";
-import { issueToken } from "@/auth/api";
-import { refreshAccessToken } from "@/lib/api-client";
+import { issueTokenByEmail } from "@/auth/api";
+import { isRefreshRejected, refreshAccessToken } from "@/lib/api-client";
 import { endImpersonation, getMyPermissions, startImpersonation } from "@/api/identity";
+import { logoutPeloServidor } from "@/features/paf/sessao/logout-pelo-servidor";
+import { umLogoutPorVez } from "@/features/paf/sessao/logout-unico";
 
 export type AuthUser = {
   id: string;
@@ -41,8 +43,12 @@ export type AuthContextValue = {
   permissionsHydrated: boolean;
   /** Truthy iff the current access token carries act_sub (impersonation mode). */
   impersonation: ImpersonationInfo | null;
-  login: (input: { email: string; password: string; tenant: string }) => Promise<void>;
+  /** PAF (O2): e-mail and password only; the server answers which company the session belongs to. The code is the
+   *  second step of a 2FA sign-in. */
+  login: (input: { email: string; password: string; twoFactorCode?: string }) => Promise<void>;
   logout: () => void;
+  /** Clears the local session with no call to the server: for when the server already ended it (SessaoInvalidada). */
+  logoutLocal: () => void;
   /** Re-fetch the permission set for the signed-in user (e.g. after a role change). */
   refreshPermissions: () => Promise<void>;
   /** Begin impersonating another user. Resolves once the new token is installed. */
@@ -139,10 +145,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void (async () => {
       try {
         await refreshAccessToken();
-      } catch {
+      } catch (e) {
         // Refresh token dead (expired, revoked, or DB reseeded) — drop the
-        // stale session so routing falls through to /login cleanly.
-        tokenStore.clear();
+        // stale session so routing falls through to /login cleanly. A refresh
+        // that got no usable answer (5xx, 429, network drop) keeps the tokens:
+        // the next load tries again (C3).
+        if (isRefreshRejected(e)) tokenStore.clear();
       } finally {
         if (!cancelled) setIsInitializing(false);
       }
@@ -157,15 +165,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Hydrate (or re-hydrate) the permission list from the server whenever the
   // signed-in subject changes — covers cold-start, login, and impersonation
   // swaps. Permissions live server-side per role, not in the JWT.
+  // Signed out → nothing to hydrate. Adjusted during render (not in the
+  // effect below) so there's no extra commit with a stale `false`.
+  if (!user && !permissionsHydrated) {
+    setPermissionsHydrated(true);
+  }
+
   useEffect(() => {
     if (!user) {
       lastHydratedSubject.current = null;
-      setPermissionsHydrated(true);
       return;
     }
     if (lastHydratedSubject.current === user.id && permissionsHydrated) {
       return;
     }
+    // login() flips the flag off, but the run with no user yet flips it back on before the token lands; a new
+    // subject must read as not hydrated until its own list arrives, or "/" picks the home from an empty list.
+    if (lastHydratedSubject.current !== user.id) setPermissionsHydrated(false);
     lastHydratedSubject.current = user.id;
     let cancelled = false;
     void (async () => {
@@ -216,14 +232,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(
-    async (input: { email: string; password: string; tenant: string }) => {
-      tokenStore.setTenant(input.tenant);
+    async (input: { email: string; password: string; twoFactorCode?: string }) => {
       // Stale permissions from a previous user must not leak into the new
       // session — clear before issuing the token so the hydration effect
       // re-fetches from scratch.
       tokenStore.setPermissions([]);
       setPermissionsHydrated(false);
-      const tokens = await issueToken(input);
+      const tokens = await issueTokenByEmail(input);
       // Defence-in-depth: even though the API rejects root-tenant logins
       // submitted with X-FSH-App=dashboard, double-check the issued token
       // so a future API regression can't quietly drop a root token into
@@ -232,9 +247,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (claims?.tenant === "root") {
         tokenStore.clear();
         throw new Error(
-          "SuperAdmin accounts must use the admin app. Sign in there instead.",
+          "Contas SuperAdmin usam o console de administração. Entre por lá.",
         );
       }
+      // The company comes from the server, for the `tenant` header of every later request and of the refresh.
+      tokenStore.setTenant(tokens.tenant);
       tokenStore.setTokens(tokens.accessToken, tokens.refreshToken);
       // Drop any cached query state from before login. Without this, a
       // failed pre-login probe (e.g. OverviewPage's billing fetch
@@ -248,7 +265,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [queryClient],
   );
 
-  const logout = useCallback(() => {
+  // PAF: umLogoutPorVez drops a second call (menu plus inactivity guard) while this logout is in flight.
+  const logout = useMemo(
+    () =>
+      umLogoutPorVez(() => {
+        const limpar = () => {
+          tokenStore.clear();
+          queryClient.clear();
+        };
+        // PAF (ADR 0008, "Logout pelo servidor"): revoke the session and release licence and guichê while the
+        // token still exists. Bounded and never rejects; null (impersonation, no session claim) clears at once.
+        const servidor = logoutPeloServidor();
+        if (servidor === null) {
+          limpar();
+          return Promise.resolve();
+        }
+        return servidor.then(limpar);
+      }),
+    [queryClient],
+  );
+
+  const logoutLocal = useCallback(() => {
     tokenStore.clear();
     queryClient.clear();
   }, [queryClient]);
@@ -304,7 +341,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // back to whatever we stashed locally; the operator may need to
       // re-authenticate if the stashed access token has expired.
       tokenStore.restoreStashedActor();
-      throw new Error("End impersonation failed; restored local session.");
+      throw new Error("Falha ao encerrar o acesso como outro usuário; a sessão local foi restaurada.");
     } finally {
       queryClient.clear();
     }
@@ -328,11 +365,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       impersonation,
       login,
       logout,
+      logoutLocal,
       beginImpersonation,
       stopImpersonation,
       refreshPermissions,
     }),
-    [user, isInitializing, permissionsHydrated, impersonation, login, logout, beginImpersonation, stopImpersonation, refreshPermissions],
+    [user, isInitializing, permissionsHydrated, impersonation, login, logout, logoutLocal, beginImpersonation, stopImpersonation, refreshPermissions],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
