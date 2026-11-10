@@ -235,19 +235,26 @@ export function PainelPage() {
 
   return (
     <main
-      className="flex min-h-screen flex-col bg-black text-white"
+      // The cadastro's font size is picked for the TV; on a phone it is capped at 4vw, or a 48 px base turns the header
+      // and the station name into words wider than the screen. A TV is at least 768 x 600; a phone is narrower than
+      // that upright and shorter than that lying down (844-932 x 390-430), so both sizes count.
+      className={
+        aparencia.tamanhoFontePx === null
+          ? "flex min-h-screen flex-col bg-black text-white"
+          : "flex min-h-screen flex-col bg-black text-[length:min(var(--fonte-painel),4vw)] text-white [@media(min-width:48rem)_and_(min-height:37.5rem)]:text-[length:var(--fonte-painel)]"
+      }
       style={{
         backgroundColor: cores?.fundo,
         color: cores?.filas,
-        fontSize: aparencia.tamanhoFontePx ?? undefined,
+        ...(aparencia.tamanhoFontePx === null ? {} : { "--fonte-painel": `${aparencia.tamanhoFontePx}px` }),
         ...estiloImagemDeFundo(fundo),
       }}
       data-imagem-fundo={fundo ?? undefined}
     >
-      <header className="flex items-center justify-between px-8 py-4 text-[1.125em]">
-        <span className="flex items-center gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-x-8 gap-y-2 px-8 py-4 text-[1.125em]">
+        <span className="flex min-w-0 flex-wrap items-center gap-4">
           <LogotipoImagem url={logotipo} altura="3em" larguraMaxima="12em" />
-          <span>{nomeEstacao}</span>
+          <span className="min-w-0 [overflow-wrap:anywhere]">{nomeEstacao}</span>
         </span>
         {aparencia.mostrarDataHora && <span data-data-hora>{formatarDataHora(agora)}</span>}
         <span role="status" aria-label="Conexão" data-conexao={conexao}>

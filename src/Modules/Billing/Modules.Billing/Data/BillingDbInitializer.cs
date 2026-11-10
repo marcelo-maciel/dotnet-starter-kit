@@ -28,9 +28,10 @@ public sealed class BillingDbInitializer(
             return;
         }
 
-        dbContext.Plans.Add(BillingPlan.Create("free", "Free", "USD", 0m, interval: PlanInterval.Monthly));
-        dbContext.Plans.Add(BillingPlan.Create("pro", "Pro", "USD", 29m, interval: PlanInterval.Monthly));
-        dbContext.Plans.Add(BillingPlan.Create("pro-annual", "Pro (Annual)", "USD", 29m,
+        // PAF (ADR 0008): names in pt-BR and prices in BRL; the keys stay, they are what quota and trial resolve.
+        dbContext.Plans.Add(BillingPlan.Create("free", "Gratuito", "BRL", 0m, interval: PlanInterval.Monthly));
+        dbContext.Plans.Add(BillingPlan.Create("pro", "Pro", "BRL", 29m, interval: PlanInterval.Monthly));
+        dbContext.Plans.Add(BillingPlan.Create("pro-annual", "Pro anual", "BRL", 29m,
             interval: PlanInterval.Yearly, annualPrice: 290m));
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         logger.LogInformation("[Billing] seeded default plans (free, pro, pro-annual)");

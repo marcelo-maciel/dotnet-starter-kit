@@ -90,7 +90,7 @@
   "sessions.revoking": "Revogando…",
   "sessions.revoke": "Revogar",
   "sessions.revokeAllTitle": "Revogar todas as sessões de {{name}}?",
-  "sessions.revokeAllDesc": "Toda sessão ativa — desktop, celular, aba do navegador — será encerrada imediatamente. O usuário precisará entrar novamente em cada dispositivo.",
+  "sessions.revokeAllDesc": "Toda sessão ativa (computador, celular, aba do navegador) será encerrada imediatamente. O usuário precisará entrar novamente em cada dispositivo.",
   "sessions.revokingAll": "Revogando…",
   "impersonate.started": "Personificação iniciada",
   "impersonate.startedDesc": "Você agora está agindo como este usuário. Use o banner para encerrar.",

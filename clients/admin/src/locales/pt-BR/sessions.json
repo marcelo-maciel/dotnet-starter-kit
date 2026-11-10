@@ -17,7 +17,7 @@
   "otherActiveWarn_zero": "{{count, number}} outras sessões estão ativas. Desconecte todas de uma vez se suspeitar de comprometimento da conta.",
   "signingOut": "Desconectando…",
   "signOutEverywhere": "Sair de todos os outros",
-  "noneFound": "Nenhuma sessão ativa encontrada. (Incluindo esta? Isso seria um bug — atualize a página.)",
+  "noneFound": "Nenhuma sessão ativa encontrada. (Nem esta? Isso seria um erro; atualize a página.)",
   "thisDevice": "Este dispositivo",
   "badgeRevoked": "Revogada",
   "badgeActive": "Ativa",
