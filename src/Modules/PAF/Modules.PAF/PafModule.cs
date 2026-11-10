@@ -165,7 +165,7 @@ public sealed class PafModule : IModule
         // C19: the effective RF06 logo as a signed read URL, for the totem, the painel and the printed ficha.
         builder.Services.AddScoped<LogotipoEfetivo>();
         LogSemDadosPessoais.Registrar(builder.Configuration);
-        LogSemErroDeLicencaRecusada.Registrar(builder.Configuration);
+        LogSemErroDeRecusaDoHub.Registrar(builder.Configuration);
     }
 
     // RF03 (M03): the store door with its deadline, and the envio confirmation shared by create and swap.
