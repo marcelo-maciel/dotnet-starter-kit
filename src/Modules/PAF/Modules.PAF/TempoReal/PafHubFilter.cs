@@ -85,7 +85,17 @@ public sealed partial class PafHubFilter(ILogger<PafHubFilter> logger) : IHubFil
         }
 
         InstalarTenant(invocationContext.ServiceProvider, tenant);
-        return await next(invocationContext).ConfigureAwait(false);
+        try
+        {
+            return await next(invocationContext).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (invocationContext.Context.ConnectionAborted.IsCancellationRequested)
+        {
+            // The client left mid-call (closed tab, navigation): SignalR cancels the call and would log the
+            // cancellation as an error. Nobody is left to receive the result.
+            LogSaiuNaChamada(logger, invocationContext.Context.ConnectionId, invocationContext.HubMethodName);
+            return null;
+        }
     }
 
     // The hub scope does not reliably carry the tenant of the request that opened the connection (long polling
@@ -179,11 +189,29 @@ public sealed partial class PafHubFilter(ILogger<PafHubFilter> logger) : IHubFil
         return CredencialEstacao.VigenteAsync(db, estacao.EstacaoId, estacao.VinculoId, estacao.Papel, ct);
     }
 
-    private HubException Recusar(HubCallerContext contexto, string tipo)
+    private CredencialRecusadaException Recusar(HubCallerContext contexto, string tipo)
     {
         LogConexaoRecusada(logger, contexto.ConnectionId, tipo);
         contexto.Abort();
-        return new HubException(MensagemRecusada);
+        return new CredencialRecusadaException(MensagemRecusada);
+    }
+
+    /// <summary>Credential revoked, session ended or principal invalid, on connect or on a call (event 9003).</summary>
+    public sealed class CredencialRecusadaException : HubException
+    {
+        public CredencialRecusadaException()
+        {
+        }
+
+        public CredencialRecusadaException(string message)
+            : base(message)
+        {
+        }
+
+        public CredencialRecusadaException(string message, Exception innerException)
+            : base(message, innerException)
+        {
+        }
     }
 
     /// <summary>Licence refused on connect or on a call; the message is the cause the screen shows (ARQ seção 9).</summary>
@@ -211,6 +239,10 @@ public sealed partial class PafHubFilter(ILogger<PafHubFilter> logger) : IHubFil
     [LoggerMessage(EventId = 9005, Level = LogLevel.Debug,
         Message = "PafHub: o cliente saiu durante a abertura da conexao {ConnectionId}")]
     private static partial void LogSaiuNaAbertura(ILogger logger, string connectionId);
+
+    [LoggerMessage(EventId = 9007, Level = LogLevel.Debug,
+        Message = "PafHub: o cliente saiu durante a chamada {Metodo} da conexao {ConnectionId}")]
+    private static partial void LogSaiuNaChamada(ILogger logger, string connectionId, string metodo);
 
     [LoggerMessage(EventId = 9003, Level = LogLevel.Information,
         Message = "PafHub recusou a conexao {ConnectionId} ({Tipo}): credencial revogada, sessao encerrada ou principal invalido")]

@@ -87,7 +87,7 @@ public sealed class PafImpersonacaoBarreiraTests(FshWebApplicationFactory factor
 
         var resultado = await InvocarFiltroAsync(Principal(token));
 
-        resultado.Erro.ShouldBeOfType<HubException>().Message.ShouldBe(PafHubFilter.MensagemRecusada);
+        resultado.Erro.ShouldBeOfType<PafHubFilter.CredencialRecusadaException>().Message.ShouldBe(PafHubFilter.MensagemRecusada);
         resultado.Abortada.ShouldBeTrue();
     }
 
@@ -125,7 +125,7 @@ public sealed class PafImpersonacaoBarreiraTests(FshWebApplicationFactory factor
         }
 
         var depois = await InvocarFiltroAsync(principal);
-        depois.Erro.ShouldBeOfType<HubException>().Message.ShouldBe(PafHubFilter.MensagemRecusada);
+        depois.Erro.ShouldBeOfType<PafHubFilter.CredencialRecusadaException>().Message.ShouldBe(PafHubFilter.MensagemRecusada);
         depois.Abortada.ShouldBeTrue("a revogação da concessão derruba a conexão na chamada seguinte");
     }
 

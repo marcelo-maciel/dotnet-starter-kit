@@ -204,7 +204,7 @@ public sealed class PafHubConexoesTests(FshWebApplicationFactory factory) : IAsy
         }
 
         var depois = await InvocarFiltroAsync(principal);
-        depois.Erro.ShouldBeOfType<HubException>().Message.ShouldBe(PafHubFilter.MensagemRecusada);
+        depois.Erro.ShouldBeOfType<PafHubFilter.CredencialRecusadaException>().Message.ShouldBe(PafHubFilter.MensagemRecusada);
         depois.Abortada.ShouldBeTrue("o filtro aborta a conexão da credencial revogada");
     }
 
@@ -226,7 +226,7 @@ public sealed class PafHubConexoesTests(FshWebApplicationFactory factory) : IAsy
         }
 
         var depois = await InvocarFiltroAsync(principal);
-        depois.Erro.ShouldBeOfType<HubException>();
+        depois.Erro.ShouldBeOfType<PafHubFilter.CredencialRecusadaException>();
         depois.Abortada.ShouldBeTrue("o filtro aborta a conexão da sessão revogada");
     }
 

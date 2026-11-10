@@ -52,6 +52,63 @@ public sealed class PafHubFilterConexaoAbortadaTests(FshWebApplicationFactory fa
         resultado.SeguiuNaQueda.ShouldBeTrue();
     }
 
+    // A call cut short by the client leaving: SignalR cancels it through ConnectionAborted and logs the cancellation
+    // as an error ("Failed to invoke hub method"), seen in production with EntrarNoGuiche on 10/11/2026. Nobody is
+    // left to receive the result, so the filter ends the call quietly.
+    [Fact]
+    public async Task ClienteSaiNoMeioDaChamada_FiltroEncerraSemExcecao()
+    {
+        var token = await TokenDeAtendenteAsync();
+        using var conexao = new CancellationTokenSource();
+
+        var resultado = await InvocarNoFiltroAsync(Principal(token), conexao, saiDuranteAChamada: true);
+
+        resultado.Erro.ShouldBeNull();
+        resultado.Seguiu.ShouldBeTrue("a conferência passou e a chamada começou antes de o cliente sair");
+    }
+
+    // Control: the same cancellation with the connection still open is not the client leaving, so it propagates.
+    [Fact]
+    public async Task ChamadaCanceladaComConexaoViva_ExcecaoSegue()
+    {
+        var token = await TokenDeAtendenteAsync();
+        using var conexao = new CancellationTokenSource();
+
+        var resultado = await InvocarNoFiltroAsync(Principal(token), conexao, saiDuranteAChamada: false);
+
+        resultado.Erro.ShouldBeOfType<OperationCanceledException>();
+    }
+
+    private async Task<(bool Seguiu, Exception? Erro)> InvocarNoFiltroAsync(
+        ClaimsPrincipal principal, CancellationTokenSource conexao, bool saiDuranteAChamada)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var servicos = scope.ServiceProvider;
+        var contexto = new ContextoDeTeste(principal, conexao.Token);
+        using var hub = new PafHub(servicos.GetRequiredService<ConexoesPaf>(), servicos, NullLogger<PafHub>.Instance);
+        var filtro = servicos.GetRequiredService<PafHubFilter>();
+        var invocacao = new HubInvocationContext(contexto, servicos, hub, typeof(PafHub).GetMethod(nameof(PafHub.EntrarNoGuiche))!, []);
+        var seguiu = false;
+        try
+        {
+            await filtro.InvokeMethodAsync(invocacao, async _ =>
+            {
+                seguiu = true;
+                if (saiDuranteAChamada)
+                {
+                    await conexao.CancelAsync();
+                }
+
+                throw new OperationCanceledException(saiDuranteAChamada ? conexao.Token : CancellationToken.None);
+            });
+            return (seguiu, null);
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or HubException)
+        {
+            return (seguiu, ex);
+        }
+    }
+
     private async Task<string> TokenDeAtendenteAsync()
     {
         var unidade = await _tenant.CriarUnidadeAsync(limiteSessoes: 5);
