@@ -96,7 +96,7 @@ public sealed class WalletEndpointsTests
         wallet.ShouldNotBeNull();
         wallet.TenantId.ShouldBe(TestConstants.RootTenantId,
             "the wallet tenant must match the caller's tenant");
-        wallet.Currency.ShouldBe("USD");
+        wallet.Currency.ShouldBe("BRL");
         // Balance starts at 0 (no credits have been applied in this test run).
         wallet.Balance.ShouldBeGreaterThanOrEqualTo(0m,
             "wallet balance must be non-negative");

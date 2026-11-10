@@ -22,7 +22,7 @@ public sealed class GetMyWalletQueryHandler(
         var tenantId = tenantAccessor.MultiTenantContext?.TenantInfo?.Id
             ?? throw new UnauthorizedException("Tenant context is required.").Localized("Error.TenantContextRequired");
 
-        var wallet = await billingService.GetOrCreateWalletAsync(tenantId, "USD", cancellationToken).ConfigureAwait(false);
+        var wallet = await billingService.GetOrCreateWalletAsync(tenantId, "BRL", cancellationToken).ConfigureAwait(false);
         return wallet.ToDto();
     }
 }

@@ -25,7 +25,7 @@ public sealed class CachingOptions
     /// <summary>
     /// Lifetime of the L1 in-process copy. Kept short to bound cross-node staleness after
     /// a <c>RemoveAsync</c>/<c>RemoveByTagAsync</c> on a peer node, since HybridCache has no
-    /// built-in L1 backplane. See <c>docs/caching.md</c> for the tradeoff.
+    /// built-in L1 backplane. See <c>.agents/rules/caching.md</c> for the tradeoff.
     /// </summary>
     public TimeSpan DefaultLocalCacheExpiration { get; set; } = TimeSpan.FromMinutes(2);
 
