@@ -17,7 +17,7 @@ import { BillingPermissions } from "@/lib/permissions";
 
 function formatOverageRates(rates: BillingPlanDto["overageRates"], currency: string) {
   const entries = Object.entries(rates).filter(([, v]) => v && v > 0);
-  if (entries.length === 0) return "—";
+  if (entries.length === 0) return "-";
   return entries
     .map(([resource, rate]) => `${resource} ${formatCurrency(rate ?? 0, currency)}`)
     .join(" · ");
@@ -56,7 +56,7 @@ export function PlansListPage() {
 
   const totals = useMemo(() => {
     if (plans.length === 0) {
-      return { count: 0, active: 0, averagePrice: 0, currency: "USD" };
+      return { count: 0, active: 0, averagePrice: 0, currency: "BRL" };
     }
     const active = plans.filter((p) => p.isActive).length;
     const sum = plans.reduce((acc, p) => acc + p.monthlyBasePrice, 0);

@@ -214,7 +214,7 @@ function CorrelationBand({ event }: { event: AuditDetailDto }) {
 function CorrelationChip({ label, value }: { label: string; value: string | null }) {
   const { t } = useTranslation("audits");
   const [copied, setCopied] = useState(false);
-  const hasValue = Boolean(value && value !== "—");
+  const hasValue = Boolean(value && value !== "-");
 
   const onCopy = async () => {
     if (!hasValue) return;
@@ -245,7 +245,7 @@ function CorrelationChip({ label, value }: { label: string; value: string | null
           {label}
         </div>
         <div className="truncate font-mono text-[11.5px] text-[var(--color-foreground)]">
-          {hasValue ? value : "—"}
+          {hasValue ? value : "-"}
         </div>
       </div>
       {hasValue && (
@@ -272,16 +272,16 @@ function ContextGrid({ event }: { event: AuditDetailDto }) {
   const { t } = useTranslation("audits");
   const userLine = event.userName
     ? `${event.userName} (${event.userId})`
-    : event.userId ?? "—";
+    : event.userId ?? "-";
 
   const tags = renderTagsInline(event.tags as number);
 
   const tiles: Array<{ label: string; value: React.ReactNode; mono?: boolean }> = [
     { label: t("detail.tile.occurredAt"), value: formatTimestamp(event.occurredAtUtc), mono: true },
     { label: t("detail.tile.receivedAt"), value: formatTimestamp(event.receivedAtUtc), mono: true },
-    { label: t("detail.tile.tenant"), value: event.tenantId ?? "—", mono: true },
+    { label: t("detail.tile.tenant"), value: event.tenantId ?? "-", mono: true },
     { label: t("detail.tile.user"), value: userLine, mono: true },
-    { label: t("detail.tile.source"), value: event.source ?? "—", mono: true },
+    { label: t("detail.tile.source"), value: event.source ?? "-", mono: true },
     { label: t("detail.tile.tags"), value: tags },
   ];
 
@@ -435,11 +435,11 @@ const TAG_NAMES: ReadonlyArray<{ bit: number; label: string }> = [
 
 function renderTagsInline(tags: number): React.ReactNode {
   if (!tags || tags === 0) {
-    return <span className="text-[var(--color-muted-foreground)]">—</span>;
+    return <span className="text-[var(--color-muted-foreground)]">-</span>;
   }
   const set = TAG_NAMES.filter((t) => (tags & t.bit) === t.bit);
   if (set.length === 0) {
-    return <span className="text-[var(--color-muted-foreground)]">—</span>;
+    return <span className="text-[var(--color-muted-foreground)]">-</span>;
   }
   return (
     <span className="flex flex-wrap items-center gap-1.5">

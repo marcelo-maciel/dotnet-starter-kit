@@ -250,7 +250,7 @@ export function ProfileSettings() {
         description={t("profile.subject.description")}
       >
         <code className="block w-full overflow-x-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] px-3 py-2 font-mono text-xs">
-          {profile?.id ?? user?.id ?? "—"}
+          {profile?.id ?? user?.id ?? "-"}
         </code>
       </SettingsSection>
     </form>

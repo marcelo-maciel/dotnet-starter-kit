@@ -51,9 +51,9 @@ const formatoChamada = new Intl.DateTimeFormat("pt-BR", {
 
 /** Date and time of the last call in America/Sao_Paulo; "—" for a fila never called (RF11 l.364). */
 export function formatarUltimaChamada(instante: string | null): string {
-  if (instante === null) return "—";
+  if (instante === null) return "-";
   const data = new Date(instante);
-  return Number.isNaN(data.getTime()) ? "—" : formatoChamada.format(data);
+  return Number.isNaN(data.getTime()) ? "-" : formatoChamada.format(data);
 }
 
 /** How one emission POST ended. */

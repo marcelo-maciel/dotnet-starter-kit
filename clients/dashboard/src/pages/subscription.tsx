@@ -262,7 +262,7 @@ function PlanBody({
     <div className="space-y-4">
       <div className="flex items-baseline justify-between gap-3">
         <span className="font-display text-[22px] font-bold tracking-tight text-[var(--color-foreground)]">
-          {planName ?? "—"}
+          {planName ?? "-"}
         </span>
         {subscription && (
           // The dashboard's /subscriptions/me only ever surfaces the ACTIVE

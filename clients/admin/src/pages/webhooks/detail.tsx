@@ -91,7 +91,7 @@ export function WebhookDetailPage() {
     <div className="space-y-8">
       <PageHeader
         crumbs={[{ label: t("detail.crumb") }, { label: sub?.url ?? "…", muted: true }]}
-        trailing={sub ? (sub.isActive ? t("detail.trailingActive") : t("detail.trailingInactive")) : "—"}
+        trailing={sub ? (sub.isActive ? t("detail.trailingActive") : t("detail.trailingInactive")) : "-"}
         title={sub?.url ?? t("detail.subscriptionFallback")}
         description={sub ? t("detail.subscribed", { count: sub.events.length }) : t("detail.loading")}
         actions={
@@ -179,7 +179,7 @@ export function WebhookDetailPage() {
             footer={
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--color-muted-foreground)]">
-                  {deliveries.data ? t("detail.deliveries.attempts", { count: deliveries.data.totalCount }) : "—"}
+                  {deliveries.data ? t("detail.deliveries.attempts", { count: deliveries.data.totalCount }) : "-"}
                 </span>
                 <Button
                   variant="outline"
@@ -251,7 +251,7 @@ function DeliveryRow({ delivery }: { delivery: WebhookDeliveryDto }) {
         variant={delivery.success ? "success" : "danger"}
         className="font-mono uppercase tracking-[0.14em]"
       >
-        {t("delivery.http", { code: delivery.httpStatusCode || "—" })}
+        {t("delivery.http", { code: delivery.httpStatusCode || "-" })}
       </Badge>
       <span className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-[var(--color-muted-foreground)]">
         {t("delivery.try", { count: delivery.attemptCount })}

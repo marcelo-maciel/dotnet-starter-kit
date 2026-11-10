@@ -136,7 +136,7 @@ export function PlanFormDialog({
 
   const [key, setKey] = useState("");
   const [name, setName] = useState("");
-  const [currency, setCurrency] = useState("USD");
+  const [currency, setCurrency] = useState("BRL");
   const [monthlyBasePrice, setMonthlyBasePrice] = useState("");
   const [interval, setInterval] = useState<PlanInterval>("Monthly");
   const [annualPrice, setAnnualPrice] = useState("");
@@ -151,7 +151,7 @@ export function PlanFormDialog({
     if (open) {
       setKey(plan?.key ?? "");
       setName(plan?.name ?? "");
-      setCurrency(plan?.currency ?? "USD");
+      setCurrency(plan?.currency ?? "BRL");
       setMonthlyBasePrice(plan ? String(plan.monthlyBasePrice) : "");
       setInterval(plan?.interval === "Yearly" ? "Yearly" : "Monthly");
       setAnnualPrice(plan?.annualPrice != null ? String(plan.annualPrice) : "");
@@ -295,7 +295,7 @@ export function PlanFormDialog({
                     id="pf-currency"
                     value={currency}
                     onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-                    placeholder="USD"
+                    placeholder="BRL"
                     className="font-mono"
                     disabled={isEdit}
                     autoComplete="off"

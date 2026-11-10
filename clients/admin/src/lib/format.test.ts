@@ -31,5 +31,5 @@ test("dense stamps are Brasília wall clock, midnight as 00 and never 24", () =>
 
 test("the precise stamp carries the offset it was read with", () => {
   assert.equal(formatStampPrecise("2026-05-01T03:00:00.042Z"), "2026-05-01 00:00:00.042 -03:00");
-  assert.equal(formatStampPrecise(null), "—");
+  assert.equal(formatStampPrecise(null), "-");
 });

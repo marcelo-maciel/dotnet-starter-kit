@@ -280,7 +280,7 @@ function DesktopGroupRow({
         )}
         {!group.isDefault && !group.isSystemGroup && (
           <span className="text-[12px] text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.5)]">
-            —
+            -
           </span>
         )}
       </div>

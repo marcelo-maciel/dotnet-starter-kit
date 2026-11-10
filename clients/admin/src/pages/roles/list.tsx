@@ -259,7 +259,7 @@ function RoleDesktopRow({
   const isSystem = ROOT_ROLE_NAMES.has(role.name);
   const permLabel =
     role.permissions === undefined || role.permissions === null
-      ? "—"
+      ? "-"
       : t("permCount", { count: role.permissions.length });
 
   return (

@@ -63,5 +63,5 @@ export function descricaoGuiche(linha: {
   if (linha.numeroGuiche !== null) {
     return linha.nomeExibicaoGuiche ? `${linha.numeroGuiche} - ${linha.nomeExibicaoGuiche}` : String(linha.numeroGuiche);
   }
-  return linha.guiche ?? "—";
+  return linha.guiche ?? "-";
 }

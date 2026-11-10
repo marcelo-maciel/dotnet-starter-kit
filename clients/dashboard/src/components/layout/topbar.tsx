@@ -279,7 +279,7 @@ export function Topbar() {
                 {user?.name ?? user?.email ?? t("unknownUser")}
               </p>
               <p className="mt-1 truncate text-[10px] leading-none text-[var(--color-muted-foreground)]">
-                {user?.tenant ?? "—"}
+                {user?.tenant ?? "-"}
               </p>
             </div>
             <ChevronsUpDown
@@ -385,7 +385,7 @@ export function Topbar() {
                 )}
               </div>
               <code className="rounded bg-[var(--color-muted)] px-1.5 py-0.5 font-mono text-[11px]">
-                {user?.tenant ?? "—"}
+                {user?.tenant ?? "-"}
               </code>
             </div>
           </DialogBody>

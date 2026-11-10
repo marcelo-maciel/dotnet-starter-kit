@@ -53,8 +53,8 @@ test("fila fora do horário, inativa ou indisponível não mostra botão e diz p
 });
 
 test("última chamada em São Paulo; nunca chamada ou inválida mostra traço", () => {
-  assert.equal(formatarUltimaChamada(null), "—");
-  assert.equal(formatarUltimaChamada("lixo"), "—");
+  assert.equal(formatarUltimaChamada(null), "-");
+  assert.equal(formatarUltimaChamada("lixo"), "-");
   // 02:30 UTC is still the previous day in São Paulo (UTC-3).
   assert.equal(formatarUltimaChamada("2026-10-20T02:30:00+00:00"), "19/10/2026, 23:30");
   assert.equal(formatarUltimaChamada("2026-10-19T09:05:00-03:00"), "19/10/2026, 09:05");

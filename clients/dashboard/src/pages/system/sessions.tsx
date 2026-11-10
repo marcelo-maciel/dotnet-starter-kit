@@ -456,7 +456,7 @@ function SessionDesktopRow({
 
       {/* IP */}
       <code className="truncate font-mono text-[12px] text-[var(--color-muted-foreground)]">
-        {session.ipAddress ?? "—"}
+        {session.ipAddress ?? "-"}
       </code>
 
       {/* Last activity */}
@@ -494,7 +494,7 @@ function SessionDesktopRow({
           </>
         ) : (
           <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]/70">
-            —
+            -
           </span>
         )}
       </div>

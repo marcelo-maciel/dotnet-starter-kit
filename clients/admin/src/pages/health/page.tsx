@@ -95,13 +95,13 @@ export function HealthPage() {
         />
         <Stat
           label={t("stat.checksHealthy")}
-          value={isLoading ? "—" : checksHealthy.toString()}
-          hint={t("stat.checksHealthyHint", { total: readyEntries.length || "—" })}
+          value={isLoading ? "-" : checksHealthy.toString()}
+          hint={t("stat.checksHealthyHint", { total: readyEntries.length || "-" })}
           tone={checksHealthy > 0 ? "success" : "default"}
         />
         <Stat
           label={t("stat.checksFailing")}
-          value={isLoading ? "—" : (checksFailing + checksDegraded).toString()}
+          value={isLoading ? "-" : (checksFailing + checksDegraded).toString()}
           hint={
             checksDegraded > 0
               ? t("stat.checksFailingHintDegraded", { degraded: checksDegraded, failing: checksFailing })
@@ -178,7 +178,7 @@ function ProbeSection({
           <div>
             <div className="text-sm font-medium">{t("noChecks")}</div>
             <div className="text-xs text-[var(--color-muted-foreground)]">
-              {t("noChecksDetail", { status: result?.status ?? "—" })}
+              {t("noChecksDetail", { status: result?.status ?? "-" })}
             </div>
           </div>
         </div>

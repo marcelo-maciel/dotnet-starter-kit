@@ -14,7 +14,7 @@ const dateLong = new Intl.DateTimeFormat("pt-BR", {
 });
 
 export function formatDate(iso: string | null | undefined) {
-  if (!iso) return "—";
+  if (!iso) return "-";
   return dateLong.format(new Date(iso));
 }
 
@@ -34,13 +34,13 @@ const timeShort = new Intl.DateTimeFormat("pt-BR", {
 
 // "30/04/2026 22:30" — date + Brasília time for lists such as the session list.
 export function formatDateTime(iso: string | null | undefined) {
-  if (!iso) return "—";
+  if (!iso) return "-";
   return `${formatDate(iso)} ${timeShort.format(new Date(iso))}`;
 }
 
 // "30/04/2026 · 22:30" — date + Brasília time for audit/detail panels.
 export function formatDateTimeMono(iso: string | null | undefined) {
-  if (!iso) return "—";
+  if (!iso) return "-";
   return `${formatDateMono(iso)} · ${timeShort.format(new Date(iso))}`;
 }
 

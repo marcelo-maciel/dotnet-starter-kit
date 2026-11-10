@@ -456,11 +456,11 @@ export function UserDetailPage() {
           description={t("card.description")}
         >
           <div className="space-y-3">
-            <ProfileRow label={t("field.username")} value={user.userName ?? "—"} />
-            <ProfileRow label={t("field.email")} value={user.email ?? "—"} />
-            <ProfileRow label={t("field.firstName")} value={user.firstName ?? "—"} />
-            <ProfileRow label={t("field.lastName")} value={user.lastName ?? "—"} />
-            <ProfileRow label={t("field.phone")} value={user.phoneNumber ?? "—"} />
+            <ProfileRow label={t("field.username")} value={user.userName ?? "-"} />
+            <ProfileRow label={t("field.email")} value={user.email ?? "-"} />
+            <ProfileRow label={t("field.firstName")} value={user.firstName ?? "-"} />
+            <ProfileRow label={t("field.lastName")} value={user.lastName ?? "-"} />
+            <ProfileRow label={t("field.phone")} value={user.phoneNumber ?? "-"} />
             <ProfileRow
               label={t("field.id")}
               value={<span className="font-mono text-[11px]">{user.id}</span>}

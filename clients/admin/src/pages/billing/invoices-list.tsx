@@ -101,7 +101,7 @@ export function InvoicesListPage() {
     let outstanding = 0;
     let paid = 0;
     let paidCount = 0;
-    const firstCurrency = items[0]?.currency ?? "USD";
+    const firstCurrency = items[0]?.currency ?? "BRL";
     for (const inv of items) {
       totalBilled += inv.subtotalAmount;
       if (inv.status === "Paid") {

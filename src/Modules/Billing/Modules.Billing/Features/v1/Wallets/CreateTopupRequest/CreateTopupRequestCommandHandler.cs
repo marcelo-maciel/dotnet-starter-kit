@@ -24,7 +24,7 @@ public sealed class CreateTopupRequestCommandHandler(
             ?? throw new UnauthorizedException("Tenant context is required.").Localized("Error.TenantContextRequired");
 
         var requestedBy = currentUser.IsAuthenticated() ? currentUser.GetUserId().ToString() : null;
-        var request = TopupRequest.Create(tenantId, command.Amount, "USD", command.Note, requestedBy);
+        var request = TopupRequest.Create(tenantId, command.Amount, "BRL", command.Note, requestedBy);
         db.TopupRequests.Add(request);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         return request.Id;

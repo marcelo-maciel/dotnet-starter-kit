@@ -104,7 +104,7 @@ function entityLabel(data: unknown): string {
       if (typeof v === "string" && v.length > 0) return v;
     }
   }
-  return "—";
+  return "-";
 }
 
 function severityTone(severity: AuditSeverity): EntityStatusTone {
@@ -120,7 +120,7 @@ function auditActor(row: AuditSummaryDto): string {
 }
 
 function formatAuditTime(iso: string) {
-  return Number.isNaN(new Date(iso).getTime()) ? "—" : formatDateTime(iso);
+  return Number.isNaN(new Date(iso).getTime()) ? "-" : formatDateTime(iso);
 }
 
 // ───────────────────────────────────────────────────────────────────────

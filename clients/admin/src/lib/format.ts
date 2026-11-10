@@ -34,7 +34,7 @@ export function formatCurrency(amount: number, currency: string, locale?: string
 /** Date and time under the active UI locale. `toLocaleString()` with no argument uses the
  *  browser's locale instead, which puts 5/23/2026 next to Portuguese labels. */
 export function formatDateTime(iso?: string | null, locale?: string): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? iso
@@ -47,7 +47,7 @@ export function formatDateTime(iso?: string | null, locale?: string): string {
 
 /** Time of day under the active UI locale. */
 export function formatTime(iso?: string | null, locale?: string): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? iso
@@ -55,7 +55,7 @@ export function formatTime(iso?: string | null, locale?: string): string {
 }
 
 export function formatDate(iso?: string | null, locale?: string): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? iso
@@ -131,7 +131,7 @@ export function formatStampMinutes(iso: string): string {
 
 /** "2026-04-30 14:22:01.234 -03:00": the forensic stamp of an audit record, Brasília with its offset. */
 export function formatStampPrecise(iso?: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
   const c = wallClock(date);

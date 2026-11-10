@@ -105,10 +105,10 @@ export function ImpersonationListPage() {
       </EntityPageHeader>
 
       <StatStrip cols={4}>
-        <Stat label={t("stat.active")} value={grants.isLoading ? "—" : counts.active.toString()} hint={t("stat.activeHint")} tone={counts.active > 0 ? "signal" : "default"} />
-        <Stat label={t("stat.ended")} value={grants.isLoading ? "—" : counts.ended.toString()} hint={t("stat.endedHint")} />
-        <Stat label={t("stat.revoked")} value={grants.isLoading ? "—" : counts.revoked.toString()} hint={t("stat.revokedHint")} tone={counts.revoked > 0 ? "danger" : "default"} />
-        <Stat label={t("stat.expired")} value={grants.isLoading ? "—" : counts.expired.toString()} hint={t("stat.expiredHint")} />
+        <Stat label={t("stat.active")} value={grants.isLoading ? "-" : counts.active.toString()} hint={t("stat.activeHint")} tone={counts.active > 0 ? "signal" : "default"} />
+        <Stat label={t("stat.ended")} value={grants.isLoading ? "-" : counts.ended.toString()} hint={t("stat.endedHint")} />
+        <Stat label={t("stat.revoked")} value={grants.isLoading ? "-" : counts.revoked.toString()} hint={t("stat.revokedHint")} tone={counts.revoked > 0 ? "danger" : "default"} />
+        <Stat label={t("stat.expired")} value={grants.isLoading ? "-" : counts.expired.toString()} hint={t("stat.expiredHint")} />
       </StatStrip>
 
       <FilterBar>
@@ -311,7 +311,7 @@ function Details({ grant }: { grant: ImpersonationGrantDto }) {
   return (
     <dl className="ml-7 grid grid-cols-1 gap-y-1 border-l-2 border-[var(--color-accent-signal)] py-2 pl-4 text-[12px] sm:grid-cols-2 sm:gap-x-6">
       <DRow label={t("detail.reason")}>
-        <span className="text-[var(--color-muted-foreground)]">{grant.reason || "—"}</span>
+        <span className="text-[var(--color-muted-foreground)]">{grant.reason || "-"}</span>
       </DRow>
       <DRow label={t("detail.grantId")}><code className="code-chip">{grant.id}</code></DRow>
       <DRow label={t("detail.jwtId")}><code className="code-chip">{grant.jti}</code></DRow>
@@ -323,9 +323,9 @@ function Details({ grant }: { grant: ImpersonationGrantDto }) {
       {grant.revokedAtUtc && (
         <>
           <DRow label={t("detail.revokedAt")}>{formatDateTime(grant.revokedAtUtc)}</DRow>
-          <DRow label={t("detail.revokedBy")}>{grant.revokedByUserName ?? grant.revokedByUserId ?? "—"}</DRow>
+          <DRow label={t("detail.revokedBy")}>{grant.revokedByUserName ?? grant.revokedByUserId ?? "-"}</DRow>
           <DRow label={t("detail.revokeReason")} wide>
-            <span className="text-[var(--color-muted-foreground)]">{grant.revokeReason || "—"}</span>
+            <span className="text-[var(--color-muted-foreground)]">{grant.revokeReason || "-"}</span>
           </DRow>
         </>
       )}

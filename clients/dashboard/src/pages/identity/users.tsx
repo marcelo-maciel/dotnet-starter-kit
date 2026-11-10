@@ -375,7 +375,7 @@ function UserDesktopRow({ user, isLast }: { user: UserDto; isLast: boolean }) {
         title={user.userName ?? undefined}
         className="truncate font-mono text-[12px] text-[var(--color-muted-foreground)]"
       >
-        {user.userName ? `@${user.userName}` : "—"}
+        {user.userName ? `@${user.userName}` : "-"}
       </code>
 
       {/* Status (lg+) */}

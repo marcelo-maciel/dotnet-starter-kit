@@ -158,7 +158,7 @@ export const PERMISSION_CATALOG: readonly PermissionGroup[] = [
     blurb: "Inspect and manage tenant subscriptions and invoices.",
     entries: [
       { name: BillingPermissions.View, description: "View billing", basic: true },
-      { name: BillingPermissions.Manage, description: "Manage billing — plans, subscriptions, invoices" },
+      { name: BillingPermissions.Manage, description: "Manage billing: plans, subscriptions, invoices" },
     ],
   },
   {

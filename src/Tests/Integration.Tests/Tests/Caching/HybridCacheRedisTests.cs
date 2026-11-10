@@ -89,7 +89,7 @@ public sealed class HybridCacheRedisTests : IAsyncLifetime
     public async Task RemoveByTagAsync_Should_Invalidate_Within_Same_Instance()
     {
         // HybridCache tag invalidation is per-instance (no L1 backplane); cross-node invalidation
-        // needs a custom pub/sub backplane — a known limitation documented in docs/caching.mdx.
+        // needs a custom pub/sub backplane — a known limitation documented in .agents/rules/caching.md.
         var (cache, _, provider) = CreateCache();
         await using (provider)
         {

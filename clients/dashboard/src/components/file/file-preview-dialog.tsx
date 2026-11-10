@@ -403,7 +403,7 @@ function MetadataPanel({
     ? uploader.loading
       ? t("preview.meta.uploaderLoading")
       : uploader.name
-    : "—";
+    : "-";
 
   const rows: Array<[string, React.ReactNode, string?]> = [
     [t("preview.meta.fileId"), <code className="font-mono text-[11px]">{file.id}</code>, file.id],
