@@ -235,12 +235,13 @@ export function PainelPage() {
 
   return (
     <main
-      // The cadastro's font size is picked for the TV; below md (a phone opening the painel) it is capped at 4vw, or a
-      // 48 px base turns the header and the station name into words wider than the screen. TVs are all above md.
+      // The cadastro's font size is picked for the TV; on a phone it is capped at 4vw, or a 48 px base turns the header
+      // and the station name into words wider than the screen. A TV is at least 768 x 600; a phone is narrower than
+      // that upright and shorter than that lying down (844-932 x 390-430), so both sizes count.
       className={
         aparencia.tamanhoFontePx === null
           ? "flex min-h-screen flex-col bg-black text-white"
-          : "flex min-h-screen flex-col bg-black text-[length:min(var(--fonte-painel),4vw)] text-white md:text-[length:var(--fonte-painel)]"
+          : "flex min-h-screen flex-col bg-black text-[length:min(var(--fonte-painel),4vw)] text-white [@media(min-width:48rem)_and_(min-height:37.5rem)]:text-[length:var(--fonte-painel)]"
       }
       style={{
         backgroundColor: cores?.fundo,

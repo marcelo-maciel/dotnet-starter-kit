@@ -19,7 +19,7 @@
   "appearance.theme.darkBlurb": "Padrão do console. Menos brilho para sessões longas.",
   "appearance.active": "Ativo",
   "appearance.density.title": "Densidade",
-  "appearance.density.description": "O modo compacto reduz o preenchimento dos cards e a altura das linhas para telas com muitos dados, como o alternador de densidade do dashboard.",
+  "appearance.density.description": "O modo compacto vai reduzir o preenchimento dos cards e a altura das linhas para telas com muitos dados, como o alternador de densidade do dashboard.",
   "appearance.density.comingSoon": "Linhas compactas · em breve",
 
   "profile.loading": "Carregando perfil",
