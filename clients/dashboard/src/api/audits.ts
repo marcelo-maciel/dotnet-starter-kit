@@ -36,7 +36,7 @@ export const AuditSeverity = {
 export type AuditSeverity = (typeof AuditSeverity)[keyof typeof AuditSeverity];
 
 export const AUDIT_SEVERITY_LABELS: Record<AuditSeverity, string> = {
-  None: "—",
+  None: "-",
   Trace: "Rastreio",
   Debug: "Depuração",
   Information: "Info",

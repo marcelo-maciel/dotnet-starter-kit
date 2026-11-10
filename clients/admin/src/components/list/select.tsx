@@ -52,7 +52,7 @@ export function Select<T extends string = string>({
   const current = allOptions.find((o) => o.value === value);
   const displayLabel = current
     ? current.hint
-      ? `${current.label} — ${current.hint}`
+      ? `${current.label}: ${current.hint}`
       : current.label
     : emptyLabel ?? allOptions[0]?.label ?? "Select…";
   const hasSelection = value !== "";
@@ -117,7 +117,7 @@ export function Select<T extends string = string>({
                   {opt.label}
                   {opt.hint && (
                     <span className="ml-1.5 text-xs text-[var(--color-muted-foreground)]">
-                      — {opt.hint}
+                      - {opt.hint}
                     </span>
                   )}
                 </span>

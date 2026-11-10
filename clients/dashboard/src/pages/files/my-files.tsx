@@ -698,7 +698,7 @@ function DesktopRow({
           className="truncate text-[12px] text-[var(--color-muted-foreground)]"
           title={uploader.name}
         >
-          {file.createdByUserId ? (uploader.loading ? "…" : uploader.name) : "—"}
+          {file.createdByUserId ? (uploader.loading ? "…" : uploader.name) : "-"}
         </span>
       )}
       <span className="font-mono text-[12px] tabular-nums text-[var(--color-muted-foreground)]">

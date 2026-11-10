@@ -74,7 +74,7 @@ export function DashboardPage() {
             tenantsQuery.isLoading ? (
               <Skeleton className="h-7 w-16" />
             ) : (
-              tenantsTotal != null ? formatNumber(tenantsTotal) : "—"
+              tenantsTotal != null ? formatNumber(tenantsTotal) : "-"
             )
           }
           hint={t("stat.tenantsHint")}
@@ -96,7 +96,7 @@ export function DashboardPage() {
             invoicesQuery.isLoading ? (
               <Skeleton className="h-7 w-16" />
             ) : (
-              invoicesPage != null ? formatNumber(invoicesPage.items.length) : "—"
+              invoicesPage != null ? formatNumber(invoicesPage.items.length) : "-"
             )
           }
           hint={

@@ -199,7 +199,7 @@ function describeDevice(s: UserSessionDto, t: TFn): string {
 }
 
 function formatRelative(value: string | null | undefined, t: TFn): string {
-  if (!value) return "—";
+  if (!value) return "-";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   const diff = Date.now() - d.getTime();

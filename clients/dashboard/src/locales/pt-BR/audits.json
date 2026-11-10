@@ -4,7 +4,7 @@
   "eventType.security": "Segurança",
   "eventType.activity": "Atividade",
   "eventType.exception": "Exceção",
-  "severity.none": "—",
+  "severity.none": "-",
   "severity.trace": "Rastreio",
   "severity.debug": "Depuração",
   "severity.info": "Info",

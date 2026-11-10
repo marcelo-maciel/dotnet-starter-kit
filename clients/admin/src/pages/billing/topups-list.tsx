@@ -113,7 +113,7 @@ export function TopupsListPage() {
   const totals = useMemo(() => {
     let pendingCount = 0;
     let requested = 0;
-    const firstCurrency = items[0]?.currency ?? "USD";
+    const firstCurrency = items[0]?.currency ?? "BRL";
     for (const req of items) {
       requested += req.amount;
       if (req.status === "Pending") pendingCount += 1;

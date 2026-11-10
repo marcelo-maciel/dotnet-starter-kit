@@ -156,10 +156,10 @@ export function AuditsListPage() {
       </EntityPageHeader>
 
       <StatStrip cols={4}>
-        <Stat label={t("list.stat.total")} value={summary.isLoading ? "—" : formatNumber(summaryStats.total)} hint={t("list.stat.totalHint")} />
-        <Stat label={t("list.stat.errors")} value={summary.isLoading ? "—" : formatNumber(summaryStats.errors)} hint={t("list.stat.errorsHint")} tone={summaryStats.errors > 0 ? "danger" : "default"} />
-        <Stat label={t("list.stat.security")} value={summary.isLoading ? "—" : formatNumber(summaryStats.security)} hint={t("list.stat.securityHint")} tone={summaryStats.security > 0 ? "info" : "default"} />
-        <Stat label={t("list.stat.exceptions")} value={summary.isLoading ? "—" : formatNumber(summaryStats.exceptions)} hint={t("list.stat.exceptionsHint")} tone={summaryStats.exceptions > 0 ? "warning" : "default"} />
+        <Stat label={t("list.stat.total")} value={summary.isLoading ? "-" : formatNumber(summaryStats.total)} hint={t("list.stat.totalHint")} />
+        <Stat label={t("list.stat.errors")} value={summary.isLoading ? "-" : formatNumber(summaryStats.errors)} hint={t("list.stat.errorsHint")} tone={summaryStats.errors > 0 ? "danger" : "default"} />
+        <Stat label={t("list.stat.security")} value={summary.isLoading ? "-" : formatNumber(summaryStats.security)} hint={t("list.stat.securityHint")} tone={summaryStats.security > 0 ? "info" : "default"} />
+        <Stat label={t("list.stat.exceptions")} value={summary.isLoading ? "-" : formatNumber(summaryStats.exceptions)} hint={t("list.stat.exceptionsHint")} tone={summaryStats.exceptions > 0 ? "warning" : "default"} />
       </StatStrip>
 
       <FilterBar
@@ -299,7 +299,7 @@ function AuditRow({ event, onClick }: { event: AuditSummaryDto; onClick: () => v
         <div className="min-w-0">
           <div className="flex flex-wrap items-baseline gap-2">
             <span className="truncate text-sm font-medium">
-              {event.source ?? "—"}
+              {event.source ?? "-"}
             </span>
             {event.userName && (
               <span className="truncate font-mono text-[11px] text-[var(--color-muted-foreground)]">

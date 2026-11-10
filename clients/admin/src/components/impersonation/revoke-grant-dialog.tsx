@@ -156,7 +156,7 @@ function GrantSummary({ grant }: { grant: ImpersonationGrantDto }) {
         </Badge>
       </Row>
       <Row label={t("revokeDialog.summary.reason")}>
-        <span className="text-[var(--color-muted-foreground)]">{grant.reason || "—"}</span>
+        <span className="text-[var(--color-muted-foreground)]">{grant.reason || "-"}</span>
       </Row>
       <Row label={t("revokeDialog.summary.expires")}>
         <code className="code-chip">{formatDateTime(grant.expiresAtUtc)}</code>

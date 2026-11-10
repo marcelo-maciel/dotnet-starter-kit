@@ -517,7 +517,7 @@ function AuditMobileCard({
       </div>
       <div className="mt-2 ml-[52px] flex flex-wrap items-center gap-x-3 gap-y-0.5">
         <code className="font-mono text-[11px] text-[var(--color-muted-foreground)]">
-          {row.source ?? "—"}
+          {row.source ?? "-"}
         </code>
         <span className="ml-auto font-mono text-[11px] tabular-nums text-[var(--color-muted-foreground)]">
           {ts.time} · {ts.date}
@@ -574,7 +574,7 @@ function AuditDesktopRow({
           </div>
           <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
             <code className="truncate font-mono text-[11px] text-[oklch(from_var(--color-muted-foreground)_l_c_h_/_0.8)]">
-              {row.source ?? "—"}
+              {row.source ?? "-"}
             </code>
             {tags.slice(0, 2).map((name) => (
               <span
@@ -703,7 +703,7 @@ function SummaryStrip({
           </div>
           <div className="flex max-w-[28rem] flex-wrap justify-end gap-1.5">
             {topSources.length === 0 && (
-              <span className="font-mono text-[11px] text-[var(--color-muted-foreground)]">—</span>
+              <span className="font-mono text-[11px] text-[var(--color-muted-foreground)]">-</span>
             )}
             {topSources.map(([name, count]) => (
               <span
@@ -1189,10 +1189,10 @@ function DrawerBody({
       <section>
         <SectionLabel>{t("drawer.section.identity")}</SectionLabel>
         <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-          <DefRow label={t("drawer.field.tenant")} value={detail.tenantId ?? "—"} mono />
-          <DefRow label={t("drawer.field.user")} value={detail.userName ?? detail.userId ?? "—"} />
-          <DefRow label={t("drawer.field.userId")} value={detail.userId ?? "—"} mono />
-          <DefRow label={t("drawer.field.source")} value={detail.source ?? "—"} mono />
+          <DefRow label={t("drawer.field.tenant")} value={detail.tenantId ?? "-"} mono />
+          <DefRow label={t("drawer.field.user")} value={detail.userName ?? detail.userId ?? "-"} />
+          <DefRow label={t("drawer.field.userId")} value={detail.userId ?? "-"} mono />
+          <DefRow label={t("drawer.field.source")} value={detail.source ?? "-"} mono />
         </dl>
       </section>
 
@@ -1200,10 +1200,10 @@ function DrawerBody({
       <section>
         <SectionLabel>{t("drawer.section.trace")}</SectionLabel>
         <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-          <DefRow label={t("drawer.field.traceId")} value={detail.traceId ?? "—"} mono />
-          <DefRow label={t("drawer.field.spanId")} value={detail.spanId ?? "—"} mono />
-          <DefRow label={t("drawer.field.correlationId")} value={detail.correlationId ?? "—"} mono />
-          <DefRow label={t("drawer.field.requestId")} value={detail.requestId ?? "—"} mono />
+          <DefRow label={t("drawer.field.traceId")} value={detail.traceId ?? "-"} mono />
+          <DefRow label={t("drawer.field.spanId")} value={detail.spanId ?? "-"} mono />
+          <DefRow label={t("drawer.field.correlationId")} value={detail.correlationId ?? "-"} mono />
+          <DefRow label={t("drawer.field.requestId")} value={detail.requestId ?? "-"} mono />
         </dl>
         <div className="mt-3 flex flex-wrap gap-2">
           {detail.correlationId && (

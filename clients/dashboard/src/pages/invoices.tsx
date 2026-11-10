@@ -318,7 +318,7 @@ function DesktopRow({
         ) : invoice.paidAtUtc && invoice.status === "Paid" ? (
           <span className="text-[var(--color-success)]">{t("invoices.paidOn", { date: formatDate(invoice.paidAtUtc) })}</span>
         ) : (
-          "—"
+          "-"
         )}
       </span>
     </EntityListRow>

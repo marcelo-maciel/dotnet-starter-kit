@@ -119,7 +119,7 @@ export function FichasEmAtendimentoPage() {
             <tbody>
               {lista.data.atendimentos.map((a) => (
                 <tr key={a.atendimentoId} data-atendimento={a.atendimentoId} className="border-b border-[var(--color-border)] last:border-0">
-                  <td className="px-3 py-2">{a.guiche ?? "—"}</td>
+                  <td className="px-3 py-2">{a.guiche ?? "-"}</td>
                   <td className="px-3 py-2 font-medium">{a.senha}</td>
                   <td className="px-3 py-2">{a.fila}</td>
                   <td className="px-3 py-2">{a.prioridade}</td>

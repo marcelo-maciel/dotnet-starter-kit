@@ -130,7 +130,7 @@ export function Select<T extends string = string>({
                   {opt.label}
                   {opt.hint && (
                     <span className="ml-1.5 text-[var(--color-muted-foreground)] text-xs">
-                      — {opt.hint}
+                      - {opt.hint}
                     </span>
                   )}
                 </span>

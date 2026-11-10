@@ -149,16 +149,16 @@ export function UserDetailPage() {
             >
               <dl className="space-y-0 divide-y divide-[oklch(from_var(--color-border)_l_c_h_/_0.5)]">
                 <DetailRow label={t("detail.row.userId")} mono>
-                  {user.id ?? "—"}
+                  {user.id ?? "-"}
                 </DetailRow>
                 <DetailRow label={t("detail.row.username")} mono>
-                  {user.userName ?? "—"}
+                  {user.userName ?? "-"}
                 </DetailRow>
                 <DetailRow label={t("detail.row.email")} mono>
-                  {user.email ?? "—"}
+                  {user.email ?? "-"}
                 </DetailRow>
                 <DetailRow label={t("detail.row.phone")} mono>
-                  {user.phoneNumber ?? "—"}
+                  {user.phoneNumber ?? "-"}
                 </DetailRow>
                 <DetailRow label={t("detail.row.status")}>
                   {user.isActive ? t("detail.status.active") : t("detail.status.disabled")}

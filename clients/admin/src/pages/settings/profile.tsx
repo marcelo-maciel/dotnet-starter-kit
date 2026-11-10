@@ -82,7 +82,7 @@ export function ProfileSettings() {
           <SettingsField id="profile-phone" label={t("profile.field.phone")}>
             <Input
               id="profile-phone"
-              value={user.phoneNumber ?? "—"}
+              value={user.phoneNumber ?? "-"}
               readOnly
               className="font-mono bg-[var(--color-muted)] cursor-not-allowed"
             />

@@ -299,8 +299,8 @@ export function TenantDetailPage() {
               <InfoRow label={t("detail.row.identifier")} mono>{tenant.id}</InfoRow>
               <InfoRow label={t("detail.row.name")}>{tenant.name}</InfoRow>
               <InfoRow label={t("detail.row.adminEmail")} mono>{tenant.adminEmail}</InfoRow>
-              <InfoRow label={t("detail.row.jwtIssuer")} mono>{tenant.issuer ?? "—"}</InfoRow>
-              <InfoRow label={t("detail.row.plan")}>{tenant.plan ?? "—"}</InfoRow>
+              <InfoRow label={t("detail.row.jwtIssuer")} mono>{tenant.issuer ?? "-"}</InfoRow>
+              <InfoRow label={t("detail.row.plan")}>{tenant.plan ?? "-"}</InfoRow>
               <InfoRow label={t("detail.row.validUntil")}>
                 <span className="flex items-center gap-1.5">
                   <CalendarClock className="h-3.5 w-3.5 text-[var(--color-muted-foreground)]" />
@@ -663,7 +663,7 @@ function expiryVariant(state: string): React.ComponentProps<typeof Badge>["varia
 function formatDuration(start: string, end: string): string {
   const a = new Date(start).getTime();
   const b = new Date(end).getTime();
-  if (Number.isNaN(a) || Number.isNaN(b)) return "—";
+  if (Number.isNaN(a) || Number.isNaN(b)) return "-";
   const ms = Math.max(0, b - a);
   if (ms < 1000) return `${ms}ms`;
   const s = ms / 1000;

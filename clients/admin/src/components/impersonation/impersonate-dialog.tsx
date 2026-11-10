@@ -232,7 +232,7 @@ function PickStep({
                       )}
                     </div>
                     <div className="truncate font-mono text-[11px] text-[var(--color-muted-foreground)]">
-                      {user.email ?? "—"}
+                      {user.email ?? "-"}
                     </div>
                   </div>
                   <ArrowRight className="h-3.5 w-3.5 text-[var(--color-muted-foreground)] transition-transform group-hover:translate-x-0.5" />
@@ -432,7 +432,7 @@ function SelectedUserCard({
           )}
         </div>
         <div className="mt-0.5 flex flex-wrap items-baseline gap-2 font-mono text-[11px] text-[var(--color-muted-foreground)]">
-          <span className="truncate">{user.email ?? "—"}</span>
+          <span className="truncate">{user.email ?? "-"}</span>
           <Badge variant="muted" className="font-mono uppercase tracking-[0.14em]">
             {tenantName ?? tenantId}
           </Badge>

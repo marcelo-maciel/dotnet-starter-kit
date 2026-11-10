@@ -118,9 +118,9 @@ export function WalletPage() {
         <BalanceCard
           loading={walletQuery.isLoading}
           balance={wallet?.balance ?? null}
-          currency={wallet?.currency ?? "USD"}
+          currency={wallet?.currency ?? "BRL"}
         />
-        <TopupRequestForm currency={wallet?.currency ?? "USD"} />
+        <TopupRequestForm currency={wallet?.currency ?? "BRL"} />
       </div>
 
       <section className="space-y-3">
@@ -415,7 +415,7 @@ function DesktopRow({
             {t("wallet.viewInvoice")}
           </Link>
         ) : (
-          "—"
+          "-"
         )}
       </span>
     </EntityListRow>

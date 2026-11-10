@@ -210,7 +210,7 @@ export function Topbar() {
               {displayName}
             </p>
             <p className="mt-1 truncate text-[10px] leading-none text-[var(--color-muted-foreground)]">
-              {user?.tenant ?? "—"}
+              {user?.tenant ?? "-"}
             </p>
           </div>
           <ChevronsUpDown

@@ -57,7 +57,7 @@ test("guichê pelo número do cadastro, senão pelo nome da estação, senão tr
   assert.equal(descricaoGuiche({ guiche: "Guichê 1", numeroGuiche: 3, nomeExibicaoGuiche: "Caixa" }), "3 - Caixa");
   assert.equal(descricaoGuiche({ guiche: "Guichê 1", numeroGuiche: 3, nomeExibicaoGuiche: null }), "3");
   assert.equal(descricaoGuiche({ guiche: "Guichê 1", numeroGuiche: null, nomeExibicaoGuiche: null }), "Guichê 1");
-  assert.equal(descricaoGuiche({ guiche: null, numeroGuiche: null, nomeExibicaoGuiche: null }), "—");
+  assert.equal(descricaoGuiche({ guiche: null, numeroGuiche: null, nomeExibicaoGuiche: null }), "-");
 });
 
 test("rótulo do estado legível e o desconhecido passa como veio", () => {

@@ -421,15 +421,15 @@ function FormularioProgramacao(props: {
       <dl className="grid gap-2 rounded-md border border-[var(--color-border)] p-3 text-sm sm:grid-cols-3" data-calculo>
         <div>
           <dt className="text-[var(--color-muted-foreground)]">Tempo da mídia</dt>
-          <dd data-tempo-midia>{calculo ? duracaoLegivel(calculo.tempoMidiaSegundos) : "—"}</dd>
+          <dd data-tempo-midia>{calculo ? duracaoLegivel(calculo.tempoMidiaSegundos) : "-"}</dd>
         </div>
         <div>
           <dt className="text-[var(--color-muted-foreground)]">Tempo total</dt>
-          <dd data-tempo-total>{calculo ? duracaoLegivel(calculo.tempoTotalSegundos) : "—"}</dd>
+          <dd data-tempo-total>{calculo ? duracaoLegivel(calculo.tempoTotalSegundos) : "-"}</dd>
         </div>
         <div>
           <dt className="text-[var(--color-muted-foreground)]">Hora final</dt>
-          <dd data-hora-final-calculada>{calculo ? horaDosSegundos(calculo.horaFinalSegundos) : "—"}</dd>
+          <dd data-hora-final-calculada>{calculo ? horaDosSegundos(calculo.horaFinalSegundos) : "-"}</dd>
         </div>
       </dl>
       {calculo?.passaDaMeiaNoite && (

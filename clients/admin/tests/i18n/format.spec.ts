@@ -57,7 +57,7 @@ test.describe("format.ts", () => {
     expect(out.datePt).not.toBe(out.dateEn);
 
     // Documented fallbacks: nullish -> em dash, unparseable -> echo, bad currency -> amount + code.
-    expect(out.dateNull).toBe("—");
+    expect(out.dateNull).toBe("-");
     expect(out.dateBad).toBe("not-a-date");
     expect(out.curBad).toBe("10.00 NOTACUR");
   });

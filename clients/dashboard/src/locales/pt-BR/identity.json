@@ -124,7 +124,7 @@
   "rolesList.system": "Sistema",
   "rolesList.noDescription": "Sem descrição registrada.",
   "rolesList.openAria": "Abrir função {{name}}",
-  "rolesList.permNone": "—",
+  "rolesList.permNone": "-",
   "rolesList.perm_one": "{{count, number}} permissão",
   "rolesList.perm_other": "{{count, number}} permissões",
   "rolesList.perm_zero": "{{count, number}} permissões",

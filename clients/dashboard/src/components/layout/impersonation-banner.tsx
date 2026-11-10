@@ -63,9 +63,9 @@ export function ImpersonationBanner() {
   if (!impersonation) return null;
 
   const subjectLabel = user?.name ?? user?.email ?? t("unknownUser");
-  const tenantLabel = user?.tenant ?? "—";
+  const tenantLabel = user?.tenant ?? "-";
   const actorLabel = impersonation.actorName ?? impersonation.actorUserId.slice(0, 8) + "…";
-  const actorTenantLabel = impersonation.actorTenant ?? "—";
+  const actorTenantLabel = impersonation.actorTenant ?? "-";
   const isCrossTenant =
     impersonation.actorTenant !== undefined && impersonation.actorTenant !== user?.tenant;
 

@@ -39,7 +39,7 @@ export function TenantsListPage() {
   const items: TenantDto[] = data?.items ?? [];
 
   const pageBadge = useMemo(() => {
-    if (!data) return "—";
+    if (!data) return "-";
     const p = String(data.pageNumber).padStart(2, "0");
     const total = String(Math.max(data.totalPages, 1)).padStart(2, "0");
     return t("list.page", { page: p, total });
